@@ -23,7 +23,6 @@ type HmacSha256 = Hmac<Sha256>;
 const XCODE_WEBHOOK_PATH: &str = "/webhooks/cache";
 const GRADLE_WEBHOOK_PATH: &str = "/webhooks/gradle-cache";
 const REAPI_CACHE_WEBHOOK_PATH: &str = "/webhooks/reapi-cache";
-const BAZEL_INVOCATIONS_WEBHOOK_PATH: &str = "/webhooks/bazel-invocations";
 
 #[derive(Clone)]
 pub struct Analytics {
@@ -38,7 +37,6 @@ enum AnalyticsEvent {
     Xcode(XcodeAnalyticsEvent),
     Gradle(GradleAnalyticsEvent),
     ReapiCache(ReapiCacheAnalyticsEvent),
-    BazelInvocation(BazelInvocationAnalyticsEvent),
 }
 
 #[derive(Clone)]
@@ -78,22 +76,11 @@ pub struct ReapiCacheAnalyticsEvent {
     pub action_digest: String,
     pub size: u64,
     pub duration_ms: u64,
+    pub observed_at_ms: u64,
     pub invocation_id: String,
     pub action_mnemonic: String,
     pub target_label: String,
     pub configuration_id: String,
-}
-
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-pub struct BazelInvocationAnalyticsEvent {
-    pub account_handle: String,
-    pub project_handle: String,
-    pub invocation_id: String,
-    pub command: String,
-    pub status: String,
-    pub exit_code: i32,
-    pub started_at_ms: u64,
-    pub finished_at_ms: u64,
 }
 
 #[derive(Serialize)]
@@ -221,10 +208,6 @@ impl Analytics {
         self.enqueue(AnalyticsEvent::ReapiCache(event));
     }
 
-    pub fn enqueue_bazel_invocation_event(&self, event: BazelInvocationAnalyticsEvent) {
-        self.enqueue(AnalyticsEvent::BazelInvocation(event));
-    }
-
     fn enqueue(&self, event: AnalyticsEvent) {
         match self.sender.try_send(event) {
             Ok(()) => {
@@ -248,11 +231,9 @@ impl AnalyticsRuntime {
         let mut xcode_batch = Vec::with_capacity(self.config.batch_size);
         let mut gradle_batch = Vec::with_capacity(self.config.batch_size);
         let mut reapi_cache_batch = Vec::with_capacity(self.config.batch_size);
-        let mut bazel_invocation_batch = Vec::with_capacity(self.config.batch_size);
         let mut xcode_breaker = CircuitBreaker::new();
         let mut gradle_breaker = CircuitBreaker::new();
         let mut reapi_cache_breaker = CircuitBreaker::new();
-        let mut bazel_invocation_breaker = CircuitBreaker::new();
 
         self.metrics
             .update_analytics_circuit_state("xcode", xcode_breaker.state.code());
@@ -260,11 +241,6 @@ impl AnalyticsRuntime {
             .update_analytics_circuit_state("gradle", gradle_breaker.state.code());
         self.metrics
             .update_analytics_circuit_state("reapi_cache", reapi_cache_breaker.state.code());
-        self.metrics.update_analytics_circuit_state(
-            "bazel_invocations",
-            bazel_invocation_breaker.state.code(),
-        );
-
         loop {
             tokio::select! {
                 maybe_event = receiver.recv() => {
@@ -272,7 +248,6 @@ impl AnalyticsRuntime {
                         self.flush_xcode(&mut xcode_batch, &mut xcode_breaker).await;
                         self.flush_gradle(&mut gradle_batch, &mut gradle_breaker).await;
                         self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
-                        self.flush_bazel_invocations(&mut bazel_invocation_batch, &mut bazel_invocation_breaker).await;
                         break;
                     };
 
@@ -299,19 +274,12 @@ impl AnalyticsRuntime {
                                 self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
                             }
                         }
-                        AnalyticsEvent::BazelInvocation(event) => {
-                            bazel_invocation_batch.push(event);
-                            if bazel_invocation_batch.len() >= self.config.batch_size {
-                                self.flush_bazel_invocations(&mut bazel_invocation_batch, &mut bazel_invocation_breaker).await;
-                            }
-                        }
                     }
                 }
                 _ = ticker.tick() => {
                     self.flush_xcode(&mut xcode_batch, &mut xcode_breaker).await;
                     self.flush_gradle(&mut gradle_batch, &mut gradle_breaker).await;
                     self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
-                    self.flush_bazel_invocations(&mut bazel_invocation_batch, &mut bazel_invocation_breaker).await;
                 }
             }
         }
@@ -381,31 +349,6 @@ impl AnalyticsRuntime {
             |count, result| {
                 self.metrics
                     .record_analytics_event("reapi_cache", result, count)
-            },
-        )
-        .await;
-    }
-
-    async fn flush_bazel_invocations(
-        &self,
-        batch: &mut Vec<BazelInvocationAnalyticsEvent>,
-        breaker: &mut CircuitBreaker,
-    ) {
-        if batch.is_empty() {
-            return;
-        }
-
-        let count = batch.len() as u64;
-        let events = std::mem::take(batch);
-        self.flush(
-            "bazel_invocations",
-            BAZEL_INVOCATIONS_WEBHOOK_PATH,
-            &EventBatch { events },
-            count,
-            breaker,
-            |count, result| {
-                self.metrics
-                    .record_analytics_event("bazel_invocations", result, count)
             },
         )
         .await;
@@ -660,8 +603,7 @@ mod tests {
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, BazelInvocationAnalyticsEvent, CircuitBreaker, CircuitState,
-        ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
     };
 
     #[derive(Clone, Debug)]
@@ -672,7 +614,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batches_and_signs_xcode_gradle_reapi_cache_and_bazel_invocation_events() {
+    async fn batches_and_signs_xcode_gradle_and_reapi_cache_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let analytics = Analytics::from_config(
@@ -703,25 +645,15 @@ mod tests {
             action_digest: "digest-1".into(),
             size: 128,
             duration_ms: 9,
+            observed_at_ms: 1_700_000_000_123,
             invocation_id: "invocation-1".into(),
             action_mnemonic: "SwiftCompile".into(),
             target_label: "//app:app".into(),
             configuration_id: "config-1".into(),
         });
-        analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            invocation_id: "invocation-1".into(),
-            command: "test".into(),
-            status: "success".into(),
-            exit_code: 0,
-            started_at_ms: 1_700_000_000_000,
-            finished_at_ms: 1_700_000_015_000,
-        });
-
         timeout(Duration::from_secs(2), async {
             loop {
-                if captured.lock().expect("captured requests lock").len() >= 4 {
+                if captured.lock().expect("captured requests lock").len() >= 3 {
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
@@ -731,7 +663,7 @@ mod tests {
         .expect("analytics batches should be delivered");
 
         let requests = captured.lock().expect("captured requests lock");
-        assert_eq!(requests.len(), 4);
+        assert_eq!(requests.len(), 3);
 
         let xcode = requests
             .iter()
@@ -796,6 +728,7 @@ mod tests {
                     "action_digest": "digest-1",
                     "size": 128,
                     "duration_ms": 9,
+                    "observed_at_ms": 1700000000123u64,
                     "invocation_id": "invocation-1",
                     "action_mnemonic": "SwiftCompile",
                     "target_label": "//app:app",
@@ -803,30 +736,87 @@ mod tests {
                 }]
             })
         );
+    }
 
-        let bazel_invocations = requests
+    #[tokio::test]
+    async fn sends_content_addressable_storage_cache_events() {
+        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        let analytics = Analytics::from_config(
+            Some(&AnalyticsConfig {
+                server_url: base_url,
+                signing_key: "secret-key".into(),
+                batch_size: 1,
+                batch_timeout_ms: 5_000,
+                queue_capacity: 8,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 5_000,
+            }),
+            "https://cache-us-east-3.example.com:7443",
+            Metrics::new("us-east".into(), "tenant".into()),
+        )
+        .expect("analytics should initialize")
+        .expect("analytics should be enabled");
+
+        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
+            account_handle: "acme".into(),
+            project_handle: "bazel".into(),
+            client_kind: "bazel".into(),
+            operation: "cas".into(),
+            outcome: "write".into(),
+            action_digest: "content-digest".into(),
+            size: 4_096,
+            duration_ms: 14,
+            observed_at_ms: 1_700_000_000_456,
+            invocation_id: "invocation-1".into(),
+            action_mnemonic: "".into(),
+            target_label: "".into(),
+            configuration_id: "".into(),
+        });
+
+        timeout(Duration::from_secs(2), async {
+            loop {
+                if captured.lock().expect("captured requests lock").len() == 1 {
+                    break;
+                }
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("analytics batch should be delivered");
+
+        let requests = captured.lock().expect("captured requests lock");
+        let reapi_cache = requests
             .iter()
-            .find(|request| request.path == "/webhooks/bazel-invocations")
-            .expect("Bazel invocation analytics request should be present");
+            .find(|request| request.path == "/webhooks/reapi-cache")
+            .expect("Remote Execution API cache analytics request should be present");
+
         assert_signed(
-            bazel_invocations,
+            reapi_cache,
             "secret-key",
             "cache-us-east-3.example.com:7443",
         );
-        let bazel_invocations_body: Value = serde_json::from_slice(&bazel_invocations.body)
-            .expect("Bazel invocation payload should decode");
+
+        let body: Value =
+            serde_json::from_slice(&reapi_cache.body).expect("cache payload should decode");
         assert_eq!(
-            bazel_invocations_body,
+            body,
             serde_json::json!({
                 "events": [{
                     "account_handle": "acme",
                     "project_handle": "bazel",
+                    "client_kind": "bazel",
+                    "operation": "cas",
+                    "outcome": "write",
+                    "action_digest": "content-digest",
+                    "size": 4096,
+                    "duration_ms": 14,
+                    "observed_at_ms": 1700000000456u64,
                     "invocation_id": "invocation-1",
-                    "command": "test",
-                    "status": "success",
-                    "exit_code": 0,
-                    "started_at_ms": 1_700_000_000_000u64,
-                    "finished_at_ms": 1_700_000_015_000u64
+                    "action_mnemonic": "",
+                    "target_label": "",
+                    "configuration_id": ""
                 }]
             })
         );
@@ -963,13 +953,6 @@ mod tests {
             );
         let router = router.route(
             "/webhooks/reapi-cache",
-            post({
-                let captured = captured.clone();
-                move |request| capture_request(captured.clone(), request, status)
-            }),
-        );
-        let router = router.route(
-            "/webhooks/bazel-invocations",
             post({
                 let captured = captured.clone();
                 move |request| capture_request(captured.clone(), request, status)

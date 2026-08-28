@@ -23,14 +23,14 @@ Contributions to Kura require signing the Kura Contributor License Agreement (CL
 - 🔎 Nodes can discover peers through DNS and catch up from already-running nodes
 - 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and module-cache protocols
 - 🧪 Compatibility endpoints for Nx and React Native Metro are available, but they are not a primary focus today
-- 🧰 The gRPC API exposes Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services and [Build Event Service](https://bazel.build/remote/bep) receiver
+- 🧰 The gRPC API exposes Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services
 - 📊 The local stack includes Grafana, Prometheus, Loki, Promtail, and Tempo traces
 
 ## Supported cache protocols
 
 Actively supported:
 
-- `Bazel` and `Buck2`: Bazel [Remote Execution API](https://github.com/bazelbuild/remote-apis) v2 cache services over gRPC on `KURA_PORT`; Bazel also reports completed commands through the [Build Event Service](https://bazel.build/remote/bep) on that port
+- `Bazel` and `Buck2`: Bazel [Remote Execution API](https://github.com/bazelbuild/remote-apis) v2 cache services over gRPC on `KURA_PORT`
 - `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
 - `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
@@ -59,9 +59,9 @@ Useful endpoints:
 - `http://localhost:4103/up`
 - `http://localhost:4103/ready`
 - `http://localhost:4103/status/rollout`
-- `grpc://localhost:4101` for Bazel/Buck2 Remote Execution API cache traffic and Bazel Build Event Service traffic against `kura-us`
-- `grpc://localhost:4102` for Bazel/Buck2 Remote Execution API cache traffic and Bazel Build Event Service traffic against `kura-eu`
-- `grpc://localhost:4103` for Bazel/Buck2 Remote Execution API cache traffic and Bazel Build Event Service traffic against `kura-ap`
+- `grpc://localhost:4101` for Bazel/Buck2 Remote Execution API cache traffic against `kura-us`
+- `grpc://localhost:4102` for Bazel/Buck2 Remote Execution API cache traffic against `kura-eu`
+- `grpc://localhost:4103` for Bazel/Buck2 Remote Execution API cache traffic against `kura-ap`
 - `http://localhost:3000` for Grafana with `admin` / `admin`
 - `http://localhost:9090` for Prometheus
 - `http://localhost:3100` for Loki
@@ -115,7 +115,7 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 Kura exposes multiple cache protocols behind one service. Public HTTPS supports HTTP/2 so clients can multiplex concurrent artifact downloads on long-lived connections. The actively supported surfaces are:
 
-- 🛠️ `Bazel` and `Buck2`: [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services over gRPC on `KURA_PORT`; Bazel's [Build Event Service](https://bazel.build/remote/bep) is co-hosted on the same port
+- 🛠️ `Bazel` and `Buck2`: [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services over gRPC on `KURA_PORT`
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
 - 🗂️ `KeyValue / action-cache entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
@@ -396,15 +396,14 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode, Gradle, and Bazel remote-cache traffic. Bazel's [Build Event Service](https://bazel.build/remote/bep) adds completed-command records separately, so cache observations can be attributed to the corresponding invocation.
+Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode, Gradle, and Bazel remote-cache traffic. Kura emits Bazel action-cache and content-addressable-storage observations. The Tuist command-line interface captures completed Bazel commands and final test-target summaries from the [Bazel Build Event Protocol](https://bazel.build/remote/bep), then uploads them directly to the Tuist server, so cache observations can be attributed to the corresponding invocation without placing telemetry work on the cache path.
 
-Kura emits cache webhook events only for namespace-scoped Xcode and Gradle HTTP requests, plus Bazel Remote Execution API action-cache requests. It uses the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Bazel Build Event Service requests use the `x-tuist-project-handle` metadata set by `tuist bazel setup`; Kura authenticates them with the same account metadata and credential helper as cache traffic. Tenant-scoped cache requests skip analytics until Tuist grows account-scoped binary analytics.
+Kura emits cache webhook events only for namespace-scoped Xcode and Gradle HTTP requests, plus Bazel [Remote Execution API](https://github.com/bazelbuild/remote-apis) action-cache and content-addressable-storage requests. It uses the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Tenant-scoped cache requests skip analytics until Tuist grows account-scoped binary analytics.
 
 When enabled:
 
 - 🍎 Xcode upload and download events are sent to `/webhooks/cache`
 - 🐘 Gradle upload and download events are sent to `/webhooks/gradle-cache`
-- 🛠️ completed Bazel invocations are sent to `/webhooks/bazel-invocations`
 - ✍️ requests are signed with `x-cache-signature`
 - 🧭 requests also include `x-cache-endpoint`
 - 🪶 delivery stays in-memory and best-effort, so analytics never block the hot path

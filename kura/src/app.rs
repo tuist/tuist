@@ -1,9 +1,4 @@
-use std::{
-    future::Future,
-    net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
+use std::{future::Future, net::{Ipv4Addr, SocketAddr}, sync::Arc, time::Duration};
 
 use axum::response::IntoResponse;
 use axum_server::Handle;
@@ -280,7 +275,8 @@ async fn run_with_config(
     if state.config.public_tls.is_some() {
         info!("Kura HTTP+gRPC service listening on {https_address} (TLS)");
     }
-    let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
+    let internal_address =
+        SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
         info!("Kura internal mTLS service listening on {internal_address}");
     } else {

@@ -22,7 +22,7 @@ Build caches are read-heavy and latency-sensitive. A central cache hundreds of m
    │             Kura node (region X)         │
    │                                          │
    │ co-hosted HTTP + gRPC (Remote Execution  │
-   │ API cache + Bazel Build Event Service)   │
+   │ API cache)                               │
    │            │                             │
    │            ▼                             │
    │   ┌──────────────────────────┐           │
@@ -50,14 +50,14 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Concern | Code |
 | --- | --- |
 | Process entry, server wiring | `src/main.rs`, `src/app.rs` |
-| Public HTTP + gRPC handlers, including the Remote Execution API cache and Bazel Build Event Service, readiness/rollout endpoints | `src/http.rs`, `src/reapi/` |
+| Public HTTP + gRPC handlers, including the Remote Execution API cache, readiness, and rollout endpoints | `src/http.rs`, `src/reapi/` |
 | Storage (metadata, outbox, segments) | `src/store.rs` |
 | Replication (membership, outbox processing) | `src/replication/` |
 | Peer catch-up walker (backfill) | `src/backfill/` |
 | Cluster membership and readiness state | `src/state.rs` |
 | Traffic state, drain, single-writer fencing | `src/runtime.rs` |
 | Configuration + auto-derived defaults | `src/config.rs`, `src/constants.rs` |
-| Metrics, traces, logs, error reporting | `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs` |
+| Metrics, traces, logs, error reporting, and best-effort cache analytics delivery | `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs` |
 | Usage metering | `src/usage.rs` |
 | Cache authorization | `src/auth/` |
 | Helm chart, rollout scripts, observability config | `ops/` |
@@ -226,7 +226,7 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 
 ## Where To Read Next
 
-- For protocol surfaces (Remote Execution API, Bazel Build Event Service, Xcode, Gradle, Module Cache, Nx, Metro), start in `src/http.rs` and `src/reapi/mod.rs`.
+- For protocol surfaces (Remote Execution API, Xcode, Gradle, Module Cache, Nx, Metro), start in `src/http.rs` and `src/reapi/mod.rs`.
 - For the storage layer, `src/store.rs` is the single entry point.
 - For replication invariants see `src/replication/mod.rs` and `src/state.rs`; for catch-up pass scheduling and retry behavior see `src/backfill/lifecycle.rs`.
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.

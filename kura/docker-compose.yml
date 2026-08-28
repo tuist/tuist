@@ -11,7 +11,7 @@ services:
       # traffic ride this one port (published below as KURA_*_PORT).
       KURA_PORT: "4000"
       KURA_INTERNAL_PORT: "7443"
-      KURA_TENANT_ID: default
+      KURA_TENANT_ID: ${KURA_TENANT_ID:-default}
       KURA_TMP_DIR: /var/cache/kura/tmp
       KURA_TMP_DIR_MAX_BYTES: ${KURA_E2E_TMP_DIR_MAX_BYTES:-8589934592}
       KURA_DATA_DIR: /var/cache/kura
@@ -32,6 +32,10 @@ services:
       KURA_OTEL_SERVICE_NAME: kura-us
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
       KURA_SENTRY_DSN: ${KURA_SENTRY_DSN:-}
+      KURA_ANALYTICS_SERVER_URL: ${KURA_ANALYTICS_SERVER_URL:-}
+      KURA_ANALYTICS_SIGNING_KEY: ${KURA_ANALYTICS_SIGNING_KEY:-}
+      KURA_ANALYTICS_BATCH_SIZE: ${KURA_ANALYTICS_BATCH_SIZE:-100}
+      KURA_ANALYTICS_BATCH_TIMEOUT_MS: ${KURA_ANALYTICS_BATCH_TIMEOUT_MS:-5000}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
       interval: 10s
@@ -39,7 +43,7 @@ services:
       retries: 18
     labels:
       kura.region: us-east
-      kura.tenant_id: default
+      kura.tenant_id: ${KURA_TENANT_ID:-default}
     ports:
       - "${KURA_US_PORT:-4101}:4000"
     volumes:
