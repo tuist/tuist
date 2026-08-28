@@ -134,46 +134,11 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
-	// EgressMbps is the box's public egress limitation (bandwidth.OvhToInternet on
-	// OVH's /specifications/network) as last read. Cached here rather than re-read
-	// per reconcile, and in status rather than memory so a rollout doesn't refetch
-	// for the whole fleet at once. Zero — unresolved, or resolved to something
-	// unusable — leaves the node on Spec.EgressBudgetMbps.
+	// Egress is what the controller knows about the box's egress budget: what the
+	// node was set to and why, and what OVH last reported. Nil while the machine
+	// has no configured budget; replaced when the machine moves to another box.
 	// +optional
-	EgressMbps int32 `json:"egressMbps,omitempty"`
-
-	// EgressTier is the bandwidth offer tier behind EgressMbps (standard, included,
-	// improved, ...), which is what distinguishes a box on a purchased uplink
-	// upgrade from its identically-specced neighbours.
-	// +optional
-	EgressTier string `json:"egressTier,omitempty"`
-
-	// EgressSource records what decided the node's advertised egress budget last
-	// time: "discovery" (a reading from OVH, including a floor the ratchet is holding
-	// that an earlier reading supports), "manual" (the tuist.dev/egress-mbps-override
-	// annotation), "held" (a floor the ratchet is holding with no reading behind it,
-	// so the number is whatever the node already advertised) or "configured"
-	// (Spec.EgressBudgetMbps).
-	//
-	// It answers "why is this node at N" without reading logs, and it is what makes
-	// an override reversible. A reading may raise the advertised budget but never
-	// lower it, and the ratchet is anchored to what the node currently advertises —
-	// so once a pin is removed, that anchor is a number a human typed rather than
-	// one discovery supports. Seeing "manual" with the annotation gone is how the
-	// controller knows to ignore it and re-derive from the configured budget.
-	// +optional
-	EgressSource string `json:"egressSource,omitempty"`
-
-	// EgressResolvedServiceName is the box the cached reading was taken from. A
-	// reading recorded against a different service is always stale, which is what
-	// keeps a re-adopted machine from being rated by the previous box's number.
-	// +optional
-	EgressResolvedServiceName string `json:"egressResolvedServiceName,omitempty"`
-
-	// EgressResolvedAt bounds the refresh. A failed read leaves it and EgressMbps
-	// untouched, so the last known-good value survives an OVH outage.
-	// +optional
-	EgressResolvedAt *metav1.Time `json:"egressResolvedAt,omitempty"`
+	Egress *EgressStatus `json:"egress,omitempty"`
 
 	// BootstrapAttempts counts consecutive bootstrap failures on the current
 	// server. Reset on a successful bootstrap or whenever the underlying
@@ -188,12 +153,52 @@ type OVHDedicatedMachineStatus struct {
 	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
 }
 
+// EgressStatus is the egress budget the node was last set to, and OVH's reading.
+type EgressStatus struct {
+	// ServiceName is the box this status describes. A status recorded against
+	// another box is discarded, so a re-adopted machine is never rated from its
+	// predecessor's reading.
+	ServiceName string `json:"serviceName"`
+
+	// BudgetMbps is what the node was last set to advertise. With Source
+	// "configured" or "discovery" it is a promise the controller never lowers;
+	// with Source "manual" it is a temporary pin that leaves no promise behind.
+	// +optional
+	BudgetMbps int32 `json:"budgetMbps,omitempty"`
+
+	// Source is what decided BudgetMbps: "configured" (spec.egressBudgetMbps),
+	// "discovery" (OVH's reading) or "manual" (the override annotation).
+	// +optional
+	Source string `json:"source,omitempty"`
+
+	// ReportedMbps is OVH's last usable reading of the box's public egress
+	// limitation (bandwidth.OvhToInternet), and Tier its bandwidth offer.
+	// +optional
+	ReportedMbps int32 `json:"reportedMbps,omitempty"`
+	// +optional
+	Tier string `json:"tier,omitempty"`
+
+	// ResolvedAt is when ReportedMbps was read; AttemptedAt is the last read,
+	// successful or not, and bounds the next one.
+	// +optional
+	ResolvedAt *metav1.Time `json:"resolvedAt,omitempty"`
+	// +optional
+	AttemptedAt *metav1.Time `json:"attemptedAt,omitempty"`
+
+	// ReadFailures counts consecutive failed reads. Reset on any answer.
+	// +optional
+	ReadFailures int32 `json:"readFailures,omitempty"`
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=ovhdedicatedmachines,scope=Namespaced,categories=cluster-api,shortName=odm
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
+// +kubebuilder:printcolumn:name="Egress",type=integer,JSONPath=".status.egress.budgetMbps"
+// +kubebuilder:printcolumn:name="EgressSource",type=string,JSONPath=".status.egress.source"
+// +kubebuilder:printcolumn:name="EgressReported",type=integer,JSONPath=".status.egress.reportedMbps",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // OVHDedicatedMachine is one OVHcloud dedicated server in the cluster.

@@ -289,164 +289,97 @@ on the consumer side.
 ### Per-box egress discovery (OVH)
 
 `EgressBudgetMbps` reaches a machine from its MachineTemplate, so every box a
-MachineDeployment clones carries the same number. That is fine while a fleet is
-one box per region and wrong the moment a region holds mixed hardware — a box on
-a purchased uplink upgrade, or a slower one added later. Over-stating a box's
-budget fails silently: the scheduler bin-packs floors the wire cannot deliver and
-the egress-tree agent rates its HTB root to match, so the symptom is traffic
-overrunning the link, not an error anyone is paged about.
+MachineDeployment clones carries the same number — wrong the moment a region
+holds mixed hardware (a box on a purchased uplink upgrade, a slower one added
+later). Over-stating a box fails silently: the scheduler bin-packs floors the
+wire cannot deliver and the egress-tree agent rates its HTB root to match.
 
-The reconciler therefore resolves the budget from the box, reading
-`bandwidth.OvhToInternet` from OVH's
-`/dedicated/server/{serviceName}/specifications/network`
-(`internal/ovh/client.go`, `controllers/linux/ovh_egress.go`), and falls back to
-the spec value for a box it cannot read. It is on for every OVH machine with a
-configured budget — zero already means "does not participate in egress governance"
-(the chart omits the field, the capacity helper no-ops, the tree agent leaves the
-node's pods unshaped), and rating such a box would override that opt-out with no
-way back, since the helper can lower an advertised capacity but never remove the
-key. The `tuist.dev/disable-egress-discovery` annotation on one OVHDedicatedMachine
-excludes that box — no call is made for it, and any reading already recorded on it stops
-counting. Presence is the whole signal, the value is never read (the same shape as
-CAPI's own `cluster.x-k8s.io/paused`, honoured a few lines up in that reconciler),
-so a disable flag never has to answer what `false` or a misspelling means. Removing
-the annotation brings the box back. There is no fleet-wide switch: the blast radius of a bad reading
-is one node, and a staged rollout is expressed by annotating the boxes that should
-wait and removing those annotations one at a time.
+The OVH reconciler therefore reads each box's public egress limitation
+(`bandwidth.OvhToInternet` on `/dedicated/server/{serviceName}/specifications/network`,
+`internal/ovh/client.go`) and lets it raise the node's budget. The policy is
+`shared.DecideEgress` (`controllers/shared/egress_policy.go`), a pure function of
+the configured budget, what the node was last set to, OVH's last usable reading
+and the two annotations below; `controllers/linux/ovh_egress.go` feeds it and
+patches the node. Everything the decision depends on lives in `status.egress`, so
+a failed node patch or an operator restart simply retries from status.
 
-Three things about that response are load-bearing. `connection` and
-`vrack.bandwidth` sit next to the field we read and report the switch link (25
-Gbit/s on every box we run, whatever the public path is limited to), so keying
-off either over-commits the public path a cache actually serves from. The value
-is a `{unit, value}` pair whose unit is a free-form string, not an enum — taking
-the bare number would advertise 5 Mbps for a box reported as "5 Gbps". And every
-field in the block is nullable, so an absent bandwidth block is an ordinary
-answer, not an error: it resolves to zero, which keeps the node on its spec
-value.
+Rules, in priority order:
 
-Discovery **raises a node's budget, never lowers it**: the floor is whatever the
-node already advertises, or the configured budget, whichever is higher. A box's contractual
-bandwidth does not shrink on its own — that happens because someone downgraded the
-plan, which already has a human attached — whereas a wrong-low reading (an API
-blip, a partial response, a box throttled over its monthly quota) is plausible and
-expensive: the egress-tree agent re-rates the node's HTB root in place, throttling
-live traffic on a box that can carry far more, and the floor only catches garbage.
-A lower reading is therefore recorded and surfaced rather than applied.
+1. **`spec.egressBudgetMbps` ≤ 0 — ungoverned.** The capacity key is removed from
+   the node, `status.egress` is cleared and the pin is ignored. Give the machine a
+   budget to bring it into egress governance.
+2. **`tuist.dev/egress-mbps-override: "<mbps>"` — pinned.** The node advertises the
+   pinned value in either direction, whatever OVH says and even with discovery
+   disabled. The pin is temporary: remove it once spec and/or OVH's reading are
+   known to be right, and the node re-derives from those (rules 3–4), never from
+   the pinned number. `status.egress.source` is `manual` while pinned. A value
+   that is not a positive integer is ignored.
+3. **The configured budget seeds and raises.** A machine's budget starts at
+   `spec.egressBudgetMbps`; raising it on a live CR raises the node. Lowering it
+   alone changes nothing — nothing lowers on the controller's own authority — and
+   takes effect only when the budget is next re-derived, i.e. after a pin.
+4. **A reading above the budget raises it; a reading below is recorded, not
+   applied.** OVH's contractual bandwidth shrinks only because someone downgraded
+   the plan, whereas a wrong-low reading (a blip, a partial response, a
+   throttled box) is plausible and expensive. `status.egress.reportedMbps` and
+   `capt_egress_reported_mbps` carry the standing disagreement.
+5. **`tuist.dev/disable-egress-discovery` (presence only) — frozen.** No reads,
+   no raises; the node keeps the budget it has. Discovery resumes, with an
+   immediate read, when the annotation is removed. CAPI's SSA propagation owns
+   only annotation keys the MachineSet template sets, so a hand-set key survives;
+   putting it in a MachineDeployment template makes it fleet-wide.
 
-`tuist.dev/egress-mbps-override` pins a machine's advertised budget to a value the
-operator chose, in both directions, and is the single lever for changing a live node —
-`spec.egressBudgetMbps` reaches a machine only when it is cloned from its template
-(the MachineDeployment is `OnDelete`), so it is the fleet default and the floor rather
-than something an operator moves. `status.egressSource` records what decided the
-budget last time (`discovery` / `manual` / `held` / `configured`), which is what makes
-a pin reversible: the ratchet is anchored to what the node advertises, so once a pin is
-removed that anchor is a number a human typed, and the recorded source is how the
-controller knows to ignore it for one reconcile and re-derive from readings. That
-source is recorded only once the capacity patch has landed, so a failed write leaves
-the release to be retried rather than spending it on a node that never moved — which
-would strand the node at the pin's value, with the ratchet then anchoring on it.
-
-The pin does not apply to a machine whose configured budget is zero, and that is the
-one place it refines nothing. Such a box is outside egress governance, and the
-node-capacity helper writes the extended resource but has no path that removes it —
-so a pin would bring the box in and then have no way to take it back out, leaving the
-node advertising the operator's number after the annotation was gone. Give the machine
-a budget first; the pin then moves it, reversibly, like anywhere else. A pin left on a
-zero-budget machine is ignored and logged rather than silently dropped. The same
-one-way property is why `spec.egressBudgetMbps: 0` does not withdraw a node that is
-already advertising a budget: it stops the controller managing the key, it does not
-remove it. Withdrawing a live box means deleting the machine (which deletes its Node),
-not zeroing the field.
-
-`held` is the one that needs explaining: it is a floor the ratchet is carrying with no
-reading behind it, so the number is whatever the node was already advertising rather
-than anything OVH said. A machine that has never resolved whose node advertises more
-than its spec produces it — the shape left behind by hand-lowering
-`spec.egressBudgetMbps` on a live CR. It is split out from `discovery` so that
-filtering `capt_ovh_egress_advertised_mbps{source="discovery"}` means what it says:
-budgets an actual reading supports.
-
-Events fire when the node's advertised budget actually moves — `EgressBudgetIncreased`
-or `EgressBudgetReduced`, naming both numbers and what decided the new one — not when
-a reading arrives. A reading the floor refuses changes nothing on the node, and the
-standing disagreement between what OVH reports and what the node advertises is a
-metric with history rather than a moment to catch. The events name no remedy, because
-the remedy is three moves and naming one of them sends people to do the one that is
-inert on its own.
-
-Accepting a confirmed reduction is three moves, in order: **pin** (the node drops
-now), **lower the budget** on the machine and in the fleet values (durable, and
-correct for the next machine cloned from the template), then **unpin** (the node lands
-on the reading). Unpinning before lowering the budget springs the node back to the
-configured value — the over-commit the pin was hiding. Disabling discovery also
-applies downward directly: the ratchet only ever holds against the controller's own
-readings, never against an explicit human decision.
+**Accepting a reduction** is pin (the node drops now), lower `spec.egressBudgetMbps`
+on the machine and in the fleet values (durable, and right for the next clone),
+unpin (the node lands on the reading). Unpinning before lowering the budget lands
+on the configured value — the floor — which is where rule 3 puts it.
 
 **Check what is already allocated before pinning downward.** `tuist.dev/egress-mbps`
-is an integer extended resource and the cache pods request it with `request == limit`,
-so it is not overcommittable — but lowering a node's capacity below the sum of what
-its pods already hold is not refused, and does not evict anything. The node simply
-sits over-allocated, looking fine, until the next admission decision has to fit those
-pods into the new number: a kubelet restart, a pod restart, a reschedule. Then they
-fail admission with `OutOfExtendedResource` / `UnexpectedAdmissionError`, possibly
-long after whoever ran the pin has moved on, and on a box whose tenants had no part
-in the decision.
+is an integer extended resource requested with `request == limit`, so it is not
+overcommittable — but lowering a node's capacity below the sum of what its pods
+hold is not refused and evicts nothing. The node sits over-allocated until the
+next admission decision (a kubelet restart, a pod restart, a reschedule), and then
+those pods fail admission with `OutOfExtendedResource`.
 
 ```
-# Requests column, against the capacity above it
 kubectl describe node <name> | grep -A12 'Allocated resources'
 ```
 
-If the number you are about to pin sits below that total, move or delete the excess
-cache pods first and let them reschedule elsewhere; the pin is safe once the node's
-allocated total fits inside it. The same applies to lowering `spec.egressBudgetMbps`
-for a machine that is about to be recreated, and to any reduction discovery itself
-would apply — the ratchet is what keeps that last one from happening behind your back,
-which is precisely why accepting a reduction is a deliberate, staged action rather
-than something the controller does on a reading.
+If the number you are about to pin sits below that total, move the excess cache
+pods first. The same applies to removing the budget (rule 1).
 
-A reading is either a number or nothing: there is no plausibility band around it.
-The floor already refuses anything below the configured budget, so a decode that
-starts yielding 1 after a response-shape change is refused and surfaced as a
-reduction rather than silently applied, and a ceiling would only ever be a guess
-that the next faster box trips.
+**Reading the state.** `kubectl get odm` shows `EGRESS` (what the node was set
+to), `EGRESSSOURCE` (`configured` / `discovery` / `manual`) and, with `-o wide`,
+`EGRESSREPORTED`. The `EgressDiscovered` condition reports the last OVH read:
+`True` when a usable reading is cached; `False` with `ReadFailed` (message carries
+the consecutive-failure count and the last error), `Unresolved` (OVH answered but
+with no bandwidth block or a unit we do not convert — the raw unit/value is in the
+message) or `Disabled`. A box whose reads keep failing or keep coming back wrong
+is what the disable annotation is for.
 
-Three gauges publish the numbers behind a node's budget, all labelled `node`:
-`capt_ovh_egress_reported_mbps` (what OVH says, plus `service` and `tier`),
-`capt_ovh_egress_configured_mbps` (the spec value) and
-`capt_ovh_egress_advertised_mbps` (what was patched onto the node). They are
-published together because a divergence is then a fact about one reconcile rather
-than a race between exporters, and the `node` label is explicit — nothing adds one
-at scrape time, and the operator's own `instance`/`pod` labels name the node the
-*operator* runs on. `reported < configured` is the alert; the same series are what
-a later decision to auto-apply reductions would be argued from.
+Reads are bounded by `status.egress.attemptedAt`: one a day after any answer,
+one every 10 minutes while calls fail. Neither a failed call nor an unusable
+answer overwrites the last usable reading. The reading records the box it came
+from, so a machine re-adopted onto a different service is read again rather than
+rated from its predecessor's number, and its budget restarts from the configured
+value. Events (`EgressBudgetIncreased` / `EgressBudgetReduced` /
+`EgressBudgetRemoved`) fire when the node's advertised budget actually moves,
+naming both numbers and what decided the new one.
 
-The reading is cached in status and refreshed daily, not per reconcile: the
-machine reconciles every 10 minutes and the number tracks a contract. Neither a
-failed call nor an unusable answer overwrites the cached value — a renamed or
-dropped bandwidth block is an ordinary answer returning zero, and writing it
-through would hand the node back to a spec value that may sit well above the wire.
-A failed call is additionally floored to one attempt per 10 minutes (in memory, per
-machine UID), because it leaves the refresh timestamp unstamped and a machine in
-the not-yet-Ready tail requeues every 20s. The reading records the service name it
-came from, so a machine re-adopted onto a different box is read again rather than
-rated from its predecessor's number. That check is applied where the budget is
-decided, not only inside the discovery function: most paths reaching a capacity
-decision never enter it — a machine inside the read backoff, or one whose
-`serviceName` an operator cleared to force re-adoption — and a reading from another
-box must not rate this one on any of them. A mismatch also resets the ratchet,
-because the anchor is the node's advertised capacity and that survives a kubelet
-re-registration by design, so dropping the reading alone would leave the previous
-box's budget holding the new one up. A machine carrying
-`tuist.dev/disable-egress-discovery` is skipped entirely.
+Three gauges, labelled `provider` and `node` so they join against
+`kube_node_status_capacity{resource="tuist_dev_egress_mbps"}`:
+`capt_egress_reported_mbps` (what the provider says, plus `service` and `tier`),
+`capt_egress_configured_mbps` (the spec value) and `capt_egress_advertised_mbps`
+(what was patched onto the node, plus `source`). `reported < advertised` is the
+standing disagreement worth a dashboard.
 
-That annotation survives CAPI's in-place propagation because of an ownership
-detail worth knowing: every MachineSet reconcile SSA-patches the InfraMachine's
-labels and annotations from the MachineSet template under the `capi-machineset`
-field manager, and SSA prunes only keys that manager owns. Our templates set no
-annotations, so it owns none. Adding this key to a MachineDeployment's
-`spec.template.metadata.annotations` therefore turns it into a per-fleet switch
-that overrides every per-box annotation in that fleet.
+Three things about OVH's response are load-bearing (`internal/ovh/client.go`):
+`connection` and `vrack.bandwidth` sit next to the field we read and report the
+switch link (25 Gbit/s on every box we run), so keying off either over-commits
+the public path; the value is a `{unit, value}` pair whose unit is a free-form
+string, so the bare number would advertise 5 Mbps for a box reported as
+"5 Gbps"; and every field is nullable, so an absent bandwidth block is an
+ordinary answer that resolves to zero.
 
 ## Node memory governance
 

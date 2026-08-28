@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -86,11 +85,6 @@ type OVHDedicatedMachineReconciler struct {
 	// DefaultDatacenter / DefaultOS fill a spec that left them empty.
 	DefaultDatacenter string
 	DefaultOS         string
-
-	// egressReadFailures maps machine UID to the last failed OVH egress read, so a
-	// box whose reads keep failing is retried on a floor rather than on whatever
-	// requeue cadence its phase happens to use. See ovh_egress.go.
-	egressReadFailures sync.Map
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines,verbs=get;list;watch;create;update;patch;delete
@@ -423,8 +417,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
 		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
-	r.egressReadFailures.Delete(machine.UID)
-	forgetEgressMetrics(machine.Name)
+	shared.ForgetEgressMetrics(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }
