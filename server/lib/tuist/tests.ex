@@ -122,6 +122,7 @@ defmodule Tuist.Tests do
   ]
   @flaky_correction_batch_size 2000
   @flaky_correction_sweep_limit 500
+  @flaky_correction_lookup_chunk_size 200
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
@@ -3614,11 +3615,13 @@ defmodule Tuist.Tests do
       |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
       |> Enum.flat_map(fn {{project_id, git_commit_sha}, grouped_corrections} ->
         latest_flaky_states =
-          latest_test_case_run_flaky_states(
-            project_id,
-            git_commit_sha,
-            grouped_corrections
-          )
+          grouped_corrections
+          |> Enum.chunk_every(@flaky_correction_lookup_chunk_size)
+          |> Enum.reduce(%{}, fn chunk, acc ->
+            chunk
+            |> then(&latest_test_case_run_flaky_states(project_id, git_commit_sha, &1))
+            |> Map.merge(acc)
+          end)
 
         {already_applied, corrections_to_insert} =
           Enum.split_with(grouped_corrections, fn correction ->
