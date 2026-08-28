@@ -126,9 +126,8 @@ dictate this shape — do not regress them:
   Removing enforcement is an explicit operator action that must not depend
   on this agent running, and has a load-bearing order (pod pins, then the
   return pin, then `kura-egress0` — a pod program left attached to a deleted
-  trampoline blackholes that pod). The step-by-step procedure, run as a
-  throwaway privileged DaemonSet, is the
-  [egress shaping breakglass runbook](../k8s/onboarding.md#egress-shaping-breakglass-egress-tree-agent).
+  trampoline blackholes that pod). The procedure is the breakglass section
+  of [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
   tenant's floor to the node budget *before* raising its ceiling to meet that
   floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
