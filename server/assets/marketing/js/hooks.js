@@ -19,6 +19,11 @@ import { KaTeX } from "./hooks/katex.js";
 import { PlatformBackground } from "./hooks/platform-background.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
 import { ComputeSpark } from "./hooks/compute-spark.js";
+import { ComputeHeroDiff } from "./hooks/compute-hero-diff.js";
+import { ComputeHeroGrid } from "./hooks/compute-hero-grid.js";
+import { ComputeBuildPlatform } from "./hooks/compute-build-platform.js";
+import { ComputeCacheReady } from "./hooks/compute-cache-ready.js";
+import { ComputeMacDither } from "./hooks/compute-mac-dither.js";
 import { RunnerGrid } from "./hooks/compute-runners.js";
 import { TaskFeed } from "./hooks/compute-tasks.js";
 import { TestGrid } from "./hooks/test-grid.js";
@@ -40,6 +45,11 @@ const Hooks = {
   CustomersDitherDots,
   CustomersDitherLine,
   ComputeSpark,
+  ComputeHeroDiff,
+  ComputeHeroGrid,
+  ComputeBuildPlatform,
+  ComputeCacheReady,
+  ComputeMacDither,
   RunnerGrid,
   TaskFeed,
   TestGrid,
