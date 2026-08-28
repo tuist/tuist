@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
@@ -504,4 +505,43 @@ func TestEgressFailedNodePatchIsRetriedFromStatus(t *testing.T) {
 	if got := advertisedNodeMbps(t, working, machine.Name); got != 4000 {
 		t.Fatalf("node advertises %d, want 4000", got)
 	}
+}
+
+// The reported gauge is republished from status on every reconcile, so it does
+// not vanish for a day after an operator restart.
+func TestEgressReportedGaugeSurvivesARestart(t *testing.T) {
+	h := newEgressHarness(t)
+	h.reports(5000)
+	h.want("OVH reports 5000", 5000, shared.EgressSourceDiscovery)
+
+	shared.ForgetEgressMetrics(h.machine.Name) // what a restart does to process-local gauges
+	if got := reportedGauge(t, h.machine.Name); got != nil {
+		t.Fatalf("reported gauge = %v before the reconcile, want none", *got)
+	}
+	h.want("next reconcile, no read due", 5000, shared.EgressSourceDiscovery)
+	if got := reportedGauge(t, h.machine.Name); got == nil || *got != 5000 {
+		t.Fatalf("reported gauge = %v, want 5000 republished from status", got)
+	}
+}
+
+func reportedGauge(t *testing.T, node string) *float64 {
+	t.Helper()
+	families, err := metrics.Registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		if family.GetName() != "capt_egress_reported_mbps" {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			for _, label := range m.GetLabel() {
+				if label.GetName() == "node" && label.GetValue() == node {
+					v := m.GetGauge().GetValue()
+					return &v
+				}
+			}
+		}
+	}
+	return nil
 }

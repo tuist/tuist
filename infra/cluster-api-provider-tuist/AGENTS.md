@@ -271,9 +271,11 @@ cannot strand them. Each exists because the scheduler's native bin-pack cannot
 see the quantity in question:
 
 - `tuist.dev/egress-mbps` — the box's public egress budget, which Kubernetes has
-  no concept of. Taken from what OVH reports for the individual box, falling back
-  to the machine's `EgressBudgetMbps` (see below); the other Linux kinds take the
-  spec value directly.
+  no concept of. On OVH it is derived from what the box reports, seeded by the
+  machine's `EgressBudgetMbps` (see below); Dedibox takes the spec value
+  directly and leaves the node alone when it is zero; Elastic Metal has no egress
+  budget and is outside the extended-resource path. The helper itself treats a
+  zero as "withdraw the capacity" — only the OVH kind passes one through.
 - `tuist.dev/memory-ceiling-mib` — a bounded multiple
   (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
   Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
@@ -366,12 +368,14 @@ value. Events (`EgressBudgetIncreased` / `EgressBudgetReduced` /
 `EgressBudgetRemoved`) fire when the node's advertised budget actually moves,
 naming both numbers and what decided the new one.
 
-Three gauges, labelled `provider` and `node` so they join against
-`kube_node_status_capacity{resource="tuist_dev_egress_mbps"}`:
+Three gauges, labelled `provider`, `node` and `fleet` (`node` is what joins them
+against `kube_node_status_capacity{resource="tuist_dev_egress_mbps"}`):
 `capt_egress_reported_mbps` (what the provider says, plus `service` and `tier`),
 `capt_egress_configured_mbps` (the spec value) and `capt_egress_advertised_mbps`
-(what was patched onto the node, plus `source`). `reported < advertised` is the
-standing disagreement worth a dashboard.
+(what was patched onto the node, plus `source`). All three are republished from
+status on every reconcile, so an operator restart costs at most one reconcile of
+gap rather than a day. `reported < advertised` is the standing disagreement
+worth a dashboard.
 
 Three things about OVH's response are load-bearing (`internal/ovh/client.go`):
 `connection` and `vrack.bandwidth` sit next to the field we read and report the

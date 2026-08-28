@@ -89,6 +89,11 @@ func (r *OVHDedicatedMachineReconciler) reconcileNodeEgress(ctx context.Context,
 		return err
 	}
 	shared.RecordEgressBudgets(egressProvider, machine.Name, machine.Spec.FleetName, configured, decision.NodeMbps, decision.Source)
+	// Published from status rather than from the read, so the series survives an
+	// operator restart instead of waiting up to a day for the next read.
+	if egress.ReportedMbps > 0 {
+		shared.RecordEgressReported(egressProvider, machine.Name, machine.Spec.FleetName, egress.ServiceName, egress.Tier, egress.ReportedMbps)
+	}
 	r.recordEgressBudgetChange(machine, advertised, decision.NodeMbps, decision.Source)
 	return nil
 }
@@ -139,7 +144,6 @@ func (r *OVHDedicatedMachineReconciler) readEgress(ctx context.Context, machine 
 	egress.Tier = discovered.Tier
 	egress.ResolvedAt = &metav1.Time{Time: now}
 	conditions.MarkTrue(machine, EgressDiscoveredCondition)
-	shared.RecordEgressReported(egressProvider, machine.Name, machine.Spec.FleetName, egress.ServiceName, discovered.Tier, discovered.Mbps)
 }
 
 // recordEgressBudgetChange emits one event per transition of the node's advertised
