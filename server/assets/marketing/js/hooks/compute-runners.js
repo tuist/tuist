@@ -105,6 +105,20 @@ export const RunnerGrid = {
     this.gridTop = Number(d.gridTop);
     this.cell = Number(d.cell);
     this.gap = Number(d.gap);
+    // Optional overrides (the compute page's runner rack reuses this hook
+    // at a different size and a calmer cadence); defaults preserve the
+    // home page scene exactly.
+    this.rows = Number(d.rows) || ROWS;
+    this.cols = Number(d.cols) || COLS;
+    this.target = Number(d.target) || TARGET;
+    this.minActive = Number(d.min) || MIN_ACTIVE;
+    this.maxActive = Number(d.max) || MAX_ACTIVE;
+    this.swapMs = Number(d.swap) || SWAP_MS;
+    this.flickerMs = Number(d.flicker) || FLICKER_MS;
+    this.radius = Number(d.radius) || CELL_RADIUS;
+    // data-dither="none" drops the active cells' texture (the compute
+    // page's rack keeps just the purple flicker on border and dot).
+    this.dither = d.dither !== "none";
 
     const host = this.canvas.parentElement;
     this.resolveColors = () => {
@@ -120,25 +134,43 @@ export const RunnerGrid = {
     // Active dither reuses the cache chart's recipe — purple-50 light dots,
     // purple-500 deep dots at low alpha — so both sections read identically.
 
-    this.cells = [];
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        this.cells.push({
-          x: this.gridX + c * (this.cell + this.gap),
-          // + PAD: the canvas is offset up by PAD (see CSS) so edge strokes fit.
-          y: this.gridTop + r * (this.cell + this.gap) + PAD,
-          active: false,
-          changeAt: -9999, // when active last flipped (drives flicker in/out)
-          seed: Math.random(),
-        });
-      }
-    }
-    this.path = new Map(); // cached rounded-rect path per cell
     const illustration = this.canvas.closest('[data-part="illustration"]');
     this.runnerStat = illustration && illustration.querySelector('[data-stat="runners"]');
-    this.seedActive();
-    this.updateRunnerStat();
+    this.cells = [];
     this.lastSwap = 0;
+
+    // Build (or rebuild) the rack for the measured canvas width: when the
+    // canvas is narrower than the full grid (the compute page's fluid
+    // card), trailing columns shed instead of the cells squeezing, and
+    // the remaining rack recenters. A canvas that always fits its grid
+    // (the home page scene) never sheds and keeps its authored origin.
+    this.buildCells = () => {
+      const pitch = this.cell + this.gap;
+      const fitRaw = Math.floor((this.w - PAD * 2 + this.gap) / pitch);
+      // Width-constrained racks shed one extra column per side, so the
+      // cells keep a breath of air instead of kissing the card edges.
+      const fit = fitRaw < this.cols ? Math.max(1, fitRaw - 2) : this.cols;
+      const cols = Math.min(this.cols, fit);
+      if (this.builtCols === cols) return;
+      this.builtCols = cols;
+      const gridX = cols < this.cols ? Math.round((this.w - (cols * pitch - this.gap)) / 2) : this.gridX;
+      this.cells = [];
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          this.cells.push({
+            x: gridX + c * pitch,
+            // + PAD: the canvas is offset up by PAD (see CSS) so edge strokes fit.
+            y: this.gridTop + r * pitch + PAD,
+            active: false,
+            changeAt: -9999, // when active last flipped (drives flicker in/out)
+            seed: Math.random(),
+          });
+        }
+      }
+      this.path = new Map(); // cached rounded-rect path per cell
+      this.seedActive();
+      this.updateRunnerStat();
+    };
 
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
@@ -148,6 +180,7 @@ export const RunnerGrid = {
       this.canvas.width = this.w * dpr;
       this.canvas.height = this.h * dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.buildCells();
       this.render(0);
     };
     this.observer = new ResizeObserver(this.resize);
@@ -193,7 +226,9 @@ export const RunnerGrid = {
 
   seedActive() {
     this.cells.forEach((c) => (c.active = false));
-    for (const c of this.shuffle([...this.cells]).slice(0, TARGET)) {
+    // A shed rack seeds proportionally fewer active cells.
+    const target = Math.min(this.target, Math.max(1, Math.floor(this.cells.length * 0.45)));
+    for (const c of this.shuffle([...this.cells]).slice(0, target)) {
       c.active = true;
       c.changeAt = -9999; // already settled at load (no flicker)
     }
@@ -203,16 +238,16 @@ export const RunnerGrid = {
   // "Runners" stat varies. Each change flickers in/out (never a jump), and only
   // fully-settled cells are touched.
   update(now) {
-    if (now - this.lastSwap < SWAP_MS) return;
-    const settled = (c) => now - c.changeAt >= FLICKER_MS;
+    if (now - this.lastSwap < this.swapMs) return;
+    const settled = (c) => now - c.changeAt >= this.flickerMs;
     const active = this.cells.filter((c) => c.active && settled(c));
     const idle = this.cells.filter((c) => !c.active && settled(c));
     const count = this.cells.filter((c) => c.active).length;
 
     let act, deact;
     const r = Math.random();
-    if (count <= MIN_ACTIVE) [act, deact] = [true, false];
-    else if (count >= MAX_ACTIVE) [act, deact] = [false, true];
+    if (count <= this.minActive) [act, deact] = [true, false];
+    else if (count >= this.maxActive) [act, deact] = [false, true];
     else if (r < 0.35) [act, deact] = [true, false];
     else if (r < 0.7) [act, deact] = [false, true];
     else [act, deact] = [true, true]; // swap
@@ -246,10 +281,10 @@ export const RunnerGrid = {
   // (in or out), then a settled soft pulse (on) or 0 (off).
   cellLevel(cell, now) {
     const age = now - cell.changeAt;
-    if (age >= FLICKER_MS) {
+    if (age >= this.flickerMs) {
       return cell.active ? 0.75 + 0.25 * Math.sin(now * 0.004 + cell.seed * 10) : 0;
     }
-    const p = age / FLICKER_MS;
+    const p = age / this.flickerMs;
     const env = cell.active ? p : 1 - p; // rise (in) or fall (out)
     const flick = 0.62 + 0.38 * Math.sin(p * Math.PI * 3 + cell.seed * 6);
     return Math.max(0, env * flick);
@@ -266,12 +301,12 @@ export const RunnerGrid = {
     const s = this.cell;
     let path = this.path.get(cell);
     if (!path) {
-      path = roundRect(cell.x, cell.y, s, s, CELL_RADIUS);
+      path = roundRect(cell.x, cell.y, s, s, this.radius);
       this.path.set(cell, path);
     }
 
     const level = this.cellLevel(cell, now);
-    if (level > 0.01) {
+    if (level > 0.01 && this.dither) {
       ctx.save();
       ctx.clip(path);
       this.drawDither(cell, now, level);
