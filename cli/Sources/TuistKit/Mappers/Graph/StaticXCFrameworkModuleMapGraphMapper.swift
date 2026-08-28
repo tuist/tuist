@@ -43,6 +43,19 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
+        // Xcode processes every unconditionally direct xcframework into the build products directory. That copy is
+        // visible to the target graph, so adding the same vendor module map from a dynamic route would define the
+        // module twice. A platform-qualified direct dependency cannot prove that it covers the dynamic route.
+        var unconditionallyDirectlyLinkedXCFrameworkPaths = Set<AbsolutePath>()
+        for (source, dependencies) in graph.dependencies {
+            guard case .target = source else { continue }
+            for dependency in dependencies {
+                guard graph.dependencyConditions[(source, dependency)] == nil,
+                      case let .xcframework(xcframework) = dependency
+                else { continue }
+                unconditionallyDirectlyLinkedXCFrameworkPaths.insert(xcframework.path)
+            }
+        }
 
         let graph = try await mapGraph(
             graph: graph
@@ -92,8 +105,11 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
 
             let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    .filter {
+                        $0.xcframework.containsLibrary()
+                            && !unconditionallyDirectlyLinkedXCFrameworkPaths.contains($0.xcframework.path)
+                    }
                     .map(\.xcframework)
-                    .filter { $0.containsLibrary() }
 
             sideEffects += try await generateModuleMapAndUmbrellaHeader(
                 for: staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies,

@@ -312,7 +312,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
 	// re-applied each reconcile so a kubelet re-register can't strand it.
-	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+	if err := r.reconcileNodeEgress(ctx, machine, node); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -417,6 +417,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
 		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
+	shared.ForgetEgressMetrics(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }

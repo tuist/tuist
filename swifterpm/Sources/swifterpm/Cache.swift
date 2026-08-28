@@ -4,11 +4,7 @@ struct Cache: Sendable {
     let root: URL
 
     init(root: URL?) async throws {
-        if let root {
-            self.root = root
-        } else {
-            self.root = try Cache.defaultRoot()
-        }
+        self.root = try Cache.resolvedRoot(root)
         let cacheRoot = self.root
         let topLevelPaths = [
             "sources",
@@ -37,6 +33,10 @@ struct Cache: Sendable {
     }
 
     func sourcePath(pin: ResolvedPin) throws -> URL {
+        try Cache.sourcePath(root: root, pin: pin)
+    }
+
+    static func sourcePath(root: URL, pin: ResolvedPin) throws -> URL {
         if pin.kind == "registry" {
             throw ToolError.message("registry source paths require registry URL and checksum")
         }
@@ -119,6 +119,22 @@ struct Cache: Sendable {
             at: root.appendingPathComponent("locks").appendingPathComponent(namespace)
                 .appendingPathComponent("\(Hashing.stable(key)).lock")
         )
+    }
+
+    func hasCachedSources() async throws -> Bool {
+        try await Cache.hasCachedSources(at: root)
+    }
+
+    static func resolvedRoot(_ root: URL?) throws -> URL {
+        try root ?? defaultRoot()
+    }
+
+    static func hasCachedSources(at root: URL) async throws -> Bool {
+        let sources = root.appendingPathComponent("sources")
+        guard try await fileSystem.exists(sources.absolutePath) else {
+            return false
+        }
+        return try await !fileSystem.contentsOfDirectory(at: sources).isEmpty
     }
 
     private static func defaultRoot() throws -> URL {

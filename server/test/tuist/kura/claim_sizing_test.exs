@@ -329,23 +329,23 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 shrinking" do
     test "proposes shrinking after a long window of low occupancy" do
       # 6Gi peak at the 60% occupancy target asks for 10Gi.
-      context = context(current_claim_size: "16Gi", rollups: idle_days(90, @today))
+      context = context(current_claim_size: "16Gi", rollups: idle_days(30, @today))
 
       assert {:shrink, "10Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["region"] == "us-east"
-      assert evidence["window_days"] == 90
+      assert evidence["window_days"] == 30
       assert evidence["max_occupancy_percent"] == 25
     end
 
     test "one step never less than halves the claim" do
-      rollups = idle_days(90, @today, max_live_segment_bytes: 2 * @gibibyte)
+      rollups = idle_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
 
       assert {:shrink, "8Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
     test "never shrinks under the validated minimum claim" do
       rollups =
-        idle_days(90, @today,
+        idle_days(30, @today,
           max_live_segment_bytes: div(@gibibyte, 2),
           last_ring_budget_bytes: 6 * @gibibyte
         )
@@ -357,36 +357,36 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "a day without snapshots breaks the idle streak" do
       rollups =
-        90
+        30
         |> idle_days(@today)
-        |> List.replace_at(45, rollup(Date.add(@today, -44), eviction_count: 0))
+        |> List.replace_at(15, rollup(Date.add(@today, -14), eviction_count: 0))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
 
     test "an eviction inside the window breaks the idle streak" do
       rollups =
-        90
+        30
         |> idle_days(@today)
         |> List.replace_at(
-          45,
-          rollup(Date.add(@today, -44), snapshot_count: 96, max_occupancy_percent: 25, eviction_count: 1)
+          15,
+          rollup(Date.add(@today, -14), snapshot_count: 96, max_occupancy_percent: 25, eviction_count: 1)
         )
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
 
-    test "a window shorter than 90 days withholds the proposal" do
-      assert ClaimSizing.evaluate(context(rollups: idle_days(89, @today))) == :none
+    test "a window shorter than the shrink window withholds the proposal" do
+      assert ClaimSizing.evaluate(context(rollups: idle_days(29, @today))) == :none
     end
 
     test "a shrink needs its whole window after the last resize" do
-      rollups = idle_days(90, @today)
+      rollups = idle_days(30, @today)
 
-      recent = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -30), ~T[12:00:00], "Etc/UTC"))
+      recent = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC"))
       assert ClaimSizing.evaluate(recent) == :none
 
-      settled = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -91), ~T[12:00:00], "Etc/UTC"))
+      settled = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -31), ~T[12:00:00], "Etc/UTC"))
       assert {:shrink, "10Gi", _evidence} = ClaimSizing.evaluate(settled)
     end
   end
@@ -394,7 +394,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 across regions" do
     test "a growing region wins over a shrinking one" do
       rollups =
-        moderate_churn(14, @today) ++ Enum.map(idle_days(90, @today), &Map.put(&1, :region, "eu-central"))
+        moderate_churn(14, @today) ++ Enum.map(idle_days(30, @today), &Map.put(&1, :region, "eu-central"))
 
       assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["region"] == "us-east"
@@ -402,7 +402,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "shrinking needs every region with data to agree" do
       rollups =
-        idle_days(90, @today) ++
+        idle_days(30, @today) ++
           Enum.map(churn_days(5, @today, median_shed_age_seconds: 5 * @day_seconds), &Map.put(&1, :region, "eu-central"))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
