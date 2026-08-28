@@ -552,6 +552,140 @@ kubectl get nodes -o json | jq -r '.items[] | select(.spec.providerID | startswi
 
 Deleting a Node object is safe — CAPI re-creates it on the next reconcile if the underlying VM is still alive.
 
+## Egress shaping breakglass (egress-tree-agent)
+
+Use this when the kura per-tenant egress shaping ([`../egress-tree-agent/`](../egress-tree-agent/AGENTS.md))
+is suspected of hurting traffic — throttled tenants, `kura_egress_tree_direct_packets` /
+`kura_egress_tree_return_dropped_packets` growing, `node_softnet_dropped_total` climbing on the
+kura pools, or a datapath regression after an agent or Cilium upgrade — and you want the nodes
+back on the plain Cilium path *now*, without a working agent.
+
+**Stopping the agent does not stop shaping.** The agent pins its tcx links under
+`/sys/fs/bpf/kura-egress-tree/` and does no teardown on shutdown, by design (enforcement must
+survive restarts and upgrades). After `enabled: false` or `kubectl delete ds`, every pod that
+was already shaped stays shaped until its pod is deleted; only pods created afterwards run
+unshaped. The wipe below is what actually removes the enforcement, and it runs as a
+throwaway privileged DaemonSet so it works when the agent's image, binary, or Kubernetes/Cilium
+API access is the thing that is broken, and it needs neither `kubectl exec` nor SSH to the
+bare-metal hosts.
+
+What is left on a node and how it is removed:
+
+| State | Removed by |
+|---|---|
+| Per-pod tcx programs, pinned at `/sys/fs/bpf/kura-egress-tree/pods/<lxc*>/link` | unlinking the pin — the pin is the only reference (the agent closes its FDs after pinning), so `rm` destroys the link and detaches the program |
+| Return program, pinned at `/sys/fs/bpf/kura-egress-tree/return/link` | same |
+| `kura-egress0`/`kura-egress1` veth pair, the HTB tree, the per-device sysctls | `ip link del kura-egress0` (deleting one end removes its peer and everything attached) |
+
+The order is load-bearing. Pod programs go first: a still-attached pod program redirects into
+`kura-egress0`, and with that device gone `bpf_redirect` fails and the pod's egress is dropped.
+Pins first, then the return program, then the device, never the other way around.
+
+### 1. Stop the agent
+
+```bash
+export KUBECONFIG=~/.kube/tuist-<env>.yaml   # the cluster-admin one, see above
+# Capture the running image first: the wipe reuses it (already pulled on every
+# node, no registry dependency on a bad day). Any alpine with iproute2 works too.
+IMAGE=$(kubectl -n kura get ds tuist-tuist-egress-tree-agent -o jsonpath='{.spec.template.spec.containers[0].image}')
+kubectl -n kura delete ds tuist-tuist-egress-tree-agent
+```
+
+Deleting it out of band is deliberate: the next `server-deployment.yml` run would re-create it,
+so in parallel open a PR setting `egressTreeAgent.enabled: false` in
+`infra/helm/tuist/values-managed-<env>.yaml`. Until that lands, do not deploy that env
+(or the agent comes back and re-shapes everything within seconds of starting).
+
+### 2. Wipe the node state
+
+One shell per node, on the same pools the agent ran on (`egressTreeAgent.nodePools` in the env's
+values file). The script exits non-zero if anything is left behind, so a pod in
+`CrashLoopBackOff` means that node needs a look; `Running` means the node is clean.
+
+```bash
+POOLS='["kura-dedibox", "kura-us-east", "kura-us-west", "kura-ap-southeast"]'  # from values-managed-<env>.yaml
+cat <<EOF2 | kubectl apply -f -
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: egress-tree-wipe
+  namespace: kura
+spec:
+  selector:
+    matchLabels: { app: egress-tree-wipe }
+  template:
+    metadata:
+      labels: { app: egress-tree-wipe }
+    spec:
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      nodeSelector: { kubernetes.io/os: linux }
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - { key: node.cluster.x-k8s.io/pool, operator: In, values: ${POOLS} }
+      tolerations:
+        - { key: tuist.dev/kura-cache, operator: Exists, effect: NoSchedule }
+      containers:
+        - name: wipe
+          image: ${IMAGE}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              PIN=/sys/fs/bpf/kura-egress-tree
+              # 1. pod programs — before anything else (see the ordering note)
+              rm -rf "\$PIN/pods"
+              # 2. return program
+              rm -rf "\$PIN"
+              # 3. trampoline pair + HTB tree
+              ip link del kura-egress0 2>/dev/null || true
+              # verify, then idle so the pod reads Running (a DaemonSet restarts an exited pod)
+              [ ! -e "\$PIN" ]
+              if ip link show kura-egress0 >/dev/null 2>&1; then echo "kura-egress0 still present" >&2; exit 1; fi
+              echo "egress shaping wiped on \$(hostname)"
+              exec sleep infinity
+          securityContext: { privileged: true }
+          volumeMounts:
+            - { name: bpffs, mountPath: /sys/fs/bpf, mountPropagation: HostToContainer }
+      volumes:
+        - name: bpffs
+          hostPath: { path: /sys/fs/bpf, type: Directory }
+EOF2
+kubectl -n kura rollout status ds/egress-tree-wipe --timeout=120s
+kubectl -n kura get pods -l app=egress-tree-wipe -o wide
+```
+
+### 3. Verify and clean up
+
+- Every `egress-tree-wipe` pod is `Running` (the script runs under `sh -e` and fails its own
+  verification; a node where the wipe failed crash-loops instead).
+- In Grafana, the `kura_egress_tree_*` series stop (the exporter is gone) and the tenant symptom
+  that triggered this clears. The wire-leg pacing from the `kubernetes.io/egress-bandwidth`
+  annotation (Cilium bandwidth manager) still applies; only the shared-tree floors, ceilings,
+  and box cap are gone.
+- `kubectl -n kura delete ds egress-tree-wipe`.
+
+No kura pod needs restarting: detaching the pod program returns that pod's traffic to Cilium's
+normal path on the next packet.
+
+### Re-enabling
+
+Set `egressTreeAgent.enabled: true` again and deploy. The agent rebuilds from zero host state
+(trampoline, tree, pins) and re-attaches to every annotated pod within a couple of seconds of
+starting; nothing from the wipe needs undoing by hand.
+
+### Narrower alternatives
+
+- **One account only.** `egressTreeAgent.betaPodPrefix` limits attachment to pods whose name
+  starts with the prefix; excluded pods are detached and cleaned within one reconcile cycle. This
+  needs a healthy agent and a deploy, so it is a rollout lever, not an incident one.
+- **One node only.** Run the wipe DaemonSet with a `kubernetes.io/hostname` `nodeSelector` after
+  deleting the agent DaemonSet — the agent must not be running there or it re-attaches within
+  the backstop interval.
+
 ## Rolling a bare-metal host
 
 When a chart bump changes `postInstallScript` (or any

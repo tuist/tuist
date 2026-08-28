@@ -121,8 +121,14 @@ dictate this shape — do not regress them:
   errors, and DaemonSet health must alert.
 - Shutdown performs no teardown: pinned links (under
   `/sys/fs/bpf/kura-egress-tree/`) keep enforcing across agent restarts and
-  upgrades. Removing shaping is an explicit operator action: delete the
-  DaemonSet, remove the pin directory, delete `kura-egress0`.
+  upgrades. Consequently `enabled: false` (or deleting the DaemonSet) stops
+  shaping only for pods created afterwards; already-shaped pods stay shaped.
+  Removing enforcement is an explicit operator action that must not depend
+  on this agent running, and has a load-bearing order (pod pins, then the
+  return pin, then `kura-egress0` — a pod program left attached to a deleted
+  trampoline blackholes that pod). The step-by-step procedure, run as a
+  throwaway privileged DaemonSet, is the
+  [egress shaping breakglass runbook](../k8s/onboarding.md#egress-shaping-breakglass-egress-tree-agent).
 - **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
   tenant's floor to the node budget *before* raising its ceiling to meet that
   floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
