@@ -13,6 +13,7 @@ defmodule TuistWeb.TestsLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -20,82 +21,99 @@ defmodule TuistWeb.TestsLive do
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    socket =
-      socket
-      |> assign(
-        :head_title,
-        "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
-      )
-      |> assign(OpenGraph.og_image_assigns("tests"))
-      |> assign_slowest_test_cases()
-      |> assign_most_flaky_test_cases()
+    if Project.bazel_project?(project) do
+      {:ok, TuistWeb.BazelTestsLive.assign_mount(socket)}
+    else
+      socket =
+        socket
+        |> assign(
+          :head_title,
+          "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
+        )
+        |> assign(OpenGraph.og_image_assigns("tests"))
+        |> assign_slowest_test_cases()
+        |> assign_most_flaky_test_cases()
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+      if connected?(socket) do
+        Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+      end
+
+      {:ok, socket}
     end
-
-    {:ok, socket}
   end
 
-  def handle_params(_params, uri, socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
 
-    uri =
-      URI.new!(
-        "?" <>
-          URI.encode_query(
-            Map.take(params, [
-              "analytics-environment",
-              "analytics-test-scheme",
-              "analytics-date-range",
-              "analytics-start-date",
-              "analytics-end-date",
-              "analytics-selected-widget",
-              "duration-type",
-              "duration-chart-type",
-              "duration-scatter-group-by",
-              "selective-testing-duration-type",
-              "selective-testing-chart-type"
-            ])
-          )
-      )
+    if Project.bazel_project?(project) do
+      {:noreply, TuistWeb.BazelTestsLive.assign_handle_params(socket, params)}
+    else
+      uri =
+        URI.new!(
+          "?" <>
+            URI.encode_query(
+              Map.take(params, [
+                "analytics-environment",
+                "analytics-test-scheme",
+                "analytics-date-range",
+                "analytics-start-date",
+                "analytics-end-date",
+                "analytics-selected-widget",
+                "duration-type",
+                "duration-chart-type",
+                "duration-scatter-group-by",
+                "selective-testing-duration-type",
+                "selective-testing-chart-type"
+              ])
+            )
+        )
 
-    {
-      :noreply,
-      socket
-      |> assign(:uri, uri)
-      |> assign(:current_params, params)
-      |> assign_analytics(params)
-      |> assign_selective_testing(params)
-      |> assign_recent_test_runs()
-    }
+      {
+        :noreply,
+        socket
+        |> assign(:uri, uri)
+        |> assign(:current_params, params)
+        |> assign_analytics(params)
+        |> assign_selective_testing(params)
+        |> assign_recent_test_runs()
+      }
+    end
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
-    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
-    uri = URI.new!("?" <> query)
-
-    socket =
-      socket
-      |> assign(:analytics_selected_widget, widget)
-      |> assign(:uri, uri)
-      |> push_event("replace-url", %{url: "?" <> query})
-
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.selected_duration_type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.flaky_test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    if Project.bazel_project?(socket.assigns.selected_project) do
+      TuistWeb.BazelTestsLive.handle_event("select_widget", %{"widget" => widget}, socket)
     else
-      {:noreply, socket}
+      query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+      uri = URI.new!("?" <> query)
+
+      socket =
+        socket
+        |> assign(:analytics_selected_widget, widget)
+        |> assign(:uri, uri)
+        |> push_event("replace-url", %{url: "?" <> query})
+
+      if socket.assigns.test_runs_analytics.ok? do
+        chart_data =
+          analytics_chart_data(
+            widget,
+            socket.assigns.selected_duration_type,
+            socket.assigns.test_runs_analytics.result,
+            socket.assigns.flaky_test_runs_analytics.result,
+            socket.assigns.failed_test_runs_analytics.result,
+            socket.assigns.test_runs_duration_analytics.result
+          )
+
+        {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+      else
+        {:noreply, socket}
+      end
     end
+  end
+
+  def handle_event("select_duration_type", %{"type" => _type} = params, %{assigns: %{selected_project: project}} = socket)
+      when project.build_system == :bazel do
+    TuistWeb.BazelTestsLive.handle_event("select_duration_type", params, socket)
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -164,6 +182,19 @@ defmodule TuistWeb.TestsLive do
      |> assign(:selective_testing_duration_type, type)
      |> assign(:uri, uri)
      |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_project: project}} = socket
+      )
+      when project.build_system == :bazel do
+    TuistWeb.BazelTestsLive.handle_event(
+      "analytics_period_changed",
+      %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+      socket
+    )
   end
 
   def handle_event(

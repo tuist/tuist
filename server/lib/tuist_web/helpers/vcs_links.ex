@@ -9,6 +9,28 @@ defmodule TuistWeb.Helpers.VCSLinks do
   alias TuistWeb.Helpers.GitHubHost
 
   attr :project, :map, required: true
+  attr :fallback, :string, default: nil
+  attr :rest, :global
+
+  def repository_link(assigns) do
+    assigns = assign(assigns, :github_base_url, GitHubHost.base_url(assigns.project))
+
+    ~H"""
+    <%= if has_github_vcs?(@project) do %>
+      <a
+        href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}"}
+        target="_blank"
+        {@rest}
+      >
+        {@project.vcs_connection.repository_full_handle}
+      </a>
+    <% else %>
+      <span :if={@fallback} {@rest}>{@fallback}</span>
+    <% end %>
+    """
+  end
+
+  attr :project, :map, required: true
   attr :commit_sha, :string, required: true
   attr :fallback, :string, default: nil
   attr :rest, :global
@@ -67,7 +89,41 @@ defmodule TuistWeb.Helpers.VCSLinks do
     """
   end
 
+  attr :project, :map, required: true
+  attr :path, :string, required: true
+  attr :commit_sha, :string, default: nil
+  attr :branch, :string, default: nil
+  attr :fallback_branch, :string, default: nil
+  attr :rest, :global
+
+  def source_file_link(assigns) do
+    source_ref = assigns.commit_sha || assigns.branch || assigns.fallback_branch
+
+    assigns =
+      assigns
+      |> assign(:github_base_url, GitHubHost.base_url(assigns.project))
+      |> assign(:source_ref, source_ref)
+
+    ~H"""
+    <%= if has_github_vcs?(@project) and valid_repository_path?(@path) and @source_ref not in [nil, ""] do %>
+      <a
+        href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/blob/#{@source_ref}/#{@path}"}
+        target="_blank"
+        {@rest}
+      >
+        {@path}
+      </a>
+    <% else %>
+      <span {@rest}>{@path}</span>
+    <% end %>
+    """
+  end
+
   defp has_github_vcs?(project) do
     project.vcs_connection && project.vcs_connection.provider == :github
+  end
+
+  defp valid_repository_path?(path) do
+    String.match?(path, ~r/^(?:[A-Za-z0-9][A-Za-z0-9_.-]*\/)*[A-Za-z0-9][A-Za-z0-9_.-]*$/)
   end
 end

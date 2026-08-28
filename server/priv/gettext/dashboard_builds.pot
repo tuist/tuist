@@ -873,6 +873,7 @@ msgid "Scheme:"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:199
+#: lib/tuist_web/live/bazel_invocation_live.ex:590
 #: lib/tuist_web/live/build_run_live.html.heex:478
 #: lib/tuist_web/live/build_run_live.html.heex:632
 #: lib/tuist_web/live/build_run_live.html.heex:1184

@@ -5,6 +5,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Bazel
   alias Tuist.ReapiCache
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -168,16 +169,27 @@ defmodule TuistWeb.OverviewLiveTest do
       %{conn: conn, project: selected_project, organization: organization}
     end
 
-    test "renders Bazel remote cache setup instead of Xcode analytics", %{
+    test "renders Bazel analytics and invocations instead of Xcode analytics", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2000-01-01T00:00:00Z",
+        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, lv, _html} = live(conn, path)
 
       assert has_element?(lv, ".bazel-overview")
-      assert has_element?(lv, "[data-part=bazel-remote-cache]", "tuist bazel setup")
-      refute has_element?(lv, "[data-part=analytics]")
+      assert has_element?(lv, "[data-part=analytics-card]", "Analytics")
+      assert has_element?(lv, "[data-part=invocations-card]", "Invocations")
+      refute has_element?(lv, "[data-part=bazel-remote-cache]")
     end
 
     test "hides previews and bundles from the project navigation", %{
@@ -248,14 +260,44 @@ defmodule TuistWeb.OverviewLiveTest do
         }
       ])
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      Bazel.create_invocations([
+        %{
+          invocation_id: "invocation-1",
+          command: "build",
+          status: "success",
+          exit_code: 0,
+          started_at: NaiveDateTime.add(now, -5, :second),
+          finished_at: now,
+          duration_ms: 5_000,
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2000-01-01T00:00:00Z",
+        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, lv, _html} = live(conn, path)
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, "#bazel-action-cache-hit-rate", "50.0%")
       assert has_element?(lv, "#bazel-action-cache-lookups", "2")
       assert has_element?(lv, "#bazel-cache-downloads", "2.0 KB")
       assert has_element?(lv, "#bazel-cache-uploads", "1.0 KB")
-      assert has_element?(lv, "[data-part=bazel-latest-observation]", "Latest observation:")
+      assert has_element?(lv, "#bazel-cache-hit-rate-chart")
+      assert has_element?(lv, "#bazel-recent-invocations-chart")
+      assert has_element?(lv, "#bazel-average-invocation-duration-chart")
     end
   end
 end

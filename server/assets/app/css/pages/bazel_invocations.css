@@ -4,12 +4,6 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
-  & [data-part="bazel-invocation-summary"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
-  }
-
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -27,7 +21,107 @@
     }
   }
 
-  & [data-part="bazel-invocations-table"] {
-    overflow-x: auto;
+  & [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & > [data-part="bazel-invocations-card"] {
+    & > [data-part="bazel-invocations-table-section"] {
+      gap: var(--noora-spacing-8);
+
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
+      }
+
+      & .noora-pagination-group {
+        margin-top: var(--noora-spacing-7);
+      }
+    }
+  }
+
+  & > [data-part="bazel-invocation-analytics-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & .noora-chart {
+      height: 200px;
+      padding: var(--noora-spacing-3);
+    }
+
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & > [data-part="bazel-tests-analytics-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & .noora-chart {
+      height: 200px;
+      padding: var(--noora-spacing-3);
+    }
+  }
+
+  & > [data-part="bazel-cache-analytics-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & .noora-chart {
+      height: 200px;
+      padding: var(--noora-spacing-3);
+    }
+  }
+
+  & > [data-part="bazel-cache-invocations-card"] {
+    & > [data-part="bazel-cache-invocations-section"] {
+      gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-9);
+
+      & > [data-part="builds-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+
+        & > [data-part="builds-chart"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+
+          & .noora-chart {
+            height: 148px;
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="bazel-cache-activity-card"] {
+    & > [data-part="bazel-cache-events-section"] {
+      gap: var(--noora-spacing-8);
+
+      & .noora-pagination-group {
+        margin-top: var(--noora-spacing-7);
+      }
+    }
+  }
+
+  & [data-part="empty-bazel-invocations-card-section"] {
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+
+    & > [data-part="image"] {
+      height: 150px;
+    }
   }
 }
