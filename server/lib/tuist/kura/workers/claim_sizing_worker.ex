@@ -17,6 +17,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
 
   alias Tuist.Kura
   alias Tuist.Kura.ClaimProposals
+  alias Tuist.Kura.ClaimSizing
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageTelemetry
 
@@ -31,8 +32,17 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   @ingest_lookback_days 2
 
   # Past the longest policy window no rollup can change a verdict, so there is
-  # nothing to gain from recomputing one.
-  @refresh_horizon_days 90
+  # nothing to gain from recomputing one. Derived from the policy rather than
+  # restated here, so shortening a window cannot leave this scanning a range
+  # nothing reads, nor lengthening one leave it too narrow to feed a verdict.
+  defp refresh_horizon_days do
+    policy = ClaimSizing.default_policy()
+
+    policy.grow_windows
+    |> Enum.map(& &1.window_days)
+    |> Enum.max()
+    |> max(policy.shrink_window_days)
+  end
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -53,7 +63,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
 
     StorageTelemetry.dates_with_telemetry_ingested_since(
       since,
-      Date.add(today, -@refresh_horizon_days),
+      Date.add(today, -refresh_horizon_days()),
       today
     )
   end

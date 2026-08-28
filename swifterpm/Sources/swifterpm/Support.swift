@@ -83,6 +83,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
@@ -90,7 +91,7 @@ enum SystemProcess {
             let result = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
-                environment: subprocessEnvironment(environment),
+                environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
                 output: .standardOutput,
                 error: .standardError
@@ -106,7 +107,7 @@ enum SystemProcess {
         let result = try await Subprocess.run(
             subprocessExecutable(executable),
             arguments: Arguments(arguments),
-            environment: subprocessEnvironment(environment),
+            environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
@@ -144,9 +145,27 @@ enum SystemProcess {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }
 
-    private static func subprocessEnvironment(_ environment: [String: String])
+    private static func subprocessEnvironment(
+        _ environment: [String: String],
+        customEnvironment: [String: String]?
+    )
         -> Subprocess.Environment
     {
+        if let customEnvironment {
+            var values: [Subprocess.Environment.Key: String] = [:]
+            var overrides: [Subprocess.Environment.Key: String?] = [:]
+            for (key, value) in customEnvironment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    values[subprocessKey] = value
+                }
+            }
+            for (key, value) in environment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    overrides[subprocessKey] = value
+                }
+            }
+            return .custom(values).updating(overrides)
+        }
         guard !environment.isEmpty else { return .inherit }
         var overrides: [Subprocess.Environment.Key: String?] = [:]
         for (key, value) in environment {

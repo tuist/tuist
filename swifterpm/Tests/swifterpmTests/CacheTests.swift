@@ -39,7 +39,7 @@ struct CacheTests {
     @Test
     func initializesExpectedCacheDirectories() async throws {
         try await withTemporaryDirectory { root in
-            _ = try await Cache(root: root)
+            let cache = try await Cache(root: root)
 
             for path in [
                 "sources",
@@ -52,6 +52,13 @@ struct CacheTests {
             ] {
                 #expect(try await fileSystem.exists(root.appendingPathComponent(path).absolutePath))
             }
+            #expect(try await !cache.hasCachedSources())
+
+            try await fileSystem.makeDirectory(
+                at: root.appendingPathComponent("sources/example").absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            #expect(try await cache.hasCachedSources())
         }
     }
 

@@ -33,7 +33,7 @@ defmodule Tuist.Kura.ClaimSizing do
       %{shed_age_under: {:floor_fraction, 1.0}, window_days: 14}
     ],
     grow_headroom_factor: 1.25,
-    shrink_window_days: 90,
+    shrink_window_days: 30,
     shrink_occupancy_percent: 40,
     shrink_target_occupancy_percent: 60,
     max_step_factor: 2.0
