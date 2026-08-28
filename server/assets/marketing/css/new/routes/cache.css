@@ -757,11 +757,11 @@
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
           }
 
           & > [data-part="description"] {
-            margin-top: var(--noora-spacing-4);
+            margin-top: var(--noora-spacing-3);
             color: var(--noora-surface-label-secondary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-large);
           }
