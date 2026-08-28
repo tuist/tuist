@@ -455,6 +455,9 @@ defmodule Tuist.Authorization do
 
   object :runners do
     action :read do
+      desc("Allows anyone to read runner state for a public account.")
+      allow(:public_account)
+
       desc("Allows users of an account to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, user_role: :user])
 
