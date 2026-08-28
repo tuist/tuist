@@ -778,6 +778,18 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
   end
 
+  test "can.read.account.runners when an account token has runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

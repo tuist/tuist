@@ -20,6 +20,34 @@ defmodule TuistWeb.API.AccountTokensController do
 
   tags ["Account tokens"]
 
+  @account_token_schema %Schema{
+    title: "AccountToken",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, description: "Token unique identifier."},
+      name: %Schema{type: :string, nullable: true, description: "Friendly name for the token."},
+      scopes: %Schema{
+        type: :array,
+        items: %Schema{type: :string, enum: AccountToken.valid_scopes()},
+        description: "Token scopes."
+      },
+      all_projects: %Schema{type: :boolean, description: "Whether token has access to all projects."},
+      expires_at: %Schema{
+        type: :string,
+        format: "date-time",
+        nullable: true,
+        description: "When the token expires."
+      },
+      inserted_at: %Schema{type: :string, format: "date-time", description: "When the token was created."},
+      project_handles: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description: "List of project handles the token can access when all_projects is false."
+      }
+    },
+    required: [:id, :scopes, :all_projects, :inserted_at]
+  }
+
   operation(:create,
     summary: "Create a new account token.",
     description:
@@ -184,32 +212,7 @@ defmodule TuistWeb.API.AccountTokensController do
           properties: %{
             tokens: %Schema{
               type: :array,
-              items: %Schema{
-                type: :object,
-                properties: %{
-                  id: %Schema{type: :string, description: "Token unique identifier."},
-                  name: %Schema{type: :string, nullable: true, description: "Friendly name for the token."},
-                  scopes: %Schema{
-                    type: :array,
-                    items: %Schema{type: :string, enum: AccountToken.valid_scopes()},
-                    description: "Token scopes."
-                  },
-                  all_projects: %Schema{type: :boolean, description: "Whether token has access to all projects."},
-                  expires_at: %Schema{
-                    type: :string,
-                    format: "date-time",
-                    nullable: true,
-                    description: "When the token expires."
-                  },
-                  inserted_at: %Schema{type: :string, format: "date-time", description: "When the token was created."},
-                  project_handles: %Schema{
-                    type: :array,
-                    items: %Schema{type: :string},
-                    description: "List of project handles the token can access (when all_projects is false)."
-                  }
-                },
-                required: [:id, :scopes, :all_projects, :inserted_at]
-              }
+              items: @account_token_schema
             },
             meta: TuistWeb.API.Schemas.PaginationMetadata
           },
@@ -247,6 +250,50 @@ defmodule TuistWeb.API.AccountTokensController do
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+    end
+  end
+
+  operation(:show,
+    summary: "Get an account token.",
+    operation_id: "getAccountToken",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The account handle."
+      ],
+      token_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The token identifier."
+      ]
+    ],
+    responses: %{
+      ok: {"An account token.", "application/json", @account_token_schema},
+      not_found: {"The account token was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to get the token", "application/json", Error},
+      forbidden: {"You need to be authorized to get the token", "application/json", Error}
+    }
+  )
+
+  def show(%{assigns: %{selected_account: selected_account}, params: %{token_id: token_id}} = conn, _params) do
+    current_user = Authentication.current_user(conn)
+
+    with :ok <- Authorization.authorize(:account_token_read, current_user, selected_account),
+         {:ok, token} <- Accounts.get_account_token(selected_account, token_id) do
+      json(conn, format_token(token))
+    else
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Account token not found"})
     end
   end
 

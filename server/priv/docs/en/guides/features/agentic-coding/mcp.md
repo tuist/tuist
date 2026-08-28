@@ -225,10 +225,43 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_accounts` | List personal and organization account handles available to the authenticated user, including whether each account can create projects. | None |
+| `get_organization` | Get an organization's member directory. Pending invitations require the same administrator permission as the dashboard; invitation acceptance tokens are never returned. | `account_handle` |
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
 | `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
+| `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
+
+#### Account tokens
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_account_tokens` | List account token metadata without exposing token values. | `account_handle` |
+| `get_account_token` | Get account token metadata without exposing its value. | `account_handle`, `token_id` |
+| `list_project_tokens` | List project token metadata without exposing token values. | `account_handle`, `project_handle` |
+
+#### Continuous-integration runners
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_runner_jobs` | List continuous-integration runner jobs for an account. | `account_handle` |
+| `get_runner_job` | Get a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_steps` | List the steps recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
+| `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+
+#### Webhooks
+
+Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_webhook_endpoints` | List webhook endpoints for an account. | `account_handle` |
+| `get_webhook_endpoint` | Get a webhook endpoint. | `account_handle`, `webhook_endpoint_id` |
+| `list_webhook_delivery_attempts` | List delivery attempts for an endpoint. | `account_handle`, `webhook_endpoint_id` |
+| `get_webhook_delivery_attempt` | Get a delivery attempt. | `account_handle`, `webhook_endpoint_id`, `delivery_attempt_id` |
 
 #### Xcode builds
 
@@ -290,6 +323,23 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_cache_runs` | List cache runs for a project. | `account_handle`, `project_handle` |
 | `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
 | `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status and diagnostic component hashes, including additional hashing inputs. | `run_id` |
+
+#### Previews
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_previews` | List shareable app previews for a project. | `account_handle`, `project_handle` |
+| `get_preview` | Get a preview and temporary download URLs for its builds. | `preview_id` |
+| `get_latest_preview` | Find the latest preview for a running app binary. | `account_handle`, `project_handle`, `binary_id`, `build_version` |
+
+#### Automations
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_automation_alerts` | List automation alerts for a project. | `account_handle`, `project_handle` |
+| `get_automation_alert` | Get an automation alert. | `alert_id` |
+| `list_automation_alert_revisions` | List the revision history for an automation alert. Action credentials are redacted. | `alert_id` |
+| `list_project_notification_alerts` | List project notification alert rules. Requires the same administrator permission as the dashboard settings page. Webhook addresses are redacted. | `account_handle`, `project_handle` |
 
 ### Prompts
 
