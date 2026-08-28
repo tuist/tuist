@@ -658,11 +658,12 @@ enum WorkspaceRestorer {
 
             try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
             do {
-                try await fileSystem.createSymbolicLink(
-                    from: checkout.absolutePath,
-                    to: destination.absolutePath
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: destination,
+                    destination: checkout
                 )
             } catch {
+                try? await fileSystem.remove(checkout.absolutePath)
                 try? await fileSystem.move(from: destination.absolutePath, to: checkout.absolutePath)
                 throw error
             }

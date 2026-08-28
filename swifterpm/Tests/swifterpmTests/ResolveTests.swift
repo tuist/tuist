@@ -217,6 +217,92 @@ struct ResolveTests {
     }
 
     @Test
+    func coldResolutionCopiesCheckoutsInContinuousIntegration() async throws {
+        try await Environment.$values.withValue(["CI": "1"]) {
+            try await withTemporaryDirectory { root in
+                let dependency = root.appendingPathComponent("Dependency")
+                try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+                try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+                let package = root.appendingPathComponent("App")
+                try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+                let cacheDirectory = root.appendingPathComponent("cache")
+                let scratch = root.appendingPathComponent("scratch")
+
+                let result = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: scratch,
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+
+                #expect(result.pins.map(\.identity) == ["dependency"])
+                let pin = try #require(
+                    try await ResolvedFile.read(packageDir: package).pins.first
+                )
+                let checkout = scratch
+                    .appendingPathComponent("checkouts")
+                    .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                #expect(fileSystem.isDirectoryAndNotSymlink(checkout))
+                #expect(try await fileSystem.exists(checkout.appendingPathComponent("Package.swift").absolutePath))
+
+                try await fileSystem.remove(cacheDirectory.absolutePath)
+                #expect(try await fileSystem.exists(checkout.appendingPathComponent("Package.swift").absolutePath))
+            }
+        }
+    }
+
+    @Test
+    func coldResolutionRepairsDanglingCheckoutsInContinuousIntegration() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+
+            try await Environment.withCachedDirectoryMaterialization(.symlink) {
+                _ = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: scratch,
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+            }
+
+            let pin = try #require(
+                try await ResolvedFile.read(packageDir: package).pins.first
+            )
+            let checkout = scratch
+                .appendingPathComponent("checkouts")
+                .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            let cache = try await Cache(root: cacheDirectory)
+            try await fileSystem.remove((try cache.sourcePath(pin: pin)).absolutePath)
+
+            try await Environment.$values.withValue(["CI": "1"]) {
+                _ = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: scratch,
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+            }
+
+            #expect(fileSystem.isDirectoryAndNotSymlink(checkout))
+            #expect(try await fileSystem.exists(checkout.appendingPathComponent("Package.swift").absolutePath))
+        }
+    }
+
+    @Test
     func nativeColdPathIsUsedWhenTheSharedCacheOnlyContainsOtherPackages() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
