@@ -282,6 +282,18 @@ export function prepareChartOptions(input, element) {
     }
   }
 
+  if (option.tooltip?.formatter === "fn:rangeBarTooltip") {
+    option.tooltip.formatter = rangeBarTooltipFormatter;
+  }
+
+  if (Array.isArray(option.series)) {
+    option.series.forEach((series) => {
+      if (series.renderItem === "fn:rangeBar") {
+        series.renderItem = rangeBarRenderItem;
+      }
+    });
+  }
+
   if (option.yAxis?.splitLine?.lineStyle?.color) {
     option.yAxis.splitLine.lineStyle.color = processColor(
       option.yAxis.splitLine.lineStyle.color,
@@ -401,6 +413,56 @@ function processItemColor(dataItem) {
       });
     }
   }
+}
+
+function rangeBarRenderItem(params, api) {
+  const lane = api.value(0);
+  const start = api.value(1);
+  const duration = api.value(2);
+  const startCoordinate = api.coord([start, lane]);
+  const endCoordinate = api.coord([start + duration, lane]);
+  const height = api.size([0, 1])[1] * 0.62;
+  const shape = echarts.graphic.clipRectByRect(
+    {
+      x: startCoordinate[0],
+      y: startCoordinate[1] - height / 2,
+      width: Math.max(endCoordinate[0] - startCoordinate[0], 1),
+      height,
+    },
+    {
+      x: params.coordSys.x,
+      y: params.coordSys.y,
+      width: params.coordSys.width,
+      height: params.coordSys.height,
+    },
+  );
+
+  return (
+    shape && {
+      type: "rect",
+      shape,
+      style: api.style(),
+    }
+  );
+}
+
+function rangeBarTooltipFormatter(param) {
+  const [lane, start, duration] = param.value || [];
+  const description = param.data?.name || param.name || "Build activity";
+  const category = param.data?.category || "Other";
+  const laneLabel = param.data?.laneLabel || `Lane ${Number(lane) + 1}`;
+
+  return `<div class="noora-chart-tooltip">
+    <span data-part="title">${escapeHtml(description)}</span>
+    <div class="noora-line-divider"><div data-part="line"></div></div>
+    <div data-part="series">
+      <span data-part="label">${escapeHtml(category)}</span>
+      <span data-part="value">${escapeHtml(formatMilliseconds(duration))}</span>
+    </div>
+    <div data-part="series">
+      <span data-part="label">${escapeHtml(laneLabel)} · starts ${escapeHtml(formatMilliseconds(start))}</span>
+    </div>
+  </div>`;
 }
 
 function transformColorProperty(colorProp) {

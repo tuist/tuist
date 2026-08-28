@@ -59,10 +59,14 @@ defmodule Noora.Chart do
 
   attr(:type, :string,
     default: "bar",
-    values: ["bar", "line", "pie", "scatter", "radar"],
+    values: ["bar", "line", "pie", "scatter", "radar", "custom"],
     doc: """
     The type of chart to render. Defaults to "bar".
-    Available types: bar, line, pie, scatter, radar
+    Available types: bar, line, pie, scatter, radar, custom.
+
+    The custom type passes the provided series through to Apache ECharts. It is
+    useful for visualizations such as range bars that are not represented by
+    the standard chart types.
     """
   )
 
