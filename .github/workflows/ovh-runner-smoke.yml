@@ -1,0 +1,51 @@
+name: OVH Runner Smoke Test
+
+# Temporary bring-up check for the OVH Gravelines RISE-S box joining the staging
+# Linux runner fleet. Uses `tuist-staging-linux-large`, the one Linux dispatch
+# label that currently resolves on staging (the `tuist-staging-linux` profile the
+# canonical smoke expects no longer exists, so that workflow's jobs sit queued).
+# Its pool targets fleetSelector `runners-linux` with runtimeClass kata-qemu, so a
+# job here can land on either the Hetzner or the OVH box and proves the microVM
+# path on whichever it gets.
+#
+# Delete once the OVH fleet is validated and the canonical smoke's profile is
+# restored.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  smoke:
+    runs-on: tuist-staging-linux-large
+    timeout-minutes: 15
+    steps:
+      - name: Identify the host
+        run: |
+          set -euo pipefail
+          echo "== which box did this land on? =="
+          echo "CPU:    $(grep -m1 'model name' /proc/cpuinfo | sed 's/^[^:]*: *//')"
+          echo "Cores:  $(nproc)"
+          echo "Memory: $(grep MemTotal /proc/meminfo)"
+          echo "Kernel: $(uname -r)"
+          echo "Host:   $(hostname)"
+
+      - name: Confirm it is a kata microVM
+        run: |
+          set -euo pipefail
+          # kata guests boot a distinct kernel and expose virtio devices; a runc
+          # container would show the host kernel and no /dev/vd*.
+          echo "Virt:   $(systemd-detect-virt 2>/dev/null || echo unknown)"
+          echo "virtio block devices: $(ls /dev/vd* 2>/dev/null | tr '\n' ' ' || echo none)"
+          echo "cgroup: $(head -1 /proc/1/cgroup 2>/dev/null || echo unknown)"
+
+      - name: Do real work
+        run: |
+          set -euo pipefail
+          # Something CPU-bound and something that touches the network, so the
+          # box is exercised rather than just booted.
+          echo "compiling..."
+          printf '#include <stdio.h>\nint main(){long s=0;for(long i=0;i<200000000;i++)s+=i;printf("%%ld\\n",s);return 0;}' > /tmp/t.c
+          time (cc -O2 -o /tmp/t /tmp/t.c && /tmp/t)
+          curl -fsSL -o /dev/null -w "github.com -> HTTP %{http_code}\n" https://github.com
