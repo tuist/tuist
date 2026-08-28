@@ -34,6 +34,12 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
             "project_handle" => project.name,
             "invocation_id" => "invocation-1",
             "command" => "test",
+            "target_patterns" => ["//App:App", "//AppTests:AppTests"],
+            "bazel_version" => "8.1.0",
+            "configurations" => ["ci", "remote-cache", "not allowed"],
+            "compilation_mode" => "opt",
+            "remote_cache_enabled" => true,
+            "remote_execution_enabled" => true,
             "status" => "success",
             "exit_code" => 0,
             "started_at_ms" => 1_700_000_000_000,
@@ -58,6 +64,12 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
 
       assert invocation.invocation_id == "invocation-1"
       assert invocation.command == "test"
+      assert invocation.target_patterns == ["//App:App", "//AppTests:AppTests"]
+      assert invocation.bazel_version == "8.1.0"
+      assert invocation.configurations == ["ci", "remote-cache"]
+      assert invocation.compilation_mode == "opt"
+      assert invocation.remote_cache_enabled
+      assert invocation.remote_execution_enabled
       assert invocation.status == "success"
       assert invocation.exit_code == 0
       assert invocation.duration_ms == 15_000

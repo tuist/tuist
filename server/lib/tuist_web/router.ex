@@ -697,8 +697,13 @@ defmodule TuistWeb.Router do
         end
 
         scope "/bazel" do
+          post "/invocation-logs", BazelInvocationLogsController, :create
           get "/invocations", BazelController, :list_invocations
+          post "/invocations", BazelController, :create_invocation
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/test-results", BazelController, :list_test_results
+          post "/test-results", BazelController, :create_test_results
+          get "/test-results/:test_result_id", BazelController, :get_test_result
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
@@ -1182,13 +1187,17 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
       live "/tests/shards", ShardsLive
+      live "/tests/test-results/:test_result_id", BazelTestResultLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
+      live "/bazel-cache", BazelCacheLive
       live "/invocations", BazelInvocationsLive
+      get "/invocations/:invocation_id/logs/download", BazelInvocationLogsController, :download
+      live "/invocations/:invocation_id", BazelInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
@@ -1196,6 +1205,7 @@ defmodule TuistWeb.Router do
       live "/builds", BuildsLive
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

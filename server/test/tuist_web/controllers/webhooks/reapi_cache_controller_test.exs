@@ -50,7 +50,10 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       assert json_response(conn, 202) == %{}
     end
 
-    test "creates action-cache events with a valid signature", %{conn: conn, project: project} do
+    test "creates action-cache and content-addressable-storage events with a valid signature", %{
+      conn: conn,
+      project: project
+    } do
       events_params = %{
         "events" => [
           %{
@@ -62,6 +65,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
             "action_digest" => "action-hit",
             "size" => 2_048,
             "duration_ms" => 12,
+            "observed_at_ms" => 1_700_000_000_123,
             "invocation_id" => "invocation-1",
             "action_mnemonic" => "SwiftCompile",
             "target_label" => "//App:App",
@@ -76,6 +80,17 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
             "action_digest" => "action-write",
             "size" => 1_024,
             "duration_ms" => 20
+          },
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "client_kind" => "bazel",
+            "operation" => "cas",
+            "outcome" => "hit",
+            "action_digest" => "content-digest",
+            "size" => 512,
+            "duration_ms" => 7,
+            "invocation_id" => "invocation-1"
           }
         ]
       }
@@ -94,13 +109,20 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       events =
         ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id, order_by: e.size))
 
-      assert [write, hit] = events
+      assert [content, write, hit] = events
+      assert content.operation == "cas"
+      assert content.outcome == "hit"
+      assert content.action_digest == "content-digest"
+      assert content.size == 512
       assert write.outcome == "write"
       assert write.size == 1_024
       assert write.invocation_id == ""
       assert hit.outcome == "hit"
       assert hit.action_digest == "action-hit"
       assert hit.duration_ms == 12
+
+      assert DateTime.compare(hit.observed_at, DateTime.from_unix!(1_700_000_000_123, :millisecond)) == :eq
+
       assert hit.invocation_id == "invocation-1"
       assert hit.target_label == "//App:App"
       assert hit.cache_endpoint == "cache.tuist.dev"

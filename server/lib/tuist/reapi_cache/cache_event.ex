@@ -4,16 +4,35 @@ defmodule Tuist.ReapiCache.CacheEvent do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :outcome, :invocation_id, :inserted_at],
-    sortable: [:inserted_at, :size, :duration_ms],
-    default_order: %{order_by: [:inserted_at], order_directions: [:desc]}
+    filterable: [
+      :project_id,
+      :operation,
+      :outcome,
+      :action_mnemonic,
+      :target_label,
+      :invocation_id,
+      :observed_at,
+      :inserted_at
+    ],
+    sortable: [
+      :observed_at,
+      :inserted_at,
+      :operation,
+      :outcome,
+      :action_mnemonic,
+      :target_label,
+      :action_digest,
+      :size,
+      :duration_ms
+    ],
+    default_order: %{order_by: [:observed_at], order_directions: [:desc]}
   }
 
   @primary_key false
   schema "reapi_cache_events" do
     field :id, Ch, type: "UUID"
     field :client_kind, Ch, type: "LowCardinality(String)"
-    field :operation, Ch, type: "Enum8('action_cache' = 0)"
+    field :operation, Ch, type: "Enum8('action_cache' = 0, 'cas' = 1)"
     field :outcome, Ch, type: "Enum8('hit' = 0, 'miss' = 1, 'write' = 2)"
     field :action_digest, Ch, type: "String"
     field :size, Ch, type: "UInt64"
@@ -26,6 +45,7 @@ defmodule Tuist.ReapiCache.CacheEvent do
     field :account_handle, Ch, type: "String"
     field :project_handle, Ch, type: "String"
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
+    field :observed_at, Ch, type: "DateTime64(3, 'UTC')"
     field :inserted_at, Ch, type: "DateTime"
   end
 end
