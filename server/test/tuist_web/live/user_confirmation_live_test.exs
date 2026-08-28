@@ -18,6 +18,9 @@ defmodule TuistWeb.UserConfirmationLiveTest do
 
     assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
     assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+    assert_receive {:delivered_email, email}
+
+    email
   end
 
   setup do
