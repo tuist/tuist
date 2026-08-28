@@ -36,6 +36,10 @@ device — never the other way around.
 
 ### 1. Stop the agent
 
+The DaemonSet lives in the kura namespace (`kuraController.namespace`) on the
+managed environments; a self-hosted release renders it into the release
+namespace instead.
+
 ```bash
 export KUBECONFIG=~/.kube/tuist-<env>.yaml   # cluster-admin kubeconfig, see infra/k8s/onboarding.md
 # Capture the image first: step 2 reuses it because it is already pulled on
@@ -81,6 +85,10 @@ for node in $(kubectl get nodes -l "node.cluster.x-k8s.io/pool in ($POOLS)" -o j
 done
 ```
 
+A `NotReady` node in the pool keeps its debug pod `Pending`; skip it —
+nothing is serving from there, and the pins go away with the next kubelet
+restart's pod churn or a re-run of this step once it is back.
+
 ### 3. Verify and clean up
 
 ```bash
@@ -95,7 +103,13 @@ the tenant symptom that triggered this clears. The wire-leg pacing from the
 applies; only the shared-tree floors, ceilings, and box cap are gone.
 
 No kura pod needs restarting: once its program is detached, a pod's traffic
-takes Cilium's normal path from the next packet on.
+takes Cilium's normal path from the next packet on. Exercised on the k01 lab
+(2026-08-28, two nodes, one tenant class plus a lab pod at `ceil 300mbit`):
+the agent's removal alone left throughput at 284 Mbit/s; the wipe took 13 s
+for both nodes, moved it to line rate, and a 4 Hz probe against a shaped
+kura pod's `/up` saw no failure across it. Deleting `kura-egress0` before the
+pins, on the same setup, blackholed the shaped pod until the pins were
+removed — the ordering above is not theoretical.
 
 ### Re-enabling
 
