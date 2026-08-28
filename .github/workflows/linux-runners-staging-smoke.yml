@@ -35,7 +35,7 @@ jobs:
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the runner
     # but isn't an authorization boundary).
-    runs-on: tuist-staging-linux-large
+    runs-on: tuist-staging-linux
     timeout-minutes: 10
     steps:
       - name: Show environment
