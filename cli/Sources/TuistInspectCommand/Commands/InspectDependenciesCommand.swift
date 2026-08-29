@@ -7,7 +7,7 @@
         static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "dependencies",
-                abstract: "Inspects implicit and redundant dependencies in Tuist projects, failing when issues are found."
+                abstract: "Inspects implicit and redundant dependencies in your project, failing when issues are found."
             )
         }
 

@@ -468,6 +468,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig", "TuistXcodeBuildProducts",
     "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
     xcodeGraphDependency,
+    xcodeGraphMapperDependency,
     commandDependency,
 ])
 #endif

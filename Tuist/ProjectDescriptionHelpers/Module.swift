@@ -1574,6 +1574,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Mockable"),
                     .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeGraphMapper.targetName),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {

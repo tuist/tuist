@@ -221,6 +221,17 @@ struct LintAcceptanceTests {
         }
     }
 
+    @Test(.withFixture("xcode_project_with_packages_and_tests"), .withMockedDependencies())
+    func xcode_project_with_packages() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InspectDependenciesCommand.self, ["--path", fixtureDirectory.pathString])
+        TuistTest.expectLogs(
+            "We did not find any dependency issues in your project (checked: implicit, redundant).",
+            at: .info,
+            <=
+        )
+    }
+
     @Test(.disabled(), .withFixture("generated_framework_with_macros_and_tests"), .withMockedDependencies())
     func framework_with_macros_redundant_imports() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
