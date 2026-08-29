@@ -312,11 +312,9 @@ kuraController:
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
 # and its traffic is node-local runner reads that must not be shaped.
-# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
-  betaPodPrefix: "kura-tuist-"
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming

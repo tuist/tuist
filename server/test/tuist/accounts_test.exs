@@ -18,6 +18,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
@@ -2617,10 +2618,17 @@ defmodule Tuist.AccountsTest do
     test "sends token through notification", %{user: user} do
       token =
         extract_user_token(fn confirmation_url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: confirmation_url
-          })
+          :ok =
+            Accounts.deliver_user_confirmation_instructions(%{
+              user: user,
+              confirmation_url: confirmation_url
+            })
+
+          assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+          assert_receive {:delivered_email, email}
+
+          email
         end)
 
       {:ok, token} = Base.url_decode64(token, padding: false)
@@ -2632,7 +2640,13 @@ defmodule Tuist.AccountsTest do
 
     test "returns :ok without issuing a new token within the cooldown window", %{user: user} do
       extract_user_token(fn confirmation_url ->
-        Accounts.deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
+        :ok = Accounts.deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
+
+        assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+        assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+        assert_receive {:delivered_email, email}
+
+        email
       end)
 
       assert Accounts.deliver_user_confirmation_instructions(%{
@@ -2665,10 +2679,17 @@ defmodule Tuist.AccountsTest do
 
       token =
         extract_user_token(fn confirmation_url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: confirmation_url
-          })
+          :ok =
+            Accounts.deliver_user_confirmation_instructions(%{
+              user: user,
+              confirmation_url: confirmation_url
+            })
+
+          assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+          assert_receive {:delivered_email, email}
+
+          email
         end)
 
       %{user: user, token: token}
