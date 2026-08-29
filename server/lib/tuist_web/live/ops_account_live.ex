@@ -260,17 +260,21 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
+      case Billing.upgrade_to_enterprise(account, %{}) do
+        {:ok, _sub} ->
+          {:noreply,
+           socket
+           |> assign(:account, preload_billing(account))
+           |> put_flash(
+             :info,
+             dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
+               account: account.name
+             )
+           )}
 
-      {:noreply,
-       socket
-       |> assign(:account, preload_billing(account))
-       |> put_flash(
-         :info,
-         dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
-           account: account.name
-         )
-       )}
+        {:error, error} ->
+          {:noreply, put_flash(socket, :error, error.message)}
+      end
     else
       # Missing billing details: open the modal pre-filled with whatever
       # the Stripe customer already has.
@@ -284,22 +288,26 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("submit_enterprise_upgrade", params, socket) do
-    {:ok, _sub} = Billing.upgrade_to_enterprise(socket.assigns.account, parse_upgrade_params(params))
+    case Billing.upgrade_to_enterprise(socket.assigns.account, parse_upgrade_params(params)) do
+      {:ok, _sub} ->
+        account = preload_billing(socket.assigns.account)
 
-    account = preload_billing(socket.assigns.account)
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:upgrade_target_account, nil)
+         |> assign(:upgrade_target_customer, nil)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
+             account: account.name
+           )
+         )
+         |> push_event("close-modal", %{id: "enterprise-modal"})}
 
-    {:noreply,
-     socket
-     |> assign(:account, account)
-     |> assign(:upgrade_target_account, nil)
-     |> assign(:upgrade_target_customer, nil)
-     |> put_flash(
-       :info,
-       dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
-         account: account.name
-       )
-     )
-     |> push_event("close-modal", %{id: "enterprise-modal"})}
+      {:error, error} ->
+        {:noreply, put_flash(socket, :error, error.message)}
+    end
   end
 
   @impl true
