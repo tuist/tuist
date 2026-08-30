@@ -64,6 +64,7 @@ struct LoginCommandServiceTests {
                 serverURL: .any,
                 deviceCodeType: .any,
                 onOpeningBrowser: .any,
+                onBrowserOpenFailed: .any,
                 onAuthWaitBegin: .any
             )
             .willReturn(())
@@ -81,6 +82,7 @@ struct LoginCommandServiceTests {
                 serverURL: .any,
                 deviceCodeType: .any,
                 onOpeningBrowser: .any,
+                onBrowserOpenFailed: .any,
                 onAuthWaitBegin: .any
             )
             .called(1)
@@ -249,6 +251,7 @@ struct LoginCommandServiceTests {
                 serverURL: .any,
                 deviceCodeType: .any,
                 onOpeningBrowser: .any,
+                onBrowserOpenFailed: .any,
                 onAuthWaitBegin: .any
             )
             .willReturn(())
@@ -274,6 +277,7 @@ struct LoginCommandServiceTests {
                 serverURL: .any,
                 deviceCodeType: .any,
                 onOpeningBrowser: .any,
+                onBrowserOpenFailed: .any,
                 onAuthWaitBegin: .any
             )
             .willReturn(())
@@ -339,7 +343,13 @@ struct LoginCommandServiceTests {
                 .called(1)
 
             verify(serverSessionController)
-                .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
+                .authenticate(
+                    serverURL: .any,
+                    deviceCodeType: .any,
+                    onOpeningBrowser: .any,
+                    onBrowserOpenFailed: .any,
+                    onAuthWaitBegin: .any
+                )
                 .called(0)
         }
 
