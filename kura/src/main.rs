@@ -10,11 +10,14 @@ union JemallocConfigPointer {
 
 // Keep allocator page reclamation independent of subsequent allocation
 // traffic so a burst can return memory while the service is otherwise idle.
-// tikv-jemallocator uses a prefixed jemalloc build by default and documents
-// this exact symbol for setting its boot-time configuration.
+// jemalloc reads its boot-time configuration from this documented symbol. On
+// linux-gnu the build is unprefixed (see Cargo.toml), so the symbol is the
+// plain `malloc_conf`; everywhere else tikv-jemalloc-sys keeps the `_rjem_`
+// prefix.
 #[cfg(target_os = "linux")]
 #[used]
-#[unsafe(export_name = "_rjem_malloc_conf")]
+#[cfg_attr(target_env = "gnu", unsafe(export_name = "malloc_conf"))]
+#[cfg_attr(not(target_env = "gnu"), unsafe(export_name = "_rjem_malloc_conf"))]
 static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
     JemallocConfigPointer {
         bytes: &b"background_thread:true,max_background_threads:1,dirty_decay_ms:4000,muzzy_decay_ms:4000\0"[0],
@@ -80,6 +83,19 @@ fn verify_jemalloc_configuration() -> Result<(), String> {
         return Err(format!(
             "expected 4000ms decay, dirty={dirty_decay_ms}ms muzzy={muzzy_decay_ms}ms"
         ));
+    }
+
+    // The `malloc` that shared libraries (libstdc++ for rocksdb's C++) resolve
+    // at load time must be jemalloc's, otherwise their allocations land in
+    // glibc arenas that neither the decay tuning above nor the memory-pressure
+    // trims can reclaim. RTLD_DEFAULT follows the same lookup order as their
+    // PLT resolution, so it sees the interposition (or its absence) as they do.
+    #[cfg(target_env = "gnu")]
+    {
+        let resolved = unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"malloc".as_ptr()) };
+        if resolved as *const () != tikv_jemalloc_sys::malloc as *const () {
+            return Err("libc malloc is not interposed by jemalloc".into());
+        }
     }
 
     Ok(())

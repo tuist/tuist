@@ -1406,6 +1406,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
  "tikv-jemallocator",
  "tokio",
  "tokio-rustls",

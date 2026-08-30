@@ -121,8 +121,13 @@ dictate this shape — do not regress them:
   errors, and DaemonSet health must alert.
 - Shutdown performs no teardown: pinned links (under
   `/sys/fs/bpf/kura-egress-tree/`) keep enforcing across agent restarts and
-  upgrades. Removing shaping is an explicit operator action: delete the
-  DaemonSet, remove the pin directory, delete `kura-egress0`.
+  upgrades. Consequently `enabled: false` (or deleting the DaemonSet) stops
+  shaping only for pods created afterwards; already-shaped pods stay shaped.
+  Removing enforcement is an explicit operator action that must not depend
+  on this agent running, and has a load-bearing order (pod pins, then the
+  return pin, then `kura-egress0` — a pod program left attached to a deleted
+  trampoline blackholes that pod). The procedure is the breakglass section
+  of [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
   tenant's floor to the node budget *before* raising its ceiling to meet that
   floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
@@ -233,15 +238,17 @@ growth is the signal.
 
 ## Rollout state
 
-Ships disabled (`egressTreeAgent.enabled: false`). Intended sequence:
-observe mode on ca-east (generous ceilings, floors informational), validate
-per-tenant counters, then real ceilings/floors per region.
-`egressTreeAgent.betaPodPrefix` (`BETA_POD_PREFIX`) narrows attachment to
-pods whose name starts with the prefix — the per-account beta gate for the
-first enforcement step. Excluded pods stay unshaped and count in
-`kura_egress_tree_beta_excluded_pods` (deliberately not in `skipped_pods`,
-which alerts). Sibling allowlists are computed over all annotated pods, so a
-matched pod keeps its bypass even when its co-located sibling is excluded;
-prefix changes converge within one reconcile cycle in both directions. The per-replica
-floor double-count in scheduler bin-packing must be fixed before floors go
-live (known issue, separate change).
+Ships disabled (`egressTreeAgent.enabled: false`). Enabled on staging,
+canary, and production, where it attaches to **every** annotated pod on the
+listed pools. Staging has run ungated since the agent landed (#12525);
+canary and production now match it, because the `BETA_POD_PREFIX` gate that
+held their first enforcement step to `kura-tuist-*` pods (#12564) is gone,
+and with it the `kura_egress_tree_beta_excluded_pods` gauge. The annotation
+is the only opt-in left, so an account reaches the tree the moment
+kura-controller renders `tuist.dev/egress-class` onto its pods. Newly matched pods attach
+within one reconcile cycle; nothing detaches, so removing the gate only ever
+widens enforcement.
+
+Remaining sequencing: ceilings are live, floors stay informational until the
+per-replica floor double-count in scheduler bin-packing is fixed (known
+issue, separate change).
