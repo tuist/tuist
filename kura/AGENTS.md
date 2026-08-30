@@ -43,6 +43,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
+- When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
+  `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That
+  dashboard is meant to cover every `kura_*` family the runtime exports, so an unlisted metric is
+  effectively invisible to whoever is debugging next. Add the panel to the row for its subsystem, and
+  put the operational interpretation in the panel description rather than in the Prometheus HELP text.
+  Note that counters scrape with a doubled suffix (a counter registered as `foo_total` is served as
+  `foo_total_total`) — panels must query the scraped name, not the name in the source.
 
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:
