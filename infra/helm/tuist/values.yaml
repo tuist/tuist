@@ -306,11 +306,6 @@ egressTreeAgent:
   # detaches every pod program (shaped packets drop at the trampoline peer
   # without a return program; unshaped beats blackholed).
   returnAttachMaxFailures: 3
-  # Beta-rollout gate: when set, the agent attaches its BPF programs only to
-  # pods whose name starts with this prefix (e.g. "kura-<account>-"); every
-  # other annotated pod stays on the unshaped Cilium-only path and is counted
-  # in kura_egress_tree_beta_excluded_pods. Empty = shape all annotated pods.
-  betaPodPrefix: ""
   # Observe-mode fallback for the tree's root ceiling on nodes that do not
   # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
   # no tree and their pods stay unshaped on the node-local leg.

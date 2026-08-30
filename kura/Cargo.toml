@@ -52,8 +52,17 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "jso
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
 zstd = "0.13"
 
+# `unprefixed_malloc_on_supported_platforms` builds jemalloc without the `_rjem_` symbol prefix, so
+# the binary's own `malloc`/`free` are jemalloc's and interpose libc's for the whole process. Without
+# it only Rust allocations reach jemalloc: rocksdb's C++ (and aws-lc's C) went to glibc malloc, whose
+# per-thread arenas retain freed memory for the process lifetime, outside the jemalloc decay tuning
+# in main.rs and invisible to kura_jemalloc_* (tuist/tuist#12699). The equivalent `rocksdb`
+# `jemalloc` cargo feature was not used because under Bazel rocksdb's C++ is compiled as a
+# cc_library (MODULE.bazel) that cargo features never reach; the interposition is the actual fix
+# and applies identically to both build paths.
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = { version = "0.6.0", features = ["stats"] }
+tikv-jemallocator = { version = "0.6.0", features = ["stats", "unprefixed_malloc_on_supported_platforms"] }
+tikv-jemalloc-sys = "0.6.0"
 tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
 
 [dev-dependencies]

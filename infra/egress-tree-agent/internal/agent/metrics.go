@@ -14,7 +14,6 @@ type Metrics struct {
 	AttachedPods         prometheus.Gauge
 	ReturnAttachFailures prometheus.Counter
 	SkippedPods          prometheus.Gauge
-	BetaExcludedPods     prometheus.Gauge
 	LinkReattaches       prometheus.Counter
 	SiblingOverflow      prometheus.Counter
 	NodeBudgetMbps       prometheus.Gauge
@@ -50,10 +49,6 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		SkippedPods: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_skipped_pods",
 			Help: "Annotated pods not attached this cycle (unresolvable device or malformed annotation).",
-		}),
-		BetaExcludedPods: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "kura_egress_tree_beta_excluded_pods",
-			Help: "Annotated pods excluded from attachment by the BETA_POD_PREFIX gate.",
 		}),
 		LinkReattaches: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "kura_egress_tree_link_reattach_total",
@@ -106,7 +101,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 	}
 	registry.MustRegister(
 		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.ReturnAttachFailures,
-		m.SkippedPods, m.BetaExcludedPods,
+		m.SkippedPods,
 		m.LinkReattaches, m.SiblingOverflow, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
 		m.ClassBacklogBytes, m.DirectPackets, m.PodRedirected, m.PodGuardPass,
 		m.PodSiblingBypass, m.Returned, m.ReturnDropped,
