@@ -42,4 +42,17 @@ final class WorkspaceTests: XCTestCase {
 
         XCTAssertCodable(subject)
     }
+
+    func test_defaultProjectsOrderIsAlphabetical() {
+        let subject = Workspace.GenerationOptions.options()
+
+        XCTAssertEqual(subject.projectsOrder, .alphabetical)
+    }
+
+    func test_manifestProjectsOrderIsCodable() {
+        let subject = Workspace.GenerationOptions.options(projectsOrder: .manifestOrder)
+
+        XCTAssertCodable(subject)
+        XCTAssertEqual(subject.projectsOrder, .manifestOrder)
+    }
 }

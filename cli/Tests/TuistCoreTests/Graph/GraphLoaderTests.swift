@@ -821,6 +821,31 @@ final class GraphLoaderTests: TuistUnitTestCase {
         var linkage: BinaryLinking
         var architectures: [BinaryArchitecture]
     }
+
+    func test_loadWorkspace_preservesManifestProjectPathsWhenAddingDependencies() async throws {
+        // Given
+        let targetB = Target.test(name: "B", dependencies: [.project(target: "C", path: "/C")])
+        let targetC = Target.test(name: "C", dependencies: [])
+        let projectA = Project.test(path: "/A", name: "A", targets: [])
+        let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
+        let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/B", "/A"])
+        let subject = makeSubject()
+
+        // When
+        let graph = try await subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+                projectC,
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(graph.workspace.projects, ["/A", "/B", "/C"])
+        XCTAssertEqual(graph.workspace.manifestProjectPaths, ["/B", "/A"])
+    }
 }
 
 extension GraphLoadingError {

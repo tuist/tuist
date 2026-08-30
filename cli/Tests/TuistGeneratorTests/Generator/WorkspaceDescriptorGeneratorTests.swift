@@ -140,6 +140,115 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func generate_workspaceStructureWithManifestProjectOrder() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let mainPath = temporaryPath.appending(component: "Main")
+        let featureBPath = temporaryPath.appending(components: "Features", "B")
+        let featureAPath = temporaryPath.appending(components: "Features", "A")
+        let dataPath = temporaryPath.appending(components: "Data", "Data")
+        let unlistedPath = temporaryPath.appending(component: "Unlisted")
+        let dependencyBPath = temporaryPath.appending(
+            components: "Tuist", ".build", "tuist-derived", "Projects", "B"
+        )
+        let dependencyAPath = temporaryPath.appending(
+            components: "Tuist", ".build", "tuist-derived", "Projects", "A"
+        )
+        let manifestProjects = [
+            Project.test(
+                path: mainPath,
+                sourceRootPath: mainPath,
+                xcodeProjPath: mainPath.appending(component: "Main.xcodeproj"),
+                name: "Main",
+                targets: []
+            ),
+            Project.test(
+                path: featureBPath,
+                sourceRootPath: featureBPath,
+                xcodeProjPath: featureBPath.appending(component: "B.xcodeproj"),
+                name: "B",
+                targets: []
+            ),
+            Project.test(
+                path: featureAPath,
+                sourceRootPath: featureAPath,
+                xcodeProjPath: featureAPath.appending(component: "A.xcodeproj"),
+                name: "A",
+                targets: []
+            ),
+            Project.test(
+                path: dataPath,
+                sourceRootPath: dataPath,
+                xcodeProjPath: dataPath.appending(component: "Data.xcodeproj"),
+                name: "Data",
+                targets: []
+            ),
+        ]
+        let graphOnlyProjects = [
+            Project.test(
+                path: unlistedPath,
+                sourceRootPath: unlistedPath,
+                xcodeProjPath: unlistedPath.appending(component: "Unlisted.xcodeproj"),
+                name: "Unlisted",
+                targets: []
+            ),
+            Project.test(
+                path: dependencyBPath,
+                sourceRootPath: dependencyBPath,
+                xcodeProjPath: dependencyBPath.appending(component: "B.xcodeproj"),
+                name: "B",
+                targets: []
+            ),
+            Project.test(
+                path: dependencyAPath,
+                sourceRootPath: dependencyAPath,
+                xcodeProjPath: dependencyAPath.appending(component: "A.xcodeproj"),
+                name: "A",
+                targets: []
+            ),
+        ]
+        let projects = manifestProjects + graphOnlyProjects
+        let readmePath = temporaryPath.appending(component: "README.md")
+        try await FileSystem().touch(readmePath)
+        let manifestProjectPaths = manifestProjects.map(\.path)
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            projects: projects.map(\.path).sorted(),
+            manifestProjectPaths: manifestProjectPaths,
+            additionalFiles: [.file(path: readmePath)],
+            generationOptions: .test(projectsOrder: .manifestOrder)
+        )
+        let graph = Graph.test(
+            workspace: workspace,
+            projects: Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
+        )
+
+        // When
+        let result = try await subject.generate(graphTraverser: GraphTraverser(graph: graph))
+
+        // Then
+        #expect(result.xcworkspace.data.children == [
+            .file(.init(location: .group("Main/Main.xcodeproj"))),
+            .group(.init(location: .group("Features"), name: "Features", children: [
+                .file(.init(location: .group("B/B.xcodeproj"))),
+                .file(.init(location: .group("A/A.xcodeproj"))),
+            ])),
+            .group(.init(location: .group("Data"), name: "Data", children: [
+                .file(.init(location: .group("Data/Data.xcodeproj"))),
+            ])),
+            .file(.init(location: .group("Unlisted/Unlisted.xcodeproj"))),
+            .file(.init(location: .group("README.md"))),
+            .group(.init(location: .container(""), name: "Dependencies", children: [
+                .file(.init(location: .group("Tuist/.build/tuist-derived/Projects/A/A.xcodeproj"))),
+                .file(.init(location: .group("Tuist/.build/tuist-derived/Projects/B/B.xcodeproj"))),
+            ])),
+        ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)

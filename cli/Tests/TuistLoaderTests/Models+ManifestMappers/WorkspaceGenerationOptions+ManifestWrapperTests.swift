@@ -142,4 +142,25 @@ final class WorkspaceGenerationOptionsManifestMapperTests: TuistTestCase {
             )
         )
     }
+
+    func test_from_whenProjectsUseManifestOrder() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: temporaryPath
+        )
+        let manifest = ProjectDescription.Workspace.GenerationOptions.options(
+            projectsOrder: .manifestOrder
+        )
+
+        // When
+        let actual = try XcodeGraph.Workspace.GenerationOptions.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        XCTAssertEqual(actual.projectsOrder, .manifestOrder)
+    }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ProjectDescription
 import TuistCore
 import TuistLoader
 import TuistRootDirectoryLocator
@@ -139,5 +140,44 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.projects, [workspacePath])
+    }
+
+    func test_from_preservesResolvedManifestProjectOrder() async throws {
+        // Given
+        let workspacePath = try temporaryPath()
+        let projectPaths = [
+            workspacePath.appending(component: "B"),
+            workspacePath.appending(components: "Features", "C"),
+            workspacePath.appending(component: "A"),
+        ]
+        for projectPath in projectPaths {
+            try await fileSystem.makeDirectory(at: projectPath)
+            try await fileSystem.touch(projectPath.appending(component: "Project.swift"))
+        }
+
+        // When
+        let got = try await XcodeGraph.Workspace.from(
+            manifest: ProjectDescription.Workspace(
+                name: "Workspace",
+                projects: [
+                    "B",
+                    "Features/C",
+                    "A",
+                ],
+                generationOptions: .options(projectsOrder: .manifestOrder)
+            ),
+            path: workspacePath,
+            generatorPaths: .init(
+                manifestDirectory: workspacePath,
+                rootDirectory: workspacePath
+            ),
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(got.projects, projectPaths)
+        XCTAssertEqual(got.manifestProjectPaths, projectPaths)
+        XCTAssertEqual(got.generationOptions.projectsOrder, .manifestOrder)
     }
 }
