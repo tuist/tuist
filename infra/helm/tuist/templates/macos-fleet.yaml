@@ -26,9 +26,28 @@ change renders a new object rather than an edit to the existing
 one. Helm's three-way merge only patches fields that differ
 between the previous and current rendered manifest, so a field
 added to a template that already exists in-cluster is never
-applied and the object stays stale indefinitely — every later
+applied and the object stays stale indefinitely: every later
 deploy sees the field as unchanged and emits no patch. Creating
 a new object instead always writes the full spec.
+
+A hash-named object must NOT carry `helm.sh/resource-policy:
+keep`. It leaves the rendered manifest the moment the hash moves,
+so keeping it produces an object that is on the cluster and in
+older revisions' manifests but absent from the current one. Helm
+handles that combination by falling back to cluster state as the
+patch baseline, and for a custom resource the patch is a JSON
+merge from the live object to the manifest, which nulls
+`metadata.resourceVersion`; the apiserver rejects that as an
+update. The rollback itself then fails, so a failed upgrade stays
+half-applied instead of returning to its previous revision.
+Letting Helm delete the superseded object is also what garbage
+collects it, and a rollback recreates it from the target manifest.
+
+Deleting a superseded template does not disturb running Machines:
+the per-replica ScalewayAppleSiliconMachine is a clone owned by
+its Machine, not by the template. It only blocks the MachineSet
+that references it from scaling up, and under OnDelete a
+superseded MachineSet is only ever scaled further down.
 */ -}}
 {{- $machineSpec := dict
       "type" (.Values.macosFleet.machine.type | default "M2-L")
@@ -73,10 +92,6 @@ kind: ScalewayAppleSiliconMachineTemplate
 metadata:
   name: {{ $templateName }}
   namespace: {{ .Release.Namespace }}
-  annotations:
-    # A superseded template stays referenced by the MachineSet that
-    # was cloned from it, which outlives the template under OnDelete.
-    helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
