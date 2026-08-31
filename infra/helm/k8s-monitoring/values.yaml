@@ -569,29 +569,6 @@ k8s-monitoring:
   #     One alert per fleet whose replicas > 1 — a single-replica fleet is
   #     already covered by the workload's own availability alerting.
   #
-  # Alert to create in Grafana Cloud (PromQL) — runner box that can take no
-  # job. A Linux runner node whose Machine asked for spec.kataRuntime but whose
-  # Node never got the katacontainers.io/kata-runtime label is Ready,
-  # correctly pooled and tainted, running all its DaemonSets — and unable to
-  # match the kata-qemu RuntimeClass, so no runner Pod ever schedules on it.
-  # Neither alert above sees it: its phase is Ready and the fleet is at full
-  # count. That is how the 2026-08-31 production and canary boxes read as a
-  # scheduling bug for an hour:
-  #
-  #   min by (cluster, machine, fleet) (capt_node_kata_runtime_ready) == 0
-  #
-  # Recommended config:
-  #   - For: 20m   (the provider repairs this in place on the next reconcile;
-  #                 20m means the repair itself is failing — an unreachable
-  #                 box, or one whose containerd cannot register the handler)
-  #   - Severity: warning
-  #   - Summary: "Runner box {{ $labels.machine }} carries no kata-runtime
-  #              label, so it takes no jobs. Read the KataRuntimeReady
-  #              condition on its OVHDedicatedMachine for why the in-place
-  #              repair is not converging."
-  #   - Note: only machines that asked for kata publish a series, so cache
-  #     fleets never match. The series is 1 as soon as the repair lands.
-  #
   # metricsPortName narrows the discovery output to a single target per
   # pod when the pod declares more than one container port. Without it,
   # Kubernetes pod-role discovery emits one target per declared port

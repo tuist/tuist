@@ -333,13 +333,19 @@ Note the trap is not OVH-specific. `DediboxMachine` and
 property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 
 A repair that cannot complete must stay loud rather than retry quietly. The
-`KataRuntimeReady` condition is marked False the moment the gap is observed —
-before any SSH — and the `capt_node_kata_runtime_ready` gauge (0 = requested but
-missing) is what Grafana alerts on; the PromQL is in
-[`infra/helm/k8s-monitoring/values.yaml`](../helm/k8s-monitoring/values.yaml).
-`Machine.Status.Ready` is deliberately left alone: the node is a healthy
-Kubernetes node, and failing it would make CAPI churn a box that needs a
+`KataRuntimeReady` condition is marked False the moment the gap is observed,
+before any SSH, and the `capt_node_kata_runtime_ready` gauge (0 = requested but
+missing) is what the **Runner Box Missing Kata Runtime** rule alerts on
+(Grafana Cloud, Alerts folder, `Runners` group, `for: 20m`, routed to Slack like
+its siblings). `Machine.Status.Ready` is deliberately left alone: the node is a
+healthy Kubernetes node, and failing it would make CAPI churn a box that needs a
 two-minute in-place fix.
+
+Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
+rather than checked in: managed clusters run no Prometheus Operator, so there is
+no `PrometheusRule` to render. Add a new one alongside the existing `capt_*`
+rules in the `Runners` group and put the reasoning in the rule's own
+`description` annotation, which is where its siblings keep theirs.
 
 ## Node extended resources
 
