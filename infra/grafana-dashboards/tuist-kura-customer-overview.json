@@ -885,7 +885,7 @@
                           {
                             "targetBlank": false,
                             "title": "Open in Tuist Kura / Pod",
-                            "url": "/d/ddfsumc1ibvuo0e/tuist-kura-pod?var-env=${env}\u0026var-pod=${__data.fields.pod}\u0026${__url_time_range}"
+                            "url": "/d/defwpnth4r198gd/tuist-kura-details?var-env=${env}\u0026var-pod=${__data.fields.pod}\u0026${__url_time_range}"
                           }
                         ]
                       }
