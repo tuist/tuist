@@ -14,6 +14,7 @@
 //! sets it and the Swift path does not, and both are ours to serve.
 
 pub mod analytics;
+pub mod endpoint;
 pub mod proxy;
 pub mod proxy_proto;
 pub mod prefetch;

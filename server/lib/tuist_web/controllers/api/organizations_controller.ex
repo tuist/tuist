@@ -291,24 +291,35 @@ defmodule TuistWeb.API.OrganizationsController do
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
-          invitations:
-            Enum.map(
-              Tuist.Repo.preload(organization, invitations: [inviter: :account]).invitations,
-              &%{
-                id: &1.id,
-                invitee_email: &1.invitee_email,
-                inviter: %{
-                  id: &1.inviter.id,
-                  email: &1.inviter.email,
-                  name: &1.inviter.account.name
-                },
-                token: &1.token,
-                organization_id: &1.organization_id,
-                role: &1.role
-              }
-            )
+          invitations: invitations(organization, subject)
         })
     end
+  end
+
+  defp invitations(organization, subject) do
+    if Authorization.authorize(:invitation_read, subject, organization.account) == :ok do
+      organization
+      |> Tuist.Repo.preload(invitations: [inviter: :account])
+      |> Map.fetch!(:invitations)
+      |> Enum.map(&serialize_invitation/1)
+    else
+      []
+    end
+  end
+
+  defp serialize_invitation(invitation) do
+    %{
+      id: invitation.id,
+      invitee_email: invitation.invitee_email,
+      inviter: %{
+        id: invitation.inviter.id,
+        email: invitation.inviter.email,
+        name: invitation.inviter.account.name
+      },
+      token: invitation.token,
+      organization_id: invitation.organization_id,
+      role: invitation.role
+    }
   end
 
   operation(:usage,

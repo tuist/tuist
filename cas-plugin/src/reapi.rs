@@ -114,7 +114,7 @@ const BLOB_STATUS_ATTEMPTS: usize = 3;
 // for recovery several times within one build.
 const PRESSURE_BACKOFF_MS: u64 = 30_000;
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as u64)

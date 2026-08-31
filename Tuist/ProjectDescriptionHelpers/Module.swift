@@ -1211,6 +1211,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "Noora"),

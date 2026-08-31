@@ -225,6 +225,49 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("apply_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.apply_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, outcome} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_placement_message(outcome))}
+
+      _stale_or_missing ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next placement sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.dismiss_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, dgettext("dashboard", "Placement proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura(socket, account)}
+    end
+  end
+
+  @impl true
   def handle_event("update_kura_egress_limits", %{"account" => params}, socket) do
     save_kura_egress_limits(socket, params)
   end
@@ -448,6 +491,10 @@ defmodule TuistWeb.OpsAccountLive do
   # The rows, the forms and the numbers the rows resolve against move together:
   # an applied proposal re-pins instances and re-resolves their limits, so a
   # table left on the old assign would show values that no longer exist.
+  # Long enough to cover the shortest decision window, so an operator sees the
+  # same evidence the shortest-fused transition reads.
+  @kura_traffic_mix_days 14
+
   defp assign_kura(socket, account) do
     servers = Kura.list_servers_for_account(account.id)
 
@@ -465,6 +512,10 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
     |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
+    |> assign(:kura_placement_regions, Kura.placement_regions(account))
+    |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
+    |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
+    |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
   end
 
   # One entry per egress-governed region the account holds an instance in, each
@@ -821,6 +872,65 @@ defmodule TuistWeb.OpsAccountLive do
 
   def claim_history_reason(%{direction: :shrink, evidence: evidence}) do
     dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
+  end
+
+  def placement_history_change(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct],
+    do: "#{from} → #{to}"
+
+  def placement_history_change(%{kind: :expand, to_region: to}), do: dgettext("dashboard", "add %{region}", region: to)
+
+  def placement_history_change(%{kind: :retire, from_region: from}),
+    do: dgettext("dashboard", "leave %{region}", region: from)
+
+  def placement_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  def placement_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Placement")
+
+  def placement_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def placement_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  def placement_history_reason(%{kind: kind, evidence: evidence}) when kind in [:relocate, :correct] do
+    dgettext("dashboard", "%{share}%% of runs over %{days} days",
+      share: round((evidence["share"] || 0) * 100),
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :expand, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :retire, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  # What the apply actually did, rather than "saved". Nothing moves at the
+  # moment a proposal is applied: the lifecycle provisions the destination on
+  # the account's next demand, and the source leaves only once it is serving.
+  defp kura_placement_message(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct] do
+    dgettext(
+      "dashboard",
+      "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains.",
+      from: from,
+      to: to
+    )
+  end
+
+  defp kura_placement_message(%{kind: :expand, to_region: to}) do
+    dgettext("dashboard", "Placement added %{region}. It is provisioned on the account's next cache demand.", region: to)
+  end
+
+  defp kura_placement_message(%{kind: :retire, from_region: from}) do
+    dgettext("dashboard", "Placement is leaving %{region}. It drains once nothing else is waiting on it.", region: from)
   end
 
   defp kura_disk_usage_label(snapshot) do

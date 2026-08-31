@@ -79,14 +79,13 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
 
         let credentialHelperPath = try await createCredentialHelperScriptIfNeeded()
 
-        let bazelrcPath = directoryPath.appending(component: ".bazelrc.tuist")
-        let bazelrcContent = """
-        build --remote_cache=\(endpoint.url)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
-        build --credential_helper=\(endpoint.host)=\(credentialHelperPath.pathString)
-        build --remote_instance_name=\(projectHandle)
-
-        """
+        let bazelrcPath = directoryPath.appending(component: BazelrcFile.name)
+        let bazelrcContent = BazelrcFile.render(
+            endpoint: endpoint,
+            accountHandle: accountHandle,
+            projectHandle: projectHandle,
+            credentialHelperPath: credentialHelperPath
+        )
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
 
         AlertController.current.success(

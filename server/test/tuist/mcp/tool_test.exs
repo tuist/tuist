@@ -77,6 +77,17 @@ defmodule Tuist.MCP.ToolTest do
     end
   end
 
+  describe "validate_input/2" do
+    test "accepts valid tool arguments" do
+      assert :ok = Tool.validate_input(ListBundles, %{"account_handle" => "acme", "project_handle" => "app"})
+    end
+
+    test "rejects an argument that does not match the declared schema" do
+      assert {:error, "Arguments do not match the tool schema."} =
+               Tool.validate_input(ListBundles, %{"account_handle" => "acme", "project_handle" => 1})
+    end
+  end
+
   describe "descriptor/1" do
     test "attaches the output schema without validating it at request time" do
       descriptor = Tool.descriptor(ListBundles)

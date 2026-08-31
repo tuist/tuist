@@ -101,9 +101,16 @@ COPY noora /noora
 # errors on packages that clearly exist in mix.lock. Exit non-zero if every
 # attempt fails (the naive `|| sleep && break` form was masking failures).
 # Cache mounts for hex/rebar stores speed up redownloads when mix.lock changes.
-RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    --mount=type=cache,id=mix-hex,target=/root/.hex \
     --mount=type=cache,id=mix-rebar3,target=/root/.cache/rebar3 \
     set -e; \
+    if [ -n "${GITHUB_TOKEN:-}" ]; then \
+      auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"; \
+      export GIT_CONFIG_COUNT=1; \
+      export GIT_CONFIG_KEY_0='http.https://github.com/.extraheader'; \
+      export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth_header"; \
+    fi; \
     attempts=0; \
     until mix deps.get --only $MIX_ENV; do \
       attempts=$((attempts + 1)); \

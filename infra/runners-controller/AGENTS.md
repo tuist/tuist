@@ -109,26 +109,50 @@ independent workqueues:
     memory and oversubscribes CPU by design, and those hosts are
     homogeneous, so the byte budget is already exact there.
 
-    **Node reservation.** A shape needing more than one guest slot on a
-    single host cannot accumulate them on its own. kube-scheduler does
-    not hold its queue on an unschedulable Pod, so each slot that frees
-    is taken by the next smaller Pod that fits, and the large Pod waits
-    for a coincidence of two simultaneously-free slots that a steady
+    **Node reservation.** Runs on BOTH fleets. A shape needing more of a
+    host than any single smaller Pod does cannot accumulate the room on
+    its own. kube-scheduler does not hold its queue on an unschedulable
+    Pod, so each slot that frees is taken by the next smaller Pod that
+    fits, and the large Pod waits for a coincidence that a steady
     trickle of small jobs prevents. The cross-pool reclaim does not help
     either: it reclaims speculative warm capacity, and the Pod winning
     the race is backed by real queued work, the one tier that never
     yields.
 
+    On darwin the unit is guest slots: a 12 vCPU Pod needs both of an
+    M4-XL's. On linux it is memory: a 64 GiB shape costs 66.5 GiB (the
+    shape plus the kata RuntimeClass's 2.5 GiB podFixed), a third of an
+    AX162-R and over half of the OVH RISE-L the fleet is moving to, so
+    it needs a contiguous block that 8 and 16 GiB Pods keep carving up.
+    The linux drain is progressive rather than all-or-nothing — the
+    taint stops new Pods landing, running jobs finish and free their
+    memory, and the starved Pod is placed the moment its shape fits
+    rather than when the host is empty.
+
+    A reservation is never taken on a fleet with fewer than two healthy
+    hosts (`healthyNodes`). The taint is NoSchedule for every pool but
+    the reserving one, so on a single-host fleet it would stop dispatch
+    outright until it cleared. The granularity guard below does not
+    cover that case on linux — a 64 GiB shape is genuinely coarse even
+    on a lone host, so it passes — and the linux fleet is small enough
+    for one host to be a real configuration.
+
+    `fleetNodeSelector` addresses each platform's hosts by the labels
+    that platform's Pods select on (`tuist.dev/fleet` on darwin,
+    `node.cluster.x-k8s.io/pool` on linux, both paired with
+    `kubernetes.io/os`), so the reservation and the scheduler always
+    agree on which hosts a fleet has.
+
     A reservation is only taken for a shape that is LARGE relative to
     the fleet: this shape must get fewer seats on the candidate host
     than the fleet's most granular shape does. That is exactly the case
     where the seats it needs are the ones smaller Pods keep taking. On a
-    homogeneous fleet whose hosts hold one guest (staging, canary) the
-    test never passes, so the mechanism is inert there — nothing can
-    accumulate when the shape already fits a single seat, and reserving
-    a one-host fleet would take every pool out of service until it
-    cleared. Waiting is correct there, and the allocator's cross-pool
-    reclaim already arranges it.
+    homogeneous fleet whose hosts hold one guest (the macOS side of
+    staging, canary) the test never passes, so the mechanism is inert
+    there — nothing can accumulate when the shape already fits a single
+    seat, and reserving a one-host fleet would take every pool out of
+    service until it cleared. Waiting is correct there, and the
+    allocator's cross-pool reclaim already arranges it.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), the RunnerPool reconciler taints one eligible host
@@ -137,9 +161,13 @@ independent workqueues:
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
     retired. The taint is removed when the Pod lands or after
-    `reservationTimeout` (15m), and at most one host is held fleet-wide
-    (`maxFleetReservations`), since a reservation is capacity withdrawn
-    from the small shapes while it converges.
+    `reservationTimeout` (15m), and at most one host is held per fleet
+    (`maxFleetReservations`; the count is taken over the pool's own
+    fleet nodes, so darwin and linux hold separate budgets), since a
+    reservation is capacity withdrawn from the small shapes while it
+    converges. On the production Linux fleet, a handful of bare-metal
+    boxes, one reservation is already a large share of it, which is why
+    the cap stays at one and why `healthyNodes` floors it.
 
     A timed-out release rests the host for `reservationCooldown` (15m)
     via a `tuist.dev/reservation-cooldown-until` annotation. Without it
@@ -926,6 +954,11 @@ Shape:
 - `work` emptyDir at `/home/runner/actions-runner/_work` (both
   containers) so `docker run -v $PWD:/x` paths resolve the same
   on either side.
+- `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
+  (sidecar only), filled by the `dind-externals` init container —
+  the runner image running `cp -a` out of its own image layer into
+  the volume, staged at `/mnt/dind-externals` there so the mount
+  doesn't shadow the source. See "Why stage externals" below.
 - `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
   Plain node-disk emptyDir — holds a sparse `disk.img` the
   sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
@@ -941,6 +974,33 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
+
+### Why stage externals? (job `container:` support)
+
+A workflow that declares `jobs.<id>.container` doesn't run its
+steps in the runner container at all: the runner asks dockerd to
+create a container and bind-mounts five well-known directories
+into it — work as `/__w`, temp as `/__t`, actions as `/__a`,
+tools as `/__o`, externals as `/__e`. Those source paths are
+resolved by **dockerd**, so they have to exist in the sidecar's
+mount namespace, not the runner's.
+
+Four of the five already do: temp, actions and tools default to
+`_work/_temp`, `_work/_actions` and `_work/_tool` (the runner image
+sets no `RUNNER_TOOL_CACHE` / `AGENT_TOOLSDIRECTORY`), all under the
+shared `work` volume. `externals` — the node runtimes every JS
+action executes under — ships in the runner image alone. Without
+the staged copy docker creates an empty directory for it daemon-
+side and every step in the job container dies on a missing
+`/__e/node2x/bin/node`, which is what made `container:` jobs
+unusable on the fleet while plain `docker` commands in a `run:`
+step worked fine.
+
+Same fix ARC ships as `init-dind-externals`. The copy runs before
+the sidecar, so it is in place by the time dockerd can serve a
+container and a runner image that stops shipping externals fails
+the Pod early rather than at job time. Cost is a per-Pod copy of
+the node runtimes at warm-up, off the job's critical path.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 

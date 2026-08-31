@@ -730,6 +730,9 @@ defmodule Tuist.Runners.Jobs do
       workflow_job_id: j.workflow_job_id,
       account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+      vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+      memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
       repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -743,8 +746,10 @@ defmodule Tuist.Runners.Jobs do
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
       pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
       runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
       updated_at: max(j.updated_at)
     })
   end

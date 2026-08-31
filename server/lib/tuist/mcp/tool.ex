@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Tool do
   @moduledoc false
 
+  alias Tuist.Accounts
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
@@ -20,14 +21,20 @@ defmodule Tuist.MCP.Tool do
           quote do
             @impl EMCP.Tool
             def call(conn, args) do
-              Tuist.MCP.Tool.call_with_project(
-                conn,
-                args,
-                unquote(action),
-                unquote(category),
-                &execute/3,
-                __MODULE__
-              )
+              case Tuist.MCP.Tool.validate_input(__MODULE__, args) do
+                :ok ->
+                  Tuist.MCP.Tool.call_with_project(
+                    conn,
+                    args,
+                    unquote(action),
+                    unquote(category),
+                    &execute/3,
+                    __MODULE__
+                  )
+
+                {:error, message} ->
+                  EMCP.Tool.error(message)
+              end
             end
           end
 
@@ -35,7 +42,10 @@ defmodule Tuist.MCP.Tool do
           quote do
             @impl EMCP.Tool
             def call(conn, args) do
-              Tuist.MCP.Tool.respond(execute(conn, args), __MODULE__)
+              case Tuist.MCP.Tool.validate_input(__MODULE__, args) do
+                :ok -> Tuist.MCP.Tool.respond(execute(conn, args), __MODULE__)
+                {:error, message} -> EMCP.Tool.error(message)
+              end
             end
           end
       end
@@ -45,6 +55,7 @@ defmodule Tuist.MCP.Tool do
 
       @mcp_tool_name Keyword.fetch!(unquote(opts), :name)
       @mcp_tool_schema Keyword.fetch!(unquote(opts), :schema)
+      @mcp_tool_resolved_input_schema ExJsonSchema.Schema.resolve(@mcp_tool_schema)
       @mcp_tool_output_schema Tuist.MCP.Tool.validate_output_schema!(
                                 @mcp_tool_name,
                                 Keyword.fetch!(unquote(opts), :output_schema)
@@ -66,6 +77,8 @@ defmodule Tuist.MCP.Tool do
 
       @impl EMCP.Tool
       def input_schema, do: @mcp_tool_schema
+
+      def resolved_input_schema, do: @mcp_tool_resolved_input_schema
 
       def output_schema, do: @mcp_tool_output_schema
 
@@ -92,6 +105,15 @@ defmodule Tuist.MCP.Tool do
   def respond({:ok, data}, module), do: json_response(data, module)
   def respond({:error, message}, _module) when is_binary(message), do: EMCP.Tool.error(message)
   def respond({:error, other}, _module), do: EMCP.Tool.error(inspect(other))
+
+  def validate_input(module, arguments) when is_map(arguments) do
+    case ExJsonSchema.Validator.validate(module.resolved_input_schema(), arguments) do
+      :ok -> :ok
+      {:error, _errors} -> {:error, "Arguments do not match the tool schema."}
+    end
+  end
+
+  def validate_input(_module, _arguments), do: {:error, "Arguments do not match the tool schema."}
 
   def call_with_project(conn, args, action, category, execute_fn, module) do
     case resolve_and_authorize_project(args, conn.assigns, action, category) do
@@ -131,6 +153,26 @@ defmodule Tuist.MCP.Tool do
 
   def resolve_and_authorize_project(_arguments, _assigns, _action, _category) do
     {:error, "Provide account_handle and project_handle."}
+  end
+
+  def resolve_and_authorize_account(%{"account_handle" => account_handle}, assigns, action, category)
+      when is_binary(account_handle) do
+    case Accounts.get_account_by_handle(account_handle) do
+      nil -> {:error, "Account not found: #{account_handle}"}
+      account -> authorize_account(assigns, account, action, category)
+    end
+  end
+
+  def resolve_and_authorize_account(_arguments, _assigns, _action, _category) do
+    {:error, "Provide account_handle."}
+  end
+
+  def authorize_account(assigns, account, action, category) do
+    if Authorization.authorize_request(assigns, action, account, category) do
+      {:ok, account}
+    else
+      {:error, "You do not have access to account: #{account.name}"}
+    end
   end
 
   def authenticated_subject(assigns) when is_map(assigns) do

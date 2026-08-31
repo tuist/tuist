@@ -430,6 +430,11 @@ config :tuist, :runner_free_monthly_minutes, 100
 # cluster's pools and the server's catalog share one source of truth in
 # prod and can't drift. Exactly one entry should carry `default: true`
 # (preselected in the "new profile" form).
+#
+# A Linux shape is only runnable where a bare-metal host can seat it,
+# so like the macOS catalog below this list is per-environment on the
+# Helm side: the 64 GB shape needs an AX162-R and is not offered in
+# environments whose Linux fleet is 64 GB AX42-U only.
 config :tuist, :runner_linux_shapes, [
   %{vcpus: 1, memory_gb: 2},
   %{vcpus: 2, memory_gb: 4},
@@ -438,7 +443,8 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 4, memory_gb: 16},
   %{vcpus: 8, memory_gb: 16},
   %{vcpus: 8, memory_gb: 32},
-  %{vcpus: 16, memory_gb: 32}
+  %{vcpus: 16, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 64}
 ]
 
 # macOS shape catalog. Same role as `:runner_linux_shapes`. Managed

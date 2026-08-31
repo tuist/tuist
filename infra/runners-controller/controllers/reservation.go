@@ -16,11 +16,15 @@ import (
 
 // Node reservation: draining one host to fit a Pod that no host can seat.
 //
-// A macOS fleet mixes guest shapes on the same hosts, and the large ones
-// need more than one guest slot on a single host. An M4-XL seats two
-// 6 vCPU guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a
-// host's slots free at the same instant. Nothing in Kubernetes arranges
-// that on its own:
+// Both fleets mix shapes on the same hosts, and the large ones need more
+// of a host than any single small Pod does. An M4-XL seats two 6 vCPU
+// guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a host's
+// slots free at the same instant. The Linux fleet is the same problem at
+// a different granularity: a 64 GiB shape costs 66.5 GiB with the kata
+// overhead — a third of an AX162-R, over half of the OVH RISE-L the
+// fleet is moving to — so it needs a contiguous block that a steady
+// trickle of 8 and 16 GiB Pods keeps carving up. Nothing in Kubernetes
+// arranges either on its own:
 //
 //   - kube-scheduler does not hold a queue on an unschedulable Pod. The
 //     large Pod is attempted, fails the CPU filter, and is set aside;
@@ -81,11 +85,22 @@ const (
 	reservationCooldownAnnotation = "tuist.dev/reservation-cooldown-until"
 	reservationCooldown           = 15 * time.Minute
 
-	// maxFleetReservations is how many hosts may be held across the whole
-	// fleet at once. Every reservation is capacity withdrawn from the
-	// small shapes while it converges, so this stays at one: a second
-	// concurrent drain would hold two hosts at once, up to 4 of the
-	// 13-slot production fleet, to serve two large jobs.
+	// maxFleetReservations is how many hosts may be held at once. The
+	// count is taken over the pool's OWN fleet nodes, so each fleet gets
+	// its own budget and a macOS reservation never blocks a Linux one.
+	//
+	// Every reservation is capacity withdrawn from the small shapes while
+	// it converges, so this stays at one. On macOS a second concurrent
+	// drain would hold two hosts, up to 4 of the 13-slot production
+	// fleet, to serve two large jobs. On Linux the argument is sharper
+	// still: that fleet is a handful of bare-metal boxes, so a single
+	// reservation is already a large share of it out of circulation.
+	// `healthyNodes` puts a floor under that — the last host is never
+	// taken.
+	//
+	// A held Linux host is not idled, only closed to new Pods — running
+	// jobs finish and free memory progressively, and the starved Pod
+	// lands the moment its shape fits rather than when the host is empty.
 	maxFleetReservations = 1
 )
 
@@ -100,13 +115,6 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	pool *tuistv1.RunnerPool,
 	pods []corev1.Pod,
 ) error {
-	// darwin only. Linux runner Pods are kata sandboxes on homogeneous
-	// bare-metal hosts an order of magnitude larger than any shape, so a
-	// shape never needs a host drained to fit.
-	if pool.Spec.OS != macosNodeOSDarwin {
-		return nil
-	}
-
 	logger := log.FromContext(ctx)
 	now := r.now()
 
@@ -163,6 +171,24 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return err
 	}
 	if reservationCount(fresh) >= maxFleetReservations {
+		return nil
+	}
+	// Never close the fleet. The taint is NoSchedule for every pool but
+	// this one, so on a single-host fleet a reservation stops dispatch
+	// outright until it clears — up to reservationTimeout, and again
+	// after each cooldown.
+	//
+	// pickReservationTarget's granularity guard does not cover this. It
+	// asks whether the shape is coarse relative to its siblings, which
+	// on Linux a 64 GiB shape genuinely is even on a lone host, so it
+	// passes. The guard only happens to cover the one-host macOS fleets
+	// because a single-guest host gives every shape exactly one seat.
+	//
+	// Waiting is the right behaviour here, and it is the same conclusion
+	// the one-guest fleets reach: nothing a drain produces is worth the
+	// fleet being shut to everyone else, and the allocator's cross-pool
+	// reclaim is the mechanism that frees room on a fleet this small.
+	if healthyNodes(fresh) < 2 {
 		return nil
 	}
 
@@ -402,8 +428,8 @@ func (r *RunnerPoolReconciler) releaseReservation(
 	return nil
 }
 
-// fleetNodes lists the macOS hosts behind a pool's fleet selector, the
-// same set the autoscaler sizes its budget from. Cached read: fine for
+// fleetNodes lists the hosts behind a pool's fleet selector, the same
+// set the autoscaler sizes its budget from. Cached read: fine for
 // deciding whether this pool already holds a reservation, and for
 // releasing one.
 func (r *RunnerPoolReconciler) fleetNodes(ctx context.Context, pool *tuistv1.RunnerPool) ([]corev1.Node, error) {
@@ -416,13 +442,33 @@ func (r *RunnerPoolReconciler) fleetNodesFrom(
 	pool *tuistv1.RunnerPool,
 ) ([]corev1.Node, error) {
 	var nodes corev1.NodeList
-	if err := reader.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  pool.Spec.FleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
-	}); err != nil {
+	if err := reader.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	return nodes.Items, nil
+}
+
+// fleetNodeSelector addresses the hosts a pool's Pods can actually land
+// on. It mirrors the nodeSelector `podtemplate.schedulingFor` stamps on
+// those Pods, so the reservation reasons about exactly the node set the
+// scheduler considers; the two would otherwise be free to disagree about
+// which hosts belong to a fleet.
+//
+// Anything other than linux falls through to darwin, matching that same
+// function's fallback and the CRD's `os` default.
+func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
+	switch pool.Spec.OS {
+	case "linux":
+		return client.MatchingLabels{
+			fleetNodePoolLabel: pool.Spec.FleetSelector,
+			nodeOSLabel:        "linux",
+		}
+	default:
+		return client.MatchingLabels{
+			macosFleetLabel: pool.Spec.FleetSelector,
+			nodeOSLabel:     macosNodeOSDarwin,
+		}
+	}
 }
 
 // apiReader is the uncached client, used on the one path where a stale
@@ -485,10 +531,6 @@ func (r *RunnerPoolReconciler) releaseOrphanedReservations(
 // from the delete path, which returns before the ordinary reservation
 // reconciliation and would otherwise strand the taint.
 func (r *RunnerPoolReconciler) ReleaseReservationsForPool(ctx context.Context, pool *tuistv1.RunnerPool) error {
-	if pool.Spec.OS != macosNodeOSDarwin {
-		return nil
-	}
-
 	nodes, err := r.fleetNodes(ctx, pool)
 	if err != nil {
 		return err
@@ -611,4 +653,17 @@ func reservationAge(node *corev1.Node, now time.Time) time.Duration {
 // conflict instead, and the next reconcile recomputes from fresh state.
 func optimisticPatch(base client.Object) client.Patch {
 	return client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})
+}
+
+// healthyNodes counts a fleet's hosts that could take work right now.
+// Reserving is only safe while at least one other host remains to serve
+// every other pool.
+func healthyNodes(nodes []corev1.Node) int {
+	count := 0
+	for i := range nodes {
+		if nodeFilterReason(&nodes[i]) == "" {
+			count++
+		}
+	}
+	return count
 }

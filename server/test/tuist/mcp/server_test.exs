@@ -17,9 +17,23 @@ defmodule Tuist.MCP.ServerTest do
 
       assert "get_gradle_integration_guide" in tool_names
       assert "list_accounts" in tool_names
+      assert "get_organization" in tool_names
+      assert "list_account_tokens" in tool_names
+      assert "get_account_token" in tool_names
       assert "create_organization" in tool_names
       assert "create_project" in tool_names
       assert "add_organization_member" in tool_names
+      assert "list_runner_jobs" in tool_names
+      assert "get_runner_job" in tool_names
+      assert "list_runner_job_steps" in tool_names
+      assert "list_runner_job_metrics" in tool_names
+      assert "list_runner_job_logs" in tool_names
+      assert "list_runner_workflows" in tool_names
+      assert "list_runner_profiles" in tool_names
+      assert "list_webhook_endpoints" in tool_names
+      assert "get_webhook_endpoint" in tool_names
+      assert "list_webhook_delivery_attempts" in tool_names
+      assert "get_webhook_delivery_attempt" in tool_names
       assert "list_xcode_builds" in tool_names
       assert "get_xcode_build" in tool_names
       assert "list_xcode_build_targets" in tool_names
@@ -42,10 +56,19 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_generation" in tool_names
       assert "list_cache_runs" in tool_names
       assert "get_cache_run" in tool_names
+      assert "list_automation_alerts" in tool_names
+      assert "get_automation_alert" in tool_names
+      assert "list_automation_alert_revisions" in tool_names
+      assert "list_project_notification_alerts" in tool_names
       assert "list_xcode_module_cache_targets" in tool_names
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
-      assert server.version == "1.16.0"
+      assert "get_project" in tool_names
+      assert "list_project_tokens" in tool_names
+      assert "list_previews" in tool_names
+      assert "get_preview" in tool_names
+      assert "get_latest_preview" in tool_names
+      assert server.version == "1.22.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

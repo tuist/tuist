@@ -487,7 +487,16 @@ defmodule Tuist.Runners.WorkflowJobs do
     )
   end
 
-  @orphan_fields [:workflow_job_id, :account_id, :repository, :claimed_at, :started_at, :pod_name, :fleet_name]
+  @orphan_fields [
+    :workflow_job_id,
+    :account_id,
+    :repository,
+    :workflow_run_id,
+    :claimed_at,
+    :started_at,
+    :pod_name,
+    :fleet_name
+  ]
 
   defp orphan_fields, do: @orphan_fields
 
@@ -505,6 +514,7 @@ defmodule Tuist.Runners.WorkflowJobs do
           workflow_job_id: j.workflow_job_id,
           account_id: j.account_id,
           repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
           enqueued_at: j.enqueued_at
         }
       )

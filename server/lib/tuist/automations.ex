@@ -77,6 +77,56 @@ defmodule Tuist.Automations do
     |> Repo.all()
   end
 
+  def get_alert_revision(alert_id, revision_id) do
+    case Repo.get_by(Revision, id: revision_id, automation_alert_id: alert_id) do
+      nil -> {:error, :not_found}
+      revision -> {:ok, revision}
+    end
+  end
+
+  def redact_revision(%Revision{} = revision) do
+    %{
+      id: revision.id,
+      event: revision.event,
+      source: revision.source,
+      actor: revision_actor(revision),
+      changes: redact_revision_changes(revision.changes),
+      snapshot: redact_revision_snapshot(revision.snapshot),
+      inserted_at: revision.inserted_at
+    }
+  end
+
+  defp revision_actor(%{actor: nil}), do: nil
+
+  defp revision_actor(%{actor: actor}) do
+    %{id: actor.id, name: actor.account.name, email: actor.email}
+  end
+
+  defp redact_revision_changes(changes) when is_map(changes) do
+    redact_revision_actions(changes, fn action_change ->
+      action_change
+      |> Map.update("from", [], &redact_actions/1)
+      |> Map.update("to", [], &redact_actions/1)
+    end)
+  end
+
+  defp redact_revision_changes(_changes), do: %{}
+
+  defp redact_revision_snapshot(snapshot) when is_map(snapshot) do
+    redact_revision_actions(snapshot, &redact_actions/1)
+  end
+
+  defp redact_revision_snapshot(_snapshot), do: %{}
+
+  defp redact_revision_actions(content, redactor) do
+    Enum.reduce(["trigger_actions", "recovery_actions"], content, fn field, acc ->
+      Map.update(acc, field, [], redactor)
+    end)
+  end
+
+  defp redact_actions(actions) when is_list(actions), do: Enum.map(actions, &redact_action/1)
+  defp redact_actions(_actions), do: []
+
   defp before_alert_revision(query, nil), do: query
 
   defp before_alert_revision(query, %Revision{inserted_at: inserted_at, id: id}) do
@@ -222,6 +272,8 @@ defmodule Tuist.Automations do
   end
 
   defp revision_value(_field, value), do: value
+
+  def redact_action(action) when is_map(action), do: Map.delete(action, "webhook_url_encrypted")
 
   defp redact_webhook_url(action) do
     case Map.pop(action, "webhook_url_encrypted") do

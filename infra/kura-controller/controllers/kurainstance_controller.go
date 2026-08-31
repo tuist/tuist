@@ -3537,8 +3537,21 @@ func grpcIngressAnnotations() map[string]string {
 	return annotations
 }
 
+// customerRecordTTLSeconds is how long a resolver may keep pointing a
+// customer at a region.
+//
+// A cache client resolves a name once and then holds the connection, so when a
+// region stops serving a name the client depends on DNS handing it another
+// one. The gateways refuse names they do not serve (ssl-reject-handshake in
+// infra/helm/platform), which turns that into a retry rather than a silent
+// failure, and this bounds how long the retrying lasts. The provider default
+// is 300s; these names are resolved once per connection, so a shorter one
+// costs little and 60s is the floor the DNS provider accepts.
+const customerRecordTTLSeconds = "60"
+
 func streamingIngressAnnotations(backendProtocol string) map[string]string {
 	return map[string]string{
+		"external-dns.alpha.kubernetes.io/ttl":                customerRecordTTLSeconds,
 		"nginx.ingress.kubernetes.io/backend-protocol":        backendProtocol,
 		"nginx.ingress.kubernetes.io/proxy-body-size":         "0",
 		"nginx.ingress.kubernetes.io/proxy-buffering":         "off",
