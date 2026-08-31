@@ -615,15 +615,33 @@ fn a_remote_value_that_contradicts_a_stale_association_is_still_served() {
 /// Not an assertion -- the record of what the verification costs, and the reason
 /// there is no memoization of the verdict behind it.
 ///
-/// Measured on an M-series Mac with Xcode 26.3, release profile: a served local
-/// hit is ~50ns end to end, of which the probe is ~12ns. At the ~13.5k hits of a
-/// warm runner build that is a sixth of a millisecond for the whole build, so
-/// caching the verdict would buy nothing measurable while putting a mutex on the
-/// serial task-setup path and introducing a stale-positive window (another
-/// process pruning the shared store does not clear this process's cache).
+/// Measured on an M-series Mac, release profile, against the in-process fake
+/// proxy, so the socket figure below is a transport floor rather than a full
+/// accounting of the real proxy's work.
+///
+/// Before the backing check: a served local hit was ~49ns end to end, of which
+/// the root probe is ~10ns, or two thirds of a millisecond across the ~13.5k
+/// hits of a warm runner build.
+///
+/// With it: ~14.3us per served hit, because the check is a unix-socket round
+/// trip to the proxy and the root probe is a local `contains`. That is ~290x per
+/// hit and ~193ms across the same warm build, against a runner warm build
+/// measured at 96.8s +/- 3.9 (AGENTS.md, "Runner regime") -- 0.2% of the build
+/// and about a twentieth of that measurement's own noise band.
+///
+/// The round trip is what makes memoizing the verdict tempting now in a way the
+/// bare probe never did. It stays unmemoized for the reasons it always was: a
+/// mutex on the serial task-setup path, plus a stale-positive window, since
+/// another process pruning the shared store does not clear this process's cache.
+/// Revisit only if a real-proxy measurement lands far from this floor.
+///
+/// The regime that would NOT be affordable -- a per-key `GetActionResult` per
+/// served hit -- is declined proxy-side rather than paid: no snapshot and not
+/// `Fetching` answers Unknown, which serves the hit without a veto. Only the
+/// seconds-long fetch window resolves per key. See `OP_BACKED` in proxy.rs.
 ///
 /// Re-run with `cargo test --release -- --ignored --nocapture probe_cost` if the
-/// verification ever grows beyond a single root probe.
+/// verification changes shape again.
 #[test]
 #[ignore = "a measurement, not an assertion"]
 fn probe_cost() {
@@ -632,8 +650,14 @@ fn probe_cost() {
     let value = env.cas.store_object(b"a value that is really here");
     env.cas.actioncache_put(&key, value).expect("seeding put");
     let id = env.cas.objectid_for(&env.cas.digest_of(value));
+    // The warm-build regime: the remote holds the key, so the backing check
+    // answers Backed and the hit is served. Without this the fake proxy answers
+    // STATUS_ERROR, which reads as Unknown -- the same round trip, but not the
+    // path a warm build actually takes.
+    env.proxy.answer_backed_with_yes(&env.cas.digest_of(value));
 
     const ITERATIONS: u32 = 20_000;
+    const WARM_BUILD_HITS: u32 = 13_500;
     for _ in 0..1_000 {
         let _ = env.cas.actioncache_get(&key);
     }
@@ -652,6 +676,10 @@ fn probe_cost() {
 
     eprintln!("verified get: {:?}/op", served / ITERATIONS);
     eprintln!("probe alone:  {:?}/op", probe / ITERATIONS);
+    eprintln!(
+        "at {WARM_BUILD_HITS} hits: {:?} per warm build",
+        (served / ITERATIONS) * WARM_BUILD_HITS
+    );
 }
 
 // --- Fixture -------------------------------------------------------------------
