@@ -9,6 +9,7 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
       - .trivyignore
   pull_request:
@@ -18,6 +19,7 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
       - .trivyignore
