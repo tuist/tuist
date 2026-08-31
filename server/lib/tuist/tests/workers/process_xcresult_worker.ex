@@ -49,7 +49,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # mistake (xcodebuild never populated the bundle, or the upload was a
   # bare `quarantined_tests.json` skeleton). We mark the run as
   # `failed_processing` once and cancel the job.
-  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found, :project_not_found]
 
   # A parse timeout is the one failure that costs a worker slot the full
   # NIF deadline (10 minutes) before it reports anything, so it is also the
