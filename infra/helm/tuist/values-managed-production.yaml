@@ -1427,11 +1427,20 @@ runnersFleetLinux:
     - { vcpus: 16, memoryGb: 32 }
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB of a host, which only the
-    # AX162-R's 256 GB seats (three per box, using 48 of its 96
-    # threads). Staging and canary run 64 GB AX42-U boxes, so the shape
-    # is absent from their catalogs rather than offered and left Pending
-    # forever. Asked for by Android builds, whose Gradle + Kotlin daemons
-    # exhaust the 32 GB shape.
+    # AX162-R's 256 GB seats. Staging and canary run 64 GB AX42-U boxes,
+    # so the shape is absent from their catalogs rather than offered and
+    # left Pending forever. Asked for by Android builds, whose Gradle +
+    # Kotlin daemons exhaust the 32 GB shape.
+    #
+    # 16 rather than 32 vCPU. At 66.5 GiB a Pod the host is memory-bound
+    # at 3 seats, and three 32 vCPU Pods would want 96.75 of its 94
+    # allocatable CPUs, so a 32 vCPU rung buys CPU by giving up the third
+    # seat and idling 90 GiB instead. 24 is the most vCPU that still fits
+    # 3 (72.75 of 94), and is the shape to reach for if a CPU-bound
+    # workload ever asks. The host's own ratio is ~2.4 GB per thread, so
+    # a 4 GB/vCPU rung leaving CPU unclaimed is the catalog working as
+    # intended, not a mis-sizing: it is the memory reservation that is
+    # scarce on this fleet, and this rung is bought for memory.
     - { vcpus: 16, memoryGb: 64 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
