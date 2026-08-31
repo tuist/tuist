@@ -1098,11 +1098,42 @@ count by (cluster, env, queue, node) (
 ) > 0
 ```
 
-- Pending period: 5 minutes
+- Pending period: 20 minutes
 - Keep firing for: 5 minutes
 - Severity: critical
 - Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
   without completing any for over 15 minutes`
+
+The pending period is 20 minutes rather than 5 because a Pod that is
+being drained satisfies this condition on its way out. It keeps a recent
+`last_attempt` while it stops completing, and its series does not vanish
+when the Pod does: the host-side `:9091` forwarder caches the guest's
+metrics, so a dead Pod's last sample outlives it.
+
+On 2026-08-31 this paged for `xcresult-processor-b24xg` about five
+minutes after a release deploy had already deleted it.
+`terminationGracePeriodSeconds` is 30, so the Pod was long gone and the
+entire firing window was stale data. Replayed against that window the
+condition holds for roughly 10 minutes; 20 is twice that, and a genuinely
+wedged consumer holds it for hours, so nothing real is lost.
+
+A pod-existence join on `kube_pod_status_phase` was tried and rejected.
+It only trims the tail — a terminating Pod is still `phase="Running"`,
+so replaying it still fired for 7 of the 10 minutes — and it would make a
+critical rule depend on kube-state-metrics, so the rule would go silently
+dead if KSM broke. That is the exact fourteen-hours-undetected failure
+this rule exists to prevent, traded for a little deploy noise.
+
+Two traps when triaging this, both hit on 2026-08-31:
+
+- **Check the Pod still exists** before treating it as a wedge:
+  `kubectl --context tuist-k8s-production get pods -n tuist | grep xcresult`.
+  A node named here that is not in that list is a stale page.
+- **Do not read a missing `completed` row as proof of a gap.** Completed
+  jobs are pruned aggressively; the table held 7 across a healthy fleet.
+  Use `tuist_oban_node_last_completion_timestamp_seconds`, or the hourly
+  `parse_timeout` rate off the `errors` array, which went 36/hr while
+  wedged to 4/hr once restored.
 
 The `count by` wrapper exists to give the threshold something to compare.
 The inner expression's own value is seconds since the node's last
@@ -1140,6 +1171,70 @@ rather than a firing alert. That gap is deliberately left to the
 15 minutes for the same reason as the queue rule: the NIF's own parse
 deadline is 600s plus a 30s cancellation grace, so a single legitimately
 slow job cannot reach it.
+
+### Remote processing consumer is losing its slots
+
+The rule above is correct and still fires too late. It turns positive
+only once a consumer has stopped completing work altogether, which on
+2026-08-31 was roughly a day after the decay started and about 3,000
+unprocessed test runs into it.
+
+That day both production xcresult processors were holding **3** in-flight
+jobs against a configured limit of **6**, with thousands of jobs
+`available` to fill the gap. Deleting the Pods restored both to 6
+immediately. The capacity had leaked away over the Pods' 69-hour
+lifetime: parses that hit the NIF's outer deadline never give their slot
+back, so a processor's usable concurrency only ever decreases. Sentry
+`TUIST-4JE` shows the same decay by generation — earlier Pods that lived
+0.5 to 16 hours logged 1 to 13 timeouts each, while the two that reached
+69 hours logged 670 and 429.
+
+A consumer at half capacity still completes jobs on the slots it has, so
+the liveness pair above, queue depth, queue age and `up` all read
+healthy. The gauges below are the only ones that move while there is
+still time to act.
+
+```promql
+max by (cluster, env, queue, node) (
+  tuist_oban_node_executing_jobs_count{cluster="tuist-production"}
+)
+< on (cluster, env, queue, node)
+max by (cluster, env, queue, node) (
+  tuist_oban_node_queue_limit{cluster="tuist-production"}
+)
+and on (cluster, env, queue)
+max by (cluster, env, queue) (
+  tuist_oban_queue_length_count{cluster="tuist-production", state="available"}
+) > 100
+```
+
+- Pending period: 15 minutes
+- Severity: warning
+- Summary: `{{ $labels.node }} is running below its configured
+  {{ $labels.queue }} concurrency while the queue has work waiting`
+
+The backlog clause is what makes this safe. A node under its limit is
+completely normal when there is nothing to run; it is only a defect when
+work is sitting `available` and the node still will not pick it up. 100
+is well above the transient depth a healthy fleet reaches between polls.
+
+Warning rather than critical, and a 15 minute pending period, because
+the whole point is that this fires with hours of headroom. The critical
+rule above stays as the backstop for the case where the decay is missed
+and throughput reaches zero.
+
+`executing` is counted from `oban_jobs.attempted_by` rather than from the
+producer's own in-memory state, because those two disagree in exactly the
+failing case and the table is the side that matches what an investigation
+greps for. Note that this does not contradict the "cannot be answered
+from the polling side" point above: that applies to the *completion*
+question, which has no usable index. Scoped to `state = 'executing'` the
+row set is tiny and the state index carries it — measured on production,
+0.23 ms and 22 shared buffers against a 5 second poll.
+
+The limit is a gauge rather than a constant in the expression because it
+is per environment: production runs `queueConcurrency: 6`, and the
+in-code default is 4.
 
 ### Swift registry catalog coverage deferred
 
