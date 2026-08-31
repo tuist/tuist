@@ -15,12 +15,12 @@ struct GitFetchTests {
                     "-c", "http.\(server.baseURL).extraheader=Authorization: Basic \(credential)",
                 ]
 
-                let attempted = Attempted()
+                var attempted: [[String]] = []
                 let output = try await GitFetch.perform(
                     GitFetch.attempts(for: location, authenticatedWith: configArguments),
                     for: location
                 ) { attempt in
-                    attempted.record(attempt)
+                    attempted.append(attempt.configArguments)
                     return try await SystemProcess.output(
                         "/usr/bin/git",
                         attempt.configArguments + ["ls-remote", "--tags", attempt.location],
@@ -29,7 +29,7 @@ struct GitFetchTests {
                 }
 
                 #expect(output.contains("refs/tags/1.0.0"))
-                #expect(attempted.configArguments == [configArguments, []])
+                #expect(attempted == [configArguments, []])
                 #expect(server.authenticatedRequests.isEmpty == false)
                 #expect(server.anonymousRequests.isEmpty == false)
             }
@@ -53,7 +53,12 @@ struct GitFetchTests {
             for: "https://github.com/acme/public-lib.git", authenticatedWith: configArguments
         )
 
-        #expect(attempts.map(\.location) == Array(repeating: "https://github.com/acme/public-lib.git", count: 2))
+        #expect(
+            attempts.map(\.location) == [
+                "https://github.com/acme/public-lib.git",
+                "https://github.com/acme/public-lib.git",
+            ]
+        )
         #expect(attempts.map(\.configArguments) == [configArguments, []])
     }
 
@@ -106,13 +111,5 @@ struct GitFetchTests {
             ),
             error: ToolError.message(message)
         )
-    }
-}
-
-private final class Attempted: @unchecked Sendable {
-    private(set) var configArguments: [[String]] = []
-
-    func record(_ attempt: GitFetchAttempt) {
-        configArguments.append(attempt.configArguments)
     }
 }
