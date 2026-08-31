@@ -27,7 +27,7 @@ import (
 // gives the memory budget the pool's shapes compete for.
 const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 
-// macosFleetLabel + macosNodeOSLabel identify the Mac mini hosts
+// macosFleetLabel + nodeOSLabel identify the Mac mini hosts
 // claimed by a macOS RunnerPool's fleetSelector. tuist.dev/fleet is
 // stamped by the runners-fleet's MachineDeployment (and matched by
 // the macOS runner Pods' nodeSelector); kubernetes.io/os=darwin
@@ -35,13 +35,16 @@ const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 // actually admit gives the slot budget the macOS Xcode pools compete
 // for.
 //
+// nodeOSLabel is not macOS-only: the reservation path pairs it with
+// fleetNodePoolLabel to address the Linux fleet's bare-metal hosts.
+//
 // One fleet label can span several MachineDeployments — that is how a
 // mixed-SKU fleet is expressed (M2-L at one guest per host next to
 // M4-XL at two), so the node set behind a fleetSelector is NOT
 // homogeneous and its capacity is not its cardinality.
 const (
 	macosFleetLabel   = "tuist.dev/fleet"
-	macosNodeOSLabel  = "kubernetes.io/os"
+	nodeOSLabel       = "kubernetes.io/os"
 	macosNodeOSDarwin = "darwin"
 )
 
@@ -360,8 +363,8 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  pool.Spec.FleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
+		macosFleetLabel: pool.Spec.FleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return nil, fmt.Errorf("list macOS fleet nodes for shape caps: %w", err)
 	}
@@ -616,8 +619,8 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, fleetSelector string) (int64, error) {
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  fleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
+		macosFleetLabel: fleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}

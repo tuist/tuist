@@ -109,26 +109,41 @@ independent workqueues:
     memory and oversubscribes CPU by design, and those hosts are
     homogeneous, so the byte budget is already exact there.
 
-    **Node reservation.** A shape needing more than one guest slot on a
-    single host cannot accumulate them on its own. kube-scheduler does
-    not hold its queue on an unschedulable Pod, so each slot that frees
-    is taken by the next smaller Pod that fits, and the large Pod waits
-    for a coincidence of two simultaneously-free slots that a steady
+    **Node reservation.** Runs on BOTH fleets. A shape needing more of a
+    host than any single smaller Pod does cannot accumulate the room on
+    its own. kube-scheduler does not hold its queue on an unschedulable
+    Pod, so each slot that frees is taken by the next smaller Pod that
+    fits, and the large Pod waits for a coincidence that a steady
     trickle of small jobs prevents. The cross-pool reclaim does not help
     either: it reclaims speculative warm capacity, and the Pod winning
     the race is backed by real queued work, the one tier that never
     yields.
 
+    On darwin the unit is guest slots: a 12 vCPU Pod needs both of an
+    M4-XL's. On linux it is memory: a 64 GiB shape costs a third of an
+    AX162-R (64 GiB plus the kata RuntimeClass's 2.5 GiB podFixed), so
+    it needs a contiguous third of a host that 8 and 16 GiB Pods keep
+    carving up. The linux drain is progressive rather than all-or-
+    nothing — the taint stops new Pods landing, running jobs finish and
+    free their memory, and the starved Pod is placed the moment its
+    shape fits rather than when the host is empty.
+
+    `fleetNodeSelector` addresses each platform's hosts by the labels
+    that platform's Pods select on (`tuist.dev/fleet` on darwin,
+    `node.cluster.x-k8s.io/pool` on linux, both paired with
+    `kubernetes.io/os`), so the reservation and the scheduler always
+    agree on which hosts a fleet has.
+
     A reservation is only taken for a shape that is LARGE relative to
     the fleet: this shape must get fewer seats on the candidate host
     than the fleet's most granular shape does. That is exactly the case
     where the seats it needs are the ones smaller Pods keep taking. On a
-    homogeneous fleet whose hosts hold one guest (staging, canary) the
-    test never passes, so the mechanism is inert there — nothing can
-    accumulate when the shape already fits a single seat, and reserving
-    a one-host fleet would take every pool out of service until it
-    cleared. Waiting is correct there, and the allocator's cross-pool
-    reclaim already arranges it.
+    homogeneous fleet whose hosts hold one guest (the macOS side of
+    staging, canary) the test never passes, so the mechanism is inert
+    there — nothing can accumulate when the shape already fits a single
+    seat, and reserving a one-host fleet would take every pool out of
+    service until it cleared. Waiting is correct there, and the
+    allocator's cross-pool reclaim already arranges it.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), the RunnerPool reconciler taints one eligible host
@@ -137,9 +152,12 @@ independent workqueues:
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
     retired. The taint is removed when the Pod lands or after
-    `reservationTimeout` (15m), and at most one host is held fleet-wide
-    (`maxFleetReservations`), since a reservation is capacity withdrawn
-    from the small shapes while it converges.
+    `reservationTimeout` (15m), and at most one host is held per fleet
+    (`maxFleetReservations`; the count is taken over the pool's own
+    fleet nodes, so darwin and linux hold separate budgets), since a
+    reservation is capacity withdrawn from the small shapes while it
+    converges. On the two-host production Linux fleet that is half the
+    hosts closed to new Pods, which is why the cap stays at one.
 
     A timed-out release rests the host for `reservationCooldown` (15m)
     via a `tuist.dev/reservation-cooldown-until` annotation. Without it
