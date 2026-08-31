@@ -109,6 +109,18 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+
+// Ceilings on one batched replication request. The metadata lane carries
+// inline artifacts (action-cache entries, small CAS objects) whose bodies run
+// to a few KiB, so a per-message request spends a whole round trip shipping
+// less than one MTU of payload: the drain is bound by messages per second
+// rather than bytes per second, orders of magnitude below the link. Batching
+// moves the bound back onto bytes. The item cap is what does that; the byte cap
+// only stops a run of unusually large inline bodies (up to
+// MAX_INLINE_REPLICATION_BODY_BYTES each) from assembling a request that has to
+// be buffered whole on both sides.
+pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
+pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;

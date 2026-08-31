@@ -70,6 +70,12 @@ pub struct AppState {
     /// cannot starve in-flight client uploads (or the reverse).
     pub peer_staging_budget: Arc<TmpBudget>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+    /// Targets known not to serve the batched replication route, learned from a
+    /// 404 or 405 on the first attempt. A peer that predates the route must not
+    /// cost a wasted round trip per batch for the life of a backlog, so the
+    /// answer is remembered; it is process-scoped, so an upgraded peer is
+    /// retried after the next restart rather than staying downgraded forever.
+    pub replication_batch_unsupported: Mutex<BTreeSet<String>>,
     /// Serving-side per-peer-identity concurrency gate for the backfill bodies
     /// endpoint (see [`BackfillBodiesPeerSlots`]).
     pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
@@ -319,6 +325,20 @@ impl AppState {
 
     pub async fn note_replication_success(&self, target: &str) {
         self.replication_backoff.lock().await.remove(target);
+    }
+
+    pub async fn replication_batch_unsupported(&self, target: &str) -> bool {
+        self.replication_batch_unsupported
+            .lock()
+            .await
+            .contains(target)
+    }
+
+    pub async fn note_replication_batch_unsupported(&self, target: &str) {
+        self.replication_batch_unsupported
+            .lock()
+            .await
+            .insert(target.to_owned());
     }
 
     pub async fn note_replication_failure(&self, target: &str, now: Instant) {

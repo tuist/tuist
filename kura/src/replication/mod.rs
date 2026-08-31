@@ -26,11 +26,13 @@ use crate::{
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{
-        MAX_INLINE_REPLICATION_BODY_BYTES, OUTBOX_MAX_INFLIGHT, REPLICATION_RETRY_SECS,
-        RESPONSE_STREAM_CHUNK_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, OUTBOX_MAX_INFLIGHT, REPLICATION_BATCH_MAX_BYTES,
+        REPLICATION_BATCH_MAX_ITEMS, REPLICATION_RETRY_SECS, RESPONSE_STREAM_CHUNK_BYTES,
     },
     failpoints::FailpointName,
+    http::{ReplicateBatchItemMeta, ReplicateBatchOutcomes, encode_replicate_batch_frame},
     state::SharedState,
+    store::OUTBOX_BULK_LANE_PREFIX,
     telemetry::{inject_current_trace_context, record_trace_context},
     utils::{replication_target_label, url_encode},
 };
@@ -480,6 +482,270 @@ fn format_ip_for_url(ip: IpAddr) -> String {
     }
 }
 
+/// A batched delivery's verdict.
+enum BatchOutcome {
+    /// The peer answered. One flag per message in the batch, in order: true
+    /// means the peer is done with it (applied, or ignored as not newer) and
+    /// the outbox message may be cleared.
+    Resolved(Vec<bool>),
+    /// The peer does not serve the batch route, so this target stays on the
+    /// per-message path.
+    Unsupported,
+}
+
+/// Whether a message can ride a batch. Only the metadata lane's inline
+/// artifacts qualify: a segment-backed body streams and wants overlap rather
+/// than company, and namespace deletes are ordering-sensitive enough that they
+/// keep their own request.
+fn batchable_inline_upsert(message: &OutboxMessage) -> bool {
+    matches!(
+        &message.operation,
+        ReplicationOperation::UpsertArtifact { inline: true, .. }
+    )
+}
+
+/// Ships as many of `items` as fit one request to `target`.
+///
+/// Items the local node can no longer produce (manifest or inline bytes gone)
+/// resolve without being sent, matching the per-message path, which treats a
+/// missing manifest as delivered. Oversized inline bodies are left out
+/// entirely so the per-message path can purge them, which is the only place
+/// that logic lives.
+async fn replicate_batch(
+    state: &SharedState,
+    target: &str,
+    items: &[(Vec<u8>, OutboxMessage)],
+) -> Result<BatchOutcome, String> {
+    let mut resolved = vec![false; items.len()];
+    let mut sent_indices = Vec::new();
+    let mut body = Vec::new();
+
+    for (index, (_message_key, message)) in items.iter().enumerate() {
+        let ReplicationOperation::UpsertArtifact {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            artifact_id,
+            version_ms,
+            branch,
+            trunk,
+            ..
+        } = &message.operation
+        else {
+            continue;
+        };
+        let Some(manifest) = state.store.manifest(artifact_id)? else {
+            resolved[index] = true;
+            continue;
+        };
+        if manifest.size > MAX_INLINE_REPLICATION_BODY_BYTES {
+            continue;
+        }
+        let Some(bytes) = state.store.inline_bytes(artifact_id)? else {
+            resolved[index] = true;
+            continue;
+        };
+
+        let meta = ReplicateBatchItemMeta {
+            producer: producer.as_str().to_owned(),
+            namespace_id: namespace_id.clone(),
+            key: key.clone(),
+            content_type: content_type.clone(),
+            version_ms: *version_ms,
+            branch: branch.clone(),
+            trunk: trunk.clone(),
+        };
+        let meta_bytes = serde_json::to_vec(&meta)
+            .map_err(|error| format!("failed to encode replication batch meta: {error}"))?;
+        let frame = encode_replicate_batch_frame(&meta_bytes, &bytes)?;
+        // Stopping here rather than dropping the item leaves the remainder
+        // queued for the next round, so an unusually large run of inline
+        // bodies costs another request instead of an unbounded one.
+        if !body.is_empty() && (body.len() + frame.len()) as u64 > REPLICATION_BATCH_MAX_BYTES {
+            break;
+        }
+        body.extend_from_slice(&frame);
+        sent_indices.push(index);
+    }
+
+    if sent_indices.is_empty() {
+        return Ok(BatchOutcome::Resolved(resolved));
+    }
+
+    let url = format!("{target}/_internal/replicate/artifacts");
+    let request_span = tracing::info_span!(
+        "replication.request",
+        otel.name = "PUT /_internal/replicate/artifacts",
+        otel.kind = "client",
+        kura.operation = "upsert_artifact_batch",
+        http.request.method = "PUT",
+        url.full = %url,
+        peer.service = %replication_target_label(target),
+        kura.batch_items = sent_indices.len(),
+        http.response.status_code = field::Empty,
+        otel.status_code = field::Empty,
+        trace_id = field::Empty,
+        span_id = field::Empty,
+    );
+    record_trace_context(&request_span);
+    let response_span = request_span.clone();
+
+    async {
+        let mut headers = reqwest::header::HeaderMap::new();
+        inject_current_trace_context(&mut headers);
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+
+        let response = state
+            .client()
+            .put(&url)
+            .headers(headers)
+            .body(body)
+            .send()
+            .await
+            .map_err(|error| format!("batched artifact replication request failed: {error:?}"))?;
+
+        response_span.record("http.response.status_code", response.status().as_u16());
+        // A peer that predates this route answers 404, and one that has the
+        // path but not the method answers 405. Neither is a failure of the
+        // messages: they go back through the per-message route.
+        if matches!(
+            response.status(),
+            reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
+        ) {
+            return Ok(BatchOutcome::Unsupported);
+        }
+        if response.status().is_server_error() {
+            response_span.record("otel.status_code", "ERROR");
+        }
+        let response = response
+            .error_for_status()
+            .map_err(|error| format!("batched artifact replication rejected: {error:?}"))?;
+        let outcomes: ReplicateBatchOutcomes = response
+            .json()
+            .await
+            .map_err(|error| format!("failed to decode replication batch outcomes: {error:?}"))?;
+        if outcomes.outcomes.len() != sent_indices.len() {
+            return Err(format!(
+                "peer answered {} outcomes for {} batched items",
+                outcomes.outcomes.len(),
+                sent_indices.len()
+            ));
+        }
+        for (index, outcome) in sent_indices.iter().zip(outcomes.outcomes) {
+            resolved[*index] = outcome != "error";
+        }
+        Ok(BatchOutcome::Resolved(resolved))
+    }
+    .instrument(request_span)
+    .await
+}
+
+/// Drains the metadata lane in per-target batches before the per-message pass.
+///
+/// The lane carries inline artifacts of a few KiB, so one request per message
+/// spends a whole round trip on less than an MTU of payload and the drain is
+/// bound by messages rather than bytes. Outbox keys are `{lane}-{time}-{uuid}`
+/// with no target in them, so messages for different peers interleave and a
+/// contiguous run is almost always length one; the scan therefore buckets by
+/// target across a window instead of grouping neighbours.
+///
+/// Anything this does not take (bulk bodies, namespace deletes, backed-off or
+/// departed targets, peers without the route) is left untouched for
+/// `process_outbox`, which remains the complete path.
+async fn drain_metadata_batches(
+    state: &SharedState,
+    current_targets: &BTreeSet<String>,
+) -> Result<(), String> {
+    loop {
+        let mut buckets: BTreeMap<String, Vec<(Vec<u8>, OutboxMessage)>> = BTreeMap::new();
+        let mut after: Option<Vec<u8>> = None;
+        let mut scanned = 0usize;
+        let scan_cap = REPLICATION_BATCH_MAX_ITEMS.saturating_mul(4);
+
+        while let Some((message_key, message)) =
+            state.store.next_outbox_message(after.as_deref())?
+        {
+            if message_key.as_slice() >= OUTBOX_BULK_LANE_PREFIX.as_bytes() {
+                break;
+            }
+            after = Some(message_key.clone());
+            scanned += 1;
+            if scanned >= scan_cap {
+                break;
+            }
+            if !batchable_inline_upsert(&message)
+                || !current_targets.contains(&message.target)
+                || state.replication_batch_unsupported(&message.target).await
+                || state
+                    .replication_target_backed_off(&message.target, Instant::now())
+                    .await
+            {
+                continue;
+            }
+            let bucket = buckets.entry(message.target.clone()).or_default();
+            if bucket.len() < REPLICATION_BATCH_MAX_ITEMS {
+                bucket.push((message_key, message));
+            }
+        }
+
+        // A batch of one saves no round trip, so it goes through the
+        // per-message path with everything else this pass skipped.
+        buckets.retain(|_, items| items.len() > 1);
+        if buckets.is_empty() {
+            return Ok(());
+        }
+
+        let deliveries = buckets.into_iter().map(|(target, items)| async move {
+            let started_at = std::time::Instant::now();
+            let outcome = replicate_batch(state, &target, &items).await;
+            (target, items, outcome, started_at.elapsed())
+        });
+        let results = futures_util::future::join_all(deliveries).await;
+
+        let mut progressed = false;
+        for (target, items, outcome, elapsed) in results {
+            match outcome {
+                Ok(BatchOutcome::Unsupported) => {
+                    state.note_replication_batch_unsupported(&target).await;
+                }
+                Ok(BatchOutcome::Resolved(resolved)) => {
+                    state.note_replication_success(&target).await;
+                    // One batch is one replication request, so it records one
+                    // observation however many messages it carried.
+                    state
+                        .metrics
+                        .record_replication(&target, "upsert_artifact", "ok", elapsed);
+                    for ((message_key, _message), done) in items.iter().zip(resolved) {
+                        if done {
+                            state.store.delete_outbox_message(message_key)?;
+                            progressed = true;
+                        }
+                    }
+                }
+                Err(error) => {
+                    state
+                        .note_replication_failure(&target, Instant::now())
+                        .await;
+                    state
+                        .metrics
+                        .record_replication(&target, "upsert_artifact", "error", elapsed);
+                    warn!("batched replication to {target} failed: {error}");
+                }
+            }
+        }
+
+        // Every batch failed or resolved nothing; retrying the same scan would
+        // spin. The per-message pass and the next tick take it from here.
+        if !progressed {
+            return Ok(());
+        }
+    }
+}
+
 // Next message at or after the cursor that is not already in flight. The scan
 // rewinds to the head whenever a priority-lane message arrives, so it re-reaches
 // keys the pipeline is still delivering; skipping them keeps one message to one
@@ -554,6 +820,12 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     let prune_ready =
         !state.runtime.peer_view_pending() && state.initial_discovery_completed().await;
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
+
+    // The metadata lane goes first and goes batched. It carries the small
+    // inline artifacts, which is where per-message round trips dominate; what
+    // it leaves behind (bulk bodies, namespace deletes, targets it could not
+    // batch to) falls through to the per-message pass below.
+    drain_metadata_batches(state, &current_targets).await?;
 
     // Deliveries are pipelined: up to `OUTBOX_MAX_INFLIGHT` are dispatched
     // before the first completion is awaited. Awaiting each message in turn
@@ -2213,6 +2485,190 @@ mod tests {
         assert_ne!(
             next_key, head_key,
             "a message already in flight must not be handed out again"
+        );
+    }
+
+    /// Peer that serves the batch route, recording how many requests it took
+    /// and how many items each carried.
+    fn batching_peer(
+        requests: Arc<AtomicU64>,
+        items_seen: Arc<AtomicU64>,
+        fail_first_item: bool,
+    ) -> Router {
+        Router::new().route(
+            "/_internal/replicate/artifacts",
+            put(move |body: axum::body::Bytes| {
+                let requests = requests.clone();
+                let items_seen = items_seen.clone();
+                async move {
+                    requests.fetch_add(1, Ordering::SeqCst);
+                    let frames = crate::http::decode_replicate_batch_frames(&body)
+                        .expect("batch body should decode");
+                    items_seen.fetch_add(frames.len() as u64, Ordering::SeqCst);
+                    let outcomes = frames
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| {
+                            if fail_first_item && index == 0 {
+                                "error".to_owned()
+                            } else {
+                                "applied".to_owned()
+                            }
+                        })
+                        .collect();
+                    axum::Json(crate::http::ReplicateBatchOutcomes { outcomes })
+                }
+            }),
+        )
+    }
+
+    async fn enqueue_inline_artifacts(ctx: &TestContext, peer_url: &str, count: usize) {
+        for index in 0..count {
+            ctx.state
+                .store
+                .persist_inline_artifact_from_bytes_and_enqueue(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("entry-{index}"),
+                    "application/octet-stream",
+                    b"action-cache-entry",
+                    std::slice::from_ref(&peer_url.to_owned()),
+                    None,
+                    None,
+                )
+                .await
+                .expect("inline artifact should persist");
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_lane_ships_as_one_batched_request() {
+        // The lane carries inline artifacts of a few KiB, so one request per
+        // message spends a whole round trip on less than an MTU of payload.
+        // Sixteen messages must cost one request, not sixteen.
+        let requests = Arc::new(AtomicU64::new(0));
+        let items_seen = Arc::new(AtomicU64::new(0));
+        let (peer_url, _server) =
+            spawn_server(batching_peer(requests.clone(), items_seen.clone(), false)).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 16).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert_eq!(
+            items_seen.load(Ordering::SeqCst),
+            16,
+            "every queued message should have been delivered"
+        );
+        assert_eq!(
+            requests.load(Ordering::SeqCst),
+            1,
+            "sixteen inline messages should cost one request, not one each"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "delivered messages must be cleared"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_peer_without_the_batch_route_falls_back_to_per_message() {
+        // Mixed-version meshes are the normal state mid-rollout: a peer that
+        // predates the batch route answers 404, and its messages must still
+        // drain through the per-artifact route rather than wedging.
+        let singles = Arc::new(AtomicU64::new(0));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let singles = singles.clone();
+                move || {
+                    let singles = singles.clone();
+                    async move {
+                        singles.fetch_add(1, Ordering::SeqCst);
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 4).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain against a peer without the batch route");
+
+        assert_eq!(
+            singles.load(Ordering::SeqCst),
+            4,
+            "each message should have gone through the per-artifact route"
+        );
+        assert!(
+            ctx.state.replication_batch_unsupported(&peer_url).await,
+            "the peer should be remembered as batch-less so later passes skip the probe"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "the fallback must still clear delivered messages"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_item_stays_queued_while_its_batch_mates_clear() {
+        // Per-item outcomes are the point of the response shape: one poison
+        // item must not strand everything batched with it, and must not be
+        // dropped either.
+        let requests = Arc::new(AtomicU64::new(0));
+        let items_seen = Arc::new(AtomicU64::new(0));
+        let (peer_url, _server) =
+            spawn_server(batching_peer(requests.clone(), items_seen.clone(), true)).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 5).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        let queued = ctx
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(
+            queued.len(),
+            1,
+            "only the item the peer rejected should remain queued"
         );
     }
 }

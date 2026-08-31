@@ -2511,7 +2511,7 @@ impl Store {
         self.note_artifact_exists(&manifest.artifact_id);
     }
 
-    fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
+    pub(crate) fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read inline artifact bytes: {error}"))
