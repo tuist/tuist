@@ -9,7 +9,6 @@ defmodule TuistWeb.CacheLiveTest do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
-  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do

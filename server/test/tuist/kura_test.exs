@@ -11,7 +11,6 @@ defmodule Tuist.KuraTest do
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
-  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
