@@ -223,6 +223,34 @@ func TestPublishRunnerHeartbeat(t *testing.T) {
 		}
 	})
 
+	// A host clock stepped backwards leaves every subsequent beat dated
+	// BEFORE the timestamp already on the Pod. The republish throttle asks
+	// whether the beat advanced far enough to be worth a write, so a beat
+	// that moved backwards must not read as "close enough to skip": that
+	// latches the published value for the whole length of the rollback,
+	// and a guest that dies inside that window goes on counting as warm
+	// capacity because the controller is comparing its own rolled-back
+	// clock against a future-dated beat.
+	t.Run("republishes a beat that moved backwards", func(t *testing.T) {
+		dir := t.TempDir()
+		published := time.Now().UTC().Truncate(time.Second)
+		beat := published.Add(-time.Hour)
+		writeHeartbeat(t, dir, heartbeatStatePolling, beat)
+
+		pod := heartbeatPod("runner-h", map[string]string{
+			runnerHeartbeatStateAnnotation: heartbeatStatePolling,
+			runnerHeartbeatAtAnnotation:    published.Format(time.RFC3339),
+		})
+		r, c := heartbeatReconciler(t, pod, dir)
+		if err := r.publishRunnerHeartbeat(ctx, pod); err != nil {
+			t.Fatalf("publishRunnerHeartbeat: %v", err)
+		}
+
+		if got := podAnnotations(t, c, "runner-h")[runnerHeartbeatAtAnnotation]; got != beat.Format(time.RFC3339) {
+			t.Fatalf("beat annotation = %q, want it moved back to %q", got, beat.Format(time.RFC3339))
+		}
+	})
+
 	// A host clock stepped backwards leaves a beat dated ahead of now.
 	// Publishing it would make the Pod read fresh for as long as the skew
 	// lasts, which is the one direction this signal must not fail.

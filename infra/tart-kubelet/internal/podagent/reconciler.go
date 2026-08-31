@@ -1638,9 +1638,22 @@ func (r *Reconciler) publishRunnerHeartbeat(ctx context.Context, pod *corev1.Pod
 		// Same state: republish only once the timestamp has moved enough
 		// to be worth a write. An unparseable value republishes, which is
 		// how a hand-edited or truncated annotation heals.
-		if at, err := time.Parse(time.RFC3339, published); err == nil &&
-			beatAt.Sub(at) < heartbeatRepublishInterval {
-			return nil
+		//
+		// The window is bounded at both ends, and the lower bound is the
+		// one that is easy to miss. A host clock stepped backwards dates
+		// every subsequent beat BEFORE what is already on the Pod, so a
+		// bare "advanced less than the interval" test would suppress the
+		// write on a negative delta and go on suppressing it for the whole
+		// length of the rollback. The Pod would then carry a future-dated
+		// beat that the controller compares against its own rolled-back
+		// clock, which reads fresh no matter what the guest is doing —
+		// precisely the state this signal exists to detect. A backwards
+		// beat is new information, so it publishes; one write puts the
+		// annotation back on the host's timeline and the throttle resumes.
+		if at, err := time.Parse(time.RFC3339, published); err == nil {
+			if moved := beatAt.Sub(at); moved >= 0 && moved < heartbeatRepublishInterval {
+				return nil
+			}
 		}
 	}
 
