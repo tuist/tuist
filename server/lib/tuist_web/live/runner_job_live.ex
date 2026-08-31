@@ -36,7 +36,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -1075,9 +1075,9 @@ defmodule TuistWeb.RunnerJobLive do
     assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
-  # `:runners_interactive_access`, not the page's `:account_dashboard_read`:
+  # `:runners_interactive_access`, not the page's `:runners_read`:
   # attaching to a running VM executes commands on it, so it stays with members
-  # that can write even when the account is public.
+  # that can write.
   #
   # Resolved per call rather than read off the socket. `InteractiveSessions`
   # mints tokens without authorizing, and a socket outlives the role that

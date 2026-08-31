@@ -44,8 +44,10 @@ defmodule Tuist.MCP.Components.Tools.CreateProjectTest do
           "build_system" => "unknown"
         })
 
-      assert %{"content" => [%{"type" => "text", "text" => "is invalid"}], "isError" => true} =
-               result
+      assert %{
+               "content" => [%{"type" => "text", "text" => "Arguments do not match the tool schema."}],
+               "isError" => true
+             } = result
     end
 
     test "does not reveal inaccessible accounts" do

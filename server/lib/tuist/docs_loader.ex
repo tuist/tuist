@@ -364,14 +364,12 @@ defmodule Tuist.Docs.Loader do
 
   defp compile_heex_template(html, path) do
     {:ok,
-     EEx.compile_string(
+     Phoenix.LiveView.TagEngine.compile(
        html,
-       engine: Phoenix.LiveView.TagEngine,
        file: path,
        line: 1,
        caller: __ENV__,
        indentation: 0,
-       source: html,
        tag_handler: Phoenix.LiveView.HTMLEngine
      )}
   rescue

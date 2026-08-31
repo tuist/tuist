@@ -546,7 +546,28 @@ defmodule TuistWeb.Router do
       scope "/tokens" do
         post "/", AccountTokensController, :create
         get "/", AccountTokensController, :index
+        get "/:token_id", AccountTokensController, :show
         delete "/:token_name", AccountTokensController, :delete
+      end
+
+      scope "/runners" do
+        get "/jobs", RunnersController, :index_jobs
+        get "/jobs/:workflow_job_id", RunnersController, :show_job
+        get "/jobs/:workflow_job_id/steps", RunnersController, :index_job_steps
+        get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
+        get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
+        get "/workflows", RunnersController, :index_workflows
+        get "/profiles", RunnersController, :index_profiles
+      end
+
+      scope "/webhooks" do
+        get "/", WebhooksController, :index
+        get "/:webhook_endpoint_id", WebhooksController, :show
+        get "/:webhook_endpoint_id/delivery-attempts", WebhooksController, :index_delivery_attempts
+
+        get "/:webhook_endpoint_id/delivery-attempts/:delivery_attempt_id",
+            WebhooksController,
+            :show_delivery_attempt
       end
     end
 
@@ -651,9 +672,12 @@ defmodule TuistWeb.Router do
           get "/", Automations.AlertsController, :index
           post "/", Automations.AlertsController, :create
           get "/:alert_id", Automations.AlertsController, :show
+          get "/:alert_id/revisions", Automations.AlertsController, :index_revisions
           put "/:alert_id", Automations.AlertsController, :update
           delete "/:alert_id", Automations.AlertsController, :delete
         end
+
+        get "/notification-alerts", ProjectNotificationAlertsController, :index
 
         scope "/builds" do
           get "/", BuildsController, :index

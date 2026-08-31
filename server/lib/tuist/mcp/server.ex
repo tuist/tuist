@@ -20,9 +20,23 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.ListAccounts,
+    Tools.GetOrganization,
+    Tools.ListAccountTokens,
+    Tools.GetAccountToken,
     Tools.CreateOrganization,
     Tools.CreateProject,
     Tools.AddOrganizationMember,
+    Tools.ListRunnerJobs,
+    Tools.GetRunnerJob,
+    Tools.ListRunnerJobSteps,
+    Tools.ListRunnerJobMetrics,
+    Tools.ListRunnerJobLogs,
+    Tools.ListRunnerWorkflows,
+    Tools.ListRunnerProfiles,
+    Tools.ListWebhookEndpoints,
+    Tools.GetWebhookEndpoint,
+    Tools.ListWebhookDeliveryAttempts,
+    Tools.GetWebhookDeliveryAttempt,
     Tools.ListXcodeBuilds,
     Tools.GetXcodeBuild,
     Tools.ListXcodeBuildTargets,
@@ -51,9 +65,18 @@ defmodule Tuist.MCP.Server do
     Tools.GetGeneration,
     Tools.ListCacheRuns,
     Tools.GetCacheRun,
+    Tools.ListAutomationAlerts,
+    Tools.GetAutomationAlert,
+    Tools.ListAutomationAlertRevisions,
+    Tools.ListProjectNotificationAlerts,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
-    Tools.ListProjects
+    Tools.ListProjects,
+    Tools.GetProject,
+    Tools.ListProjectTokens,
+    Tools.ListPreviews,
+    Tools.GetPreview,
+    Tools.GetLatestPreview
   ]
 
   @prompts [
@@ -84,7 +107,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.16.0",
+      version: "1.22.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

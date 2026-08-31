@@ -28,16 +28,16 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:account_dashboard_read, nil, account) == {:error, :forbidden}
   end
 
-  test "cannot.read.runners on a public account when the subject is not a member" do
-    # Given — a public account exposes its dashboards, but attaching to a
-    # running VM over VNC/shell stays members-only.
+  test "can.read.runners on a public account when the subject is not a member" do
+    # A public account exposes runner state, but attaching to a running virtual
+    # machine remains members-only through the separate interactive permission.
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
     {:ok, public_account} = Accounts.update_account_visibility(account, :public)
     non_member = AccountsFixtures.user_fixture()
 
     # Then
-    assert Authorization.authorize(:runners_read, nil, public_account) == {:error, :forbidden}
-    assert Authorization.authorize(:runners_read, non_member, public_account) == {:error, :forbidden}
+    assert Authorization.authorize(:runners_read, nil, public_account) == :ok
+    assert Authorization.authorize(:runners_read, non_member, public_account) == :ok
     assert Authorization.authorize(:account_dashboard_read, non_member, public_account) == :ok
   end
 
@@ -776,6 +776,54 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
+  end
+
+  test "can.read.account.runners when an account token has runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.read.account.runners when an account token has the coding-agent scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["mcp"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "cannot.read.account.runners when an account token lacks a runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:admin:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot.read.account.runners when an account token targets another private account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, other_account) == {:error, :forbidden}
   end
 
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
