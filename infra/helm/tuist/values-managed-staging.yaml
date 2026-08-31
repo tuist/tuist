@@ -582,58 +582,52 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Staging half of the OVH Linux runner move: production is going to RISE-L in
-  # Gravelines (see values-managed-production.yaml), and this is the box that
-  # exercises the integration in front of it. RISE-S rather than RISE-L on
-  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
-  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
-  # third of the cost. Staging does not need production throughput; it needs to
-  # run the production integration.
+  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
+  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
+  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
+  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
+  # does not need production throughput, it needs to exercise the production
+  # integration.
   #
-  # IN SERVICE on staging, unlike production and canary. Staging is where the
-  # box is proven by running real jobs, so it carries the same pool label as the
-  # tuist-bm-staging-* hosts and only the steady-state runner-tier taint. The
-  # other two envs keep the fleet-bringup holdout until this has run here.
+  # The one thing this shape cannot rehearse is the private link: RISE-S has no
+  # vRack option, where RISE-L carries 1 Gbit/s.
   runners-linux:
     enabled: true
+    # MUST equal the number of boxes prepped and marked for this env. Too high
+    # parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing with nothing
+    # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
+    # then this number.
     replicas: 1
-    # Same entity as the ca-east fleet above: the RISE range's EU-datacenter
-    # plan codes (25rises01-v1-eu) are orderable on OVHcloud US, so a Gravelines
-    # box needs no second endpoint.
+    # The OVHcloud entity holding the account, not the box's geography: the RISE
+    # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
+    # fleet must share one value, because the reconciler resolves a single
+    # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
-    # The same pool the Hetzner tuist-bm-staging-* hosts carry, so the existing
-    # Linux Runner Profiles dispatch across both fleets and real jobs exercise
-    # the OVH box. Production and canary stay on the out-of-service
-    # `runners-linux-ovh` pool until that has been proven here.
+    # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
-      # Case-insensitive substring of the box's commercialRange; the range alone
-      # rather than the full "RISE-S | AMD Ryzen 7 9700X" the catalog bills it
-      # as. A value matching nothing adopts nothing, silently.
+      # Case-insensitive substring of the box's commercialRange, which the
+      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
+      # matches without depending on how the CPU suffix is spelled on the server
+      # object. A value matching nothing adopts nothing, silently.
       offer: rise-s
-      # Prefix-matched, so this claims a box in any gra* datacenter. Checked in
-      # stock there alongside RISE-L, not the "soon available" some regional
-      # price lists show.
+      # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
       # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
-      # selects on `katacontainers.io/kata-runtime=true`. The self-join installs
-      # kata-static, registers the kata-qemu containerd handler, and applies that
-      # label. Without it the box joins Ready and every runner Pod stays
-      # unschedulable, which is the failure this flag exists to prevent.
+      # selects on `katacontainers.io/kata-runtime=true`. This makes the self-join
+      # install kata and apply that label. Without it the box joins Ready and
+      # every runner Pod stays unschedulable.
       kataRuntime: true
-      # Only the steady-state runner-tier taint, which runner Pods tolerate and
-      # nothing else does. The fleet-bringup holdout production and canary still
-      # carry is deliberately absent here.
+      # Runner Pods tolerate this taint; nothing else does.
       nodeTaints:
         - key: tuist.dev/runner-tier
           value: bare-metal
           effect: NoSchedule
-      # Unset egressBudgetMbps: it advertises tuist.dev/egress-mbps for Kura
-      # cache pod bin-packing and no cache pod runs here. RISE-S also has no
-      # vRack option, so the private-link half of the production shape is the
-      # one thing this box cannot rehearse.
+      # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
+      # pod bin-packing, and no cache pod runs here.
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
