@@ -36,26 +36,6 @@ enum ToolError: Error, CustomStringConvertible {
     }
 }
 
-/// Reports every candidate location that was tried and how each failed, instead of only the
-/// last error. The previous behaviour surfaced just `lastError`, which for an SSH-declared
-/// dependency is always the trailing SSH candidate, masking whether the HTTPS fallback was
-/// even attempted and why it failed. Listing each attempt makes the actual cause diagnosable.
-enum GitFetchFailure {
-    static func error(location: String, attempts: [(candidate: String, error: any Error)])
-        -> ToolError
-    {
-        guard !attempts.isEmpty else {
-            return ToolError.message("no source-control locations available for \(location)")
-        }
-        let details = attempts
-            .map { "  - \($0.candidate): \($0.error)" }
-            .joined(separator: "\n")
-        return ToolError.message(
-            "could not fetch any candidate location for \(location):\n\(details)"
-        )
-    }
-}
-
 enum SystemProcess {
     /// swifterpm invokes git non-interactively: output is captured and fetches run
     /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
