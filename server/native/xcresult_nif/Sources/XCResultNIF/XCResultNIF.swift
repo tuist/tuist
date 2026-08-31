@@ -16,6 +16,26 @@ private enum ParseOutcome: Sendable {
 /// Seconds a parse may run before it cancels itself.
 private let timeoutSeconds = 600
 
+/// Parses abandoned at the outer deadline, for the life of this process.
+///
+/// Reaching that deadline means the parse did not unwind when cancelled,
+/// so returning leaves its task, its `CommandRunner` permit and its
+/// `xcresulttool` child running with no handle left to reach them. The
+/// slot the parse occupied is gone until the OS process restarts, and
+/// nothing in the BEAM's own accounting records that: a leaked slot is
+/// invisible to `erlang:memory/0`, to the scheduler counters and to
+/// every Oban gauge until throughput has already reached zero.
+///
+/// Counting them is what makes the loss measurable from Elixir, and
+/// what lets the node decide it has no capacity left to lose.
+private let abandonedParses = OSAllocatedUnfairLock<Int32>(initialState: 0)
+
+/// Number of parses this process has abandoned at the outer deadline.
+@_cdecl("xcresult_abandoned_parses")
+public func xcresultAbandonedParses() -> Int32 {
+    abandonedParses.withLock { $0 }
+}
+
 /// Seconds a cancelled parse is given to unwind before the caller gives up on
 /// it. Cancellation reaches the `xcresulttool`/`sips` child through Command's
 /// `continuation.onTermination`, which terminates the process; a child that
@@ -54,6 +74,7 @@ public func parseXCResult(
     let deadline = DispatchTime.now() + .seconds(timeoutSeconds + cancellationGraceSeconds)
     guard semaphore.wait(timeout: deadline) == .success else {
         task.cancel()
+        abandonedParses.withLock { $0 += 1 }
         return write(
             timedOutMessage(path: path, seconds: timeoutSeconds),
             outputPtr: outputPtr,

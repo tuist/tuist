@@ -17,6 +17,7 @@ defmodule Tuist.Processor.XCResultProcessor do
   consume the queue in-process like every other queue.
   """
 
+  alias Tuist.Environment
   alias Tuist.Processor.XCResultNIF
   alias Tuist.Storage
 
@@ -36,7 +37,7 @@ defmodule Tuist.Processor.XCResultProcessor do
     OpenTelemetry.Tracer.with_span "xcresult.process_local" do
       set_span_attribute("file.size", archive_size(archive_path))
 
-      bucket = Keyword.get(opts, :s3_bucket) || Tuist.Environment.s3_bucket_name()
+      bucket = Keyword.get(opts, :s3_bucket) || Environment.s3_bucket_name()
       temp_dir = make_temp_dir()
 
       try do
@@ -156,9 +157,45 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> XCResultNIF.parse(root_dir)
         |> normalize_parse_error(xcresult_path)
 
+      if match?({:error, :parse_timeout}, result), do: stop_when_capacity_is_gone()
+
       status = if match?({:ok, _}, result), do: :ok, else: :error
       {result, %{status: status}}
     end)
+  end
+
+  # A parse that times out has either unwound cleanly, costing nothing
+  # beyond its own job, or been abandoned at the native outer deadline,
+  # which retires its slot for the life of the OS process. Only the
+  # second kind accumulates, and the native counter is the only place it
+  # shows: a retired slot leaves no trace in the BEAM's memory or
+  # scheduler accounting, and no Oban gauge moves until the last slot is
+  # gone. On 2026-08-31 both production processors decayed from six
+  # concurrent parses to three over a 69 hour Pod lifetime, and the first
+  # signal anyone saw was a queue 3000 jobs deep.
+  #
+  # Once as many slots have been retired as the queue is allowed to run,
+  # this node has no capacity left: every job it claims from here is
+  # destroyed, and no amount of waiting returns a slot. Stopping hands
+  # that to launchd, which restarts the release with a clean process —
+  # the same recovery an operator performs by hand, without the day of
+  # unprocessed runs it currently takes to notice.
+  defp stop_when_capacity_is_gone do
+    if Environment.xcresult_processor_mode?() do
+      concurrency = Environment.process_xcresult_queue_concurrency()
+      abandoned = XCResultNIF.abandoned_parses()
+
+      if abandoned >= concurrency do
+        Logger.error(
+          "xcresult parse slots retired by abandoned parses: #{abandoned} of #{concurrency}. " <>
+            "Stopping so launchd restarts this node with a clean process."
+        )
+
+        System.stop(1)
+      end
+    end
+
+    :ok
   end
 
   # The NIF reports a failure as a JSON blob whose message embeds the

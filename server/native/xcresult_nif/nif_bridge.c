@@ -24,6 +24,23 @@ extern int decompress_archive(
     int *error_len
 );
 
+extern int xcresult_abandoned_parses(void);
+
+/* Parses the Swift side gave up waiting on. Each one has permanently
+ * retired a parse slot in this OS process, so the count is how much
+ * capacity this node has lost. Cheap and non-blocking, so it stays off
+ * the dirty schedulers the parse itself runs on. */
+static ERL_NIF_TERM abandoned_parses_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    (void)argv;
+
+    if (argc != 0) {
+        return enif_make_badarg(env);
+    }
+
+    return enif_make_int(env, xcresult_abandoned_parses());
+}
+
 static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     if (argc != 2) {
@@ -156,7 +173,8 @@ static ERL_NIF_TERM decompress_archive_nif(ErlNifEnv *env, int argc, const ERL_N
 
 static ErlNifFunc nif_funcs[] = {
     {"parse_nif", 2, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-    {"decompress_archive_nif", 2, decompress_archive_nif, ERL_NIF_DIRTY_JOB_IO_BOUND}
+    {"decompress_archive_nif", 2, decompress_archive_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"abandoned_parses_nif", 0, abandoned_parses_nif, 0}
 };
 
 ERL_NIF_INIT(Elixir.Tuist.Processor.XCResultNIF, nif_funcs, NULL, NULL, NULL, NULL)

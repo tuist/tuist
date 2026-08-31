@@ -615,4 +615,72 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert new_dirs == []
     end
   end
+
+  describe "capacity lost to abandoned parses" do
+    defp expect_parse_timeout do
+      expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
+        {:error, JSON.encode!(%{"error" => "xcresult parsing timed out after 600s at #{xcresult_path}"})}
+      end)
+    end
+
+    test "stops the node once abandoned parses have retired every slot" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      stub(Tuist.Environment, :xcresult_processor_mode?, fn -> true end)
+      stub(Tuist.Environment, :process_xcresult_queue_concurrency, fn -> 6 end)
+      stub(XCResultNIF, :abandoned_parses, fn -> 6 end)
+      expect_parse_timeout()
+
+      test_pid = self()
+      expect(System, :stop, fn status -> send(test_pid, {:stopped, status}) end)
+
+      assert {:error, :parse_timeout} = XCResultProcessor.process_local(fixture_zip)
+      assert_received {:stopped, 1}
+    end
+
+    # Stopping on the first abandoned parse would restart the node for a
+    # single pathological bundle and take the jobs on every healthy slot
+    # down with it. Only a node with nothing left to lose is worth
+    # recycling.
+    test "keeps running while it still has slots" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      stub(Tuist.Environment, :xcresult_processor_mode?, fn -> true end)
+      stub(Tuist.Environment, :process_xcresult_queue_concurrency, fn -> 6 end)
+      stub(XCResultNIF, :abandoned_parses, fn -> 5 end)
+      expect_parse_timeout()
+      reject(&System.stop/1)
+
+      assert {:error, :parse_timeout} = XCResultProcessor.process_local(fixture_zip)
+    end
+
+    # Self-hosted macOS installs run this queue inside the same BEAM as
+    # the web server, where stopping the node would take the whole
+    # install down over one parse.
+    test "never stops a node that is not a dedicated processor" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      stub(Tuist.Environment, :xcresult_processor_mode?, fn -> false end)
+      expect_parse_timeout()
+      reject(&XCResultNIF.abandoned_parses/0)
+      reject(&System.stop/1)
+
+      assert {:error, :parse_timeout} = XCResultProcessor.process_local(fixture_zip)
+    end
+
+    test "leaves a successful parse alone" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      stub(Tuist.Environment, :xcresult_processor_mode?, fn -> true end)
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, %{"test_modules" => []}} end)
+      reject(&XCResultNIF.abandoned_parses/0)
+      reject(&System.stop/1)
+
+      assert {:ok, _} = XCResultProcessor.process_local(fixture_zip)
+    end
+  end
 end

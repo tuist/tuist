@@ -96,7 +96,24 @@ defmodule Tuist.Processor.XCResultNIF do
     decompress_archive_nif(source_path, destination_dir)
   end
 
+  @doc """
+  Number of parses the native side abandoned at its outer deadline.
+
+  A parse that reaches that deadline did not unwind when cancelled, so
+  the native side returns without it: its task, its subprocess permit and
+  its `xcresulttool` child stay alive and the parse slot they occupied is
+  gone until the OS process restarts. The count only ever grows, and it
+  is the node's lost concurrency.
+  """
+  def abandoned_parses do
+    abandoned_parses_nif()
+  end
+
   defp parse_nif(_xcresult_path, _root_directory) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  defp abandoned_parses_nif do
     :erlang.nif_error(:nif_not_loaded)
   end
 
