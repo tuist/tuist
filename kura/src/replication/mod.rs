@@ -572,6 +572,16 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     // back to the head mid-pass, so without this the same message could be
     // dispatched twice concurrently and then deleted twice.
     let mut inflight_keys: HashSet<Vec<u8>> = HashSet::new();
+    // Targets whose backoff has already been advanced during this pass. The
+    // pipeline dispatches a whole wave before it sees any result, so an
+    // unreachable peer returns one failure per in-flight message rather than
+    // one per attempt. Counting each of those would drive the exponential
+    // backoff to its ceiling on a single blip — eight failures reach the 60s
+    // clamp, where one attempt should have paused for two — and a peer that
+    // blinked would then be parked long enough to rebuild the backlog this
+    // pipelining exists to drain. One step per target per wave keeps the
+    // escalation on the same cadence as the serial drain: one per pass.
+    let mut backed_off_this_pass: HashSet<String> = HashSet::new();
     let mut after = None::<Vec<u8>>;
 
     loop {
@@ -653,6 +663,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
             }
             Ok(ReplicationOutcome::Delivered) => {
                 state.note_replication_success(&message.target).await;
+                backed_off_this_pass.remove(&message.target);
                 match state
                     .store
                     .hit_failpoint(FailpointName::BeforeDeleteOutboxMessageAfterSuccess)
@@ -680,9 +691,11 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 }
             }
             Err(error) => {
-                state
-                    .note_replication_failure(&message.target, Instant::now())
-                    .await;
+                if backed_off_this_pass.insert(message.target.clone()) {
+                    state
+                        .note_replication_failure(&message.target, Instant::now())
+                        .await;
+                }
                 state
                     .metrics
                     .record_replication(&message.target, operation_name, "error", elapsed);
@@ -1677,6 +1690,82 @@ mod tests {
             queued.len(),
             1,
             "an empty peer view must never be treated as every peer having left"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_wave_of_failures_to_one_target_advances_its_backoff_once() {
+        // The pipeline dispatches a whole wave before it observes any result,
+        // so an unreachable peer answers one failure per in-flight message
+        // rather than one per attempt. Counting each of those would run the
+        // exponential backoff to its 60s ceiling on a single blip, parking a
+        // peer that merely blinked for long enough to rebuild a backlog. The
+        // wave must move the backoff one step, to the initial two seconds.
+        let local = test_context(|_| {}).await;
+        let unreachable = "http://127.0.0.1:1".to_string();
+
+        for index in 0..8 {
+            let key = format!("artifact-{index}");
+            local
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"payload",
+                )
+                .await
+                .expect("artifact should persist");
+            let artifact = local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", &key)
+                .await
+                .expect("artifact fetch should succeed")
+                .expect("artifact should exist");
+            local
+                .state
+                .store
+                .enqueue(OutboxMessage {
+                    target: unreachable.clone(),
+                    operation: ReplicationOperation::UpsertArtifact {
+                        producer: ArtifactProducer::Gradle,
+                        namespace_id: "ios".into(),
+                        key,
+                        content_type: "application/octet-stream".into(),
+                        artifact_id: artifact.artifact_id,
+                        version_ms: artifact.version_ms,
+                        inline: false,
+                        branch: None,
+                        trunk: None,
+                    },
+                })
+                .expect("upsert should enqueue");
+        }
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should not error on a failed peer");
+
+        assert!(
+            local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await,
+            "a failed replication target should be backed off"
+        );
+        assert!(
+            !local
+                .state
+                .replication_target_backed_off(
+                    &unreachable,
+                    Instant::now() + Duration::from_secs(5)
+                )
+                .await,
+            "one wave of failures escalated the backoff past its first step; \
+             the whole wave is one attempt, not one attempt per message"
         );
     }
 
