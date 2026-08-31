@@ -1634,6 +1634,53 @@ The other write-shed kinds (`multipart_uploads`, `multipart_storage`,
 `upload_memory`, `tmp_staging`, `memory_pressure_write`) drop artifacts the same
 way and have no rule of their own. `multipart_uploads` is the next most active.
 
+### Kura replication outbox approaching its cap
+
+```promql
+max by (cluster, pod) (kura_outbox_messages)
+```
+
+- Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
+  cap`, `severity: warning`, `for: 15m`, threshold `> 75000`, folder `Alerts`,
+  group `Cache`, receiver `Slack #notifications 2`.
+- Summary: `Kura pod {{ $labels.pod }} has {{ $values.A.Value | printf "%.0f" }}
+  messages in its replication outbox in {{ $labels.cluster }}`.
+
+Leading indicator for the write shed above. That rule tells you writes are
+already being lost; this one is the window before it starts.
+
+#### The lead time is hours, and the reason matters
+
+A full outbox sheds nothing until traffic actually arrives, so the gap between
+this rule and the write-shed rule is however long it is until the tenant's next
+CI wave. In the 2026-08-28 episode the outbox crossed 75000 at 19:00 the
+previous evening and sat at or near the cap all night, and the first write was
+not shed until roughly 00:15, when that tenant's builds started. Over five hours
+of warning, and acting on it overnight is what buys the whole window.
+
+The corollary is that a pod parked at the cap looks harmless on the write-shed
+rule while it is quiet. Do not read a silent write-shed rule as a drained
+outbox.
+
+#### Threshold
+
+Measured over the 7 days to 2026-08-31 at 5m resolution, samples above 75000
+occurred on exactly three pods (128, 88 and 15 samples, roughly 10.7h, 7.3h and
+1.25h). Those same three are the only pods that ever reach the cap, so there is
+no false-positive population to trade off against: raising the bar to 90000 only
+shortens the warning (73, 50 and 6 samples) without removing a noisy pod.
+75000 was chosen for lead time rather than to suppress anything.
+
+#### Aggregate by pod, not by series
+
+`kura_outbox_messages` carries an `instance` label, and a pod that has restarted
+appears under several instance IPs across a long window. A bare
+`kura_outbox_messages > 75000` therefore returns one series per historical IP and
+counts a single pod many times: one chronically backlogged pod showed up as seven
+separate series over a week. Always reduce with `max by (pod)` (or
+`by (cluster, pod)`) first. The same applies when counting how long a pod spent
+above a threshold.
+
 ### Swift registry release work repeatedly deferred
 
 ```promql
