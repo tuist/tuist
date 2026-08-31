@@ -121,8 +121,6 @@ abstract class TuistBuildInsightsService :
         val projectDir: DirectoryProperty
         val customTags: ListProperty<String>
         val customValues: MapProperty<String, String>
-        val automaticMetadataEnabled: Property<Boolean>
-        val commonCustomUserDataPluginApplied: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -349,11 +347,7 @@ abstract class TuistBuildInsightsService :
             gitInfoProvider = gitInfoProvider,
             customMetadata = buildCustomMetadata(
                 configuredTags = parameters.customTags.get(),
-                configuredValues = parameters.customValues.get(),
-                automaticMetadataEnabled = parameters.automaticMetadataEnabled.get(),
-                commonCustomUserDataPluginApplied = parameters.commonCustomUserDataPluginApplied.get(),
-                ciDetector = ciDetector,
-                gitInfoProvider = gitInfoProvider
+                configuredValues = parameters.customValues.get()
             ),
             machineMetrics = machineMetrics
         )
@@ -480,8 +474,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.customTags.set(config.customMetadata.tags)
             parameters.customValues.set(config.customMetadata.values)
-            parameters.automaticMetadataEnabled.set(config.automaticMetadataEnabled)
-            parameters.commonCustomUserDataPluginApplied.set(config.commonCustomUserDataPluginApplied)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

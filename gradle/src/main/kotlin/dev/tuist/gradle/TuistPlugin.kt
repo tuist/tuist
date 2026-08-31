@@ -45,9 +45,7 @@ data class TuistGradleConfig(
     val network: Network,
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null,
-    val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
-    val automaticMetadataEnabled: Boolean = true,
-    val commonCustomUserDataPluginApplied: Boolean = false
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata()
 ) {
     data class Network(val proxy: Boolean)
 
@@ -72,9 +70,7 @@ data class TuistGradleConfig(
                 customMetadata = BuildCustomMetadata(
                     tags = extension.buildInsights.tags,
                     values = extension.buildInsights.values
-                ),
-                automaticMetadataEnabled = extension.buildInsights.automaticMetadataEnabled,
-                commonCustomUserDataPluginApplied = extension.commonCustomUserDataPluginApplied
+                )
             )
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
@@ -88,10 +84,6 @@ class TuistPlugin : Plugin<Settings> {
 
     private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
 
-    private companion object {
-        const val COMMON_CUSTOM_USER_DATA_PLUGIN_ID = "com.gradle.common-custom-user-data-gradle-plugin"
-    }
-
     override fun apply(settings: Settings) {
         val extension = settings.extensions.create(
             "tuist",
@@ -102,10 +94,6 @@ class TuistPlugin : Plugin<Settings> {
             TuistBuildCache::class.java,
             TuistBuildCacheServiceFactory::class.java
         )
-
-        settings.pluginManager.withPlugin(COMMON_CUSTOM_USER_DATA_PLUGIN_ID) {
-            extension.commonCustomUserDataPluginApplied = true
-        }
 
         settings.gradle.settingsEvaluated {
             configure(settings, extension)
@@ -175,8 +163,6 @@ class TuistPlugin : Plugin<Settings> {
  * Main extension for configuring Tuist integration.
  */
 open class TuistExtension {
-    internal var commonCustomUserDataPluginApplied: Boolean = false
-
     /**
      * The project identifier in format "account/project".
      * If not set, the plugin reads it from the tuist.toml file in the project root.
@@ -300,12 +286,6 @@ open class BuildInsightsExtension {
 
     internal val tags: List<String> get() = configuredTags.toList()
     internal val values: Map<String, String> get() = configuredValues.toMap()
-
-    /**
-     * Whether to collect automatic machine, invocation, and continuous integration metadata.
-     * Defaults to true.
-     */
-    var automaticMetadataEnabled: Boolean = true
 
     fun tag(value: String) {
         configuredTags.add(value)
