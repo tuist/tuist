@@ -18,7 +18,15 @@ let package = Package(
     dependencies: [
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
-        .package(id: "tuist.Command", from: "0.12.0"),
+        // 0.14.4 is the floor, not cosmetic: every release before it waits on the
+        // subprocess with a blocking `process.waitUntilExit()` inside the task, so a
+        // child that outlives its cancellation parks a Swift cooperative-pool thread
+        // for the life of the process. The pool is about as wide as the machine has
+        // cores, and this NIF runs one parse per slot, so each parked thread
+        // permanently costs the processor a parse slot. Pinned at 0.14.0, production
+        // decayed from six concurrent parses to three over a Pod's lifetime.
+        // Upstream fix: tuist/Command#249. Kept in step with the root Package.swift.
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.9")),
         .package(id: "kolos65.Mockable", from: "0.3.0"),
     ],
     targets: [
