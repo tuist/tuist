@@ -1425,6 +1425,32 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
+    # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
+    # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
+    # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
+    # (16c/32t, 128 GB — see ovhFleets.runners-linux above), so the shape
+    # survives the migration but stops being a small slice of a host.
+    # Staging and canary run 64 GB AX42-U boxes and cannot seat it at
+    # all, so it is absent from their catalogs rather than offered and
+    # left Pending forever. Asked for by Android builds, whose Gradle +
+    # Kotlin daemons exhaust the 32 GB shape.
+    #
+    # 16 rather than 32 vCPU. A 32 vCPU Pod costs 32.25 CPUs with the
+    # kata overhead, which does not fit a RISE-L's 32 threads at all — no
+    # kubelet reserve makes 32.25 <= 32 — so that rung would be
+    # unschedulable on the incoming fleet. On an AX162-R it also gives up
+    # a seat: three would want 96.75 of the 94 allocatable CPUs, leaving
+    # 2 seats and 90 GiB idle where 16 vCPU leaves 3 seats and spare CPU.
+    # 24 vCPU is the most that still fits 3 there (72.75 of 94), and is
+    # the shape to reach for if a CPU-bound workload asks while those
+    # boxes are in service.
+    #
+    # Leaving CPU unclaimed is the catalog working as intended rather
+    # than a mis-sizing. A host is ~2.4 GB per thread against rungs of 2
+    # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
+    # shape), so memory reservation is what runs out on this fleet while
+    # CPU does not. This rung is bought for memory and priced for it.
+    - { vcpus: 16, memoryGb: 64 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

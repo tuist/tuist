@@ -916,7 +916,9 @@ runnersFleetLinux:
   # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
-  # renders the pools; the server validates + addresses them).
+  # renders the pools; the server validates + addresses them) — minus
+  # the 64 GB ceiling shape, which needs production's AX162-R hosts and
+  # would render a pool no 64 GB AX42-U can ever place a Pod on.
   # Resolved at deploy time from the latest `linux-runner-image@` git tag
   # (server-deployment.yml passes `tuist-linux-runner:<version>` via --set).
   shapeRunnerImage: ""
