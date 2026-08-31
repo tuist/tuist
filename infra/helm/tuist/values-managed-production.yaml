@@ -821,93 +821,59 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
-  # Future home of the Linux runner fleet, which runs today on two Hetzner Robot
-  # AX162-R hosts in FSN1 (runnersFleetLinux below, and the runners-linux
-  # bare-metal MachineDeployment in cluster-production.yaml). AX162-R scores
-  # 2,988 PassMark single-thread; RISE-L's Ryzen 9 9950X scores 4,728, and its
-  # 128 GB across 32 threads clears the RAM-per-vCPU floor that rules out the
-  # 64 GB alternatives. Four boxes match today's ~128 slots.
+  # OVH RISE-L bare metal in Gravelines: Ryzen 9 9950X, 16c/32t, 128 GB,
+  # 2x960 GB NVMe soft RAID. Two shape properties worth knowing:
   #
-  # IN SERVICE: the box carries the `runners-linux` pool label and only the
-  # runner-tier taint, so the existing Linux Runner Profiles dispatch onto it
-  # alongside the AX162-R hosts. Those hosts are untouched — this is an overlap
-  # that adds capacity, and retiring them is a separate decision.
+  # The RAM is DDR5 On-Die ECC, not registered. On-Die correction happens inside
+  # the DRAM die and reports nothing to the host, so there is no EDAC counter and
+  # a correctable-error trend is invisible. Memory stays a suspect that cannot be
+  # ruled out from the host if unreproducible build failures rise here.
   #
-  # One box to start. The integration is proven end to end on staging, where the
-  # Gravelines RISE-S ran the Linux smoke job to success inside a kata microVM
-  # (reported `AMD Ryzen 7 9700X`, a kata guest kernel, and the 8 GB shape plus
-  # kata's ~2 GB overhead). What one box still proves is RISE-L specifically:
-  # a different SKU, so `offer: rise-l` has never matched a real box.
-  #
-  # Two shape differences from the AX162-R worth carrying forward. Its 128 GB is
-  # DDR5 On-Die ECC, not registered ECC: On-Die correction happens inside the
-  # DRAM die and reports nothing to the host, so there is no EDAC counter and a
-  # correctable-error trend is invisible. If unreproducible build failures rise
-  # on this fleet, memory is a suspect that cannot be ruled out from the host.
-  #
-  # And 2x960 GB soft RAID against the AX162-R's 2x1.92 TB is half the raw disk,
-  # though per slot it is close to flat: the install carves 1 GiB /boot + a
-  # 64 GiB / and gives the rest to XFS /data, which holds both the kubelet root
-  # and the (64 GiB-capped) containerd image store, so ~765 GiB serves the 32
-  # slots 128 GB of RAM allows at the chart's 1 vCPU / 4 GB slot size: ~24 GiB
-  # each against ~28 GiB on an AX162-R at ~64 slots. The Linux shape catalog
-  # declares no per-slot disk, so nothing enforces that; it holds only while
-  # density stays RAM-bound. Given the ENOSPC history on runner cache volumes,
-  # re-check it before raising slots per box rather than box count.
+  # The install carves 1 GiB /boot + a capped 64 GiB / and gives the rest to XFS
+  # /data, which holds the kubelet root and the 64 GiB-capped containerd image
+  # store. That leaves ~765 GiB across the 32 slots 128 GB allows at the chart's
+  # 1 vCPU / 4 GB slot size, so ~24 GiB each. The Linux shape catalog declares no
+  # per-slot disk, so nothing enforces it; it holds only while density stays
+  # RAM-bound. Re-check before raising slots per box rather than box count.
   runners-linux:
     enabled: true
-    # MUST equal the number of boxes already prepped and marked for production.
-    # Too high parks the MachineDeployment at 0/N and wedges `helm --wait` into
-    # an --atomic rollback; too low leaves an ordered box billing while nothing
-    # adopts it. One to start: RISE-L is a different SKU from the RISE-S proven
-    # on staging, so `offer: rise-l` has never matched a real box. The two
-    # AX162-R hosts keep serving throughout, so this adds capacity rather than
-    # replacing it. Raise to 4 (the count matching today's ~128 slots) once each
-    # additional box has been through `baremetal:prep-ovh`.
+    # MUST equal the number of boxes prepped and marked for this env. Too high
+    # parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing with nothing
+    # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
+    # then this number.
     replicas: 1
-    # Same OVHcloud US entity as the cache fleets above, which the RISE range's
-    # EU-datacenter plan codes (25risel01-v1-eu, 25rises01-v1-eu) are orderable
-    # under. That is what lets a Gravelines box share the one OVH_ENDPOINT the
-    # reconciler resolves; an EU-entity order would need a second endpoint the
-    # operator Deployment has no room for.
+    # The OVHcloud entity holding the account, not the box's geography: the RISE
+    # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
+    # fleet must share one value, because the reconciler resolves a single
+    # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
-    # The same pool the AX162-R hosts carry, so the existing Linux Runner
-    # Profiles dispatch across both fleets and the OVH box takes real work. The
-    # Hetzner hosts are untouched: this is an overlap, not a cutover, and
-    # decommissioning them is a separate decision.
+    # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-production
-      # Case-insensitive substring of the box's commercialRange. The range alone
-      # rather than the full "RISE-L | AMD RYZEN 9 9950X" the catalog bills it
-      # as: RISE-L is one CPU config, so the suffix narrows nothing, and it is
-      # the half most likely to be spelled differently on the server object than
-      # in the catalog. A value matching nothing adopts nothing, silently.
+      # Case-insensitive substring of the box's commercialRange, which the
+      # catalog bills as "RISE-L | AMD RYZEN 9 9950X". The range token alone
+      # matches without depending on how the CPU suffix is spelled on the server
+      # object. A value matching nothing adopts nothing, silently.
       offer: rise-l
-      # Prefix-matched, so this claims a box in any gra* datacenter. RISE-L is
-      # in stock in gra and rbx only; fra/sbg/waw report unavailable, and the
-      # configuration is not offered in Limburg at all.
+      # Prefix-matched, so any gra* datacenter. RISE-L is offered in gra and rbx
+      # only.
       datacenter: gra
       os: ubuntu_24.04
       # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
-      # selects on `katacontainers.io/kata-runtime=true`. The self-join installs
-      # kata-static, registers the kata-qemu containerd handler, and applies that
-      # label. Without it the box joins Ready and every runner Pod stays
-      # unschedulable, which is the failure this flag exists to prevent.
+      # selects on `katacontainers.io/kata-runtime=true`. This makes the self-join
+      # install kata and apply that label. Without it the box joins Ready and
+      # every runner Pod stays unschedulable.
       kataRuntime: true
-      # Only the steady-state taint the AX162-R hosts carry, which runner Pods
-      # tolerate and nothing else does. The fleet-bringup holdout this fleet
-      # carried during bring-up is gone: the path was proven on staging, where
-      # the Gravelines box ran the Linux smoke job to success inside a kata
-      # microVM.
+      # Runner Pods tolerate this taint; nothing else does.
       nodeTaints:
         - key: tuist.dev/runner-tier
           value: bare-metal
           effect: NoSchedule
       # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
-      # pod bin-packing, and no cache pod runs here. The box does have 1 Gbit/s
-      # public + 1 Gbit/s vRack, which is what the Linux cache region that
-      # follows this fleet would run over.
+      # pod bin-packing, and no cache pod runs here. The box's 1 Gbit/s vRack is
+      # what a Linux cache region in this datacentre would run over.
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
