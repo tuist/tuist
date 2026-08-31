@@ -25,5 +25,17 @@ defmodule TuistWeb.RobotsTxtControllerTest do
 
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
     end
+
+    test "points crawlers at the sitemap", %{conn: conn} do
+      conn = get(conn, "/robots.txt")
+
+      assert response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"
+    end
+
+    test "opts llms.txt into the public content usage", %{conn: conn} do
+      conn = get(conn, "/robots.txt")
+
+      assert response(conn, 200) =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
+    end
   end
 end

@@ -11,8 +11,8 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/docs_live.ex:67
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:697
+#: lib/tuist_web/live/docs_live.ex:75
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:760
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr ""

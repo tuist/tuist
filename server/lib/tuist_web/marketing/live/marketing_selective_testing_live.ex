@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingSelectiveTestingLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Marketing.StructuredMarkup
+
   alias Tuist.Marketing.Stats
 
   def mount(_params, session, socket) do
@@ -23,6 +25,12 @@ defmodule TuistWeb.Marketing.MarketingSelectiveTestingLive do
   end
 
   def handle_params(_params, _url, socket) do
+    description =
+      dgettext(
+        "marketing",
+        "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+      )
+
     {:noreply,
      socket
      |> assign(:head_title, dgettext("marketing", "Selective Testing · Tuist"))
@@ -36,13 +44,8 @@ defmodule TuistWeb.Marketing.MarketingSelectiveTestingLive do
            )
        )
      )
-     |> assign(
-       :head_description,
-       dgettext(
-         "marketing",
-         "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
-       )
-     )}
+     |> assign(:head_description, description)
+     |> assign_feature_structured_data(dgettext("marketing", "Selective Testing"), description, "/selective-testing")}
   end
 
   def handle_info({:marketing_stats_updated, stats}, socket) do

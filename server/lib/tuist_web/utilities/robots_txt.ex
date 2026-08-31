@@ -26,7 +26,8 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     [
       @robots_txt_header,
       Enum.map(content_usage_entries(route_infos), &content_usage_line/1),
-      disallow_lines(disallow_patterns(route_infos))
+      disallow_lines(disallow_patterns(route_infos)),
+      discovery_lines()
     ]
     |> List.flatten()
     |> Enum.join("\n")
@@ -344,6 +345,10 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   defp disallow_lines(patterns) do
     [""] ++ Enum.map(patterns, &"Disallow: #{&1}")
+  end
+
+  defp discovery_lines do
+    ["", "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"]
   end
 
   defp robots_txt_setting(metadata) do
