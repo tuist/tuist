@@ -522,7 +522,8 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
+    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
@@ -575,7 +576,8 @@ ovhFleet:
     datacenter: bhs
     os: ubuntu_24.04
     # Node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
-    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    # tuist.dev/egress-mbps so ca-east's 25-Mbps-floor pods bin-pack
+    # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   externalSecrets:
     item: OVH_API

@@ -32,7 +32,7 @@ msgstr ""
 msgid "%{month}/%{year}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:208
+#: lib/tuist/accounts/user_notifier.ex:209
 #: lib/tuist_web/live/accept_invitation_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -315,7 +315,7 @@ msgstr ""
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:142
+#: lib/tuist/accounts/user_notifier.ex:143
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr ""
@@ -417,18 +417,18 @@ msgstr ""
 msgid "Get started with no credit card required—try with no commitment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:205
+#: lib/tuist/accounts/user_notifier.ex:206
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:144
+#: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:123
-#: lib/tuist/accounts/user_notifier.ex:152
+#: lib/tuist/accounts/user_notifier.ex:153
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
@@ -438,7 +438,7 @@ msgstr ""
 msgid "Invitation not found"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:199
+#: lib/tuist/accounts/user_notifier.ex:200
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -668,12 +668,12 @@ msgstr ""
 msgid "Renaming your organization can have unintended side effects."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:138
+#: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:147
+#: lib/tuist/accounts/user_notifier.ex:148
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr ""
@@ -931,12 +931,12 @@ msgstr ""
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:150
+#: lib/tuist/accounts/user_notifier.ex:151
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:203
+#: lib/tuist/accounts/user_notifier.ex:204
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
@@ -1729,28 +1729,28 @@ msgstr ""
 msgid "Copy payload"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:244
+#: lib/tuist/accounts/user_notifier.ex:245
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:253
+#: lib/tuist/accounts/user_notifier.ex:254
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:247
+#: lib/tuist/accounts/user_notifier.ex:248
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:250
+#: lib/tuist/accounts/user_notifier.ex:251
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:234
-#: lib/tuist/accounts/user_notifier.ex:242
+#: lib/tuist/accounts/user_notifier.ex:235
+#: lib/tuist/accounts/user_notifier.ex:243
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr ""

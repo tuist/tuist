@@ -21,6 +21,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.CacheEndpoints
@@ -2004,12 +2005,12 @@ defmodule Tuist.Accounts do
   ## Confirmation
 
   @doc ~S"""
-  Delivers the confirmation email instructions to the given user.
+  Queues the confirmation email instructions for the given user.
 
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      :ok
 
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
@@ -2025,15 +2026,25 @@ defmodule Tuist.Accounts do
         :ok
 
       true ->
-        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["confirm"]))
+        fn ->
+          Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["confirm"]))
 
-        {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
-        Repo.insert!(user_token)
+          {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
+          Repo.insert!(user_token)
 
-        UserNotifier.deliver_confirmation_instructions(%{
-          user: user,
-          confirmation_url: confirmation_url.(encoded_token)
-        })
+          user.id
+          |> DeliverConfirmationInstructionsWorker.new_confirmation_instructions(confirmation_url.(encoded_token))
+          |> Oban.insert()
+          |> case do
+            {:ok, _job} -> :ok
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end
+        |> Repo.transaction()
+        |> case do
+          {:ok, :ok} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 
