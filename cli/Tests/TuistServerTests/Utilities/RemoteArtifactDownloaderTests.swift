@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import Testing
@@ -11,13 +12,14 @@ struct RemoteArtifactDownloaderTests {
     private let fileSystem = FileSystem()
     private let url = URL(string: "https://storage.tuist.dev/artifacts/preview.zip")!
 
-    private func makeSubject(chunkByteCount: Int64) -> RemoteArtifactDownloader {
+    private func makeSubject(chunkByteCount: Int64, downloadsDirectory: AbsolutePath? = nil) -> RemoteArtifactDownloader {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ArtifactURLProtocol.self]
         return RemoteArtifactDownloader(
             urlSession: URLSession(configuration: configuration),
             retryProvider: RetryProvider(maximumRetryCount: 3, delayProvider: NoDelayProvider()),
-            chunkByteCount: chunkByteCount
+            chunkByteCount: chunkByteCount,
+            downloadsDirectory: downloadsDirectory
         )
     }
 
@@ -102,6 +104,42 @@ struct RemoteArtifactDownloaderTests {
         #expect(try await makeSubject(chunkByteCount: 1000).download(url: url) == nil)
     }
 
+    @Test(.inTemporaryDirectory) func download_keeps_only_the_artifact_when_it_succeeds() async throws {
+        let downloads = try #require(FileSystem.temporaryTestDirectory)
+        ArtifactURLProtocol.reset(payload: Data(repeating: 3, count: 2500))
+
+        let downloaded = try #require(
+            try await makeSubject(chunkByteCount: 1000, downloadsDirectory: downloads).download(url: url)
+        )
+
+        #expect(downloaded.parentDirectory == downloads)
+        #expect(try await fileSystem.glob(directory: downloads, include: ["*"]).collect() == [downloaded])
+    }
+
+    @Test(.inTemporaryDirectory) func download_removes_the_partial_artifact_when_it_fails() async throws {
+        let downloads = try #require(FileSystem.temporaryTestDirectory)
+        ArtifactURLProtocol.reset(payload: Data((0 ..< 5000).map { UInt8($0 % 251) }))
+        ArtifactURLProtocol.failRequestsStartingAt = [2000]
+        ArtifactURLProtocol.failuresAreUnrecoverable = true
+
+        await #expect(throws: (any Error).self) {
+            try await makeSubject(chunkByteCount: 1000, downloadsDirectory: downloads).download(url: url)
+        }
+
+        #expect(try await fileSystem.glob(directory: downloads, include: ["*"]).collect().isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func download_removes_the_artifact_when_it_is_not_found() async throws {
+        let downloads = try #require(FileSystem.temporaryTestDirectory)
+        ArtifactURLProtocol.reset(payload: Data())
+        ArtifactURLProtocol.statusCode = 404
+
+        let downloaded = try await makeSubject(chunkByteCount: 1000, downloadsDirectory: downloads).download(url: url)
+
+        #expect(downloaded == nil)
+        #expect(try await fileSystem.glob(directory: downloads, include: ["*"]).collect().isEmpty)
+    }
+
     @Test func download_does_not_retry_a_permanent_client_error() async throws {
         ArtifactURLProtocol.reset(payload: Data())
         ArtifactURLProtocol.statusCode = 403
@@ -122,6 +160,7 @@ private final class ArtifactURLProtocol: URLProtocol {
     nonisolated(unsafe) static var statusCode = 200
     nonisolated(unsafe) static var supportsRanges = true
     nonisolated(unsafe) static var failRequestsStartingAt: Set<Int> = []
+    nonisolated(unsafe) static var failuresAreUnrecoverable = false
     nonisolated(unsafe) static var requestedRanges: [String] = []
     nonisolated(unsafe) static var requestedValidators: [String?] = []
 
@@ -130,6 +169,7 @@ private final class ArtifactURLProtocol: URLProtocol {
         statusCode = 200
         supportsRanges = true
         failRequestsStartingAt = []
+        failuresAreUnrecoverable = false
         requestedRanges = []
         requestedValidators = []
     }
@@ -150,7 +190,7 @@ private final class ArtifactURLProtocol: URLProtocol {
 
         let start = rangeHeader.flatMap(Self.start(ofRange:)) ?? 0
         if Self.failRequestsStartingAt.contains(start) {
-            Self.failRequestsStartingAt.remove(start)
+            if !Self.failuresAreUnrecoverable { Self.failRequestsStartingAt.remove(start) }
             client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
             return
         }

@@ -547,6 +547,14 @@ struct RunCommandService {
             }
         }
 
+        private func downloadReportingProgress(
+            from url: URL,
+            to continuation: ArtifactDownloadProgressContinuation
+        ) async throws -> AbsolutePath? {
+            defer { continuation.finish() }
+            return try await remoteArtifactDownloader.download(url: url, progress: continuation)
+        }
+
         private static func downloadProgressMessage(for progress: RemoteArtifactDownloadProgress) -> String {
             let downloaded = Formatters.formatBytes(Int(progress.downloadedBytes))
             let total = Formatters.formatBytes(Int(progress.totalBytes))
@@ -566,14 +574,11 @@ struct RunCommandService {
             }
             let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { updateProgress in
                 let (progressUpdates, continuation) = AsyncStream<RemoteArtifactDownloadProgress>.makeStream()
-                let downloaded = Task {
-                    defer { continuation.finish() }
-                    return try await remoteArtifactDownloader.download(url: buildURL, progress: continuation)
-                }
+                async let downloaded = downloadReportingProgress(from: buildURL, to: continuation)
                 for await progress in progressUpdates {
                     updateProgress(Self.downloadProgressMessage(for: progress))
                 }
-                return try await downloaded.value
+                return try await downloaded
             }
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 

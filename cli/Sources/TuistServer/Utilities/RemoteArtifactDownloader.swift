@@ -58,6 +58,7 @@ struct RemoteArtifactDownloadStatusCodeError: HTTPStatusCodeError, LocalizedErro
 
 @Mockable
 public protocol RemoteArtifactDownloading {
+    /// Returns a temporary file the caller owns and is expected to remove.
     func download(url: URL, progress: ArtifactDownloadProgressContinuation?) async throws -> AbsolutePath?
 }
 
@@ -72,6 +73,7 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
     private let retryProvider: RetryProviding
     private let fileSystem: FileSysteming
     private let chunkByteCount: Int64
+    private let downloadsDirectory: AbsolutePath?
 
     public init() {
         self.init(urlSession: .tuistLargeTransfer)
@@ -81,12 +83,14 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
         urlSession: URLSession,
         retryProvider: RetryProviding = RetryProvider(),
         fileSystem: FileSysteming = FileSystem(),
-        chunkByteCount: Int64 = 16 * 1024 * 1024
+        chunkByteCount: Int64 = 16 * 1024 * 1024,
+        downloadsDirectory: AbsolutePath? = nil
     ) {
         self.urlSession = urlSession
         self.retryProvider = retryProvider
         self.fileSystem = fileSystem
         self.chunkByteCount = chunkByteCount
+        self.downloadsDirectory = downloadsDirectory
     }
 
     public func download(
@@ -95,9 +99,11 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
     ) async throws -> AbsolutePath? {
         defer { progress?.finish() }
 
-        let directory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-artifact-download")
-        let destination = directory.appending(component: Self.filename(for: url))
+        let destination = try makeDestination(for: url)
         try await fileSystem.touch(destination)
+
+        var completed = false
+        defer { if !completed { try? FileManager.default.removeItem(atPath: destination.pathString) } }
 
         var offset: Int64 = 0
         var total: Int64?
@@ -112,7 +118,6 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
 
             switch chunk {
             case .notFound:
-                try? await fileSystem.remove(directory)
                 return nil
             case let .whole(localURL, byteCount, eTag):
                 try await replace(destination, with: localURL)
@@ -134,6 +139,7 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
             if offset >= totalBytes { break }
         }
 
+        completed = true
         return destination
     }
 
@@ -204,9 +210,10 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
         try await fileSystem.move(from: try AbsolutePath(validating: source.path), to: destination)
     }
 
-    private static func filename(for url: URL) -> String {
+    private func makeDestination(for url: URL) throws -> AbsolutePath {
+        let directory = try downloadsDirectory ?? AbsolutePath(validating: NSTemporaryDirectory())
         let component = url.lastPathComponent
-        return component.isEmpty ? "artifact" : component
+        return directory.appending(component: "\(UUID().uuidString)-\(component.isEmpty ? "artifact" : component)")
     }
 }
 
