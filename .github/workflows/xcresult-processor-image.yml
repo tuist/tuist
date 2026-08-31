@@ -57,16 +57,9 @@ jobs:
           install_args: "erlang elixir"
           working_directory: server
 
-      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
-      # workspace, which deletes `server/deps`, `server/_build` and both NIF
-      # `.build` directories, so every run compiled the two Swift NIFs and the
-      # whole Elixir dependency tree cold. Pointing the caches outside the
-      # workspace puts them out of the clean's reach.
-      #
-      # Keyed by runner name because a runner process runs one job at a time:
-      # two jobs landing on the same host (this one and the release job in
-      # `server-production-deployment.yml`) can then never share a cache and
-      # cannot race on the release directory.
+      # `git clean -ffdx` in actions/checkout reaches anything inside the
+      # workspace, so the caches live outside it, keyed by runner name so
+      # concurrent jobs on one host never share them.
       - name: Point build caches outside the workspace
         run: |
           set -euo pipefail
@@ -97,16 +90,13 @@ jobs:
           # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
           ./native/xcactivitylog_nif/build.sh
-          # The build root persists across runs. That is mostly fine, except
-          # that mix's mtime-based incremental compile occasionally keeps a
-          # stale .beam after a rebase. `--force` recompiles every .ex
-          # regardless; the BEAM build is fast enough (~30s) that the safety
-          # is worth more than the saved time.
+          # The build root persists across runs, so mix's mtime-based
+          # incremental compile can keep a stale .beam after a rebase.
+          # `--force` recompiles every .ex regardless; the BEAM build is fast
+          # enough (~30s) that the safety is worth more than the saved time.
           MIX_ENV=prod mix compile --force --warnings-as-errors
-          # `mix release --overwrite` writes over the release directory
-          # without emptying it first, so a file dropped since the previous
-          # release would survive in a persistent build root and get baked
-          # into the image.
+          # `mix release --overwrite` does not empty the directory first, so a
+          # persistent build root would carry stale files into the image.
           rm -rf "$RELEASE_DIR"
           MIX_ENV=prod mix release tuist --overwrite
           echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
@@ -162,11 +152,8 @@ jobs:
         # The production workflow owns semantic-version and latest tags.
         # This on-demand workflow publishes only its commit tag.
         #
-        # `concurrency` matches the release job's override of the action's
-        # default of 4: this image pushes alone rather than as one leg of the
-        # runner-image matrix, so it has the whole rate-limit budget to
-        # itself. Keeping the two in step means a dispatch run measures what
-        # the release path will do.
+        # 8 rather than the action's default of 4, matching the release job:
+        # this image pushes alone, not as one leg of the runner-image matrix.
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor

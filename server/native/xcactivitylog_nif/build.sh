@@ -6,10 +6,8 @@ PRIV_DIR="${SCRIPT_DIR}/../../priv/native"
 
 cd "$SCRIPT_DIR"
 
-# CI checks out onto a persistent workspace and `actions/checkout` runs
-# `git clean -ffdx`, which deletes an in-tree .build and forces a cold Swift
-# compile on every run. TUIST_NIF_BUILD_ROOT moves the scratch directory
-# outside the workspace so it survives the clean.
+# CI sets this to a path outside the workspace, which `git clean -ffdx`
+# would otherwise wipe between runs.
 if [ -n "${TUIST_NIF_BUILD_ROOT:-}" ]; then
     SCRATCH_PATH="${TUIST_NIF_BUILD_ROOT}/xcactivitylog_nif"
 else
