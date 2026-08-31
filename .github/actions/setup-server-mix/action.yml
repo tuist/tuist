@@ -56,6 +56,29 @@ runs:
         key: ${{ inputs.mix-cache-key }}-${{ hashFiles('server/mix.lock') }}
         restore-keys: |
           ${{ inputs.mix-cache-restore-key }}
+    # `mix deps.get` fetches the `github:` / `git:` dependencies in mix.exs
+    # over anonymous https, which GitHub rate limits per source IP. The whole
+    # Linux runner fleet egresses from two bare-metal hosts, so that budget is
+    # shared across every job in the repo and, once crossed, whichever
+    # dependency happens to be fetched next fails with a credential prompt
+    # (`could not read Username for 'https://github.com'`) on a runner that
+    # has no tty. It is intermittent by nature: the repos and pinned SHAs are
+    # public and fetch fine from an unthrottled address.
+    #
+    # Authenticating lifts the fetches onto the token's own budget, the same
+    # reason `github-token` is already threaded to mise above.
+    - name: Authenticate github.com dependency fetches
+      shell: bash
+      env:
+        GH_DEP_TOKEN: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN || github.token }}
+      run: |
+        if [ -z "${GH_DEP_TOKEN}" ]; then
+          echo "::warning::No GitHub token available; dependency fetches stay anonymous."
+          exit 0
+        fi
+        git config --global \
+          url."https://x-access-token:${GH_DEP_TOKEN}@github.com/".insteadOf \
+          "https://github.com/"
     - name: Install dependencies
       shell: bash
       working-directory: server
