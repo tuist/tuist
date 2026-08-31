@@ -86,14 +86,17 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
       stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
       stub(Tuist.Authorization, :authorize, fn :account_update, :subject, ^account -> :ok end)
-      stub(Webhooks, :get_account_endpoint, fn "endpoint-1", 1 -> {:ok, endpoint} end)
+      stub(Webhooks, :get_account_endpoint, fn "0d574fe6-8908-4c8f-9413-b1d54a4aa465", 1 -> {:ok, endpoint} end)
 
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
-               GetWebhookEndpoint.call(conn, %{"account_handle" => "acme", "webhook_endpoint_id" => "endpoint-1"})
+               GetWebhookEndpoint.call(conn, %{
+                 "account_handle" => "acme",
+                 "webhook_endpoint_id" => "0d574fe6-8908-4c8f-9413-b1d54a4aa465"
+               })
 
-      assert JSON.decode!(text)["id"] == "endpoint-1"
+      assert JSON.decode!(text)["id"] == "0d574fe6-8908-4c8f-9413-b1d54a4aa465"
     end
 
     test "rejects an invalid endpoint identifier before the database lookup" do
@@ -140,7 +143,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
   defp webhook_endpoint_fixture do
     %{
-      id: "endpoint-1",
+      id: "0d574fe6-8908-4c8f-9413-b1d54a4aa465",
       name: "Build notifications",
       url: "https://example.com/hooks/builds",
       signing_secret: "plaintext-signing-secret",
