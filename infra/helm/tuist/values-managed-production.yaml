@@ -1425,6 +1425,14 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
+    # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
+    # 2.5 GiB podFixed overhead is 66.5 GiB of a host, which only the
+    # AX162-R's 256 GB seats (three per box, using 48 of its 96
+    # threads). Staging and canary run 64 GB AX42-U boxes, so the shape
+    # is absent from their catalogs rather than offered and left Pending
+    # forever. Asked for by Android builds, whose Gradle + Kotlin daemons
+    # exhaust the 32 GB shape.
+    - { vcpus: 16, memoryGb: 64 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

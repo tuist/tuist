@@ -716,7 +716,9 @@ runnersFleetLinux:
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
-  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # `:runner_linux_shapes` in `server/config/config.exs`, minus the
+  # 64 GB ceiling shape: this env's AX42-U host has 64 GB total, so the
+  # shape would render a pool that can never place a Pod. Long-tail
   # shapes scale to zero; the default shape keeps a warm floor since it
   # absorbs `tuist-default` + `linux` default-profile traffic.
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
