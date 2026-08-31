@@ -4578,7 +4578,7 @@ if runner_linked_command_event_rows != [] do
   create_xcode_data_for_events.(runner_linked_command_event_rows, "Runner-linked runs")
 end
 
-# Concurrency history follows irregular but deterministic workday
+# Concurrency history follows irregular but deterministic weekday
 # schedules across the last 30 days. macOS mixes historical VM shapes
 # and overlapping jobs, while Linux mixes catalog shapes so vCPU and
 # memory peaks evolve independently. Both platforms sometimes reach,

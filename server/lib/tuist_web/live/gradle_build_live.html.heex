@@ -29,6 +29,20 @@
           </div>
         </div>
         <h1 data-part="label">{@title}</h1>
+        <.badge
+          :if={Enum.any?(@build.custom_tags || [])}
+          label={List.first(@build.custom_tags)}
+          color="success"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :for={tag <- Enum.slice(@build.custom_tags || [], 1..-1//1)}
+          label={tag}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@test_run}
@@ -148,6 +162,32 @@
               <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
             </div>
           </div>
+        </div>
+        <div :if={map_size(@build.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_gradle", "Custom metadata")}
+          </span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@build.custom_values)}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_gradle", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_gradle", "Value")}>
+              <a
+                :if={url?(value)}
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-part="custom-metadata-link"
+              >
+                {value}
+              </a>
+              <.text_cell :if={not url?(value)} label={value} />
+            </:col>
+          </.table>
         </div>
       </.card_section>
     </.card>

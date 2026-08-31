@@ -43,6 +43,25 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
     assert has_element?(lv, "span", "my-other-app")
   end
 
+  test "displays build tags beside the project name", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "my-android-app",
+      custom_tags: ["nightly", "android", "release"]
+    )
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs")
+
+    assert has_element?(lv, "[data-part=project-with-tags]", "my-android-app")
+    assert has_element?(lv, "[data-part=project-with-tags]", "nightly")
+    assert has_element?(lv, "[data-part=project-with-tags]", "+2")
+  end
+
   test "filters build runs by status", %{
     conn: conn,
     organization: organization,
@@ -248,6 +267,33 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
 
     assert has_element?(lv, "span", "gradle-8-build")
     refute has_element?(lv, "span", "gradle-7-build")
+  end
+
+  test "filters build runs by tag", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "nightly-build",
+      custom_tags: ["nightly"]
+    )
+
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "release-build",
+      custom_tags: ["release"]
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_custom_tags_op=contains&filter_custom_tags_val=nightly"
+      )
+
+    assert has_element?(lv, "span", "nightly-build")
+    refute has_element?(lv, "span", "release-build")
   end
 
   test "filters build runs by java version", %{

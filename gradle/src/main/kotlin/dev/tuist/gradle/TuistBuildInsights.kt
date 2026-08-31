@@ -7,6 +7,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.GradleInternal
 import org.gradle.api.logging.Logging
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
@@ -96,6 +98,7 @@ data class BuildReportRequest(
     @SerializedName("root_project_name") val rootProjectName: String?,
     @SerializedName("requested_tasks") val requestedTasks: List<String>,
     val tasks: List<TaskReportEntry>,
+    @SerializedName("custom_metadata") val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
     @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null
 )
 
@@ -116,6 +119,10 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val customTags: ListProperty<String>
+        val customValues: MapProperty<String, String>
+        val automaticMetadataEnabled: Property<Boolean>
+        val commonCustomUserDataPluginApplied: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -340,6 +347,14 @@ abstract class TuistBuildInsightsService :
             requestedTasks = requestedTaskNames.toList(),
             ciDetector = ciDetector,
             gitInfoProvider = gitInfoProvider,
+            customMetadata = buildCustomMetadata(
+                configuredTags = parameters.customTags.get(),
+                configuredValues = parameters.customValues.get(),
+                automaticMetadataEnabled = parameters.automaticMetadataEnabled.get(),
+                commonCustomUserDataPluginApplied = parameters.commonCustomUserDataPluginApplied.get(),
+                ciDetector = ciDetector,
+                gitInfoProvider = gitInfoProvider
+            ),
             machineMetrics = machineMetrics
         )
 
@@ -405,6 +420,7 @@ internal fun buildReport(
     requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
+    customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
     machineMetrics: List<MachineMetricSample>? = null
 ): BuildReportRequest {
     val status = when {
@@ -437,6 +453,7 @@ internal fun buildReport(
                 startedAt = task.startedAt
             )
         },
+        customMetadata = customMetadata,
         machineMetrics = machineMetrics
     )
 }
@@ -461,6 +478,10 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.customTags.set(config.customMetadata.tags)
+            parameters.customValues.set(config.customMetadata.values)
+            parameters.automaticMetadataEnabled.set(config.automaticMetadataEnabled)
+            parameters.commonCustomUserDataPluginApplied.set(config.commonCustomUserDataPluginApplied)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

@@ -33,6 +33,10 @@ defmodule TuistWeb.API.GradleControllerTest do
         git_commit_sha: "abc123",
         root_project_name: "my-app",
         requested_tasks: ["assembleDebug", "test"],
+        custom_metadata: %{
+          tags: ["nightly", "android"],
+          values: %{"cpu_model" => "Apple M4", "team" => "mobile"}
+        },
         tasks: [
           %{
             task_path: ":app:compileKotlin",
@@ -69,6 +73,8 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.gradle_version == "8.5"
       assert build.is_ci == true
       assert build.requested_tasks == ["assembleDebug", "test"]
+      assert build.custom_tags == ["nightly", "android"]
+      assert build.custom_values == %{"cpu_model" => "Apple M4", "team" => "mobile"}
       assert build.account_id == user.account.id
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
@@ -176,6 +182,25 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.cacheable_tasks_count == 0
     end
 
+    test "rejects custom metadata that exceeds the shared Xcode limits", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration_ms: 1000,
+        status: "success",
+        tasks: [],
+        custom_metadata: %{
+          tags: ["nightly"],
+          values: %{"x#{String.duplicate("a", 50)}" => "value"}
+        }
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      assert %{"message" => "The custom metadata is invalid."} = json_response(conn, :bad_request)
+    end
+
     test "uses client-provided build ID when present", %{conn: conn, user: user, project: project} do
       client_id = UUIDv7.generate()
 
@@ -270,6 +295,8 @@ defmodule TuistWeb.API.GradleControllerTest do
           status: "success",
           gradle_version: "8.5",
           is_ci: true,
+          custom_tags: ["nightly"],
+          custom_values: %{"team" => "android"},
           tasks: [
             %{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true},
             %{task_path: ":app:test", outcome: "local_hit", cacheable: true}
@@ -291,6 +318,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build["tasks_local_hit_count"] == 1
       assert build["cacheable_tasks_count"] == 2
       assert is_number(build["cache_hit_rate"])
+      assert build["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
     end
 
     test "does not return builds from other projects", %{conn: conn, user: user, project: project} do
@@ -305,6 +333,25 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       response = json_response(conn, 200)
       assert response["builds"] == []
+    end
+
+    test "filters builds by custom tag", %{conn: conn, user: user, project: project} do
+      tagged_build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          custom_tags: ["nightly"]
+        )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        custom_tags: ["release"]
+      )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds?tag=nightly")
+
+      assert %{"builds" => [%{"id" => ^tagged_build_id}]} = json_response(conn, 200)
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
@@ -340,6 +387,8 @@ defmodule TuistWeb.API.GradleControllerTest do
           git_commit_sha: "abc123",
           root_project_name: "my-app",
           requested_tasks: ["assembleRelease"],
+          custom_tags: ["nightly"],
+          custom_values: %{"team" => "android"},
           tasks: [
             %{
               task_path: ":app:compileKotlin",
@@ -364,6 +413,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert response["git_commit_sha"] == "abc123"
       assert response["root_project_name"] == "my-app"
       assert response["requested_tasks"] == ["assembleRelease"]
+      assert response["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
 
       assert length(response["tasks"]) == 1
       task = hd(response["tasks"])

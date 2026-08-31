@@ -65,6 +65,24 @@ defmodule TuistWeb.API.GradleController do
              nullable: true,
              description: "The tasks requested by the user (e.g., assembleRelease)."
            },
+           custom_metadata: %Schema{
+             type: :object,
+             description: "Custom metadata for the build.",
+             properties: %{
+               tags: %Schema{
+                 type: :array,
+                 items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                 maxItems: 50,
+                 description: "Simple labels for filtering and grouping."
+               },
+               values: %Schema{
+                 type: :object,
+                 additionalProperties: %Schema{type: :string, maxLength: 500},
+                 maxProperties: 20,
+                 description: "Key-value pairs for structured build data."
+               }
+             }
+           },
            tasks: %Schema{
              type: :array,
              items: %Schema{
@@ -142,21 +160,23 @@ defmodule TuistWeb.API.GradleController do
   )
 
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    tasks =
-      Enum.map(body.tasks, fn task ->
-        %{
-          task_path: task.task_path,
-          task_type: task[:task_type],
-          outcome: task.outcome,
-          cacheable: task[:cacheable] || false,
-          duration_ms: task[:duration_ms] || 0,
-          cache_key: task[:cache_key],
-          cache_artifact_size: task[:cache_artifact_size],
-          started_at: task[:started_at]
-        }
-      end)
+    case Gradle.create_build(build_attributes(conn, project, body)) do
+      {:ok, build_id} ->
+        enqueue_vcs_pull_request_comment(body, project)
 
-    attrs = %{
+        conn
+        |> put_status(:created)
+        |> json(%{id: build_id})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The custom metadata is invalid."})
+    end
+  end
+
+  defp build_attributes(conn, project, body) do
+    %{
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
       account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
@@ -170,22 +190,35 @@ defmodule TuistWeb.API.GradleController do
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
       requested_tasks: body[:requested_tasks] || [],
-      tasks: tasks,
+      custom_tags: Map.get(body[:custom_metadata] || %{}, :tags, []),
+      custom_values: Map.get(body[:custom_metadata] || %{}, :values, %{}),
+      tasks: build_tasks(body.tasks),
       machine_metrics: Map.get(body, :machine_metrics, [])
     }
+  end
 
-    {:ok, build_id} = Gradle.create_build(attrs)
+  defp build_tasks(tasks) do
+    Enum.map(tasks, fn task ->
+      %{
+        task_path: task.task_path,
+        task_type: task[:task_type],
+        outcome: task.outcome,
+        cacheable: task[:cacheable] || false,
+        duration_ms: task[:duration_ms] || 0,
+        cache_key: task[:cache_key],
+        cache_artifact_size: task[:cache_artifact_size],
+        started_at: task[:started_at]
+      }
+    end)
+  end
 
+  defp enqueue_vcs_pull_request_comment(body, project) do
     Tuist.VCS.enqueue_vcs_pull_request_comment(%{
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
       git_remote_url_origin: body[:git_remote_url_origin],
       project_id: project.id
     })
-
-    conn
-    |> put_status(:created)
-    |> json(%{id: build_id})
   end
 
   operation(:list_builds,
@@ -217,6 +250,11 @@ defmodule TuistWeb.API.GradleController do
           enum: ["success", "failure", "cancelled"]
         },
         description: "Filter by build status."
+      ],
+      tag: [
+        in: :query,
+        type: :string,
+        description: "Filter by a custom build tag."
       ],
       page_size: [
         in: :query,
@@ -261,6 +299,13 @@ defmodule TuistWeb.API.GradleController do
                    git_commit_sha: %Schema{type: :string, nullable: true},
                    root_project_name: %Schema{type: :string, nullable: true},
                    requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
+                   custom_metadata: %Schema{
+                     type: :object,
+                     properties: %{
+                       tags: %Schema{type: :array, items: %Schema{type: :string}},
+                       values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+                     }
+                   },
                    tasks_local_hit_count: %Schema{type: :integer},
                    tasks_remote_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
@@ -300,6 +345,13 @@ defmodule TuistWeb.API.GradleController do
         filters
       end
 
+    filters =
+      if Map.get(params, :tag) do
+        filters ++ [%{field: :custom_tags, op: :contains, value: params.tag}]
+      else
+        filters
+      end
+
     {builds, meta} =
       Gradle.list_builds(project.id, %{
         filters: filters,
@@ -323,6 +375,7 @@ defmodule TuistWeb.API.GradleController do
             git_commit_sha: build.git_commit_sha,
             root_project_name: build.root_project_name,
             requested_tasks: build.requested_tasks,
+            custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -383,6 +436,13 @@ defmodule TuistWeb.API.GradleController do
              git_ref: %Schema{type: :string, nullable: true},
              root_project_name: %Schema{type: :string, nullable: true},
              requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
+             custom_metadata: %Schema{
+               type: :object,
+               properties: %{
+                 tags: %Schema{type: :array, items: %Schema{type: :string}},
+                 values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+               }
+             },
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
@@ -440,6 +500,7 @@ defmodule TuistWeb.API.GradleController do
             git_ref: build.git_ref,
             root_project_name: build.root_project_name,
             requested_tasks: build.requested_tasks,
+            custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,

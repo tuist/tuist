@@ -16,6 +16,7 @@ defmodule Tuist.Gradle.Build do
       :account_id,
       :gradle_version,
       :java_version,
+      :custom_tags,
       :inserted_at
     ],
     sortable: [:inserted_at, :duration_ms, :status],
@@ -49,6 +50,8 @@ defmodule Tuist.Gradle.Build do
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :requested_tasks, {:array, Ch}, type: "String", default: []
+    field :custom_tags, {:array, Ch}, type: "String", default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :inserted_at, Ch, type: "DateTime"
     has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :gradle_build_id, references: :id
   end

@@ -169,7 +169,7 @@ defmodule Noora.Filter do
     @moduledoc false
     alias Noora.Filter.Filter
 
-    @valid_operators [:==, :!=, :=~, :"!=~", :<, :>, :<=, :>=, :empty, :not_empty]
+    @valid_operators [:==, :!=, :=~, :"!=~", :contains, :not_contains, :<, :>, :<=, :>=, :empty, :not_empty]
     @valid_actions [:change_value, :change_operator, :delete]
 
     def update_filters(current_filters, :change_value, params) do
@@ -406,7 +406,7 @@ defmodule Noora.Filter do
     <div id={@filter.id} class="noora-filter">
       <span data-part="label">{@filter.display_name}</span>
       <div
-        :if={length(operators(@filter.type)) > 1}
+        :if={length(operators(@filter)) > 1}
         id={"filter-#{@filter.id}-operator-dropdown"}
         phx-hook="NooraDropdown"
         data-part="dropdown"
@@ -430,14 +430,14 @@ defmodule Noora.Filter do
         <div data-part="positioner">
           <div class="noora-dropdown-content" data-part="content">
             <.dropdown_item
-              :for={operator <- operators(@filter.type)}
+              :for={operator <- operators(@filter)}
               value={operator}
               label={operator_text(operator)}
             />
           </div>
         </div>
       </div>
-      <span :if={length(operators(@filter.type)) == 1} data-part="label">
+      <span :if={length(operators(@filter)) == 1} data-part="label">
         {operator_text(@filter.operator)}
       </span>
       <div
@@ -569,6 +569,11 @@ defmodule Noora.Filter do
     """
   end
 
+  defp operators(%Filter{type: :option, operator: operator}) when operator in [:contains, :not_contains],
+    do: [:contains, :not_contains]
+
+  defp operators(%Filter{type: type}), do: operators(type)
+
   defp operators(:option), do: [:==, :!=]
   defp operators(:text), do: [:==, :=~, :"!=~"]
   defp operators(:number), do: [:==, :<, :>, :<=, :>=]
@@ -579,6 +584,8 @@ defmodule Noora.Filter do
   def operator_text(:!=), do: "is not"
   def operator_text(:=~), do: "contains"
   def operator_text(:"!=~"), do: "does not contain"
+  def operator_text(:contains), do: "contains"
+  def operator_text(:not_contains), do: "does not contain"
   def operator_text(:<), do: "less than"
   def operator_text(:>), do: "greater than"
   def operator_text(:<=), do: "less than or equal to"

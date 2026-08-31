@@ -20,4 +20,28 @@ defmodule Noora.FilterTest do
              ] = got
     end
   end
+
+  describe "decode_filters_from_query/2" do
+    test "decodes custom tag operators for option filters" do
+      available_filters = [
+        %Filter.Filter{
+          id: "custom_tags",
+          field: :custom_tags,
+          type: :option,
+          options: ["nightly"],
+          options_display_names: %{"nightly" => "nightly"},
+          operator: :contains,
+          value: nil
+        }
+      ]
+
+      filters =
+        Operations.decode_filters_from_query(
+          %{"filter_custom_tags_op" => "contains", "filter_custom_tags_val" => "nightly"},
+          available_filters
+        )
+
+      assert [%Filter.Filter{field: :custom_tags, operator: :contains, value: "nightly"}] = filters
+    end
+  end
 end

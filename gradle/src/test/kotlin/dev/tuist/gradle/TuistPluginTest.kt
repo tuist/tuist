@@ -293,6 +293,50 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `build insight metadata can be configured`() {
+        settingsFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+
+                buildInsights {
+                    tag("nightly")
+                    value("team", "android")
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            tasks.register("printBuildMetadata") {
+                doLast {
+                    val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
+                    println("tags=${'$'}{config.customMetadata.tags}")
+                    println("team=${'$'}{config.customMetadata.values["team"]}")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("printBuildMetadata")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":printBuildMetadata")?.outcome)
+        assertTrue(result.output.contains("tags=[nightly]"))
+        assertTrue(result.output.contains("team=android"))
+    }
+
+    @Test
     fun `plugin reads network proxy from tuist toml`() {
         File(testProjectDir, "tuist.toml").writeText("""
             project = "test-account/test-project"

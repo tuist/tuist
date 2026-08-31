@@ -112,7 +112,11 @@ class TuistBuildInsightsTest {
             gitRemoteUrlOrigin = "https://github.com/tuist/tuist.git",
             rootProjectName = null,
             requestedTasks = listOf("assembleRelease", "connectedAndroidTest"),
-            tasks = emptyList()
+            tasks = emptyList(),
+            customMetadata = BuildCustomMetadata(
+                tags = listOf("nightly"),
+                values = mapOf("team" to "android")
+            )
         )
 
         val json = gson.toJson(report)
@@ -127,6 +131,9 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"requested_tasks\""))
         assertTrue(json.contains("\"assembleRelease\""))
         assertTrue(json.contains("\"connectedAndroidTest\""))
+        assertTrue(json.contains("\"custom_metadata\""))
+        assertTrue(json.contains("\"nightly\""))
+        assertTrue(json.contains("\"team\""))
     }
 
     @Test
@@ -323,5 +330,24 @@ class TuistBuildInsightsTest {
         )
 
         assertEquals(42000, report.durationMs)
+    }
+
+    @Test
+    fun `buildReport includes custom metadata`() {
+        val report = buildReport(
+            id = "test-id",
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            customMetadata = BuildCustomMetadata(
+                tags = listOf("nightly"),
+                values = mapOf("team" to "android")
+            ),
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals(listOf("nightly"), report.customMetadata.tags)
+        assertEquals(mapOf("team" to "android"), report.customMetadata.values)
     }
 }

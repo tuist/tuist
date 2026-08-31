@@ -198,4 +198,24 @@ class GitInfoProviderTest {
 
         assertEquals(null, provider.remoteUrlOrigin())
     }
+
+    @Test
+    fun `checkout state is clean when Git reports no changes`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { "" }
+        )
+
+        assertEquals(false, provider.isDirty())
+    }
+
+    @Test
+    fun `checkout state is unavailable when Git cannot run`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { throw RuntimeException("git not found") }
+        )
+
+        assertEquals(null, provider.isDirty())
+    }
 }

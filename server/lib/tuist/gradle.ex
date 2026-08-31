@@ -7,6 +7,7 @@ defmodule Tuist.Gradle do
 
   import Ecto.Query
 
+  alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
@@ -30,30 +31,34 @@ defmodule Tuist.Gradle do
       * `:git_branch` - Git branch name (optional)
       * `:git_commit_sha` - Git commit SHA (optional)
       * `:git_ref` - Git ref (optional)
+      * `:custom_tags` - Build tags for filtering (optional)
+      * `:custom_values` - Build metadata key-value pairs (optional)
       * `:tasks` - List of task attributes (optional)
 
   ## Returns
     * `{:ok, build_id}` on success
   """
   def create_build(attrs) do
-    now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    build_id = attrs.id
-    tasks = Map.get(attrs, :tasks, [])
+    with :ok <- BuildRun.validate_custom_metadata(Map.get(attrs, :custom_tags, []), Map.get(attrs, :custom_values, %{})) do
+      now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      build_id = attrs.id
+      tasks = Map.get(attrs, :tasks, [])
 
-    task_counts = compute_task_counts(tasks)
-    build_entry = build_entry(attrs, build_id, task_counts, now)
+      task_counts = compute_task_counts(tasks)
+      build_entry = build_entry(attrs, build_id, task_counts, now)
 
-    Build.Buffer.insert(build_entry)
+      Build.Buffer.insert(build_entry)
 
-    if !Enum.empty?(tasks) do
-      create_tasks(build_id, attrs.project_id, tasks, now)
+      if !Enum.empty?(tasks) do
+        create_tasks(build_id, attrs.project_id, tasks, now)
+      end
+
+      machine_metrics = Map.get(attrs, :machine_metrics, [])
+
+      create_machine_metrics(build_id, machine_metrics, now)
+
+      {:ok, build_id}
     end
-
-    machine_metrics = Map.get(attrs, :machine_metrics, [])
-
-    create_machine_metrics(build_id, machine_metrics, now)
-
-    {:ok, build_id}
   end
 
   defp build_entry(attrs, build_id, task_counts, now) do
@@ -79,6 +84,8 @@ defmodule Tuist.Gradle do
       tasks_no_source_count: task_counts.no_source,
       cacheable_tasks_count: task_counts.cacheable,
       requested_tasks: Map.get(attrs, :requested_tasks, []),
+      custom_tags: Map.get(attrs, :custom_tags, []),
+      custom_values: Map.get(attrs, :custom_values, %{}),
       inserted_at: now
     }
   end
@@ -164,6 +171,8 @@ defmodule Tuist.Gradle do
   Returns `{builds, meta}` where `meta` contains pagination info.
   """
   def list_builds(project_id, flop_params \\ %{}, opts \\ []) do
+    {custom_tag_filters, flop_params} = pop_custom_tag_filters(flop_params)
+
     base_query = from(b in Build, where: b.project_id == ^project_id)
 
     base_query =
@@ -175,7 +184,51 @@ defmodule Tuist.Gradle do
           from(b in q, where: fragment("NOT has(?, ?)", b.requested_tasks, ^value))
       end)
 
+    base_query = apply_custom_tag_filters(base_query, custom_tag_filters)
+
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
+  end
+
+  defp pop_custom_tag_filters(flop_params) do
+    {filters, flop_params} = Map.pop(flop_params, :filters, [])
+    {custom_tag_filters, filters} = Enum.split_with(filters, &custom_tag_filter?/1)
+
+    {custom_tag_filters, Map.put(flop_params, :filters, filters)}
+  end
+
+  defp custom_tag_filter?(%{field: :custom_tags, op: op}) when op in [:contains, :not_contains], do: true
+  defp custom_tag_filter?(_), do: false
+
+  defp apply_custom_tag_filters(query, filters) do
+    Enum.reduce(filters, query, fn
+      %{op: :contains, value: value}, q ->
+        from(b in q, where: fragment("has(?, ?)", b.custom_tags, ^value))
+
+      %{op: :not_contains, value: value}, q ->
+        from(b in q, where: fragment("NOT has(?, ?)", b.custom_tags, ^value))
+    end)
+  end
+
+  @doc """
+  Lists the distinct Gradle build tags observed in a project during the last 30 days.
+  """
+  def project_build_tags(project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT arrayJoin(custom_tags) AS tag
+    FROM gradle_builds
+    WHERE project_id = {project_id:Int64}
+      AND length(custom_tags) > 0
+      AND inserted_at > {since:DateTime}
+    ORDER BY tag
+    LIMIT 1000
+    """
+
+    case ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago}) do
+      {:ok, %{rows: rows}} -> Enum.map(rows, fn [tag] -> tag end)
+      {:error, _reason} -> []
+    end
   end
 
   @doc """
