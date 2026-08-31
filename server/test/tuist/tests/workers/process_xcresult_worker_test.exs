@@ -554,12 +554,62 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end
   end
 
+  describe "perform/1 parse timeouts" do
+    test "retries the first parse timeout", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_timeout} end)
+
+      reject(&Tuist.Tests.create_test/1)
+
+      assert {:error, :parse_timeout} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 20))
+    end
+
+    test "stops replaying the bundle once the retry also times out", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_timeout} end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:cancel, :parse_timeout} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 2, 20))
+    end
+  end
+
   describe "backoff/1" do
     test "spaces processing retries and enters finalization immediately after the fifth failure" do
       assert [30, 120, 300, 600, 1] ==
                Enum.map(1..5, fn attempt ->
                  ProcessXcresultWorker.backoff(%Oban.Job{attempt: attempt, max_attempts: 20})
                end)
+    end
+
+    test "waits out the in-flight parses before retrying a timeout" do
+      job = %Oban.Job{
+        attempt: 1,
+        max_attempts: 20,
+        errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :parse_timeout}"}]
+      }
+
+      assert 900 == ProcessXcresultWorker.backoff(job)
+    end
+
+    test "keeps the transient ladder for failures that are not parse timeouts" do
+      job = %Oban.Job{
+        attempt: 1,
+        max_attempts: 20,
+        errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :bundle_invalid}"}]
+      }
+
+      assert 30 == ProcessXcresultWorker.backoff(job)
     end
   end
 
