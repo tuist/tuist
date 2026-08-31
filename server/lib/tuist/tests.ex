@@ -526,11 +526,13 @@ defmodule Tuist.Tests do
 
           project = Tuist.Projects.get_project_by_id(test.project_id)
 
-          Tuist.PubSub.broadcast(
-            test,
-            "#{project.account.name}/#{project.name}",
-            :test_created
-          )
+          if project do
+            Tuist.PubSub.broadcast(
+              test,
+              "#{project.account.name}/#{project.name}",
+              :test_created
+            )
+          end
         end)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
@@ -731,11 +733,13 @@ defmodule Tuist.Tests do
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
-            Tuist.PubSub.broadcast(
-              updated_test,
-              "#{project.account.name}/#{project.name}",
-              :test_created
-            )
+            if project do
+              Tuist.PubSub.broadcast(
+                updated_test,
+                "#{project.account.name}/#{project.name}",
+                :test_created
+              )
+            end
           end)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
