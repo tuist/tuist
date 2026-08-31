@@ -138,6 +138,20 @@ struct BinaryCachePrunerTests {
         #expect(await admission.admit(Int.max))
     }
 
+    @Test(.inTemporaryDirectory)
+    func evictLeastRecentlyUsed_neverReclaimsAPreservedEntry() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let binariesDirectory = try await seedEntries(count: 2, in: temporaryDirectory)
+
+        // hash1 is the least recently used, so it would go first if it were a candidate.
+        let reclaimed = try await subject(binariesDirectory: binariesDirectory)
+            .evictLeastRecentlyUsed(atLeast: 5_000_000, notModifiedAfter: Date(), preserving: ["hash1"])
+
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash1")))
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash0"))))
+        #expect(reclaimed > 0)
+    }
+
     /// `count` ~1 MB entries, staggered so entry 0 is the most recently used.
     private func seedEntries(count: Int, in temporaryDirectory: AbsolutePath) async throws -> AbsolutePath {
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
