@@ -168,7 +168,8 @@ defmodule TuistWeb.DocsLiveTest do
 
     document
     |> Floki.find("script[type='application/ld+json']")
-    |> Enum.map(&(&1 |> Floki.text() |> String.trim() |> JSON.decode!()))
+    # Floki.text/1 drops the contents of script tags unless told otherwise.
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> String.trim() |> JSON.decode!()))
   end
 
   defp structured_data_types(html), do: html |> structured_data() |> Enum.map(& &1["@type"])
