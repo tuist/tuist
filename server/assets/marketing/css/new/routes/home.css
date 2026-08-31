@@ -1178,32 +1178,6 @@
       box-sizing: border-box;
       border-top: 1px solid var(--marketing-stroke-default);
       border-bottom: 1px solid var(--marketing-stroke-default);
-      /* The background logo layer is wider than mobile viewports; crop it. */
-      overflow: hidden;
-
-      /* OpenAI knot outline as a watermark behind the quote: pinned to the
-         row's top-left corner, cropped by the container's overflow.
-         Desktop-only — on mobile the quote stands alone. */
-      & > [data-part="illustration"] {
-        display: none;
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 450px;
-        pointer-events: none;
-
-        @media (min-width: 1024px) {
-          display: block;
-        }
-
-        & > [data-part="logo-outline"] {
-          display: block;
-          opacity: 0.8;
-          width: 450px;
-          height: 450px;
-        }
-      }
 
       & > [data-part="text"] {
         display: flex;
