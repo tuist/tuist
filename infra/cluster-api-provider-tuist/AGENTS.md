@@ -318,9 +318,15 @@ all three of these, or it inherits the trap:
    kubelet unit, and restarts *containerd only* — which does not kill running
    containers, since their shims outlive it and reattach. It touches no apt
    source, no kubelet install, no `/data` mount, and never the kubelet itself, so
-   it needs no drain. It also verifies the shim is really on disk **before** the
-   controller labels the Node: labelling an unrepaired box turns "no Pod ever
-   schedules" into "every Pod wedged in ContainerCreating", which is worse.
+   it needs no drain, and it restarts unconditionally so that "the script exited
+   0" always means "the running daemon loaded this config" (a restart skipped
+   because the config file already looked right would let a stale daemon pass
+   every file check). Order the steps so that **nothing that advertises the box
+   to the scheduler runs before the proof**: here the runtime is verified first,
+   the kata-labelled kubelet unit is written last, and the controller patches the
+   live Node only on the script's exit status. Advertising an unrepaired box
+   turns "no Pod ever schedules" into "every Pod wedged in ContainerCreating",
+   which is harder to diagnose and burns the job instead of queueing it.
 
 Note the trap is not OVH-specific. `DediboxMachine` and
 `ScalewayElasticMetalMachine` share this renderer and the same once-at-bootstrap

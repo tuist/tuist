@@ -248,9 +248,36 @@ func TestRenderKataRuntimeRepairScript(t *testing.T) {
 		}
 	}
 
-	// containerd restarts only when the handler was genuinely absent.
-	if !strings.Contains(script, `if [ "$kata_handler_registered" = 0 ]; then sudo systemctl restart containerd; fi`) {
-		t.Fatalf("expected the containerd restart to be conditional, got:\n%s", script)
+	// The restart must be unconditional. Once the first attempt has appended the
+	// handler, a restart conditioned on the handler being absent can never run
+	// again: a retry after a failed or timed-out restart would skip it, and the
+	// file checks would then pass against a daemon that never loaded the handler.
+	if strings.Contains(script, "kata_handler_registered") {
+		t.Fatalf("the containerd restart must not be conditioned on the handler already being in the config, got:\n%s", script)
+	}
+	if !strings.Contains(script, "systemctl restart containerd") {
+		t.Fatalf("expected an unconditional containerd restart, got:\n%s", script)
+	}
+
+	// Nothing may reload into a config naming a binary that is not there, so the
+	// shim is checked before the restart, not after it.
+	shim := strings.Index(script, "test -x /opt/kata/bin/containerd-shim-kata-v2")
+	restart := strings.Index(script, "systemctl restart containerd")
+	active := strings.Index(script, "systemctl is-active --quiet containerd")
+	if shim > restart {
+		t.Fatalf("expected the shim check before the containerd restart (shim=%d restart=%d)", shim, restart)
+	}
+	if active < restart {
+		t.Fatalf("expected the liveness check after the containerd restart (active=%d restart=%d)", active, restart)
+	}
+
+	// The kubelet unit carries the kata labels, so writing it before the runtime
+	// is verified would let a later Node re-registration self-apply the label on
+	// a box whose repair failed — jobs would schedule and wedge in
+	// ContainerCreating. It goes last, so a failed repair leaves the old unit.
+	unit := strings.Index(script, "tee /etc/systemd/system/kubelet.service")
+	if unit < active {
+		t.Fatalf("expected the labelled kubelet unit written only after verification (unit=%d verified=%d)", unit, active)
 	}
 }
 

@@ -93,10 +93,14 @@ func forgetKataRuntimeMetric(machine string) {
 // --node-labels only when it CREATES the Node object; on restart against an
 // existing Node it reconciles just the well-known kubernetes.io labels and
 // ignores custom ones. So the unit is re-rendered for the node's next
-// registration, and the controller patches the live Node itself — but only after
-// the verification block below proves the box can really run a kata Pod.
-// Labelling first would turn "never schedules" into "every Pod wedged in
-// ContainerCreating", which is strictly worse.
+// registration, and the controller patches the live Node itself.
+//
+// Both of those advertise the box to the scheduler, and neither may run ahead of
+// the proof. The script verifies the runtime first and writes the unit last; the
+// controller labels the live Node only on the script's exit status. Advertising
+// a box whose repair did not finish turns "no Pod ever schedules" into "every
+// Pod wedged in ContainerCreating", which is harder to diagnose and burns the
+// job instead of queueing it.
 func renderKataRuntimeRepairScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	kubeletUnit := kubeletUnitContent(
@@ -113,21 +117,31 @@ set -euxo pipefail
 # the version it lists.
 export DEBIAN_FRONTEND=noninteractive
 %[4]sapt-get update
+%[3]s
+# Check the shim and the handler BEFORE the restart: containerd must never
+# reload into a config naming a binary that is not on disk.
+%[1]stest -x /opt/kata/bin/containerd-shim-kata-v2
+%[1]sgrep -q "runtimes.kata-qemu" /etc/containerd/config.toml
+# Unconditional, and it has to be. The append above is idempotent, so from the
+# second attempt onwards the handler is already in the file; a restart
+# conditioned on it being absent would be skipped forever, and a first attempt
+# whose restart failed or timed out would leave a daemon still running the
+# pre-kata config while every file check passes. Restarting each time is what
+# makes "the script exited 0" mean "the running daemon loaded this config".
+# It costs nothing here: this script only ever runs on a runner box the
+# RuntimeClass cannot select yet, so there is no kata workload to blip, and a
+# containerd restart does not kill running containers anyway.
+%[1]ssystemctl restart containerd
+%[1]ssystemctl is-active --quiet containerd
+# The kubelet unit is written LAST, once the runtime is proven. It carries the
+# kata node labels, and kubelet self-applies those when it registers a Node — so
+# installing it before the runtime is verified would let a later Node
+# re-registration advertise a box whose repair failed, turning "no Pod ever
+# schedules" into "every Pod wedged in ContainerCreating". Failing before this
+# point leaves the old unit in place, which fails closed.
 %[1]stee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'
 %[2]sTUIST_EOF
 %[1]ssystemctl daemon-reload
-# Restart containerd only when the handler was actually missing, so repairing a
-# box that merely lost its Node label costs no CRI blip at all.
-if %[1]sgrep -q "runtimes.kata-qemu" /etc/containerd/config.toml; then kata_handler_registered=1; else kata_handler_registered=0; fi
-%[3]s
-if [ "$kata_handler_registered" = 0 ]; then %[1]ssystemctl restart containerd; fi
-# Refuse to report success unless the box can really run a kata Pod. The
-# controller labels the Node on this script's exit status, so an install that
-# half-completed must fail here rather than advertise a broken box to the
-# scheduler.
-%[1]stest -x /opt/kata/bin/containerd-shim-kata-v2
-%[1]sgrep -q "runtimes.kata-qemu" /etc/containerd/config.toml
-%[1]ssystemctl is-active --quiet containerd
 `, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true), sudoE)
 }
 
