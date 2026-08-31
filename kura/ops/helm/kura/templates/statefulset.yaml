@@ -162,6 +162,8 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.replication.publicLatencyTargetMs) | quote }}
             - name: KURA_REPLICATION_UPLOAD_STALL_MS
               value: {{ printf "%d" (int64 .Values.config.replication.uploadStallMs) | quote }}
+            - name: KURA_OUTBOX_MAX_INFLIGHT
+              value: {{ printf "%d" (int .Values.config.replication.outboxMaxInflight) | quote }}
             {{- if .Values.config.telemetry.otlpTracesEndpoint }}
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}

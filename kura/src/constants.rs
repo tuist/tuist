@@ -49,6 +49,19 @@ pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
+// Outbox deliveries in flight at once. The drain awaits each message before
+// picking up the next, so this is what separates the queue's throughput from
+// the round trip to a peer: at one in flight a node delivers `1 / RTT`
+// messages per second no matter how much bandwidth it has been given, and a
+// write-primary whose peers sit on another continent is capped in the single
+// digits. Every artifact enqueues one message per peer, so that ceiling is
+// divided again by the peer count.
+//
+// The cost is per-delivery body residency — one `RESPONSE_STREAM_CHUNK_BYTES`
+// chunk for a segment-backed artifact, or up to
+// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one — so 8 buys an order
+// of magnitude of headroom for a few MiB.
+pub const DEFAULT_OUTBOX_MAX_INFLIGHT: usize = 8;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;

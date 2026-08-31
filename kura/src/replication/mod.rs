@@ -2,7 +2,7 @@ pub mod operation;
 pub mod outbox_message;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{IpAddr, SocketAddr},
     path::Path,
     sync::{
@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use futures_util::stream::{self, StreamExt};
+use futures_util::stream::{self, FuturesUnordered, StreamExt};
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
@@ -237,10 +237,10 @@ async fn outbox_task_loop(state: SharedState) {
         // buy nothing.
         //
         // The memory a pause could reclaim does not justify either case. The
-        // loop is serial and node-wide, so exactly one delivery is in flight
-        // regardless of peer count or backlog depth — a queued message costs
-        // RocksDB, not RAM — and it takes no transient reservation. That one
-        // delivery holds a single `SegmentReader` chunk (512 KiB) for a
+        // pass keeps at most `outbox_max_inflight` deliveries in flight
+        // node-wide, regardless of peer count or backlog depth — a queued
+        // message costs RocksDB, not RAM — and takes no transient reservation.
+        // Each delivery holds a single `SegmentReader` chunk (512 KiB) for a
         // segment-backed artifact, or the whole value for an inline one,
         // bounded by MAX_INLINE_REPLICATION_BODY_BYTES.
         //
@@ -479,6 +479,28 @@ fn format_ip_for_url(ip: IpAddr) -> String {
     }
 }
 
+// Next message at or after the cursor that is not already in flight. The scan
+// rewinds to the head whenever a priority-lane message arrives, so it re-reaches
+// keys the pipeline is still delivering; skipping them keeps one message to one
+// delivery. The skip run is bounded by the in-flight limit.
+fn next_undispatched_message(
+    state: &SharedState,
+    after: Option<&[u8]>,
+    inflight_keys: &HashSet<Vec<u8>>,
+) -> Result<Option<(Vec<u8>, OutboxMessage)>, String> {
+    let mut cursor = after.map(<[u8]>::to_vec);
+    loop {
+        let Some((message_key, message)) = state.store.next_outbox_message(cursor.as_deref())?
+        else {
+            return Ok(None);
+        };
+        if !inflight_keys.contains(&message_key) {
+            return Ok(Some((message_key, message)));
+        }
+        cursor = Some(message_key);
+    }
+}
+
 // After a message is cleared, rewind the scan cursor to the outbox head if a
 // higher-priority metadata-lane message was enqueued mid-pass and now sorts
 // before it. Without this a fresh action-cache entry parks behind the rest of a
@@ -532,51 +554,88 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         !state.runtime.peer_view_pending() && state.initial_discovery_completed().await;
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
+    // Deliveries are pipelined: up to `outbox_max_inflight` are dispatched
+    // before the first completion is awaited. Awaiting each message in turn
+    // pinned a node's throughput to one delivery per round trip, which for a
+    // write-primary whose peers sit on another continent lands below the rate
+    // its own tenants write at. The queue then grows to `outbox_max_depth` and
+    // the depth gate starts refusing those writes, which the cache client does
+    // not retry.
+    //
+    // Out-of-order delivery is safe by construction: the apply side is
+    // last-writer-wins on `version_ms` (`Store::artifact_apply_outcome`), so a
+    // message landing after a newer one for the same key is ignored rather than
+    // resurrecting stale bytes.
+    let max_inflight = state.config.outbox_max_inflight.max(1);
+    let mut inflight = FuturesUnordered::new();
+    // Dispatched but unresolved keys. `rewind_to_priority_head` sends the scan
+    // back to the head mid-pass, so without this the same message could be
+    // dispatched twice concurrently and then deleted twice.
+    let mut inflight_keys: HashSet<Vec<u8>> = HashSet::new();
     let mut after = None::<Vec<u8>>;
-    while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
-        after = Some(message_key.clone());
 
-        // Messages for a peer that left the mesh can never be delivered and
-        // would otherwise accumulate until the outbox depth cap sheds writes.
-        // The fetched peer view is authoritative and its removals are
-        // deliberate (the control plane withholds a peer only after a full
-        // staleness window of missed heartbeats), so messages for an absent
-        // control-plane-managed target are dropped immediately; a departed
-        // peer that later rejoins does so through a recovery re-enrollment,
-        // which arms a pass per peer in view, and those reconcile back to the
-        // backfill window — so the dropped deltas are recovered as long as the
-        // absence fits inside it. An empty target set means the node has no
-        // peer view at all (e.g. the control plane is unreachable), not that
-        // every peer
-        // left — never prune on it. The accepted trade-off: a mesh that
-        // legitimately shrinks to zero peers keeps its queued messages until
-        // a peer rejoins or the node restarts.
-        if prune_ready
-            && !current_targets.is_empty()
-            && !current_targets.contains(&message.target)
-            && !discovered_history.contains(&message.target)
-        {
-            state.store.delete_outbox_message(&message_key)?;
-            state.metrics.record_replication(
-                &message.target,
-                message.operation.name(),
-                "dropped_stale_target",
-                Duration::ZERO,
-            );
-            *dropped.entry(message.target.clone()).or_insert(0) += 1;
-            continue;
+    loop {
+        while inflight.len() < max_inflight {
+            let Some((message_key, message)) =
+                next_undispatched_message(state, after.as_deref(), &inflight_keys)?
+            else {
+                break;
+            };
+            after = Some(message_key.clone());
+
+            // Messages for a peer that left the mesh can never be delivered and
+            // would otherwise accumulate until the outbox depth cap sheds writes.
+            // The fetched peer view is authoritative and its removals are
+            // deliberate (the control plane withholds a peer only after a full
+            // staleness window of missed heartbeats), so messages for an absent
+            // control-plane-managed target are dropped immediately; a departed
+            // peer that later rejoins does so through a recovery re-enrollment,
+            // which arms a pass per peer in view, and those reconcile back to the
+            // backfill window — so the dropped deltas are recovered as long as the
+            // absence fits inside it. An empty target set means the node has no
+            // peer view at all (e.g. the control plane is unreachable), not that
+            // every peer
+            // left — never prune on it. The accepted trade-off: a mesh that
+            // legitimately shrinks to zero peers keeps its queued messages until
+            // a peer rejoins or the node restarts.
+            if prune_ready
+                && !current_targets.is_empty()
+                && !current_targets.contains(&message.target)
+                && !discovered_history.contains(&message.target)
+            {
+                state.store.delete_outbox_message(&message_key)?;
+                state.metrics.record_replication(
+                    &message.target,
+                    message.operation.name(),
+                    "dropped_stale_target",
+                    Duration::ZERO,
+                );
+                *dropped.entry(message.target.clone()).or_insert(0) += 1;
+                continue;
+            }
+
+            if state
+                .replication_target_backed_off(&message.target, Instant::now())
+                .await
+            {
+                continue;
+            }
+
+            inflight_keys.insert(message_key.clone());
+            inflight.push(async move {
+                let started_at = std::time::Instant::now();
+                let result = replicate_message(state, &message).await;
+                (message_key, message, result, started_at.elapsed())
+            });
         }
 
-        if state
-            .replication_target_backed_off(&message.target, Instant::now())
-            .await
-        {
-            continue;
-        }
-
-        let started_at = std::time::Instant::now();
+        // Nothing dispatched and nothing left to dispatch: the outbox is drained
+        // for this pass.
+        let Some((message_key, message, result, elapsed)) = inflight.next().await else {
+            break;
+        };
+        inflight_keys.remove(&message_key);
         let operation_name = message.operation.name();
-        let result = replicate_message(state, &message).await;
 
         match result {
             Ok(ReplicationOutcome::DroppedOversized) => {
@@ -587,7 +646,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                     &message.target,
                     operation_name,
                     "dropped_oversized",
-                    started_at.elapsed(),
+                    elapsed,
                 );
                 state.store.delete_outbox_message(&message_key)?;
                 rewind_to_priority_head(state, &mut after).await?;
@@ -604,7 +663,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             &message.target,
                             operation_name,
                             "ok",
-                            started_at.elapsed(),
+                            elapsed,
                         );
                         state.store.delete_outbox_message(&message_key)?;
                         rewind_to_priority_head(state, &mut after).await?;
@@ -614,7 +673,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             &message.target,
                             operation_name,
                             "error",
-                            started_at.elapsed(),
+                            elapsed,
                         );
                         warn!("replication to {} failed: {error}", message.target);
                     }
@@ -624,12 +683,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 state
                     .note_replication_failure(&message.target, Instant::now())
                     .await;
-                state.metrics.record_replication(
-                    &message.target,
-                    operation_name,
-                    "error",
-                    started_at.elapsed(),
-                );
+                state
+                    .metrics
+                    .record_replication(&message.target, operation_name, "error", elapsed);
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
@@ -1944,6 +2000,132 @@ mod tests {
                 .expect("inline lookup should succeed")
                 .is_none(),
             "the oversized inline bytes must be reclaimed"
+        );
+    }
+
+    #[tokio::test]
+    async fn outbox_deliveries_overlap_across_messages() {
+        // The drain used to await each delivery before dispatching the next,
+        // which pinned throughput to one message per round trip however much
+        // bandwidth the node had. The peer here holds every request open for a
+        // fixed delay and records how many were open at once: a serial drain
+        // can never record more than one.
+        const INFLIGHT: usize = 4;
+        const MESSAGES: usize = 8;
+
+        let open = Arc::new(AtomicU64::new(0));
+        let peak = Arc::new(AtomicU64::new(0));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let open = open.clone();
+                let peak = peak.clone();
+                move || {
+                    let open = open.clone();
+                    let peak = peak.clone();
+                    async move {
+                        let now = open.fetch_add(1, Ordering::SeqCst) + 1;
+                        peak.fetch_max(now, Ordering::SeqCst);
+                        sleep(Duration::from_millis(150)).await;
+                        open.fetch_sub(1, Ordering::SeqCst);
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+                config.outbox_max_inflight = INFLIGHT;
+            }
+        })
+        .await;
+
+        for index in 0..MESSAGES {
+            let manifest = ctx
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("artifact should persist");
+            enqueue_replication_for_artifact(&ctx.state, &manifest).await;
+        }
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "every delivered message must be cleared from the outbox"
+        );
+        let peak = peak.load(Ordering::SeqCst);
+        assert!(
+            peak > 1,
+            "deliveries never overlapped (peak in flight was {peak}); the drain is still serial"
+        );
+        assert!(
+            peak <= INFLIGHT as u64,
+            "peak in flight was {peak}, above the configured limit of {INFLIGHT}"
+        );
+    }
+
+    #[tokio::test]
+    async fn next_undispatched_message_skips_keys_already_in_flight() {
+        // `rewind_to_priority_head` sends the scan back to the head mid-pass,
+        // so it re-reaches keys the pipeline is still delivering. Handing one
+        // out twice would replicate it twice and delete it twice.
+        let ctx = test_context(|config| {
+            config.peers = vec!["http://127.0.0.1:4101".into()];
+        })
+        .await;
+
+        for index in 0..2 {
+            let manifest = ctx
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("artifact should persist");
+            enqueue_replication_for_artifact(&ctx.state, &manifest).await;
+        }
+
+        let queued = ctx
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(queued.len(), 2);
+        let head_key = queued[0].0.clone();
+
+        let mut inflight_keys = HashSet::new();
+        inflight_keys.insert(head_key.clone());
+
+        let (next_key, _message) = next_undispatched_message(&ctx.state, None, &inflight_keys)
+            .expect("scan should succeed")
+            .expect("the second message should still be dispatchable");
+        assert_ne!(
+            next_key, head_key,
+            "a message already in flight must not be handed out again"
         );
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_OUTBOX_MAX_INFLIGHT,
         DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
         DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
         DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
@@ -105,6 +105,7 @@ const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
 const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
 const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_OUTBOX_MAX_INFLIGHT: &str = "KURA_OUTBOX_MAX_INFLIGHT";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
@@ -192,6 +193,7 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
+    pub outbox_max_inflight: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
     /// How long an outbox artifact upload may produce no body chunk before the
@@ -1148,6 +1150,20 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
+        let outbox_max_inflight = optional_parsed_value(
+            &mut lookup,
+            KURA_OUTBOX_MAX_INFLIGHT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_OUTBOX_MAX_INFLIGHT} must be a valid usize"))
+            },
+        )
+        .unwrap_or(DEFAULT_OUTBOX_MAX_INFLIGHT);
+        if outbox_max_inflight == 0 {
+            invalid.push(format!("{KURA_OUTBOX_MAX_INFLIGHT} must be greater than 0"));
+        }
         let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
             &mut lookup,
             KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
@@ -1763,6 +1779,7 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
+            outbox_max_inflight,
             replication_bandwidth_limit_bytes_per_second,
             replication_public_latency_target_ms,
             replication_upload_stall_ms,
