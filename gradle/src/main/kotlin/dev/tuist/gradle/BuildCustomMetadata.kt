@@ -302,7 +302,6 @@ internal fun buildCustomMetadata(
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
     systemPropertyProvider: (String) -> String? = System::getProperty
 ): BuildCustomMetadata {
-    val isCi = ciDetector.isCi()
     val environmentTags =
         environment["TUIST_BUILD_TAGS"]
             ?.split(',')
@@ -315,26 +314,12 @@ internal fun buildCustomMetadata(
             .filterKeys { it.startsWith("TUIST_BUILD_VALUE_") }
             .mapKeys { (key, _) -> key.removePrefix("TUIST_BUILD_VALUE_").lowercase(Locale.ROOT) }
 
-    val commonMetadata =
-        if (automaticMetadataEnabled && commonCustomUserDataPluginApplied) {
-            commonCustomUserDataMetadata(
-                environment = environment,
-                isCi = isCi,
-                gitInfoProvider = gitInfoProvider,
-                systemPropertyProvider = systemPropertyProvider
-            )
-        } else {
-            BuildCustomMetadata()
-        }
-
     return BuildCustomMetadata(
-        tags = normalizeBuildMetadataTags(commonMetadata.tags + environmentTags + configuredTags),
+        tags = normalizeBuildMetadataTags(environmentTags + configuredTags),
         values =
             mergeBuildMetadataValues(
                 configuredValues,
-                environmentValues,
-                commonMetadata.values,
-                if (automaticMetadataEnabled) runCatching { systemMetadataProvider.values(isCi) }.getOrDefault(emptyMap()) else emptyMap()
+                environmentValues
             )
     )
 }

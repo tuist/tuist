@@ -99,7 +99,6 @@ Automatic machine, invocation, and continuous-integration metadata is enabled by
 ```kotlin
 tuist {
     buildInsights {
-        automaticMetadataEnabled = false
     }
 }
 ```

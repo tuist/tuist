@@ -3,7 +3,6 @@ package dev.tuist.gradle
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 private class StaticBuildSystemMetadataProvider(
     private val metadata: Map<String, String>
@@ -48,8 +47,6 @@ class BuildCustomMetadataTest {
         assertEquals(
             mapOf(
                 "cpu_model" to "Custom processor",
-                "memory_total_bytes" to "17179869184",
-                "power_source" to "ac",
                 "ticket" to "TUIST-456",
                 "team" to "mobile"
             ),
@@ -123,75 +120,16 @@ class BuildCustomMetadataTest {
     }
 
     @Test
-    fun `allows automatic metadata collection to be disabled`() {
+    fun `keeps explicit metadata independent of system probes`() {
         val metadata = buildCustomMetadata(
             environment = mapOf("TUIST_BUILD_TAGS" to "nightly", "TUIST_BUILD_VALUE_TEAM" to "android"),
             configuredTags = listOf("release"),
             configuredValues = mapOf("workflow" to "deploy"),
-            systemMetadataProvider = StaticBuildSystemMetadataProvider(mapOf("cpu_model" to "processor")),
-            automaticMetadataEnabled = false,
-            commonCustomUserDataPluginApplied = true,
-            ciDetector = StaticCIDetector(ci = true),
-            gitInfoProvider = StaticGitInfoProvider(dirty = true)
+            systemMetadataProvider = StaticBuildSystemMetadataProvider(mapOf("cpu_model" to "processor"))
         )
 
         assertEquals(listOf("nightly", "release"), metadata.tags)
         assertEquals(mapOf("workflow" to "deploy", "team" to "android"), metadata.values)
     }
 
-    @Test
-    fun `collects Common Custom User Data-compatible continuous integration and Git context`() {
-        val metadata = buildCustomMetadata(
-            environment = mapOf(
-                "GITHUB_ACTIONS" to "true",
-                "GITHUB_SERVER_URL" to "https://github.com",
-                "GITHUB_REPOSITORY" to "tuist/tuist",
-                "GITHUB_RUN_ID" to "123",
-                "GITHUB_RUN_NUMBER" to "45",
-                "GITHUB_JOB" to "android"
-            ),
-            systemMetadataProvider = StaticBuildSystemMetadataProvider(emptyMap()),
-            commonCustomUserDataPluginApplied = true,
-            ciDetector = StaticCIDetector(ci = true),
-            gitInfoProvider = StaticGitInfoProvider(dirty = true),
-            systemPropertyProvider = { key -> if (key == "os.name") "Mac OS X" else null }
-        )
-
-        assertEquals(listOf("os-mac-os-x", "ci", "ci-github-actions", "dirty"), metadata.tags)
-        assertEquals(
-            mapOf(
-                "ci_provider" to "GitHub Actions",
-                "ci_build_url" to "https://github.com/tuist/tuist/actions/runs/123",
-                "ci_build_number" to "45",
-                "ci_job" to "android",
-                "git_dirty" to "true"
-            ),
-            metadata.values
-        )
-    }
-
-    @Test
-    fun `collects Common Custom User Data-compatible invocation context for local builds`() {
-        val metadata = buildCustomMetadata(
-            environment = emptyMap(),
-            systemMetadataProvider = StaticBuildSystemMetadataProvider(emptyMap()),
-            commonCustomUserDataPluginApplied = true,
-            ciDetector = StaticCIDetector(ci = false),
-            gitInfoProvider = StaticGitInfoProvider(dirty = false),
-            systemPropertyProvider = { key ->
-                when (key) {
-                    "os.name" -> "Linux"
-                    "idea.vendor.name" -> "Google"
-                    "idea.version" -> "2026.1"
-                    "idea.sync.active" -> "true"
-                    else -> null
-                }
-            }
-        )
-
-        assertEquals(listOf("os-linux", "local", "android-studio", "ide-sync"), metadata.tags)
-        assertTrue(metadata.values["git_dirty"] == "false")
-        assertEquals("Android Studio", metadata.values["invocation_source"])
-        assertEquals("2026.1", metadata.values["ide_version"])
-    }
 }
