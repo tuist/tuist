@@ -17,32 +17,32 @@ msgstr ""
 msgid "105 remote binaries pulled"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:761
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:762
 #, elixir-autogen, elixir-format
 msgid "10K+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:744
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:745
 #, elixir-autogen, elixir-format
 msgid "1400+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:776
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:777
 #, elixir-autogen, elixir-format
 msgid "300+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:697
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:698
 #, elixir-autogen, elixir-format
 msgid "5K+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:729
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "8300+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:712
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:713
 #, elixir-autogen, elixir-format
 msgid "9+"
 msgstr ""
@@ -69,12 +69,12 @@ msgstr ""
 msgid "About"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:745
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Active community members and counting"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:794
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "Beyond expectations"
 msgstr ""
@@ -134,7 +134,7 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:663
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Bumble solved key issues without changing the core dev experience"
 msgstr ""
@@ -176,7 +176,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.html.heex:8
 #: lib/tuist_web/marketing/live/marketing_changelog_live.ex:63
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
-#: lib/tuist_web/marketing/structured_markup.ex:374
+#: lib/tuist_web/marketing/structured_markup.ex:400
 #, elixir-autogen, elixir-format
 msgid "Changelog"
 msgstr ""
@@ -224,7 +224,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:168
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:88
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:810
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:811
 #, elixir-autogen, elixir-format
 msgid "Community forum"
 msgstr ""
@@ -265,7 +265,7 @@ msgstr ""
 msgid "Contact us"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:777
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Contributors"
 msgstr ""
@@ -480,7 +480,7 @@ msgstr ""
 msgid "Happiness"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:797
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "Hear from our community about their experience with Tuist"
 msgstr ""
@@ -722,7 +722,7 @@ msgstr ""
 msgid "Please check your email to confirm your subscription."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:681
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:682
 #, elixir-autogen, elixir-format
 msgid "Powered by"
 msgstr ""
@@ -782,23 +782,23 @@ msgstr ""
 msgid "Product"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:730
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "Pull requests merged"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.ex:120
-#: lib/tuist_web/marketing/structured_markup.ex:342
+#: lib/tuist_web/marketing/structured_markup.ex:367
 #, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:640
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:641
 #, elixir-autogen, elixir-format
 msgid "Read the Bumble customer story"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:602
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "Read the Trendyol customer story"
 msgstr ""
@@ -918,7 +918,7 @@ msgstr ""
 msgid "Speed up your builds and test runs."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:698
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:699
 #, elixir-autogen, elixir-format
 msgid "Stars on GitHub"
 msgstr ""
@@ -938,7 +938,7 @@ msgstr ""
 msgid "Stay in touch"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:375
+#: lib/tuist_web/marketing/structured_markup.ex:401
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist."
 msgstr ""
@@ -965,7 +965,7 @@ msgstr ""
 msgid "Successfully Subscribed!"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:839
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:840
 #, elixir-autogen, elixir-format
 msgid "Supercharge your app development"
 msgstr ""
@@ -1001,7 +1001,7 @@ msgstr ""
 msgid "Talk to us"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:762
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "Teams using Tuist"
 msgstr ""
@@ -1041,7 +1041,7 @@ msgstr ""
 msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:624
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:625
 #, elixir-autogen, elixir-format
 msgid "Trendyol reduced build times by 65% with Tuist"
 msgstr ""
@@ -1117,14 +1117,14 @@ msgstr ""
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:133
+#: lib/tuist_web/marketing/structured_markup.ex:159
 #, elixir-autogen, elixir-format
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:3
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:4
-#: lib/tuist_web/marketing/structured_markup.ex:341
+#: lib/tuist_web/marketing/structured_markup.ex:366
 #, elixir-autogen, elixir-format
 msgid "Tuist's blog"
 msgstr ""
@@ -1306,7 +1306,7 @@ msgstr ""
 msgid "Xcode Cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:713
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "Years of building OSS Foundation"
 msgstr ""
@@ -1376,7 +1376,7 @@ msgstr ""
 msgid "in one platform"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:682
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "open source"
 msgstr ""
@@ -1443,7 +1443,7 @@ msgstr ""
 msgid "Hits"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:618
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:619
 #, elixir-autogen, elixir-format
 msgid "Read customer story"
 msgstr ""
@@ -1470,7 +1470,7 @@ msgid "Language"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:86
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:656
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:657
 #: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Read story"
@@ -1499,7 +1499,7 @@ msgid "Founded"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:80
-#: lib/tuist_web/marketing/structured_markup.ex:460
+#: lib/tuist_web/marketing/structured_markup.ex:486
 #, elixir-autogen, elixir-format
 msgid "Learn how teams use Tuist to scale their iOS development."
 msgstr ""
@@ -1552,7 +1552,7 @@ msgstr ""
 msgid "Customers"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:459
+#: lib/tuist_web/marketing/structured_markup.ex:485
 #, elixir-autogen, elixir-format
 msgid "Tuist Customers"
 msgstr ""
@@ -2427,7 +2427,7 @@ msgstr ""
 msgid "The Tuist dashboard showing build times, cache hit rates, and test runs for a project"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:233
+#: lib/tuist_web/marketing/structured_markup.ex:259
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, and share app previews from a URL."
 msgstr ""
