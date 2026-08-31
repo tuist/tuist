@@ -372,6 +372,54 @@ struct SupportTests {
     }
 
     @Test
+    func swifterpmGitHubTokenTakesPrecedenceOverGitHubToken() async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "swifterpm-token",
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer swifterpm-token")
+    }
+
+    @Test
+    func gitHubTokenUsedWhenSwifterpmGitHubTokenAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer github-token")
+    }
+
+    @Test
+    func ghTokenUsedWhenOtherGitHubTokensAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer gh-token")
+    }
+
+    @Test
     func realpathFollowsSymlinksAndKeepsThePathWhenItCannotResolve() async throws {
         try await withTemporaryDirectory { directory in
             let target = directory.appendingPathComponent("Target")

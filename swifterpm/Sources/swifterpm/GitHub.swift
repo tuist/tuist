@@ -32,7 +32,7 @@ private actor GitHubTokenCache {
         loaded = true
 
         let env = ProcessInfo.processInfo.environment
-        if let token = env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
+        if let token = env["SWIFTERPM_GITHUB_TOKEN"] ?? env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
            !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             cachedToken = token
@@ -128,7 +128,7 @@ enum SourceControlLocations {
 /// provider's API. Without this, the HTTPS candidate added by `fetchCandidates` only works
 /// when an ambient credential (a `url.insteadOf` token rewrite, a credential helper, or
 /// ~/.netrc) is configured, so an SSH-declared private dependency keeps failing in CI even
-/// with a usable `GITHUB_TOKEN`/`GH_TOKEN`. Emitting an `http.<base>.extraheader` via `-c`
+/// with a usable `SWIFTERPM_GITHUB_TOKEN`/`GITHUB_TOKEN`/`GH_TOKEN`. Emitting an `http.<base>.extraheader` via `-c`
 /// mirrors what `actions/checkout` does and keeps the token out of the on-disk git config.
 /// SSH candidates return no arguments so ssh-agent stays in charge, and when no token is
 /// available we add nothing so configured ambient credentials keep working unchanged.

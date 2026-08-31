@@ -383,8 +383,8 @@ enum HTTPAuthorization {
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
         // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic GITHUB_TOKEN /
-        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
+        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
@@ -392,7 +392,7 @@ enum HTTPAuthorization {
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
             keychain: { await KeychainAuthorization.credential(for: url) },
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+            gitHubEnvToken: environment["SWIFTERPM_GITHUB_TOKEN"] ?? environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header
         }
