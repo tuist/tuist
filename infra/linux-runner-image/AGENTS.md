@@ -141,6 +141,14 @@ injected by the controller, with the socket mounted from a
 shared emptyDir. See `infra/runners-controller/AGENTS.md` for
 the sidecar Pod shape + lifecycle.
 
+`/home/runner/actions-runner/externals/` (the node runtimes the
+actions-runner tarball ships) is copied out of this image into a
+volume the sidecar mounts at the same path, because the runner
+bind-mounts it into `container:` job containers as `/__e` and
+dockerd resolves that path on its own side. Moving the runner
+root, or trimming externals from the image, breaks job containers
+— see "Why stage externals" in the controller doc.
+
 ## Build
 
 ```bash

@@ -76,6 +76,15 @@ const (
 	// the terminal sees the same filesystem, environment, and Docker
 	// socket as the running job.
 	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
+	// externalsPath is the runner's `externals` directory — the node
+	// runtimes the runner bind-mounts into a job container as /__e.
+	// dockerd resolves that mount in the dind sidecar's namespace, so
+	// the directory has to exist there under the same path.
+	externalsPath = "/home/runner/actions-runner/externals"
+	// externalsStagePath is where the staging container mounts the
+	// shared externals volume. Deliberately not externalsPath, which
+	// would shadow the source being copied.
+	externalsStagePath = "/mnt/dind-externals"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -281,6 +290,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				// Staging area for the runner image's externals
+				// directory, filled by the dind-externals init
+				// container below and mounted into the sidecar at
+				// the runner's own path.
+				corev1.Volume{Name: "dind-externals", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -305,6 +319,38 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
+			// A job that declares `jobs.<id>.container` (or a
+			// container action) doesn't run in the runner container:
+			// the runner asks dockerd to create a container and
+			// bind-mounts five well-known directories into it — work
+			// as /__w, temp as /__t, actions as /__a, tools as /__o,
+			// externals as /__e. Those paths are resolved by dockerd,
+			// i.e. in the sidecar's mount namespace, not the
+			// runner's. Four of the five live under _work (temp,
+			// actions and tools default to _work/_temp, _work/_actions
+			// and _work/_tool), which both containers already share.
+			// externals ships in the runner image alone, so docker
+			// creates an empty directory for it on the daemon side and
+			// every step in the job container dies on a missing
+			// /__e/node2x/bin/node.
+			//
+			// Stage it into a volume both sides mount, the way ARC's
+			// dind mode does (init-dind-externals). Runs before the
+			// sidecar so the copy is in place by the time dockerd can
+			// serve a container, and fails the Pod early if the image
+			// ever stops shipping externals.
+			initContainers = append(initContainers, corev1.Container{
+				Name:    "dind-externals",
+				Image:   pool.Spec.Image,
+				Command: []string{"sh", "-c"},
+				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "dind-externals", MountPath: externalsStagePath},
+				},
+				// Root only to write the root-owned emptyDir; it runs
+				// our copy, never customer code.
+				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+			})
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -363,6 +409,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
 					{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+					{Name: "dind-externals", MountPath: externalsPath},
 					{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
 				},
 			})
