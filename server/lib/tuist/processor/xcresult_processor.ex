@@ -380,7 +380,7 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp cleanup_temp(temp_dir) do
-    {:ok, _} = File.rm_rf(temp_dir)
+    File.rm_rf(temp_dir)
     :ok
   end
 end
