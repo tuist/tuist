@@ -35,6 +35,14 @@ use crate::PublishRecord;
 // well above a single warm build's working set (a warm build touches ~1.9M
 // known-local digests total, i.e. ~60k per shard), so within-build warmth is
 // preserved and only cross-build accumulation is reclaimed.
+/// How often the proxy re-asks where the account's cache is.
+///
+/// Well inside the drain a region gets when an account's cache is placed
+/// elsewhere, so a move is picked up while the old region is still serving and
+/// nothing has to fail first. This process is a per-machine daemon and can
+/// outlive several such moves.
+pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
+
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
@@ -1183,7 +1191,15 @@ fn uploads_by_default() -> bool {
 }
 
 pub struct Proxy {
-    grpc_url: String,
+    // Replaceable: the endpoint an account is served from moves when its cache
+    // is placed in another region, and this process outlives the value it was
+    // launched with. See `refresh_endpoint`.
+    grpc_url: RwLock<String>,
+    // Epoch-ms of the last endpoint resolution, so the sweep can carry the
+    // interval without a timer of its own. 0 means never resolved.
+    endpoint_resolved_at_ms: AtomicU64,
+    // Bumped on every adoption. Only ever compared for equality.
+    endpoint_generation: AtomicU64,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
@@ -1191,7 +1207,14 @@ pub struct Proxy {
     // One REAPI client per account/project instance, created on first use.
     // All share the machine's endpoint + token; only the instance the request
     // is scoped to differs. This is what lets one proxy serve every project.
-    remotes: Mutex<HashMap<String, Arc<Remote>>>,
+    // Each client is stamped with the endpoint generation it was built
+    // against, because a client outlives the address it dialled. Publication
+    // and adoption cannot be ordered against each other -- two first-sight
+    // requests race, and the slower one can publish a client built from the
+    // old address after the faster one has already adopted and cleared -- so
+    // the stamp is what makes that harmless: a client from a previous
+    // generation is never handed out, whenever it arrived.
+    remotes: Mutex<HashMap<String, (u64, Arc<Remote>)>>,
     // cas_path -> instance, primed by builds that declare their instance and
     // persisted so an Xcode ⌘B build (which declares none) still routes after
     // a proxy restart. See proxy_proto for why the fallback exists.
@@ -1278,7 +1301,9 @@ impl Proxy {
             .map(load_registry)
             .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
-            grpc_url,
+            grpc_url: RwLock::new(grpc_url),
+            endpoint_resolved_at_ms: AtomicU64::new(0),
+            endpoint_generation: AtomicU64::new(0),
             tokens,
             upstream_plugin,
             epoch: Instant::now(),
@@ -1333,22 +1358,59 @@ impl Proxy {
     /// itself is the project segment only; the account rides on the bearer token
     /// and Kura assembles the authz identifier as `{tenant}/{instance_name}`.
     fn remote_for(&self, instance: &str) -> Arc<Remote> {
-        if let Some(remote) = self.remotes.lock().unwrap().get(instance) {
-            return remote.clone();
+        if let Some(remote) = self.current_remote(instance) {
+            return remote;
         }
+        // First sight of this instance. On a proxy whose registry was empty at
+        // startup this is the first moment anything is known to serve, so the
+        // maintenance sweep has had nothing to resolve for and the endpoint is
+        // still the one this process was launched with -- which may be a region
+        // the account has since left. Resolved before a client is bound to it,
+        // not after the client has started missing. The lock above is released;
+        // adopting a moved endpoint takes it.
+        self.ensure_endpoint_fresh(instance);
+
+        if let Some(remote) = self.current_remote(instance) {
+            return remote;
+        }
+
+        // Sampled before the address, never after. An adoption landing between
+        // these two reads can then only leave the stamp behind the address,
+        // which publishes a client that is ignored and rebuilt; sampling the
+        // other way round would stamp the new generation onto a client dialled
+        // at the old address, which is the one outcome that must not happen.
+        // Neither lock is held across the other: adoption takes the address
+        // then the map, so this must never take the map then the address.
+        let generation = self.endpoint_generation.load(Ordering::Acquire);
+        let grpc_url = self.grpc_url.read().unwrap().clone();
+
         let remote = Remote::new(
             RemoteConfig {
-                grpc_url: self.grpc_url.clone(),
+                grpc_url,
                 instance: reapi::reapi_instance(instance).to_string(),
             },
             self.tokens.clone(),
         );
+
         self.remotes
             .lock()
             .unwrap()
-            .entry(instance.to_string())
-            .or_insert(remote)
-            .clone()
+            .insert(instance.to_string(), (generation, remote.clone()));
+
+        remote
+    }
+
+    /// The instance's client, if one was built against the endpoint currently
+    /// in force. A client from an earlier generation is not one of this
+    /// account's clients any more; it is bound to a region it has left.
+    fn current_remote(&self, instance: &str) -> Option<Arc<Remote>> {
+        let generation = self.endpoint_generation.load(Ordering::Acquire);
+
+        self.remotes
+            .lock()
+            .unwrap()
+            .get(instance)
+            .and_then(|(built_at, remote)| (*built_at == generation).then(|| remote.clone()))
     }
 
     /// The instance a connection routes to. A declared (non-empty) instance is
@@ -2961,6 +3023,95 @@ impl Proxy {
     /// mode or for opaque, non-expiring tokens.
     pub fn maintain_token(&self, lead: std::time::Duration) {
         self.tokens.refresh_if_expiring(lead);
+    }
+
+    /// Re-resolves the machine's cache endpoint, at most once per `interval`.
+    ///
+    /// The endpoint this process was launched with belongs to an account whose
+    /// cache can be placed in another region. The region being left serves for
+    /// a drain window and is then torn down, and its hostname goes out of DNS
+    /// with it — so a proxy that never asks again eventually holds a name that
+    /// resolves to nothing and turns every lookup into a local miss, reporting
+    /// no error because a miss is a legitimate answer from a cache. Asking well
+    /// inside the drain window means the move is picked up before anything
+    /// fails, rather than recovered from afterwards.
+    ///
+    /// Resolved for an instance this proxy is already serving: the endpoint is
+    /// per-account and every instance here shares it, so any known full handle
+    /// answers the question. Before the first build there is none — and nothing
+    /// depending on the answer either.
+    ///
+    /// A resolution that fails changes nothing. A CLI that is absent, logged
+    /// out or offline says nothing about where the cache went, and dropping a
+    /// working endpoint on its say-so would turn a local problem into a cold
+    /// cache.
+    pub fn refresh_endpoint(&self) {
+        let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
+            // Nothing is being served, so nothing depends on the answer. First
+            // sight of an instance resolves before binding a client to it.
+            return;
+        };
+        self.ensure_endpoint_fresh(&instance);
+    }
+
+    /// Re-resolves the endpoint for `instance` unless it was resolved within
+    /// `ENDPOINT_REFRESH_INTERVAL`.
+    ///
+    /// The endpoint is per-account and every instance this proxy serves shares
+    /// it, so any of them answers the question; the caller passes the one it
+    /// has, which is what lets first sight resolve before there is anything in
+    /// the client map to look one up from.
+    ///
+    /// Never called with a lock held: adopting a moved endpoint takes the
+    /// client map.
+    fn ensure_endpoint_fresh(&self, instance: &str) {
+        let Some(fetch) = self.tokens.cli_fetch() else {
+            return;
+        };
+        if !self.claim_endpoint_resolution(crate::reapi::now_ms(), ENDPOINT_REFRESH_INTERVAL) {
+            return;
+        }
+        if let Some(resolved) =
+            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance)
+        {
+            self.adopt_endpoint(resolved);
+        }
+    }
+
+    /// Whether this caller should do the resolution, stamping the attempt when
+    /// it says yes.
+    ///
+    /// Stamped on the attempt rather than on success, so a CLI that is slow or
+    /// failing is retried on the interval instead of on every request that
+    /// finds the endpoint unresolved.
+    fn claim_endpoint_resolution(&self, now: u64, interval: Duration) -> bool {
+        let last = self.endpoint_resolved_at_ms.load(Ordering::Relaxed);
+        if last != 0 && now.saturating_sub(last) < interval.as_millis() as u64 {
+            return false;
+        }
+        self.endpoint_resolved_at_ms.store(now, Ordering::Relaxed);
+        true
+    }
+
+    /// Points the proxy at `resolved`, returning whether it was a move.
+    ///
+    /// Both halves have to go together. The clients hold channels opened
+    /// against the old address and would go on using them, so they are dropped
+    /// here rather than left to fail on their own schedule; each rebuilds
+    /// against the new endpoint on its next request. Keeping the old clients
+    /// would mean the endpoint had changed in name only.
+    fn adopt_endpoint(&self, resolved: String) -> bool {
+        if resolved == *self.grpc_url.read().unwrap() {
+            return false;
+        }
+        *self.grpc_url.write().unwrap() = resolved.clone();
+        // Bumped before the clear, so a client published in the window between
+        // them carries the superseded generation and is ignored rather than
+        // surviving as the one entry the clear did not see.
+        self.endpoint_generation.fetch_add(1, Ordering::AcqRel);
+        self.remotes.lock().unwrap().clear();
+        crate::log_line(&format!("proxy cache endpoint moved to {resolved}"));
+        true
     }
 
     /// Queues a per-key-served manifest for a background re-publish (see
@@ -5058,6 +5209,103 @@ mod tests {
 
     // A Proxy with no remote: the wipe tests only drive `check_generation`,
     // which is local-only (restat, rebind, drop marks).
+    #[test]
+    fn the_endpoint_is_resolved_once_per_interval_not_once_per_request() {
+        // Every first sight of an instance asks, and on a busy proxy that is
+        // often. Resolution shells out to the CLI, so the interval is what
+        // keeps it from becoming a process spawn per request.
+        let proxy = test_proxy();
+        let interval = Duration::from_secs(600);
+        let start = 1_000_000_u64;
+
+        assert!(proxy.claim_endpoint_resolution(start, interval));
+        assert!(!proxy.claim_endpoint_resolution(start + 1, interval));
+        assert!(!proxy.claim_endpoint_resolution(start + 599_999, interval));
+        assert!(proxy.claim_endpoint_resolution(start + 600_000, interval));
+    }
+
+    #[test]
+    fn a_failing_resolution_is_retried_on_the_interval_not_on_every_request() {
+        // The stamp is taken on the attempt, not on success. Stamping only on
+        // success would spawn the CLI for every request while it is failing —
+        // exactly when the machine is least able to afford it.
+        let proxy = test_proxy();
+        let interval = Duration::from_secs(600);
+
+        assert!(proxy.claim_endpoint_resolution(1_000_000, interval));
+        // No adoption follows; the next caller still has to wait its turn.
+        assert!(!proxy.claim_endpoint_resolution(1_000_100, interval));
+    }
+
+    #[test]
+    fn a_client_built_before_a_move_is_not_served_after_it() {
+        // The interleaving two first-sight requests can produce: both miss,
+        // the first resolves and adopts while the second is still building,
+        // and the second then publishes its client after the clear has already
+        // run. Nothing orders those two, so the published client has to be
+        // recognised as belonging to the endpoint it was dialled at.
+        let proxy = test_proxy();
+        let before_move = proxy.remote_for("acme/app");
+        let generation = proxy.endpoint_generation.load(Ordering::Acquire);
+
+        assert!(proxy.adopt_endpoint("http://127.0.0.1:2".to_string()));
+
+        // The slower request publishes what it built, after the clear.
+        proxy
+            .remotes
+            .lock()
+            .unwrap()
+            .insert("acme/app".to_string(), (generation, before_move.clone()));
+
+        let served = proxy.remote_for("acme/app");
+
+        assert!(
+            !Arc::ptr_eq(&before_move, &served),
+            "a client stamped before the move must not be served after it"
+        );
+        assert_eq!(
+            proxy.remotes.lock().unwrap().get("acme/app").unwrap().0,
+            proxy.endpoint_generation.load(Ordering::Acquire),
+            "the rebuilt client carries the endpoint now in force"
+        );
+    }
+
+    #[test]
+    fn adopting_a_moved_endpoint_drops_the_clients_bound_to_the_old_one() {
+        // A client holds a channel opened against the address it was built
+        // with. Leaving it in place would move the endpoint in name only, and
+        // the proxy would go on talking to a region that is being torn down.
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        assert_eq!(proxy.remotes.lock().unwrap().len(), 1);
+
+        assert!(proxy.adopt_endpoint("http://127.0.0.1:2".to_string()));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert!(
+            proxy.remotes.lock().unwrap().is_empty(),
+            "clients bound to the old endpoint must not survive the move"
+        );
+    }
+
+    #[test]
+    fn re_resolving_to_the_same_endpoint_keeps_the_clients() {
+        // The common case by far. Rebuilding every client each time the
+        // endpoint is re-read would throw away warm connections on a schedule
+        // for no reason.
+        let proxy = test_proxy();
+        let before = proxy.remote_for("acme/app");
+        let current = proxy.grpc_url.read().unwrap().clone();
+
+        assert!(!proxy.adopt_endpoint(current));
+
+        let after = proxy.remote_for("acme/app");
+        assert!(
+            Arc::ptr_eq(&before, &after),
+            "an unchanged endpoint must not rebuild the client"
+        );
+    }
+
     fn test_proxy() -> &'static Proxy {
         Proxy::new(
             "http://127.0.0.1:1".to_string(),

@@ -112,6 +112,24 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_resolution_refused(),
             description: "Accounts refused a service region, so they never enter the lifecycle at all.",
             tags: [:plan, :reason]
+          ),
+          counter(
+            @metric_prefix ++ [:placement_preference_unmet, :count],
+            event_name: Telemetry.event_name_placement_preference_unmet(),
+            description:
+              "Placements served further from the traffic than they could be, because the nearest " <>
+                "region is unserved or carries no budget for the plan. The procurement signal: " <>
+                "sustained counts on one wanted/served pair are the case for funding that region.",
+            tags: [:origin, :wanted, :served]
+          ),
+          counter(
+            @metric_prefix ++ [:origin_attribution, :count],
+            event_name: Telemetry.event_name_origin_attribution(),
+            description:
+              "Requests placement tried to attribute, by whether the edge could place them. " <>
+                "An edge that stops reporting locations otherwise looks exactly like a quiet " <>
+                "fleet, with placement silently falling back to the default region.",
+            tags: [:signal, :attributed, :reason]
           )
         ]
       )

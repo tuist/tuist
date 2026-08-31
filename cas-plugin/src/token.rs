@@ -39,12 +39,20 @@ impl CachedToken {
     }
 }
 
-struct TokenFetch {
-    tuist_bin: String,
-    server_url: Option<String>,
+pub struct TokenFetch {
+    pub tuist_bin: String,
+    pub server_url: Option<String>,
 }
 
 impl TokenProvider {
+    /// How the bearer is fetched, when it is fetched by shelling out to the
+    /// CLI. Exposed so the same CLI can be asked where the cache is, rather
+    /// than a second copy of how to find and address it. `None` in env-only
+    /// (CI) mode, where there is no CLI to ask.
+    pub fn cli_fetch(&self) -> Option<&TokenFetch> {
+        self.fetch.as_ref()
+    }
+
     /// Builds a provider from the environment: `TUIST_CAS_TOKEN` seeds the
     /// cache; `TUIST_CAS_TUIST_BIN` (+ optional `TUIST_CAS_SERVER_URL`) enables
     /// shell-out refresh via the CLI.

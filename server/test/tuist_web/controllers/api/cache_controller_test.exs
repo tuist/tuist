@@ -8,6 +8,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Billing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage

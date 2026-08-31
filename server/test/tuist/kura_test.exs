@@ -9,7 +9,9 @@ defmodule Tuist.KuraTest do
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1615,5 +1617,43 @@ defmodule Tuist.KuraTest do
       |> Repo.insert()
 
     server
+  end
+
+  describe "order_endpoints_by_origin/3" do
+    test "puts the region nearest the caller first for a multi-region account" do
+      account = placed_account()
+      primary = placed_instance(account, "eu-central", :active)
+      secondary = placed_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      endpoints = [%{url: secondary.url}, %{url: primary.url}]
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "FR")
+      assert first == primary.url
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "US-VA")
+      assert first == secondary.url
+    end
+
+    test "leaves an empty list alone" do
+      assert Kura.order_endpoints_by_origin([], placed_account(), "FR") == []
+    end
+  end
+
+  defp placed_account do
+    user = AccountsFixtures.user_fixture()
+    Accounts.get_account_from_user(user)
+  end
+
+  defp placed_instance(account, region, status) do
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: region,
+      status: status,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{account.id}-#{region}"
+    })
   end
 end

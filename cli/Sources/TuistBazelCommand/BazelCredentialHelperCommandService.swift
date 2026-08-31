@@ -1,8 +1,13 @@
+import FileSystem
 import Foundation
 import Noora
+import Path
+import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
+import TuistREAPI
 import TuistServer
+import TuistSupport
 
 public protocol BazelCredentialHelperCommandServicing {
     func run(
@@ -15,6 +20,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let configLoader: ConfigLoading
+    private let cacheURLStore: CacheURLStoring
+    private let fileSystem: FileSysteming
     private let date: () -> Date
 
     /// How far before a token's real expiry Bazel is asked to come back for a fresh
@@ -26,15 +33,28 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     /// in-flight requests and clock skew between the developer machine and the cache.
     private static let expirySafetyMargin: TimeInterval = 60
 
+    /// How long the endpoint refresh may hold the helper open.
+    ///
+    /// Bazel is waiting on this process, and the endpoint it already has is
+    /// working -- it is the one the credential just issued is for. So a
+    /// resolution that cannot finish promptly is not worth a build's time; the
+    /// next invocation tries again, and Bazel invokes the helper once per
+    /// credential lifetime regardless.
+    private static let endpointResolutionTimeout: Duration = .seconds(2)
+
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         configLoader: ConfigLoading = ConfigLoader(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        fileSystem: FileSysteming = FileSystem(),
         date: @escaping () -> Date = { Date() }
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.configLoader = configLoader
+        self.cacheURLStore = cacheURLStore
+        self.fileSystem = fileSystem
         self.date = date
     }
 
@@ -44,6 +64,73 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     ) async throws {
         let response = try await credentials(helperCommand: helperCommand, directory: directory)
         try Noora.current.json(response)
+        await refreshBazelrcEndpoint(directory: directory)
+    }
+
+    /// Points `.bazelrc.tuist` at wherever the account's cache is now.
+    ///
+    /// Bazel reads the file once at startup and nothing in a build re-resolves,
+    /// so a cache placed in another region would otherwise strand the file:
+    /// the region it names serves for a drain window, is torn down, and its
+    /// hostname leaves DNS. This helper is the only Tuist code a build runs, so
+    /// it is the only thing positioned to notice. Bazel re-invokes it lazily on
+    /// the first request after the credential it returned expires, which makes
+    /// the token lifetime the refresh interval — no timer needed, and no work
+    /// on a build that is already authenticated.
+    ///
+    /// Bazel waits for this process to exit, not for its output, so emitting
+    /// the credential first does not make the rest free: whatever happens here
+    /// is on the path of the request that triggered the helper. Resolution
+    /// reaches the control plane and probes endpoints, and the store it goes
+    /// through is process-local, so every helper process pays it in full.
+    ///
+    /// It is therefore bounded, and the bound is the contract: past
+    /// `endpointResolutionTimeout` the refresh is abandoned and the build
+    /// proceeds on the endpoint it already had, which is the one it was just
+    /// given a working credential for. Only the resolution is inside the
+    /// bound; the file is read and written after it, so an abandoned refresh
+    /// can never leave a half-written `.bazelrc`.
+    ///
+    /// Best-effort throughout: an endpoint that cannot be resolved says
+    /// nothing about where the cache went, and a build should not fail because
+    /// its `.bazelrc` could not be tidied. The rewrite lands on the next
+    /// build, since this one read the file before we ran.
+    private func refreshBazelrcEndpoint(directory: String?) async {
+        do {
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let bazelrcPath = directoryPath.appending(component: BazelrcFile.name)
+            guard try await fileSystem.exists(bazelrcPath) else { return }
+
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let accountHandle = String(fullHandle.split(separator: "/")[0])
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            // Only the network-bound half is raced against the deadline.
+            var resolved: URL?
+            try? await withTimeout(
+                Self.endpointResolutionTimeout,
+                onTimeout: {},
+                action: {
+                    resolved = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                }
+            )
+
+            guard let cacheURL = resolved, let host = cacheURL.host else { return }
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+
+            let contents = try await fileSystem.readTextFile(at: bazelrcPath)
+            guard let rewritten = BazelrcFile.replacingRemoteCache(in: contents, with: endpoint) else { return }
+
+            try await fileSystem.writeText(
+                rewritten,
+                at: bazelrcPath,
+                encoding: .utf8,
+                options: Set([.overwrite])
+            )
+        } catch {
+            // Best-effort by design; see above.
+        }
     }
 
     func credentials(

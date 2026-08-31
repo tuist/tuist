@@ -121,6 +121,13 @@ server:
       # us-east. Only Air moves: a paid account restricted to Europe or the
       # USA chose that, and no deployment setting may relocate it.
       value: ca-east
+    - name: TUIST_KURA_AIR_REGIONS
+      # Both public regions carry an Air budget here, which is what makes
+      # traffic-driven placement observable at all: with one funded region
+      # every Air account resolves to it whatever its traffic says. Production
+      # funds Air in one region and omits this, so the single-region variable
+      # above still decides there.
+      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against

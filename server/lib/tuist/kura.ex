@@ -23,12 +23,19 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Environment
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.OriginMap
+  alias Tuist.Kura.Origins
+  alias Tuist.Kura.PlacementProposal
+  alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
@@ -87,6 +94,32 @@ defmodule Tuist.Kura do
 
   @doc "Seconds a draining server keeps serving before teardown."
   def drain_seconds, do: @drain_seconds
+
+  # How long a client may hold an endpoint answer before it has to ask again.
+  # Lives here rather than on the controller that sets the header because the
+  # drain below has to outlast it, and two numbers that must agree should not
+  # be written down twice.
+  @endpoint_freshness_seconds 3600
+
+  @doc "Seconds a client may keep serving from a cached endpoint answer."
+  def endpoint_freshness_seconds, do: @endpoint_freshness_seconds
+
+  @doc """
+  Seconds an instance placement is leaving keeps serving before teardown.
+
+  Longer than an ordinary drain, and for a different reason. Unpublishing an
+  endpoint stops new *resolutions* returning it, but every client that
+  resolved in the previous hour still holds it and keeps sending cache traffic
+  there until its answer expires. Inactivity archival does not care — an
+  account that has gone a full window without asking has nobody holding a
+  fresh answer — but a relocation happens precisely while the account is
+  building, so tearing down on the ordinary margin would break live builds
+  that had no way to know the cache had moved.
+
+  So the window is the freshness the endpoint answer was served with, plus the
+  ordinary margin for what is still in flight when the last holder re-resolves.
+  """
+  def placement_drain_seconds, do: @endpoint_freshness_seconds + @drain_seconds
 
   ## Versions
 
@@ -150,7 +183,7 @@ defmodule Tuist.Kura do
   end
 
   defp runtime_version do
-    case Tuist.Environment.kura_runtime_image_tag() do
+    case Environment.kura_runtime_image_tag() do
       tag when is_binary(tag) ->
         tag = String.trim(tag)
 
@@ -278,6 +311,49 @@ defmodule Tuist.Kura do
   defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
 
   @doc """
+  Orders an account's managed cache endpoints so the one nearest the caller
+  comes first, leaving the order alone when there is no origin to order by or
+  only one endpoint to order.
+
+  The server's ordering is what a client that simply takes the first entry
+  relies on; newer clients probe the list and refine it locally. Region
+  attribution is computed from the deterministic per-region URL rather than
+  read from the row, so this costs no query on the resolution path.
+  """
+  def order_endpoints_by_origin(endpoints, account, origin)
+
+  def order_endpoints_by_origin(endpoints, _account, nil), do: endpoints
+
+  # Nothing to order, and the clause below would rebuild the whole region
+  # catalog to sort it. The common shape on the resolution path for an account
+  # that is archived or still provisioning.
+  def order_endpoints_by_origin([], _account, _origin), do: []
+
+  def order_endpoints_by_origin([endpoint], _account, _origin), do: [endpoint]
+
+  def order_endpoints_by_origin(endpoints, %Account{name: handle}, origin) do
+    regions_by_url =
+      Regions.all()
+      |> Enum.reject(&Regions.private?/1)
+      |> Enum.flat_map(fn region ->
+        case Regions.public_url(handle, region) do
+          nil -> []
+          url -> [{url, region.id}]
+        end
+      end)
+      |> Map.new()
+
+    Enum.sort_by(endpoints, fn endpoint ->
+      case Map.fetch(regions_by_url, endpoint.url) do
+        {:ok, region_id} -> {0, OriginMap.distance(origin, region_id)}
+        # An endpoint no region claims keeps its place behind the ones that
+        # were ordered, rather than jumping to a distance it does not have.
+        :error -> {1, 0}
+      end
+    end)
+  end
+
+  @doc """
   The account's open claim sizing proposal, or `nil`.
   """
   defdelegate claim_proposal_for(account), to: ClaimProposals, as: :open_proposal_for
@@ -286,6 +362,37 @@ defmodule Tuist.Kura do
   The account's recent claim sizing decisions, newest first.
   """
   defdelegate claim_sizing_history(account, limit), to: ClaimProposals, as: :recent_for
+
+  @doc """
+  The account's open placement proposal, or `nil`.
+  """
+  defdelegate placement_proposal_for(account), to: PlacementProposals, as: :open_proposal_for
+
+  @doc """
+  The account's recent placement decisions, newest first.
+  """
+  defdelegate placement_history(account, limit), to: PlacementProposals, as: :recent_for
+
+  @doc """
+  One page of the account's placement decisions, newest first.
+  """
+  defdelegate paginate_placement_history(account, options), to: PlacementProposals, as: :paginate_for
+
+  @doc """
+  Closes an open placement proposal without applying it.
+  """
+  defdelegate dismiss_placement_proposal(proposal, resolved_by), to: PlacementProposals, as: :dismiss
+
+  @doc """
+  Every region the account is served from, primary first.
+  """
+  defdelegate placement_regions(account), to: PlacerRegions, as: :all_for
+
+  @doc """
+  Where the account's cache traffic came from over the last `days`, busiest
+  first.
+  """
+  defdelegate placement_traffic_mix(account, days), to: Origins, as: :traffic_mix
 
   @doc """
   The egress floor and ceiling an account's instances in `region` are shaped at,
@@ -418,6 +525,119 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Applies a placement proposal: writes the placement rows the decision implies
+  and lets the lifecycle converge the instances to them.
+
+  Nothing here provisions, drains, or deletes. A relocation writes the
+  destination as primary and marks the source retiring; the lifecycle
+  provisions the destination on the account's next demand, and drains the
+  source only once somewhere else is actually serving. That ordering is what
+  makes a move safe without a move state machine: the account is never left
+  with no instance, and a source is never stranded, because the row that marks
+  it retiring is also what keeps it resolvable until it goes.
+
+  Premises are re-checked under the same account lock every placement write
+  takes, so an operator clicking apply while the sweep applies the same
+  proposal serializes here and the loser sees a proposal that is no longer
+  open.
+  """
+  def apply_placement_proposal(%PlacementProposal{} = proposal, resolved_by) when is_binary(resolved_by) do
+    account = Repo.get!(Account, proposal.account_id)
+
+    result =
+      Repo.transaction(fn ->
+        lock_account(account.id)
+        proposal = Repo.get!(PlacementProposal, proposal.id)
+
+        serving = PlacementProposals.serving_regions(account)
+        claimed = PlacementProposals.claimed_regions(account)
+        primary = List.first(serving)
+
+        cond do
+          proposal.status != :open ->
+            {:stale, proposal}
+
+          not placement_premises_hold?(proposal, primary, serving, claimed) ->
+            {:stale, proposal |> PlacementProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
+
+          true ->
+            account
+            |> PlacerRegions.materialize(primary, serving)
+            |> apply_placement(proposal)
+
+            proposal
+            |> PlacementProposal.resolve_changeset(:applied, resolved_by)
+            |> Repo.update!()
+
+            {:applied, %{kind: proposal.kind, from_region: proposal.from_region, to_region: proposal.to_region}}
+        end
+      end)
+
+    case result do
+      {:ok, {:applied, outcome}} -> {:ok, outcome}
+      {:ok, {:stale, _proposal}} -> {:error, :stale_proposal}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # A proposal describes an instance set. If that set has changed since the
+  # sweep read it — an operator pinned the account, another proposal landed, an
+  # instance was archived — the evidence no longer describes what would happen.
+  defp placement_premises_hold?(%PlacementProposal{kind: kind} = proposal, primary, serving, _claimed)
+       when kind in [:relocate, :correct] do
+    proposal.from_region == primary and proposal.to_region != primary and
+      proposal.to_region in permitted_for(proposal) and serving != []
+  end
+
+  defp placement_premises_hold?(%PlacementProposal{kind: :expand} = proposal, _primary, _serving, claimed) do
+    proposal.to_region not in claimed and proposal.to_region in permitted_for(proposal)
+  end
+
+  defp placement_premises_hold?(%PlacementProposal{kind: :retire} = proposal, primary, serving, _claimed) do
+    proposal.from_region in serving and proposal.from_region != primary
+  end
+
+  defp permitted_for(%PlacementProposal{account_id: account_id}) do
+    account = Repo.get!(Account, account_id)
+
+    AccountPolicies.placeable_regions(account, AccountPolicies.sizing_plan(account))
+  end
+
+  # `put_primary/3` demotes whatever held the role, so the source stays a
+  # secondary unless the decision was that the account cannot hold it or its
+  # own traffic does not earn it.
+  defp apply_placement(account, %PlacementProposal{kind: :relocate} = proposal) do
+    {:ok, _row} = PlacerRegions.put_primary(account, proposal.to_region, proposal.evidence)
+
+    if Map.get(proposal.evidence, "retire_source", true) do
+      {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
+    end
+
+    :ok
+  end
+
+  # A correction always gives the source up. It fires only while the primary is
+  # young and carrying a clear minority of the traffic, so the region being left
+  # cannot be one the account's own work earns — and leaving it standing would
+  # spend a slot on a region chosen by a guess.
+  defp apply_placement(account, %PlacementProposal{kind: :correct} = proposal) do
+    {:ok, _row} = PlacerRegions.put_primary(account, proposal.to_region, proposal.evidence)
+    {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
+
+    :ok
+  end
+
+  defp apply_placement(account, %PlacementProposal{kind: :expand} = proposal) do
+    {:ok, _row} = PlacerRegions.put_secondary(account, proposal.to_region, proposal.evidence)
+    :ok
+  end
+
+  defp apply_placement(account, %PlacementProposal{kind: :retire} = proposal) do
+    {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
+    :ok
   end
 
   # Only the rows that still hold volumes, and only in the regions that size
@@ -1381,10 +1601,10 @@ defmodule Tuist.Kura do
   # Private regions never mirror their URL into `account_cache_endpoints` (the
   # CLI cannot reach an in-cluster endpoint), so republishing has to respect
   # the same rule activation does.
-  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id, url: url} = server) do
+  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id} = server) do
     case Regions.fetch(region_id) do
       {:ok, region} ->
-        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, url)
+        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, server.url)
 
       {:error, _reason} ->
         {:error, {:unknown_region, server.region}}

@@ -28,7 +28,9 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Origins
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -2685,9 +2687,9 @@ defmodule Tuist.Accounts do
   getting one, so a region at capacity does not turn every refused account into
   a poller.
   """
-  def get_cache_resolution_for_handle(account_handle, technology \\ :default) do
+  def get_cache_resolution_for_handle(account_handle, technology \\ :default, origin \\ nil) do
     if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
-      hosted_kura_resolution(account_handle)
+      hosted_kura_resolution(account_handle, origin)
     else
       %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
     end
@@ -2696,12 +2698,12 @@ defmodule Tuist.Accounts do
   # Resolved in one pass so `provisioning` is derived from the same Kura
   # endpoint lookup that produced `endpoints`, rather than a second query that
   # could disagree with it.
-  defp hosted_kura_resolution(account_handle) do
+  defp hosted_kura_resolution(account_handle, origin) do
     case get_account_by_handle(account_handle) do
       %Account{} = account ->
-        Demand.record(account.id)
+        Demand.record(account.id, origin)
 
-        case kura_cache_endpoint_urls(account) do
+        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
           [] ->
             %{
               endpoints: absent_kura_endpoint_urls(account),
@@ -2805,11 +2807,16 @@ defmodule Tuist.Accounts do
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
-  derives its in-cluster fallback from the exact candidate set the CLI
-  sees, rather than a parallel query that could drift.
+  derives its in-cluster fallback from these, rather than a parallel query
+  that could drift.
   """
-  def kura_cache_endpoint_urls(%Account{} = account) do
-    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+  def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
+    static_urls =
+      account
+      |> kura_cache_endpoints()
+      |> Kura.order_endpoints_by_origin(account, origin)
+      |> Enum.map(& &1.url)
+
     registered_urls = registered_kura_endpoint_urls(account)
 
     Enum.uniq(static_urls ++ registered_urls)

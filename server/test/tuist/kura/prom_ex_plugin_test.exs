@@ -11,6 +11,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   alias Tuist.Kura.PromExPlugin
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Telemetry
   alias Tuist.Kura.UsageEvent
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -29,6 +30,32 @@ defmodule Tuist.Kura.PromExPluginTest do
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
     stub_region_nodes([])
     :ok
+  end
+
+  describe "event metrics" do
+    test "every telemetry event the lifecycle emits is scraped" do
+      # A counter nothing scrapes is a decision nobody can see. The unmet
+      # placement preference is the one that matters most here: it is the
+      # procurement signal, and it is emitted from a path that produces no
+      # other trace of itself.
+      scraped =
+        []
+        |> PromExPlugin.event_metrics()
+        |> Enum.flat_map(& &1.metrics)
+        |> MapSet.new(& &1.event_name)
+
+      for event <- [
+            Telemetry.event_name_provisioned(),
+            Telemetry.event_name_ready(),
+            Telemetry.event_name_drain_pending(),
+            Telemetry.event_name_archive_cancelled(),
+            Telemetry.event_name_archived(),
+            Telemetry.event_name_resolution_refused(),
+            Telemetry.event_name_placement_preference_unmet()
+          ] do
+        assert MapSet.member?(scraped, event), "#{inspect(event)} is emitted but never scraped"
+      end
+    end
   end
 
   defp account do
