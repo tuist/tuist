@@ -233,7 +233,8 @@ infra/cluster-api-provider-tuist/
 │       ├── ovhdedicatedmachine_controller.go
 │       ├── scalewayelasticmetalmachine_controller.go
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
-│       └── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
+│       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
+│       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
@@ -261,6 +262,78 @@ MachineSet scale-up rather than at deploy time — and Helm does not backfill
 the field onto a live template (it patches these CRs manifest-to-manifest,
 so a field the live object never received is never added). Prefer an
 optional field with a controller-side default over a required one.
+
+## Bootstrap-time capabilities, and the once-at-bootstrap trap
+
+The Linux self-join is rendered **once**, at bootstrap
+(`renderLinuxBootstrapScript`), by whichever provider pod holds the leader lease
+at that moment. Nothing re-runs it. That makes every capability the script
+installs a one-shot decision, and it fails in a way that looks like anything but
+a provisioning bug.
+
+During a rolling provider upgrade the chart applies the new provider Deployment
+and the fleet MachineDeployments in the same release. With `maxUnavailable: 0`
+the OUTGOING pod keeps the lease until it terminates, so a Machine created in
+that window is bootstrapped by the OLD build — which decodes the CR fine and
+silently drops any spec field its Go struct does not have. On 2026-08-31 that
+put `kataRuntime: true` boxes into production and canary bootstrapped by
+`capi-scaleway@0.27.0`: Ready nodes, right pool, right taints, every DaemonSet
+running, no error logged anywhere, and not one job taken — because the
+`kata-qemu` RuntimeClass selects on a node label the old self-join never wrote.
+It read as a scheduling bug for about an hour and was cleared by hand with
+`kubectl delete machine`.
+
+Two things follow, and both are load-bearing:
+
+**Ordering cannot fix this inside one Helm release.** A `pre-upgrade` hook runs
+before the new provider image is applied, and moving the fleet
+MachineDeployments into a `post-upgrade` hook would take them out of the release
+(hook resources are not tracked, and the default delete policy would reap them).
+Splitting the provider into its own release ahead of the chart would work but
+serializes every deploy behind a rollout that can wedge it. Convergence, not
+ordering, is the answer.
+
+**`strategy: OnDelete` means a spec change never rolls the fleet either.**
+Flipping a bootstrap-time field on an existing MachineDeployment reaches exactly
+zero live machines. So in-place repair is not just the nicer fix — it is the only
+mechanism that converges at all.
+
+### Adding a bootstrap-time capability
+
+Anything the self-join installs that the node's schedulability depends on needs
+all three of these, or it inherits the trap:
+
+1. **An observable on the Node.** The check must read what actually decides the
+   outcome — for kata that is the `katacontainers.io/kata-runtime` label the
+   RuntimeClass selects on, not a provider version or a status flag, so a node
+   that passes the check is one the scheduler will really place Pods on.
+2. **A check on the Ready path**, next to `reconcileLinuxKataRuntimeDrift`, that
+   reconciles that observable against the spec. Both paths render from one
+   `hostOptions` builder (`ovhdedicatedmachine_controller.go`) so a new field
+   reaches the bootstrap and the repair together rather than by remembering two
+   call sites.
+3. **A repair that is additive, never a re-bootstrap.** These boxes run live
+   jobs, and the Kura cache boxes hold local state a reinstall destroys. The kata
+   repair installs the runtime, registers the containerd handler, re-renders the
+   kubelet unit, and restarts *containerd only* — which does not kill running
+   containers, since their shims outlive it and reattach. It touches no apt
+   source, no kubelet install, no `/data` mount, and never the kubelet itself, so
+   it needs no drain. It also verifies the shim is really on disk **before** the
+   controller labels the Node: labelling an unrepaired box turns "no Pod ever
+   schedules" into "every Pod wedged in ContainerCreating", which is worse.
+
+Note the trap is not OVH-specific. `DediboxMachine` and
+`ScalewayElasticMetalMachine` share this renderer and the same once-at-bootstrap
+property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
+
+A repair that cannot complete must stay loud rather than retry quietly. The
+`KataRuntimeReady` condition is marked False the moment the gap is observed —
+before any SSH — and the `capt_node_kata_runtime_ready` gauge (0 = requested but
+missing) is what Grafana alerts on; the PromQL is in
+[`infra/helm/k8s-monitoring/values.yaml`](../helm/k8s-monitoring/values.yaml).
+`Machine.Status.Ready` is deliberately left alone: the node is a healthy
+Kubernetes node, and failing it would make CAPI churn a box that needs a
+two-minute in-place fix.
 
 ## Node extended resources
 
@@ -899,6 +972,26 @@ kubectl describe scalewayapplesiliconmachine <name>
 # transitions, drift-loop attempts, terminal-failure transitions)
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
 ```
+
+### A Linux runner box is Ready but takes no jobs
+
+The box joins Ready, lands in the right pool with the right taint, runs every
+DaemonSet — and no runner Pod ever schedules on it. That is the once-at-bootstrap
+trap above, almost always because the Machine was bootstrapped by a provider
+build that predates the capability its spec asked for. Confirm in one read:
+
+```bash
+kubectl get ovhdedicatedmachine <name> -o jsonpath='{.status.conditions[?(@.type=="KataRuntimeReady")]}{"\n"}'
+kubectl get node <name> -o jsonpath='{.metadata.labels.katacontainers\.io/kata-runtime}{"\n"}'
+```
+
+`KataRuntimeReady=False/KataRuntimeMissing` means the provider has seen it and is
+repairing in place; it converges within a reconcile or two and needs no operator
+action. `KataRuntimeRepairFailed` carries the reason — an unreachable box, or one
+whose containerd cannot register the handler (its config predates `version = 3`,
+which the self-join refuses to join around). Do NOT `kubectl delete machine` to
+force a re-bootstrap: it wipes the box, and for a cache node it destroys the
+local state. Fix what the condition names and let the repair land.
 
 ### Make `kubectl logs`/`exec` work on a fleet node
 

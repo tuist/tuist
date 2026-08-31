@@ -233,18 +233,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if pwErr != nil {
 			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
 		}
-		script := renderLinuxBootstrapScript(linuxCloudInitOptions{
-			NodeName:       machine.Name,
-			KubeconfigYAML: kubeconfigYAML,
-			ClusterCAPEM:   identity.CA,
-			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
-			Taints:         machine.Spec.NodeTaints,
-			KataRuntime:    machine.Spec.KataRuntime,
-			BootstrapUser:  ovhBootstrapUser,
-			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
-			InstanceType:   ovhInstanceType,
-			SudoPassword:   sudoPassword,
-		})
+		opts := r.hostOptions(machine)
+		opts.KubeconfigYAML = kubeconfigYAML
+		opts.ClusterCAPEM = identity.CA
+		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
+		opts.SudoPassword = sudoPassword
+		script := renderLinuxBootstrapScript(opts)
 
 		machine.Status.Phase = "Bootstrapping"
 		// TOFU host-key pinning: persist the fingerprint observed on the first
@@ -337,11 +331,33 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kataErr != nil {
+				logger.Error(kataErr, "kata runtime repair failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
 	machine.Status.Phase = "Bootstrapping"
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+}
+
+// hostOptions is the host shape both the first bootstrap and the in-place repair
+// paths render from. They share one builder deliberately: the repair can only
+// converge a node onto a capability it knows the machine asked for, so a future
+// bootstrap-time field added to the render must land in both — and here it does
+// so by construction rather than by remembering to update two call sites.
+func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
+	return linuxCloudInitOptions{
+		NodeName:      machine.Name,
+		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
+		Taints:        machine.Spec.NodeTaints,
+		KataRuntime:   machine.Spec.KataRuntime,
+		BootstrapUser: ovhBootstrapUser,
+		InstanceType:  ovhInstanceType,
+	}
 }
 
 // claimedServiceNames is the set of OVH service names already held by other
@@ -419,6 +435,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
 	shared.ForgetEgressMetrics(machine.Name)
+	forgetKataRuntimeMetric(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }

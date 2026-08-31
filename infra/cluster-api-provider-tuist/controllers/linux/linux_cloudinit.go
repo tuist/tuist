@@ -840,6 +840,10 @@ func dataKubeletMount(sudo string) string {
 // job behaves the same whichever fleet it lands on.
 const kataVersion = "3.30.0"
 
+// kataVersionStampPath records which kata release the box has unpacked, so the
+// install block above is a no-op on a box that already carries it.
+const kataVersionStampPath = "/opt/kata/.tuist-kata-version"
+
 // kataSetup installs kata-static and registers the kata-qemu handler with
 // containerd. Empty (a no-op) unless the fleet asked for it, so cache boxes
 // neither download it nor carry the runtime block.
@@ -869,10 +873,17 @@ func kataSetup(sudo, sudoE string, enabled bool) string {
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
 %[2]sapt-get install -y zstd
 # kata-static expands with a top-level opt/, so extracting at / lands the shim
-# and its bundled qemu under /opt/kata/{bin,libexec,share}.
-curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-static-%[3]s-amd64.tar.zst"
-%[1]star --zstd -xf /tmp/kata.tar.zst -C /
-rm -f /tmp/kata.tar.zst
+# and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
+# stamp so a re-run costs nothing: the repair loop re-runs this block on every
+# retry against a box whose verification keeps failing, and an unguarded pull
+# would drag ~250 MiB off GitHub each time. Stamping the version (rather than
+# just testing for the shim) keeps a kataVersion bump reinstalling.
+if [ "$(cat %[4]s 2>/dev/null)" != "%[3]s" ]; then
+  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-static-%[3]s-amd64.tar.zst"
+  %[1]star --zstd -xf /tmp/kata.tar.zst -C /
+  rm -f /tmp/kata.tar.zst
+  printf '%%s' "%[3]s" | %[1]stee %[4]s > /dev/null
+fi
 # Idempotent: a re-bootstrap of an already-kata box must not append twice.
 %[1]ssh -c 'grep -q "runtimes.kata-qemu" /etc/containerd/config.toml || cat >> /etc/containerd/config.toml' <<'TUIST_KATA_EOF'
 
@@ -893,20 +904,34 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion)
+`, sudo, sudoE, kataVersion, kataVersionStampPath)
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
-// kata. `katacontainers.io/kata-runtime` is what the kata-qemu RuntimeClass
-// selects on, so without it a runner Pod never schedules here; `tuist.dev/kata-runtime`
-// mirrors the Hetzner workers so anything keying off our own label sees both
-// fleets alike. Both sit outside the kubernetes.io/k8s.io namespaces the
-// NodeRestriction admission plugin reserves, so a kubelet may self-apply them.
+// kata, and are the same labels the repair loop patches onto a node that joined
+// without them. `katacontainers.io/kata-runtime` is what the kata-qemu
+// RuntimeClass selects on, so without it a runner Pod never schedules here;
+// `tuist.dev/kata-runtime` mirrors the Hetzner workers so anything keying off our
+// own label sees both fleets alike. Both sit outside the kubernetes.io/k8s.io
+// namespaces the NodeRestriction admission plugin reserves, so a kubelet may
+// self-apply them.
+//
+// An ordered slice, not a map: it renders into the kubelet unit, and a map's
+// iteration order would churn that unit's content between reconciles.
+var kataNodeLabels = []struct{ Key, Value string }{
+	{KataRuntimeSelectorLabel, "true"},
+	{"tuist.dev/kata-runtime", "true"},
+}
+
 func kataNodeLabelsArg(enabled bool) string {
 	if !enabled {
 		return ""
 	}
-	return ",katacontainers.io/kata-runtime=true,tuist.dev/kata-runtime=true"
+	var arg strings.Builder
+	for _, label := range kataNodeLabels {
+		arg.WriteString("," + label.Key + "=" + label.Value)
+	}
+	return arg.String()
 }
 
 // nopasswdSetup renders the one-time passwordless-sudo bootstrap: it uses the
