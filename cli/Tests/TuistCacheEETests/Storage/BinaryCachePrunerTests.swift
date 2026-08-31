@@ -152,6 +152,21 @@ struct BinaryCachePrunerTests {
         #expect(reclaimed > 0)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func pruneToBudget_neverRemovesAPreservedEntryEvenAsTheLeastRecentlyUsed() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1500000"
+        let binariesDirectory = try await seedEntries(count: 3, in: temporaryDirectory)
+
+        // hash2 is the least recently used, so the byte prune reaches it first.
+        try await subject(binariesDirectory: binariesDirectory).pruneToBudget(preserving: ["hash2"])
+
+        // Then: the build is already holding hash2, so it survives while the rest of the tail goes.
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash2")))
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash1"))))
+    }
+
     /// `count` ~1 MB entries, staggered so entry 0 is the most recently used.
     private func seedEntries(count: Int, in temporaryDirectory: AbsolutePath) async throws -> AbsolutePath {
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
