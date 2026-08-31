@@ -834,6 +834,11 @@
                         "value": [
                           {
                             "targetBlank": false,
+                            "title": "Open in Tuist Kura / Details",
+                            "url": "/d/defwpnth4r198gd/tuist-kura-details?var-env=${env}\u0026var-tenant=${__data.fields.Customer}\u0026var-pod=$__all\u0026${__url_time_range}"
+                          },
+                          {
+                            "targetBlank": false,
                             "title": "Open in Tuist Kura (customer)",
                             "url": "/d/tuist-kura/tuist-kura?var-cluster=tuist-${env}\u0026var-tenant=${__data.fields.Customer}\u0026var-region=${__data.fields.region}\u0026var-instance=All\u0026var-pod=All\u0026${__url_time_range}"
                           }
@@ -1026,22 +1031,10 @@
         "keepTime": true,
         "tags": [],
         "targetBlank": false,
-        "title": "Tuist Kura",
+        "title": "Tuist Kura / Details",
         "tooltip": "",
         "type": "link",
-        "url": "/d/tuist-kura/tuist-kura"
-      },
-      {
-        "asDropdown": false,
-        "icon": "dashboard",
-        "includeVars": true,
-        "keepTime": true,
-        "tags": [],
-        "targetBlank": false,
-        "title": "Tuist Kura / Pod",
-        "tooltip": "",
-        "type": "link",
-        "url": "/d/ddfsumc1ibvuo0e/tuist-kura-pod"
+        "url": "/d/defwpnth4r198gd/tuist-kura-details"
       }
     ],
     "liveNow": false,
