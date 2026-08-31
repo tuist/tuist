@@ -496,32 +496,30 @@ defmodule Tuist.Billing do
     subscription_items = enterprise_subscription_items(account)
     current_subscription = get_current_active_subscription(account)
 
-    stripe_sub =
+    stripe_sub_result =
       if is_nil(current_subscription) do
-        {:ok, sub} =
-          Stripe.Subscription.create(%{
-            customer: account.customer_id,
-            items: subscription_items,
-            collection_method: "send_invoice",
-            days_until_due: Map.get(params, :days_until_due, 30)
-          })
-
-        sub
+        Stripe.Subscription.create(%{
+          customer: account.customer_id,
+          items: subscription_items,
+          collection_method: "send_invoice",
+          days_until_due: Map.get(params, :days_until_due, 30)
+        })
       else
-        {:ok, current_stripe_sub} = Stripe.Subscription.retrieve(current_subscription.subscription_id)
-
-        {:ok, sub} =
-          Stripe.Subscription.update(current_subscription.subscription_id, %{
-            items: reconcile_subscription_items(current_stripe_sub, subscription_items),
-            collection_method: "send_invoice",
-            days_until_due: Map.get(params, :days_until_due, 30)
-          })
-
-        sub
+        with {:ok, current_stripe_sub} <- Stripe.Subscription.retrieve(current_subscription.subscription_id),
+             {:ok, sub} <-
+               Stripe.Subscription.update(current_subscription.subscription_id, %{
+                 items: reconcile_subscription_items(current_stripe_sub, subscription_items),
+                 collection_method: "send_invoice",
+                 days_until_due: Map.get(params, :days_until_due, 30)
+               }) do
+          {:ok, sub}
+        end
       end
 
-    on_subscription_change(stripe_sub)
-    {:ok, stripe_sub}
+    with {:ok, stripe_sub} <- stripe_sub_result do
+      on_subscription_change(stripe_sub)
+      {:ok, stripe_sub}
+    end
   end
 
   defp enterprise_subscription_items(account) do
