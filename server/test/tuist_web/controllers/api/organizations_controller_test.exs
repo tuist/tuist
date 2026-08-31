@@ -164,6 +164,26 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert Enum.find(response["members"], &(&1["id"] == viewer.id))["role"] == "viewer"
     end
 
+    test "does not return invitations to an organization member without invitation read access", %{conn: conn, user: user} do
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(member)
+        |> get(~p"/api/organizations/tuist-org")
+
+      assert json_response(conn, :ok)["invitations"] == []
+    end
+
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)

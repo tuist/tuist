@@ -567,8 +567,8 @@ func macosNodeWithGuests(name, fleetSelector string, guests int64) *corev1.Node 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				macosFleetLabel:  fleetSelector,
-				macosNodeOSLabel: macosNodeOSDarwin,
+				macosFleetLabel: fleetSelector,
+				nodeOSLabel:     macosNodeOSDarwin,
 			},
 		},
 		Status: corev1.NodeStatus{

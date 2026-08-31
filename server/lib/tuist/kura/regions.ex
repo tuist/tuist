@@ -172,6 +172,15 @@ defmodule Tuist.Kura.Regions do
   @enterprise_storage_claim "16Gi"
   @pro_storage_claim "8Gi"
   @air_storage_claim "8Gi"
+
+  # Which countries `accounts.region == :europe` accepts a datacenter in. The
+  # European Economic Area plus Switzerland and the United Kingdom, because
+  # that is the boundary the setting is answering for in a security review.
+  @european_countries ~w[
+    AT BE BG CH CY CZ DE DK EE ES FI FR GB GR HR HU IE IS IT LI LT LU LV MT NL
+    NO PL PT RO SE SI SK
+  ]
+
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -626,6 +635,47 @@ defmodule Tuist.Kura.Regions do
 
   def node_location(_region), do: nil
 
+  @doc """
+  Which residency group a region satisfies, derived from where its nodes are:
+  `:europe`, `:usa`, or `:other` for a region neither group admits.
+
+  `accounts.region` states where an account's artifacts may live, so this is
+  the predicate that turns that promise into a set of regions rather than a
+  single one. Two regions can satisfy the same promise — the United States
+  holds both of the American regions — and a customer who answered "United
+  States" for a security review said nothing about which coast.
+
+  Derived from `node_location/1` rather than listed, so a region added to the
+  catalog is admitted by the group its datacenter is actually in, and a region
+  that moves datacenter changes group when its location is corrected.
+  """
+  def residency_group(%__MODULE__{} = region) do
+    case node_location(region) do
+      %{country: "US"} -> :usa
+      %{country: country} when is_binary(country) -> if country in @european_countries, do: :europe, else: :other
+      _ -> :other
+    end
+  end
+
+  def residency_group(_region), do: :other
+
+  @doc """
+  Region ids whose datacenters satisfy `residency`. `:all` states no
+  constraint, so it admits every public region.
+
+  Read from the catalog rather than from what is currently served, because
+  this answers a compliance question: whether a region may hold the account's
+  data, not whether it is running today. Callers choosing where to place
+  something intersect this with `available/0`.
+  """
+  def admitted_by_residency(residency) do
+    all()
+    |> Enum.reject(&(private?(&1) or retired?(&1)))
+    |> Enum.filter(&(residency == :all or residency_group(&1) == residency))
+    |> Enum.map(& &1.id)
+    |> Enum.sort()
+  end
+
   @doc "True iff the region remains in the catalog only to clean up stored resources."
   def retired?(%__MODULE__{retired: retired}), do: retired
   def retired?(_), do: false
@@ -679,6 +729,25 @@ defmodule Tuist.Kura.Regions do
       host -> "https://#{host}:#{@peer_port}"
     end
   end
+
+  @doc """
+  The client-facing URL a managed instance for `handle` serves on in this
+  region, or `nil` for a region with no public host.
+
+  Deterministic for `(account, region)`, which is what lets a stored endpoint
+  row be attributed back to its region without carrying one.
+  """
+  def public_url(handle, %__MODULE__{provisioner_config: %{public_host_template: template, cluster_id: cluster_id}})
+      when is_binary(handle) do
+    host =
+      template
+      |> String.replace("{account_handle}", String.downcase(handle))
+      |> String.replace("{cluster_id}", cluster_id)
+
+    "https://" <> host
+  end
+
+  def public_url(_handle, _region), do: nil
 
   @doc """
   True iff this region's runner-cache nodes serve runner fleets of the

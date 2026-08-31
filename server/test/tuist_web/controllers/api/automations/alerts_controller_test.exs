@@ -37,13 +37,30 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
 
     test "lists alerts for a project", %{conn: conn, project: project} do
       a1 = AutomationsFixtures.automation_alert_fixture(project: project, name: "First")
-      a2 = AutomationsFixtures.automation_alert_fixture(project: project, name: "Second")
+
+      a2 =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          name: "Second",
+          trigger_actions: [
+            %{
+              "type" => "send_slack",
+              "channel" => "C123",
+              "message" => "Alert",
+              "webhook_url_encrypted" => "ciphertext"
+            }
+          ]
+        )
+
       _other = AutomationsFixtures.automation_alert_fixture()
 
       response = conn |> get(api_path(project)) |> json_response(:ok)
 
       ids = Enum.map(response["alerts"], & &1["id"])
       assert MapSet.new(ids) == MapSet.new([a1.id, a2.id])
+
+      second = Enum.find(response["alerts"], &(&1["id"] == a2.id))
+      refute get_in(second, ["trigger_actions", Access.at(0), "webhook_url_encrypted"])
     end
   end
 

@@ -76,6 +76,7 @@ var tuistBazelCommandDependencies: [Target.Dependency] = [
     "TuistHTTP",
     "TuistAlert",
     "TuistConfigLoader",
+    "TuistSupport",
 ]
 
 var tuistCacheCommandDependencies: [Target.Dependency] = [

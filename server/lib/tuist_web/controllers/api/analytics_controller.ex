@@ -4,6 +4,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Origins
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
@@ -20,6 +21,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -527,6 +529,15 @@ defmodule TuistWeb.API.AnalyticsController do
         test_run_id: test_run_id
       })
 
+    # Where the account's cache traffic comes from, counted once per run that
+    # used the cache. This is the unit placement thresholds are expressed in:
+    # endpoint resolutions are cached by the client for an hour and refreshed
+    # by an idle launch agent, so counting those would let both biases move
+    # servers.
+    if cache_run?(cache_metadata, body_params) do
+      Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
+    end
+
     xcode_graph = Map.get(body_params, :xcode_graph)
 
     if not is_nil(xcode_graph) do
@@ -572,6 +583,13 @@ defmodule TuistWeb.API.AnalyticsController do
       url: url,
       test_run_url: test_run_url
     })
+  end
+
+  # Cacheable targets or a resolved endpoint both put the cache in the run's
+  # path. A run with neither says nothing about where cache traffic wants to be
+  # served, so it does not vote.
+  defp cache_run?(cache_metadata, body_params) do
+    cache_metadata.cacheable_targets != [] or Map.get(body_params, :cache_endpoint, "") != ""
   end
 
   defp cache_metadata(params) do

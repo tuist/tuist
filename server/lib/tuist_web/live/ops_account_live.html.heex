@@ -69,6 +69,154 @@
         </:col>
       </.table>
     </.card_section>
+    <.card_section data-part="kura-placement-section">
+      <p data-part="kura-placement-description">
+        {dgettext(
+          "dashboard",
+          "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
+        )}
+      </p>
+      <.table
+        :if={@kura_placement_regions != []}
+        id="kura-placement-regions-table"
+        rows={@kura_placement_regions}
+      >
+        <:col :let={placement} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={placement.region} />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Role")}>
+          <.badge_cell
+            label={
+              case placement.role do
+                :primary -> dgettext("dashboard", "primary")
+                :secondary -> dgettext("dashboard", "secondary")
+              end
+            }
+            color={if placement.role == :primary, do: "success", else: "neutral"}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={
+              case placement.status do
+                :desired -> dgettext("dashboard", "serving")
+                :retiring -> dgettext("dashboard", "retiring")
+              end
+            }
+            color={if placement.status == :desired, do: "success", else: "attention"}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Since")}>
+          <.text_cell label={Timex.from_now(placement.updated_at)} />
+        </:col>
+      </.table>
+      <p :if={@kura_placement_regions == []} data-part="kura-placement-empty">
+        {dgettext(
+          "dashboard",
+          "Placement has recorded nothing for this account; it is served from wherever its instances already are."
+        )}
+      </p>
+      <.table :if={@kura_traffic_mix != []} id="kura-traffic-mix-table" rows={@kura_traffic_mix}>
+        <:col :let={origin} label={dgettext("dashboard", "Traffic from")}>
+          <.text_cell label={origin.origin} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Nearest region")}>
+          <.text_cell label={origin.region} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Runs")}>
+          <.text_cell label={Integer.to_string(origin.run_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
+          <.text_cell label={Integer.to_string(origin.demand_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
+          <.text_cell label={Timex.from_now(origin.last_seen_on)} />
+        </:col>
+      </.table>
+      <p :if={@kura_traffic_mix == []} data-part="kura-traffic-mix-empty">
+        {dgettext(
+          "dashboard",
+          "No cache traffic has been attributed to this account in the last two weeks."
+        )}
+      </p>
+    </.card_section>
+    <.card_section :if={@kura_placement_proposal}>
+      <p data-part="kura-placement-proposal-summary">
+        {case @kura_placement_proposal.kind do
+          :relocate ->
+            dgettext(
+              "dashboard",
+              "Placement proposes moving this account from %{from} to %{to}.",
+              from: @kura_placement_proposal.from_region,
+              to: @kura_placement_proposal.to_region
+            )
+
+          :expand ->
+            dgettext("dashboard", "Placement proposes also serving this account from %{to}.",
+              to: @kura_placement_proposal.to_region
+            )
+
+          :retire ->
+            dgettext("dashboard", "Placement proposes giving up %{from} for this account.",
+              from: @kura_placement_proposal.from_region
+            )
+        end}
+      </p>
+      <p data-part="kura-placement-proposal-evidence">
+        {placement_history_reason(@kura_placement_proposal)}
+      </p>
+      <div data-part="actions">
+        <.button
+          type="button"
+          variant="primary"
+          phx-click="apply_kura_placement_proposal"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Apply the proposed placement? A new region starts empty and warms from its peers; a region being left keeps serving until the account is up elsewhere, then drains."
+            )
+          }
+          label={dgettext("dashboard", "Apply proposal")}
+        />
+        <.button
+          type="button"
+          variant="secondary"
+          phx-click="dismiss_kura_placement_proposal"
+          label={dgettext("dashboard", "Dismiss")}
+        />
+      </div>
+    </.card_section>
+    <.card_section :if={@kura_placement_history != []} data-part="kura-placement-history-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard", "Placement decisions")}</span>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "View more")}
+          size="small"
+          navigate={~p"/ops/accounts/#{@account.id}/kura/placement"}
+        />
+      </div>
+      <.table id="kura-placement-history-table" rows={@kura_placement_history}>
+        <:col :let={decision} label={dgettext("dashboard", "When")}>
+          <.text_cell label={Timex.from_now(decision.inserted_at)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Change")}>
+          <.text_cell label={placement_history_change(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
+          <% {label, color} = claim_history_outcome(decision) %>
+          <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "By")}>
+          <.text_cell label={placement_history_actor(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Why")}>
+          <.text_cell label={placement_history_reason(decision)} />
+        </:col>
+      </.table>
+    </.card_section>
     <.card_section :if={@kura_claim_proposal}>
       <p data-part="kura-claim-proposal-summary">
         {case @kura_claim_proposal.direction do

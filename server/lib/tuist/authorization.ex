@@ -455,6 +455,9 @@ defmodule Tuist.Authorization do
 
   object :runners do
     action :read do
+      desc("Allows anyone to read runner state for a public account.")
+      allow(:public_account)
+
       desc("Allows users of an account to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, user_role: :user])
 
@@ -467,6 +470,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with account:runners:read scope to read runner state.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:read"])
     end
 
     # Attaching a shell or a VNC session to a running VM executes commands on

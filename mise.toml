@@ -14,7 +14,7 @@
     age = "1.2.1"
     protoc = "32.1"
     "1password-cli" = "2.32.0"
-    bats = "1.11.1"
+    bats = "1.12.0"
     rclone = "1.73.3"
     jq = "1.8.1"
     oras = "1.3.0"

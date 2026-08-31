@@ -70,6 +70,25 @@ service_id="$(ovh GET "/dedicated/server/${service}/serviceInfos" | grep -o '"se
 # displayName lives on the service resource; OVH's /service/{id} API takes it
 # nested under "resource", not flat (a flat {"displayName":...} 400s with
 # "Some properties does not exist: displayName").
-ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null
+#
+# The write is VERIFIED rather than assumed. OVH answers this PUT with HTTP 200
+# and a null body whether or not the rename applied, and it has been observed to
+# silently discard it when a task (the reinstall prep-ovh fires immediately
+# before this) is still pending on the server. A retry moments later applies
+# cleanly. Without the read-back the task printed a tick over a box that was
+# never marked, which is invisible until the fleet fails to adopt it hours later
+# and looks like a broken adoption filter. One production box reached the fleet
+# in exactly that state.
+for attempt in 1 2 3 4 5 6; do
+  ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null
+  observed="$(ovh GET "/service/${service_id}" | tr ',' '\n' | grep -o '"displayName":"[^"]*"' | head -1 | cut -d'"' -f4)"
+  if [ "$observed" = "$display_name" ]; then
+    echo "✓ OVH ${service} (service ${service_id}) displayName set to '${display_name}'"
+    exit 0
+  fi
+  echo "  displayName still '${observed:-<unset>}' after attempt ${attempt}; retrying" >&2
+  sleep 15
+done
 
-echo "✓ OVH ${service} (service ${service_id}) displayName set to '${display_name}'"
+echo "FAILED to set displayName on ${service} (service ${service_id}): still '${observed:-<unset>}' after 6 attempts. The fleet cannot adopt an unmarked box; re-run 'mise run baremetal:mark-ovh ${service} ${display_name}' once any pending task on the server has finished." >&2
+exit 1

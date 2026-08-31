@@ -385,6 +385,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
              "account:members:write",
              "account:registry:read",
              "account:registry:write",
+             "account:runners:read",
              "project:admin:read",
              "project:admin:write",
              "project:builds:read",

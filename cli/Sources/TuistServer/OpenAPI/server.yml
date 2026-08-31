@@ -635,6 +635,119 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRun
       x-validate:
+    RunnerJob:
+      properties:
+        claimed_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        completed_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        conclusion:
+          type: string
+          x-struct:
+          x-validate:
+        enqueued_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        head_branch:
+          type: string
+          x-struct:
+          x-validate:
+        head_sha:
+          type: string
+          x-struct:
+          x-validate:
+        job_name:
+          type: string
+          x-struct:
+          x-validate:
+        log_archived_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        platform:
+          type: string
+          x-struct:
+          x-validate:
+        repository:
+          type: string
+          x-struct:
+          x-validate:
+        requested_dispatch_label:
+          type: string
+          x-struct:
+          x-validate:
+        run_attempt:
+          type: integer
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_job_id:
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_name:
+          type: string
+          x-struct:
+          x-validate:
+        workflow_run_id:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - workflow_job_id
+        - repository
+        - workflow_run_id
+        - workflow_name
+        - run_attempt
+        - job_name
+        - head_branch
+        - head_sha
+        - status
+        - conclusion
+        - platform
+        - vcpus
+        - memory_gb
+        - requested_dispatch_label
+        - enqueued_at
+        - updated_at
+      title: RunnerJob
+      type: object
+      x-struct:
+      x-validate:
     AccountTokenCreated:
       description: A newly created account token.
       properties:
@@ -721,6 +834,95 @@ components:
       minimum: 1
       title: CacheRunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    ProjectNotificationAlert:
+      properties:
+        bundle_name:
+          type: string
+          x-struct:
+          x-validate:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        deviation_percentage:
+          type: number
+          x-struct:
+          x-validate:
+        environment:
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        metric:
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        rolling_window_size:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        scheme:
+          type: string
+          x-struct:
+          x-validate:
+        slack_channel_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        slack_channel_name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        webhook_configured:
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - category
+        - metric
+        - deviation_percentage
+        - rolling_window_size
+        - git_branch
+        - scheme
+        - bundle_name
+        - environment
+        - slack_channel_id
+        - slack_channel_name
+        - webhook_configured
+        - inserted_at
+        - updated_at
+      title: ProjectNotificationAlert
+      type: object
       x-struct:
       x-validate:
     BuildsIndexPageSize:
@@ -921,6 +1123,71 @@ components:
       minimum: 1
       title: TestTargetsPage
       type: integer
+      x-struct:
+      x-validate:
+    AutomationAlertRevision:
+      properties:
+        actor:
+          nullable: true
+          properties:
+            email:
+              type: string
+              x-struct:
+              x-validate:
+            id:
+              type: integer
+              x-struct:
+              x-validate:
+            name:
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - name
+            - email
+          type: object
+          x-struct:
+          x-validate:
+        changes:
+          type: object
+          x-struct:
+          x-validate:
+        event:
+          enum:
+            - created
+            - updated
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        snapshot:
+          type: object
+          x-struct:
+          x-validate:
+        source:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - event
+        - source
+        - actor
+        - changes
+        - snapshot
+        - inserted_at
+      title: AutomationAlertRevision
+      type: object
       x-struct:
       x-validate:
     TestCaseRunAttachmentParams:
@@ -1995,6 +2262,56 @@ components:
       type: integer
       x-struct:
       x-validate:
+    WebhookEndpoint:
+      properties:
+        event_types:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        signing_secret_last_four:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          format: uri
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - url
+        - event_types
+        - inserted_at
+        - updated_at
+      title: WebhookEndpoint
+      type: object
+      x-struct:
+      x-validate:
     CacheStatus:
       enum:
         - miss
@@ -2454,6 +2771,64 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    RunnerWorkflow:
+      properties:
+        avg_duration_ms:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        cancelled_count:
+          type: integer
+          x-struct:
+          x-validate:
+        failure_count:
+          type: integer
+          x-struct:
+          x-validate:
+        in_progress_count:
+          type: integer
+          x-struct:
+          x-validate:
+        last_run_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        repository:
+          type: string
+          x-struct:
+          x-validate:
+        skipped_count:
+          type: integer
+          x-struct:
+          x-validate:
+        success_count:
+          type: integer
+          x-struct:
+          x-validate:
+        total_jobs:
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - workflow_name
+        - repository
+        - total_jobs
+        - success_count
+        - failure_count
+        - cancelled_count
+        - skipped_count
+        - in_progress_count
+        - last_run_at
+      title: RunnerWorkflow
+      type: object
+      x-struct:
+      x-validate:
     TestRun:
       properties:
         build_run_id:
@@ -2891,6 +3266,30 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerJobLogLine:
+      properties:
+        line_number:
+          type: integer
+          x-struct:
+          x-validate:
+        message:
+          type: string
+          x-struct:
+          x-validate:
+        ts:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - line_number
+        - ts
+        - message
+      title: RunnerJobLogLine
+      type: object
+      x-struct:
+      x-validate:
     ProjectToken:
       description: A token to authenticate API requests as a project.
       properties:
@@ -3202,6 +3601,89 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
+      x-validate:
+    AccountToken:
+      properties:
+        all_projects:
+          description: Whether token has access to all projects.
+          type: boolean
+          x-struct:
+          x-validate:
+        expires_at:
+          description: When the token expires.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: Token unique identifier.
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          description: When the token was created.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Friendly name for the token.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        project_handles:
+          description: List of project handles the token can access when all_projects is false.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        scopes:
+          description: Token scopes.
+          items:
+            enum:
+              - ci
+              - mcp
+              - account:scim:write
+              - account:cache:read
+              - account:cache:write
+              - account:members:read
+              - account:members:write
+              - account:registry:read
+              - account:registry:write
+              - account:runners:read
+              - project:previews:read
+              - project:previews:write
+              - project:admin:read
+              - project:admin:write
+              - project:cache:read
+              - project:cache:write
+              - project:bundles:read
+              - project:bundles:write
+              - project:tests:read
+              - project:tests:write
+              - project:builds:read
+              - project:builds:write
+              - project:runs:read
+              - project:runs:write
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - scopes
+        - all_projects
+        - inserted_at
+      title: AccountToken
+      type: object
+      x-struct:
       x-validate:
     AutomationAlertAction:
       description: An action run when an automation alert triggers or recovers.
@@ -5033,7 +5515,7 @@ components:
                 x-struct:
                 x-validate:
               project_handles:
-                description: List of project handles the token can access (when all_projects is false).
+                description: List of project handles the token can access when all_projects is false.
                 items:
                   type: string
                   x-struct:
@@ -5054,6 +5536,7 @@ components:
                     - account:members:write
                     - account:registry:read
                     - account:registry:write
+                    - account:runners:read
                     - project:previews:read
                     - project:previews:write
                     - project:admin:read
@@ -5079,6 +5562,7 @@ components:
               - scopes
               - all_projects
               - inserted_at
+            title: AccountToken
             type: object
             x-struct:
             x-validate:
@@ -5153,6 +5637,58 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerJobMetric:
+      properties:
+        cpu_iowait_percent:
+          type: number
+          x-struct:
+          x-validate:
+        cpu_usage_percent:
+          type: number
+          x-struct:
+          x-validate:
+        disk_total_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        disk_used_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        memory_total_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        memory_used_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        network_bytes_in:
+          type: integer
+          x-struct:
+          x-validate:
+        network_bytes_out:
+          type: integer
+          x-struct:
+          x-validate:
+        timestamp:
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - timestamp
+        - cpu_usage_percent
+        - cpu_iowait_percent
+        - memory_used_bytes
+        - memory_total_bytes
+        - network_bytes_in
+        - network_bytes_out
+        - disk_used_bytes
+        - disk_total_bytes
+      title: RunnerJobMetric
+      type: object
+      x-struct:
+      x-validate:
     BuildMultipartUploadStartParams:
       description: Parameters to start a multipart upload for a build archive.
       properties:
@@ -5175,6 +5711,63 @@ components:
         - skipped
       title: TestCasesIndexState
       type: string
+      x-struct:
+      x-validate:
+    RunnerProfile:
+      properties:
+        id:
+          type: integer
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        platform:
+          enum:
+            - linux
+            - macos
+          type: string
+          x-struct:
+          x-validate:
+        protected:
+          type: boolean
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+        xcode_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - platform
+        - vcpus
+        - memory_gb
+        - protected
+        - inserted_at
+        - updated_at
+      title: RunnerProfile
+      type: object
       x-struct:
       x-validate:
     AbsentCacheArtifact:
@@ -5217,6 +5810,47 @@ components:
       minimum: 1
       title: ModuleCacheTargetsPageSize
       type: integer
+      x-struct:
+      x-validate:
+    RunnerJobStep:
+      properties:
+        completed_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        conclusion:
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        number:
+          type: integer
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - number
+        - name
+        - status
+        - conclusion
+        - started_at
+        - completed_at
+      title: RunnerJobStep
+      type: object
       x-struct:
       x-validate:
     BuildCacheTasksIndexPage:
@@ -5334,6 +5968,7 @@ components:
               - account:members:write
               - account:registry:read
               - account:registry:write
+              - account:runners:read
               - project:previews:read
               - project:previews:write
               - project:admin:read
@@ -6352,6 +6987,89 @@ components:
       title: RunParams
       x-struct:
       x-validate:
+    WebhookDeliveryAttempt:
+      properties:
+        attempt:
+          type: integer
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        error:
+          type: string
+          x-struct:
+          x-validate:
+        event_id:
+          type: string
+          x-struct:
+          x-validate:
+        event_type:
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        request_body:
+          type: string
+          x-struct:
+          x-validate:
+        request_headers:
+          type: string
+          x-struct:
+          x-validate:
+        response_body:
+          type: string
+          x-struct:
+          x-validate:
+        response_headers:
+          type: string
+          x-struct:
+          x-validate:
+        response_status:
+          type: integer
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - delivered
+            - failed
+          type: string
+          x-struct:
+          x-validate:
+        webhook_endpoint_id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - webhook_endpoint_id
+        - event_id
+        - event_type
+        - attempt
+        - status
+        - request_body
+        - request_headers
+        - response_status
+        - response_headers
+        - response_body
+        - error
+        - duration_ms
+        - inserted_at
+      title: WebhookDeliveryAttempt
+      type: object
+      x-struct:
+      x-validate:
     ProjectFullToken:
       description: A new project token.
       properties:
@@ -6875,6 +7593,181 @@ paths:
       summary: Get cache endpoints.
       tags:
         - Cache
+  /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}:
+    get:
+      callbacks: {}
+      operationId: getRunnerJob
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The workflow job identifier.
+          in: path
+          name: workflow_job_id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  claimed_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  completed_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  conclusion:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  enqueued_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  head_branch:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  head_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  job_name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log_archived_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  platform:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  repository:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  requested_dispatch_label:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  run_attempt:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workflow_job_id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workflow_name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  workflow_run_id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - workflow_job_id
+                  - repository
+                  - workflow_run_id
+                  - workflow_name
+                  - run_attempt
+                  - job_name
+                  - head_branch
+                  - head_sha
+                  - status
+                  - conclusion
+                  - platform
+                  - vcpus
+                  - memory_gb
+                  - requested_dispatch_label
+                  - enqueued_at
+                  - updated_at
+                title: RunnerJob
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner job
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runner job was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a runner job.
+      tags:
+        - Runners
   /api/cache:
     get:
       callbacks: {}
@@ -6971,6 +7864,131 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
+  /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics:
+    get:
+      callbacks: {}
+      operationId: listRunnerJobMetrics
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The workflow job identifier.
+          in: path
+          name: workflow_job_id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  metrics:
+                    items:
+                      properties:
+                        cpu_iowait_percent:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        cpu_usage_percent:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        disk_total_bytes:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        disk_used_bytes:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        memory_total_bytes:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        memory_used_bytes:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        network_bytes_in:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        network_bytes_out:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        timestamp:
+                          type: number
+                          x-struct:
+                          x-validate:
+                      required:
+                        - timestamp
+                        - cpu_usage_percent
+                        - cpu_iowait_percent
+                        - memory_used_bytes
+                        - memory_total_bytes
+                        - network_bytes_in
+                        - network_bytes_out
+                        - disk_used_bytes
+                        - disk_total_bytes
+                      title: RunnerJobMetric
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - metrics
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner job metrics
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runner job was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List machine metrics for a runner job.
+      tags:
+        - Runners
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}
@@ -7716,6 +8734,128 @@ paths:
       summary: Get the artifact tree for a bundle.
       tags:
         - Bundles
+  /api/accounts/{account_handle}/runners/profiles:
+    get:
+      callbacks: {}
+      operationId: listRunnerProfiles
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  profiles:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        platform:
+                          enum:
+                            - linux
+                            - macos
+                          type: string
+                          x-struct:
+                          x-validate:
+                        protected:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        xcode_version:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - platform
+                        - vcpus
+                        - memory_gb
+                        - protected
+                        - inserted_at
+                        - updated_at
+                      title: RunnerProfile
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - profiles
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner profiles
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List runner profiles for an account.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/tests:
     get:
       callbacks: {}
@@ -8677,6 +9817,161 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}/delivery-attempts/{delivery_attempt_id}:
+    get:
+      callbacks: {}
+      operationId: getWebhookDeliveryAttempt
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The webhook endpoint identifier.
+          in: path
+          name: webhook_endpoint_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: delivery_attempt_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  attempt:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  error:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  event_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  event_type:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  request_body:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  request_headers:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  response_body:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  response_headers:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  response_status:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - delivered
+                      - failed
+                    type: string
+                    x-struct:
+                    x-validate:
+                  webhook_endpoint_id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - webhook_endpoint_id
+                  - event_id
+                  - event_type
+                  - attempt
+                  - status
+                  - request_body
+                  - request_headers
+                  - response_status
+                  - response_headers
+                  - response_body
+                  - error
+                  - duration_ms
+                  - inserted_at
+                title: WebhookDeliveryAttempt
+                type: object
+                x-struct:
+                x-validate:
+          description: Webhook delivery attempt
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Webhook delivery attempt not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a webhook delivery attempt.
+      tags:
+        - Webhooks
   /api/projects/{account_handle}/{project_handle}/tokens/{id}:
     delete:
       callbacks: {}
@@ -9244,22 +10539,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
@@ -9268,12 +10547,28 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11869,6 +13164,207 @@ paths:
       summary: 'Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.'
       tags:
         - Runs
+  /api/accounts/{account_handle}/runners/workflows:
+    get:
+      callbacks: {}
+      operationId: listRunnerWorkflows
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Page number (default: 1).'
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: 'Results per page (default: 20, maximum: 100).'
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: repository
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workflow_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: head_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: platform
+          required: false
+          schema:
+            enum:
+              - linux
+              - macos
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            enum:
+              - workflow
+              - success_rate
+              - jobs
+              - avg_duration
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  workflows:
+                    items:
+                      properties:
+                        avg_duration_ms:
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        cancelled_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        failure_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        in_progress_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        last_run_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        repository:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        skipped_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        success_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        total_jobs:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workflow_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - workflow_name
+                        - repository
+                        - total_jobs
+                        - success_count
+                        - failure_count
+                        - cancelled_count
+                        - skipped_count
+                        - in_progress_count
+                        - last_run_at
+                      title: RunnerWorkflow
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - workflows
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner workflows
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List runner workflows for an account.
+      tags:
+        - Runners
   /api/cache/exists:
     get:
       callbacks: {}
@@ -12893,6 +14389,304 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/accounts/{account_handle}/runners/jobs:
+    get:
+      callbacks: {}
+      operationId: listRunnerJobs
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Page number (default: 1).'
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: 'Results per page (default: 20, maximum: 100).'
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - queued
+              - claimed
+              - running
+              - completed
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: conclusion
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+              - skipped
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: repository
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workflow_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: job_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: head_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: platform
+          required: false
+          schema:
+            enum:
+              - linux
+              - macos
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            enum:
+              - enqueued
+              - job
+              - workflow
+              - duration
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  jobs:
+                    items:
+                      properties:
+                        claimed_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        completed_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        conclusion:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        enqueued_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        head_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        head_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        job_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        log_archived_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        platform:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        repository:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        requested_dispatch_label:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        run_attempt:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workflow_job_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workflow_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        workflow_run_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - workflow_job_id
+                        - repository
+                        - workflow_run_id
+                        - workflow_name
+                        - run_attempt
+                        - job_name
+                        - head_branch
+                        - head_sha
+                        - status
+                        - conclusion
+                        - platform
+                        - vcpus
+                        - memory_gb
+                        - requested_dispatch_label
+                        - enqueued_at
+                        - updated_at
+                      title: RunnerJob
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - jobs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner jobs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List runner jobs for an account.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/cache-runs:
     get:
       callbacks: {}
@@ -13177,6 +14971,120 @@ paths:
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
+  /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/steps:
+    get:
+      callbacks: {}
+      operationId: listRunnerJobSteps
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The workflow job identifier.
+          in: path
+          name: workflow_job_id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  steps:
+                    items:
+                      properties:
+                        completed_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        conclusion:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        number:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - number
+                        - name
+                        - status
+                        - conclusion
+                        - started_at
+                        - completed_at
+                      title: RunnerJobStep
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - steps
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner job steps
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runner job was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the steps for a runner job.
+      tags:
+        - Runners
   /api/projects/{id}:
     delete:
       callbacks: {}
@@ -13886,7 +15794,7 @@ paths:
                           x-struct:
                           x-validate:
                         project_handles:
-                          description: List of project handles the token can access (when all_projects is false).
+                          description: List of project handles the token can access when all_projects is false.
                           items:
                             type: string
                             x-struct:
@@ -13907,6 +15815,7 @@ paths:
                               - account:members:write
                               - account:registry:read
                               - account:registry:write
+                              - account:runners:read
                               - project:previews:read
                               - project:previews:write
                               - project:admin:read
@@ -13932,6 +15841,7 @@ paths:
                         - scopes
                         - all_projects
                         - inserted_at
+                      title: AccountToken
                       type: object
                       x-struct:
                       x-validate:
@@ -14023,6 +15933,7 @@ paths:
                       - account:members:write
                       - account:registry:read
                       - account:registry:write
+                      - account:runners:read
                       - project:previews:read
                       - project:previews:write
                       - project:admin:read
@@ -16658,6 +18569,241 @@ paths:
       summary: Generate a signed URL for uploading a build archive part.
       tags:
         - Builds
+  /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}/delivery-attempts:
+    get:
+      callbacks: {}
+      operationId: listWebhookDeliveryAttempts
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The webhook endpoint identifier.
+          in: path
+          name: webhook_endpoint_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Results per page (default: 20, maximum: 100).'
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Cursor for the next page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cursor for the previous page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - delivered
+              - failed
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: event_type
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: event_id_search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  delivery_attempts:
+                    items:
+                      properties:
+                        attempt:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        error:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        event_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        event_type:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        request_body:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        request_headers:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        response_body:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        response_headers:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        response_status:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        status:
+                          enum:
+                            - delivered
+                            - failed
+                          type: string
+                          x-struct:
+                          x-validate:
+                        webhook_endpoint_id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - webhook_endpoint_id
+                        - event_id
+                        - event_type
+                        - attempt
+                        - status
+                        - request_body
+                        - request_headers
+                        - response_status
+                        - response_headers
+                        - response_body
+                        - error
+                        - duration_ms
+                        - inserted_at
+                      title: WebhookDeliveryAttempt
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - delivery_attempts
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: Webhook delivery attempts
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid cursor parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Webhook endpoint not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List delivery attempts for a webhook endpoint.
+      tags:
+        - Webhooks
   /api/organizations/{organization_name}/usage:
     get:
       callbacks: {}
@@ -17208,15 +19354,6 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
-        - description: The ID of the bundle.
-          in: path
-          name: bundle_id
-          required: true
-          schema:
-            format: uuid
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -17230,6 +19367,15 @@ paths:
           name: project_handle
           required: true
           schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
             type: string
             x-struct:
             x-validate:
@@ -17288,6 +19434,120 @@ paths:
       summary: Get a single bundle by ID
       tags:
         - Bundles
+  /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/logs:
+    get:
+      callbacks: {}
+      description: Returns log lines in display order. Page size defaults to 200 and is capped at 500.
+      operationId: listRunnerJobLogs
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The workflow job identifier.
+          in: path
+          name: workflow_job_id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Zero-based log-line offset.
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Maximum number of lines, up to 500.
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  lines:
+                    items:
+                      properties:
+                        line_number:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        message:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ts:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - line_number
+                        - ts
+                        - message
+                      title: RunnerJobLogLine
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - lines
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner job log lines
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runner job was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List captured log lines for a runner job.
+      tags:
+        - Runners
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -17627,6 +19887,271 @@ paths:
       summary: List events for a test case.
       tags:
         - Test Cases
+  /api/accounts/{account_handle}/webhooks:
+    get:
+      callbacks: {}
+      operationId: listWebhookEndpoints
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  endpoints:
+                    items:
+                      properties:
+                        event_types:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        signing_secret_last_four:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          format: uri
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - url
+                        - event_types
+                        - inserted_at
+                        - updated_at
+                      title: WebhookEndpoint
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoints
+                type: object
+                x-struct:
+                x-validate:
+          description: Webhook endpoints
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List webhook endpoints for an account.
+      tags:
+        - Webhooks
+  /api/projects/{account_handle}/{project_handle}/notification-alerts:
+    get:
+      callbacks: {}
+      operationId: listProjectNotificationAlerts
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  alert_rules:
+                    items:
+                      properties:
+                        bundle_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        category:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        deviation_percentage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        environment:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        metric:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        rolling_window_size:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        slack_channel_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        slack_channel_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        webhook_configured:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - category
+                        - metric
+                        - deviation_percentage
+                        - rolling_window_size
+                        - git_branch
+                        - scheme
+                        - bundle_name
+                        - environment
+                        - slack_channel_id
+                        - slack_channel_name
+                        - webhook_configured
+                        - inserted_at
+                        - updated_at
+                      title: ProjectNotificationAlert
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - alert_rules
+                type: object
+                x-struct:
+                x-validate:
+          description: Project notification alert rules
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List a project's notification alert rules.
+      tags:
+        - Project Notification Alerts
   /api/cache/multipart/start:
     post:
       callbacks: {}
@@ -20410,6 +22935,136 @@ paths:
       summary: List build issues for a given build.
       tags:
         - Builds
+  /api/accounts/{account_handle}/tokens/{token_id}:
+    get:
+      callbacks: {}
+      operationId: getAccountToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The token identifier.
+          in: path
+          name: token_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  all_projects:
+                    description: Whether token has access to all projects.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  expires_at:
+                    description: When the token expires.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: Token unique identifier.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    description: When the token was created.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: Friendly name for the token.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  project_handles:
+                    description: List of project handles the token can access when all_projects is false.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  scopes:
+                    description: Token scopes.
+                    items:
+                      enum:
+                        - ci
+                        - mcp
+                        - account:scim:write
+                        - account:cache:read
+                        - account:cache:write
+                        - account:members:read
+                        - account:members:write
+                        - account:registry:read
+                        - account:registry:write
+                        - account:runners:read
+                        - project:previews:read
+                        - project:previews:write
+                        - project:admin:read
+                        - project:admin:write
+                        - project:cache:read
+                        - project:cache:write
+                        - project:bundles:read
+                        - project:bundles:write
+                        - project:tests:read
+                        - project:tests:write
+                        - project:builds:read
+                        - project:builds:write
+                        - project:runs:read
+                        - project:runs:write
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - scopes
+                  - all_projects
+                  - inserted_at
+                title: AccountToken
+                type: object
+                x-struct:
+                x-validate:
+          description: An account token.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to get the token
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to get the token
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account token was not found
+      summary: Get an account token.
+      tags:
+        - Account tokens
   /api/organizations:
     get:
       callbacks: {}
@@ -21566,6 +24221,119 @@ paths:
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
+  /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}:
+    get:
+      callbacks: {}
+      operationId: getWebhookEndpoint
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: webhook_endpoint_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  event_types:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  signing_secret_last_four:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    format: uri
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - url
+                  - event_types
+                  - inserted_at
+                  - updated_at
+                title: WebhookEndpoint
+                type: object
+                x-struct:
+                x-validate:
+          description: Webhook endpoint
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Webhook endpoint not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a webhook endpoint.
+      tags:
+        - Webhooks
   /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
     post:
       callbacks: {}
@@ -21829,6 +24597,177 @@ paths:
       summary: List test module runs for a test run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/revisions:
+    get:
+      callbacks: {}
+      operationId: listAutomationAlertRevisions
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: before
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Results per page, up to 100.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  next_before:
+                    format: uuid
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  revisions:
+                    items:
+                      properties:
+                        actor:
+                          nullable: true
+                          properties:
+                            email:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            id:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            name:
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - id
+                            - name
+                            - email
+                          type: object
+                          x-struct:
+                          x-validate:
+                        changes:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        event:
+                          enum:
+                            - created
+                            - updated
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        snapshot:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        source:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - event
+                        - source
+                        - actor
+                        - changes
+                        - snapshot
+                        - inserted_at
+                      title: AutomationAlertRevision
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - revisions
+                  - next_before
+                type: object
+                x-struct:
+                x-validate:
+          description: Automation alert revisions
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List an automation alert's revision history.
+      tags:
+        - Automation Alerts
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}

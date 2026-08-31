@@ -93,6 +93,8 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.PlacerRegion
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -124,6 +126,7 @@ defmodule Tuist.Kura.Lifecycle do
   """
   def reconcile do
     each_region(&reconcile_region/1)
+    reconcile_placement_retirements()
   end
 
   @doc """
@@ -137,6 +140,30 @@ defmodule Tuist.Kura.Lifecycle do
   """
   def sweep do
     each_region(&sweep_region/1)
+  end
+
+  @doc """
+  Drains the instances placement has decided to retire, one account-region at
+  a time and never the last one an account has.
+
+  Not part of the per-region loop, because the safety condition is about the
+  account rather than the region: a region may only be drained once the
+  account is actually being served from somewhere else. That is what turns a
+  relocation into a move rather than an outage — the destination is
+  provisioned by the ordinary demand path, and the source leaves only after it
+  is up.
+
+  On the reconciler's cadence rather than the archival sweep's, because what
+  it is waiting for is the destination coming up, which happens on that same
+  cadence. On a daily one a relocation would sit finished-but-not-cleaned-up
+  for most of a day, holding a slot in a region it has already left.
+  """
+  def reconcile_placement_retirements do
+    @max_archival_transitions_per_pass
+    |> PlacerRegions.retiring()
+    |> Enum.each(&retire_placement/1)
+
+    :ok
   end
 
   defp each_region(fun) do
@@ -183,6 +210,96 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp sweep_region(%Regions{id: region_id} = region) do
     reconcile_drain_entries(region, Capacity.under_pressure?(region_id))
+  end
+
+  ## Placement retirements
+
+  defp retire_placement(%PlacerRegion{account: %Account{} = account, region: region_id} = placer_region) do
+    servers = live_servers(account.id)
+
+    cond do
+      # Nothing left to drain: the instance is already gone, so the row has
+      # done its job and the region is free to be chosen again on its merits.
+      is_nil(Enum.find(servers, &(&1.region == region_id))) ->
+        PlacerRegions.remove(account, region_id)
+
+      # Somewhere else has to be serving first. Until then the retiring
+      # instance is the account's cache, and taking it would be an outage
+      # rather than a move.
+      not Enum.any?(servers, &(&1.region != region_id and &1.status == :active)) ->
+        :ok
+
+      true ->
+        drain_retiring(account, Enum.find(servers, &(&1.region == region_id)), placer_region)
+    end
+  end
+
+  defp drain_retiring(account, %Server{status: :active} = server, _placer_region) do
+    # The drain resolution reaches an instance by joining its lifecycle row, so
+    # an account-region without one would go into drain-pending, lose its
+    # endpoint, and never be looked at again — holding its volume and its slot
+    # forever. A region can lack one: only the regions an account is *served*
+    # from get demand rows, and a region placement is leaving has already
+    # stopped being one of those.
+    ensure_lifecycle_row(account, server.region)
+
+    case Kura.begin_drain(server) do
+      {:ok, _server} ->
+        stamp_drain_started(account.id, server.region)
+        Telemetry.drain_pending(Billing.effective_plan(account), server.region, :placement_retirement)
+
+        Logger.info("[Kura.Lifecycle] draining account #{account.id} out of #{server.region} for a placement retirement")
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Lifecycle] could not drain account #{account.id} out of #{server.region}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  # Already draining or tearing down: the ordinary drain resolution carries it
+  # the rest of the way, and the row is removed once the instance is gone.
+  defp drain_retiring(_account, %Server{}, _placer_region), do: :ok
+
+  # Public regions only. A private runner-cache instance is in-cluster and
+  # never CLI-facing, so counting it as "somewhere else is serving" would
+  # drain the account's only developer-facing cache and leave every machine on
+  # the fallback lane until the destination came up.
+  defp live_servers(account_id) do
+    private_region_ids = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+
+    Repo.all(
+      from(s in Server,
+        where: s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none,
+        where: s.region not in ^private_region_ids
+      )
+    )
+  end
+
+  defp ensure_lifecycle_row(%Account{id: account_id}, region_id) do
+    case Demand.get(account_id, region_id) do
+      nil -> Demand.upsert(account_id, region_id, now())
+      %AccountRegionLifecycle{} -> {:ok, 0}
+    end
+  end
+
+  defp stamp_drain_started(account_id, region_id) do
+    case Demand.get(account_id, region_id) do
+      nil ->
+        :ok
+
+      lifecycle ->
+        {:ok, _lifecycle} =
+          lifecycle
+          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now()})
+          |> Repo.update()
+
+        :ok
+    end
   end
 
   ## Provisioning
@@ -295,17 +412,16 @@ defmodule Tuist.Kura.Lifecycle do
   # an instance that does not fit and the KuraInstance stays Pending, which is
   # exact per node in a way a forecast computed here never was.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
-    # The lifecycle row records where demand *was* served; the policy decides
-    # where it belongs *now*. They diverge when an account changes plan or
-    # storage region while it has no instance — a downgrade to Open Source, or
-    # a reassignment away from this region — and provisioning from the stored
-    # row would resurrect the account in a region it no longer belongs to.
-    case AccountPolicies.resolve(account) do
-      {:ok, %{plan: plan, service_region: ^region_id}} ->
-        do_provision(lifecycle, account, plan, region_id, image_tag)
-
-      _other ->
-        :ok
+    # The lifecycle row records where demand *was* served; placement decides
+    # where the account belongs *now*. They diverge when an account changes
+    # plan or storage region while it has no instance — a downgrade to Open
+    # Source, a reassignment away from this region, a relocation that has
+    # already flipped — and provisioning from the stored row would resurrect
+    # the account in a region it no longer belongs to.
+    if region_id in AccountPolicies.serving_regions(account) do
+      do_provision(lifecycle, account, Billing.effective_plan(account), region_id, image_tag)
+    else
+      :ok
     end
   end
 
@@ -509,12 +625,26 @@ defmodule Tuist.Kura.Lifecycle do
   # Drain-pending instances that have not had teardown issued yet: either
   # demand came back (cancel) or the drain window elapsed (issue teardown).
   defp reconcile_drain_pending(%Regions{id: region_id}) do
-    drain_cutoff = DateTime.add(now(), -Kura.drain_seconds(), :second)
+    cutoffs = %{
+      inactivity: DateTime.add(now(), -Kura.drain_seconds(), :second),
+      placement: DateTime.add(now(), -Kura.placement_drain_seconds(), :second)
+    }
 
-    region_id
-    |> draining_instances()
-    |> Enum.take(@max_archival_transitions_per_pass)
-    |> Enum.each(&resolve_drain(&1, drain_cutoff))
+    draining = region_id |> draining_instances() |> Enum.take(@max_archival_transitions_per_pass)
+    retiring = placement_retirements(region_id, Enum.map(draining, fn {server, _lifecycle} -> server.account_id end))
+
+    Enum.each(draining, &resolve_drain(&1, cutoffs, retiring))
+  end
+
+  # Accounts whose instance in this region is draining because placement
+  # decided to leave it, rather than because the region went quiet.
+  defp placement_retirements(region_id, account_ids) do
+    PlacerRegion
+    |> where([placer], placer.region == ^region_id and placer.status == :retiring)
+    |> where([placer], placer.account_id in ^account_ids)
+    |> select([placer], placer.account_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   defp draining_instances(region_id) do
@@ -532,7 +662,30 @@ defmodule Tuist.Kura.Lifecycle do
     )
   end
 
-  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, drain_cutoff) do
+  # Two drains reach here with different owners. The inactivity rules get no
+  # say in one they did not start: their cancels both answer "has this account
+  # gone quiet?", and placement left a region for a different reason — its
+  # traffic no longer earns a slot there, which is a judgement about one region
+  # rather than about the account. Enterprise is where the difference bites,
+  # because it is never archived for inactivity and would otherwise cancel
+  # every retirement it was given on the next tick.
+  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, cutoffs, retiring) do
+    if MapSet.member?(retiring, server.account_id) do
+      resolve_placement_retirement(server, lifecycle, cutoffs.placement)
+    else
+      resolve_inactivity_drain(server, lifecycle, cutoffs.inactivity)
+    end
+  end
+
+  defp resolve_placement_retirement(server, lifecycle, drain_cutoff) do
+    cond do
+      is_nil(lifecycle.drain_started_at) -> start_drain_clock(lifecycle)
+      drain_window_elapsed?(lifecycle, drain_cutoff) -> start_teardown(server, lifecycle)
+      true -> :ok
+    end
+  end
+
+  defp resolve_inactivity_drain(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, drain_cutoff) do
     plan = Billing.effective_plan(server.account)
 
     cond do

@@ -121,6 +121,13 @@ server:
       # us-east. Only Air moves: a paid account restricted to Europe or the
       # USA chose that, and no deployment setting may relocate it.
       value: ca-east
+    - name: TUIST_KURA_AIR_REGIONS
+      # Both public regions carry an Air budget here, which is what makes
+      # traffic-driven placement observable at all: with one funded region
+      # every Air account resolves to it whatever its traffic says. Production
+      # funds Air in one region and omits this, so the single-region variable
+      # above still decides there.
+      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against
@@ -580,6 +587,60 @@ ovhFleet:
     enabled: true
     item: OVH_FLEET_SSH
 
+# Additional OVH fleets (ovh-fleets.yaml), sharing this env's OVH_API +
+# OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
+# fleet.
+ovhFleets:
+  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
+  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
+  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
+  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
+  # does not need production throughput, it needs to exercise the production
+  # integration.
+  #
+  # The one thing this shape cannot rehearse is the private link: RISE-S has no
+  # vRack option, where RISE-L carries 1 Gbit/s.
+  runners-linux:
+    enabled: true
+    # MUST equal the number of boxes prepped and marked for this env. Too high
+    # parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing with nothing
+    # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
+    # then this number.
+    replicas: 1
+    # The OVHcloud entity holding the account, not the box's geography: the RISE
+    # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
+    # fleet must share one value, because the reconciler resolves a single
+    # OVH_ENDPOINT for all of them.
+    endpoint: ovh-us
+    # The pool the Linux Runner Profiles select on.
+    nodePool: runners-linux
+    machine:
+      adoptDisplayNamePrefix: tuist-runners-ovh-staging
+      # Case-insensitive substring of the box's commercialRange, which the
+      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
+      # matches without depending on how the CPU suffix is spelled on the server
+      # object. A value matching nothing adopts nothing, silently.
+      offer: rise-s
+      # Prefix-matched, so any gra* datacenter.
+      datacenter: gra
+      os: ubuntu_24.04
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. This makes the self-join
+      # install kata and apply that label. Without it the box joins Ready and
+      # every runner Pod stays unschedulable.
+      kataRuntime: true
+      # Runner Pods tolerate this taint; nothing else does.
+      nodeTaints:
+        - key: tuist.dev/runner-tier
+          value: bare-metal
+          effect: NoSchedule
+      # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
+      # pod bin-packing, and no cache pod runs here.
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
@@ -855,7 +916,9 @@ runnersFleetLinux:
   # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
-  # renders the pools; the server validates + addresses them).
+  # renders the pools; the server validates + addresses them) — minus
+  # the 64 GB ceiling shape, which needs production's AX162-R hosts and
+  # would render a pool no 64 GB AX42-U can ever place a Pod on.
   # Resolved at deploy time from the latest `linux-runner-image@` git tag
   # (server-deployment.yml passes `tuist-linux-runner:<version>` via --set).
   shapeRunnerImage: ""
