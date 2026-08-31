@@ -22057,7 +22057,42 @@
             "text": "All",
             "value": "$__all"
           },
-          "definition": "label_values(kura_node_info{cluster=~\"tuist-$env\"}, pod)",
+          "definition": "label_values(kura_node_info{cluster=~\"tuist-$env\"}, tenant_id)",
+          "hide": "dontHide",
+          "includeAll": true,
+          "label": "Customer",
+          "multi": true,
+          "name": "tenant",
+          "options": [],
+          "query": {
+            "datasource": {
+              "name": "$datasource"
+            },
+            "group": "prometheus",
+            "kind": "DataQuery",
+            "spec": {
+              "qryType": 1,
+              "query": "label_values(kura_node_info{cluster=~\"tuist-$env\"}, tenant_id)",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+            },
+            "version": "v0"
+          },
+          "refresh": "onTimeRangeChanged",
+          "regex": "",
+          "regexApplyTo": "value",
+          "skipUrlSync": false,
+          "sort": "alphabeticalAsc"
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "definition": "label_values(kura_node_info{cluster=~\"tuist-$env\", tenant_id=~\"$tenant\"}, pod)",
           "hide": "dontHide",
           "includeAll": true,
           "label": "Pod",
@@ -22072,7 +22107,7 @@
             "kind": "DataQuery",
             "spec": {
               "qryType": 1,
-              "query": "label_values(kura_node_info{cluster=~\"tuist-$env\"}, pod)",
+              "query": "label_values(kura_node_info{cluster=~\"tuist-$env\", tenant_id=~\"$tenant\"}, pod)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "version": "v0"
