@@ -3,9 +3,11 @@
 package podagent
 
 import (
+	"crypto/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -232,5 +234,164 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 
 	if host != guest {
 		t.Fatalf("host/guest digest divergence:\n  host  = %q\n  guest = %q", host, guest)
+	}
+}
+
+// shellFunc returns a top-level `name() {` … `}` definition from a shell script.
+func shellFunc(src, name string) (string, bool) {
+	lines := strings.Split(src, "\n")
+	for i, line := range lines {
+		if line != name+"() {" {
+			continue
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if lines[j] == "}" {
+				return strings.Join(lines[i:j+1], "\n"), true
+			}
+		}
+	}
+	return "", false
+}
+
+// guestSampleCacheUsage runs dispatch-poll.sh's sample_cache_usage against a
+// fixture mount. The function is EXTRACTED from the shipping script rather than
+// mirrored here, so the guest's real `du` walk is what gets asserted.
+func guestSampleCacheUsage(t *testing.T, mount, statusDir string) {
+	t.Helper()
+	const script = "../../../runner-image/dispatch-poll.sh"
+	src, err := os.ReadFile(script)
+	if err != nil {
+		t.Fatalf("read %s: %v", script, err)
+	}
+	body, ok := shellFunc(string(src), "sample_cache_usage")
+	if !ok {
+		t.Fatalf("sample_cache_usage not found in %s", script)
+	}
+	prog := "set -u\n" +
+		"CACHE_MOUNT=\"$1\"\n" +
+		"STATUS_SHARE=\"$2\"\n" +
+		"CAS_STORE_DIR=\"" + casStoreDir + "\"\n" +
+		body + "\nsample_cache_usage\n"
+	out, err := exec.Command("bash", "-c", prog, "sample_cache_usage", mount, statusDir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run sample_cache_usage: %v\n%s", err, out)
+	}
+}
+
+// seedIncompressible writes n KiB that APFS cannot compress away, so `du`
+// reports the size the test intends rather than zero.
+func seedIncompressible(t *testing.T, path string, kib int) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, kib*1024)
+	if _, err := rand.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, buf, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// readSubtreeReport parses the guest's `<name>\t<KiB>` report off the status share.
+func readSubtreeReport(t *testing.T, statusDir string) map[string]int {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(statusDir, "cache-subtree-kib"))
+	if err != nil {
+		t.Fatalf("read report: %v", err)
+	}
+	got := map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if line == "" {
+			continue
+		}
+		name, kib, ok := strings.Cut(line, "\t")
+		if !ok {
+			t.Fatalf("malformed report line %q", line)
+		}
+		n, err := strconv.Atoi(kib)
+		if err != nil {
+			t.Fatalf("non-numeric KiB in %q", line)
+		}
+		got[name] = n
+	}
+	return got
+}
+
+// The whole-mount fill % says the image is full; this report says what filled it.
+// One line per cache category plus the folded CAS store, and nothing else: the
+// cache root's own total and loose files under it are not subtrees and would
+// double-count against the categories if reported.
+func TestGuestSampleCacheUsageReportsPerSubtreeKiB(t *testing.T) {
+	mount := t.TempDir()
+	statusDir := t.TempDir()
+
+	root := filepath.Join(mount, cacheHomeSubdir)
+	seedIncompressible(t, filepath.Join(root, "Binaries", "hashA", "slice.a"), 3000)
+	seedIncompressible(t, filepath.Join(root, "Runs", "run-1", "graph.json"), 500)
+	seedIncompressible(t, filepath.Join(mount, casStoreDir, "v1", "data"), 8000)
+	if err := os.MkdirAll(filepath.Join(root, "Manifests"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seedIncompressible(t, filepath.Join(root, "loose"), 64)
+
+	guestSampleCacheUsage(t, mount, statusDir)
+	got := readSubtreeReport(t, statusDir)
+
+	for name, want := range map[string]int{"Binaries": 3000, "Runs": 500, "cas": 8000} {
+		if got[name] < want || got[name] > want+64 {
+			t.Errorf("%s = %d KiB, want ~%d", name, got[name], want)
+		}
+	}
+	if _, ok := got["Manifests"]; !ok {
+		t.Error("an existing but empty category must still be reported")
+	}
+	for _, name := range []string{cacheHomeSubdir, "loose"} {
+		if _, ok := got[name]; ok {
+			t.Errorf("%q reported as a subtree; it overlaps or is not a directory", name)
+		}
+	}
+}
+
+// The guest writes the report and the host parses it, and neither half is worth
+// anything if they disagree about the format. This runs the real `du` pipeline
+// out of dispatch-poll.sh and feeds its output straight into the host reader, so
+// a format drift fails here instead of silently emptying the metric in
+// production.
+func TestGuestSampleCacheUsageParsesOnTheHost(t *testing.T) {
+	mount := t.TempDir()
+	statusDir := t.TempDir()
+
+	root := filepath.Join(mount, cacheHomeSubdir)
+	seedIncompressible(t, filepath.Join(root, "Binaries", "hashA", "slice.a"), 3000)
+	seedIncompressible(t, filepath.Join(root, "Runs", "run-1", "graph.json"), 500)
+	seedIncompressible(t, filepath.Join(mount, casStoreDir, "v1", "data"), 8000)
+
+	guestSampleCacheUsage(t, mount, statusDir)
+
+	usage := readSubtreeUsage(statusDir)
+	if usage == nil {
+		t.Fatal("host read no usage from a report the guest just wrote")
+	}
+	for label, want := range map[string]uint64{"binaries": 3000, "runs": 500, "cas": 8000} {
+		got := usage[label] >> 10
+		if got < want || got > want+64 {
+			t.Errorf("%s = %d KiB, want ~%d", label, got, want)
+		}
+	}
+	if _, ok := usage[subtreeOther]; ok {
+		t.Errorf("host folded a known category into %q: %v", subtreeOther, usage)
+	}
+}
+
+// A cold cache has no tree to walk and no CAS store. The guest must leave a
+// report the host reads as "nothing measured" rather than one claiming zeros.
+func TestGuestSampleCacheUsageOnEmptyMount(t *testing.T) {
+	statusDir := t.TempDir()
+	guestSampleCacheUsage(t, t.TempDir(), statusDir)
+
+	if got := readSubtreeReport(t, statusDir); len(got) != 0 {
+		t.Fatalf("report over an empty mount = %v, want no lines", got)
 	}
 }

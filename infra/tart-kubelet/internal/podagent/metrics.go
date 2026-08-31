@@ -295,6 +295,41 @@ var cacheVolumeFillPercent = prometheus.NewHistogram(
 	},
 )
 
+// cacheVolumeSubtreeBytes is the post-job size of ONE subtree of the cache image
+// (a CLI cache category, or the folded CAS), sampled at teardown. It is what
+// cacheVolumeFillPercent cannot say: which subtree filled the image. Bucket
+// boundaries sit on the budgets cacheImageSplit hands out for a 20 GiB image
+// (2 GiB reserve, 7 GiB binary cache, 11 GiB CAS) and on the cap itself, so a
+// pruner overshooting its budget reads straight off the buckets.
+var cacheVolumeSubtreeBytes = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name: "tart_kubelet_cache_volume_subtree_bytes",
+		Help: "Post-job bytes of one cache image subtree (a CLI cache category, or the folded CAS store).",
+		Buckets: []float64{
+			4 << 20, 16 << 20, 64 << 20, 256 << 20,
+			1 << 30, 2 << 30, 4 << 30, 7 << 30, 9 << 30, 11 << 30, 13 << 30, 16 << 30, 20 << 30,
+		},
+	},
+	[]string{"subtree"},
+)
+
+// cacheVolumeUnbudgetedBytes is the post-job total of every subtree no pruner
+// bounds: the cache image's whole content except the binary cache and the CAS.
+// cacheImageSplit hands those two their budgets and leaves this total to fit in
+// the reserve, unmeasured and unenforced, so the fraction of observations above
+// the 2 GiB boundary is how often that assumption fails. Buckets are dense
+// around the reserve.
+var cacheVolumeUnbudgetedBytes = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "tart_kubelet_cache_volume_unbudgeted_bytes",
+		Help: "Post-job bytes of the cache image subtrees no pruner bounds; observations above the reserve are what it fails to absorb.",
+		Buckets: []float64{
+			64 << 20, 128 << 20, 256 << 20, 512 << 20, 768 << 20,
+			1 << 30, 1536 << 20, 2 << 30, 3 << 30, 4 << 30, 6 << 30, 8 << 30,
+		},
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -314,6 +349,8 @@ func init() {
 		cacheVolumeAdmissionDeclinedTotal,
 		cacheVolumeUploadSeconds,
 		cacheVolumeFillPercent,
+		cacheVolumeSubtreeBytes,
+		cacheVolumeUnbudgetedBytes,
 	)
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
@@ -323,6 +360,15 @@ func init() {
 	// renders "No data" during healthy, zero-rejection periods instead of 0%.
 	for _, result := range []string{"accepted", "rejected", "error"} {
 		cacheVolumePromoteTotal.WithLabelValues(result)
+	}
+
+	// Same for the subtree histogram, over every label cacheSubtreeLabels names.
+	// Without it a subtree that never appears is indistinguishable from one that
+	// was never measured, and a host that has torn down no job yet exports no
+	// family at all. subtreeOther stays lazy: a permanently-zero series for a
+	// category that does not exist is noise.
+	for _, subtree := range cacheSubtreeLabels {
+		cacheVolumeSubtreeBytes.WithLabelValues(subtree)
 	}
 }
 
@@ -341,6 +387,17 @@ func RecordVolumeFill(pct int) {
 		return
 	}
 	cacheVolumeFillPercent.Observe(float64(pct))
+}
+
+// RecordVolumeSubtree records one cache image subtree's post-job size.
+func RecordVolumeSubtree(subtree string, bytes uint64) {
+	cacheVolumeSubtreeBytes.WithLabelValues(subtree).Observe(float64(bytes))
+}
+
+// RecordVolumeUnbudgeted records the post-job total of the cache image subtrees
+// no pruner bounds.
+func RecordVolumeUnbudgeted(bytes uint64) {
+	cacheVolumeUnbudgetedBytes.Observe(float64(bytes))
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache

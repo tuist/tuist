@@ -799,6 +799,28 @@ sample_cache_fill() {
   [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
 }
 
+# sample_cache_usage records the image's post-job size PER SUBTREE into
+# `cache-subtree-kib`: one `<name><TAB><KiB>` line per directory under the cache
+# root, plus `cas` for the folded CAS store. Must run while the image is still
+# MOUNTED. `du` reports allocated blocks, the quantity `df` takes its percentage
+# of, so these lines and the fill % measure the same thing.
+#
+# `-d 1` covers every category in one pass of the cache root, so a category the
+# CLI adds later is reported without a change here; ~20k files walk in ~50ms.
+# The root's own `du` line is dropped: it is the sum of the lines beside it, not
+# a subtree.
+sample_cache_usage() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local root="${CACHE_MOUNT}/tuist"
+  {
+    du -k -d 1 "${root}" 2>/dev/null \
+      | awk -F'\t' -v root="${root}" '$2 != root { name = $2; sub(/.*\//, "", name); print name "\t" $1 }'
+    du -k -d 0 "${CACHE_MOUNT}/${CAS_STORE_DIR}" 2>/dev/null \
+      | awk -F'\t' '{ print "cas\t" $1 }'
+  } > "${STATUS_SHARE}/cache-subtree-kib" 2>/dev/null || true
+}
+
 # Where the detached image is re-attached to be measured. Deliberately not
 # CACHE_MOUNTPOINT: that one is the job's read-write mount, and reusing it would
 # make a leaked read-only attach indistinguishable from a live cache.
@@ -1352,8 +1374,8 @@ HOOK
       #      still read it. The image carries the associations those uploads
       #      exist to back, so promoting ahead of them hands every host that
       #      clones this master keys naming objects nothing can produce;
-      #   1. sample the signals that need a live mount (fill %), but withhold the
-      #      promotion-authorizing dirty marker;
+      #   1. sample the signals that need a live mount (fill %, per-subtree
+      #      bytes), but withhold the promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
       #      snapshot — the host clones this file to promote it and cannot tell
       #      the two apart, so letting the VM halt tear the mount down would
@@ -1375,6 +1397,7 @@ HOOK
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       sample_cache_fill
+      sample_cache_usage
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then

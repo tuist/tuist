@@ -529,6 +529,95 @@ func readFillPercent(statusDir string) int {
 	return pct
 }
 
+// subtreeUsageFile carries the cache image's post-job size PER SUBTREE, sampled
+// by the guest while still mounted: one `<name>\tKiB` line per directory under
+// the cache root, plus `cas` for the folded CAS store. fillPercentFile says the
+// image is full; this says which subtree filled it.
+const subtreeUsageFile = "cache-subtree-kib"
+
+// cacheSubtreeLabels maps the guest's on-disk directory names onto the metric's
+// subtree label. The names are read off a mount the guest owns, so this doubles
+// as the allowlist that keeps a stray directory from minting a series; anything
+// unrecognised folds into subtreeOther. The nine directories are the CLI's
+// CacheCategory set; `cas` is the guest's own name for the folded store.
+var cacheSubtreeLabels = map[string]string{
+	"Binaries":                  "binaries",
+	"Manifests":                 "manifests",
+	"ProjectDescriptionHelpers": "project_description_helpers",
+	"Plugins":                   "plugins",
+	"Projects":                  "projects",
+	"Runs":                      "runs",
+	"SelectiveTests":            "selective_tests",
+	"GenerationMetadata":        "generation_metadata",
+	"EditProjects":              "edit_projects",
+	"cas":                       "cas",
+}
+
+// subtreeOther collects a directory under the cache root that cacheSubtreeLabels
+// does not name, such as a CLI cache category added since this map was written.
+// It shows up in the unbudgeted total rather than going unmeasured.
+const subtreeOther = "other"
+
+// budgetedSubtrees are the subtrees a pruner already bounds: the binary cache to
+// TUIST_CACHE_MAX_BYTES and the CAS to COMPILATION_CACHE_LIMIT_SIZE, the two
+// halves of cacheImageSplit. Everything else shares the image's reserve with no
+// budget of its own, which is what cacheVolumeUnbudgetedBytes totals.
+var budgetedSubtrees = map[string]bool{"binaries": true, "cas": true}
+
+// subtreeKiBMax bounds a single reported subtree. The status share is writable
+// by a guest running customer CI, so an unbounded value would let one job's
+// report poison the histogram's _sum for the whole fleet. 1 TiB is orders of
+// magnitude above any cache image the fleet provisions.
+const subtreeKiBMax = 1 << 30
+
+// readSubtreeUsage returns the guest's per-subtree report in bytes, keyed by
+// metric label, or nil when the guest measured nothing. A malformed line is
+// dropped rather than failing the whole report: partial attribution beats none.
+func readSubtreeUsage(statusDir string) map[string]uint64 {
+	b, ok := readGuestFile(statusDir, subtreeUsageFile, guestMarkerMaxBytes)
+	if !ok {
+		return nil
+	}
+	usage := map[string]uint64{}
+	for _, line := range strings.Split(string(b), "\n") {
+		name, kib, found := strings.Cut(strings.TrimSpace(line), "\t")
+		if !found {
+			continue
+		}
+		n, err := strconv.ParseUint(strings.TrimSpace(kib), 10, 64)
+		if err != nil || n > subtreeKiBMax {
+			continue
+		}
+		label, known := cacheSubtreeLabels[name]
+		if !known {
+			label = subtreeOther
+		}
+		usage[label] += n << 10
+	}
+	if len(usage) == 0 {
+		return nil
+	}
+	return usage
+}
+
+// recordSubtreeUsage publishes the guest's attribution: one observation per
+// subtree, plus the total of everything no pruner bounds, which is the quantity
+// the image's reserve has to absorb.
+func recordSubtreeUsage(statusDir string) {
+	usage := readSubtreeUsage(statusDir)
+	if usage == nil {
+		return
+	}
+	var unbudgeted uint64
+	for label, bytes := range usage {
+		RecordVolumeSubtree(label, bytes)
+		if !budgetedSubtrees[label] {
+			unbudgeted += bytes
+		}
+	}
+	RecordVolumeUnbudgeted(unbudgeted)
+}
+
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
 // staged by the host at materialize. The guest sends it as the fast-forward base
 // at promote so the server accepts the bump only if HEAD is still at it.
@@ -884,6 +973,9 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
 	}
+	// Attribute that fill to the subtrees that produced it: which of the two
+	// budgeted pruners overshot, or how much the unbudgeted categories took.
+	recordSubtreeUsage(entry.VolumeStatusDir)
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run

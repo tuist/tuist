@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
@@ -1468,5 +1469,146 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	}
 	if len(labels) != 1 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
+	}
+}
+
+// subtreeSample returns one subtree series' observation count and byte sum,
+// which is what tart_kubelet_cache_volume_subtree_bytes_{count,sum} expose.
+func subtreeSample(t *testing.T, subtree string) (uint64, float64) {
+	t.Helper()
+	var m dto.Metric
+	if err := cacheVolumeSubtreeBytes.WithLabelValues(subtree).(prometheus.Metric).Write(&m); err != nil {
+		t.Fatalf("collect subtree histogram: %v", err)
+	}
+	return m.GetHistogram().GetSampleCount(), m.GetHistogram().GetSampleSum()
+}
+
+// unbudgetedSample returns the unbudgeted-total histogram's count and byte sum.
+func unbudgetedSample(t *testing.T) (uint64, float64) {
+	t.Helper()
+	var m dto.Metric
+	if err := cacheVolumeUnbudgetedBytes.Write(&m); err != nil {
+		t.Fatalf("collect unbudgeted histogram: %v", err)
+	}
+	return m.GetHistogram().GetSampleCount(), m.GetHistogram().GetSampleSum()
+}
+
+func TestReadSubtreeUsage(t *testing.T) {
+	const kib = uint64(1024)
+
+	t.Run("maps the guest's directory names and converts KiB to bytes", func(t *testing.T) {
+		dir := t.TempDir()
+		report := "Binaries\t3000\nProjectDescriptionHelpers\t12\nGenerationMetadata\t0\ncas\t8000\n"
+		if err := os.WriteFile(filepath.Join(dir, subtreeUsageFile), []byte(report), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]uint64{
+			"binaries":                    3000 * kib,
+			"project_description_helpers": 12 * kib,
+			"generation_metadata":         0,
+			"cas":                         8000 * kib,
+		}
+		if got := readSubtreeUsage(dir); !reflect.DeepEqual(got, want) {
+			t.Fatalf("usage = %v; want %v", got, want)
+		}
+	})
+
+	// A category the CLI adds after this map was written must land somewhere it
+	// will be noticed, and in particular must land in the unbudgeted total:
+	// dropping it would quietly understate exactly the quantity being sized.
+	t.Run("folds an unrecognised directory into other", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, subtreeUsageFile), []byte("NewCategory\t10\nAnother\t5\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]uint64{subtreeOther: 15 * kib}
+		if got := readSubtreeUsage(dir); !reflect.DeepEqual(got, want) {
+			t.Fatalf("usage = %v; want %v", got, want)
+		}
+	})
+
+	// The status share is writable by a guest running customer CI. A malformed
+	// line costs its own subtree, never the rest of the report; an absurd one is
+	// dropped rather than allowed to poison the fleet-wide histogram sum.
+	t.Run("drops malformed and out-of-range lines, keeps the rest", func(t *testing.T) {
+		dir := t.TempDir()
+		report := "Binaries\t3000\nRuns\tnot-a-number\nPlugins\n\t\nManifests\t-5\nProjects\t" +
+			strconv.FormatUint(subtreeKiBMax+1, 10) + "\ncas\t8000\n"
+		if err := os.WriteFile(filepath.Join(dir, subtreeUsageFile), []byte(report), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]uint64{"binaries": 3000 * kib, "cas": 8000 * kib}
+		if got := readSubtreeUsage(dir); !reflect.DeepEqual(got, want) {
+			t.Fatalf("usage = %v; want %v", got, want)
+		}
+	})
+
+	// A cold cache measures nothing. Recording zeros for it would drag the
+	// distribution down with jobs that never had a volume to fill.
+	t.Run("nothing measured reads as nil, not as zeros", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, subtreeUsageFile), []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := readSubtreeUsage(dir); got != nil {
+			t.Fatalf("usage over an empty report = %v; want nil", got)
+		}
+		if got := readSubtreeUsage(t.TempDir()); got != nil {
+			t.Fatalf("usage with no report at all = %v; want nil", got)
+		}
+	})
+}
+
+// finalizeVolume must ATTRIBUTE the image's fill, not just measure it. Driven
+// through the real teardown, so a report that is parsed but never recorded fails
+// here rather than looking fine in a unit test of the parser.
+func TestFinalizeVolumeRecordsSubtreeUsage(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", "existing-master", 5)
+
+	att := mustAllocate(t, m, "vm-subtrees")
+	if _, _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+	writeBranchCache(t, m, att, "branch")
+
+	statusDir := t.TempDir()
+	// The two budgeted halves at their production budgets, plus the two things
+	// nothing bounds: a category with no pruner and one the label map misses.
+	report := "Binaries\t7340032\nRuns\t1048576\ncas\t11534336\nNewCategory\t524288\n"
+	for name, content := range map[string]string{
+		subtreeUsageFile:  report,
+		dirtyMarkerFile:   "1",
+		promoteResultFile: "accepted 6",
+	} {
+		if err := os.WriteFile(filepath.Join(statusDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	binariesCount, binariesSum := subtreeSample(t, "binaries")
+	casCount, _ := subtreeSample(t, "cas")
+	otherCount, _ := subtreeSample(t, subtreeOther)
+	unbudgetedCount, unbudgetedSum := unbudgetedSample(t)
+
+	r := &Reconciler{Volumes: m}
+	r.finalizeVolume(&Entry{VMName: "vm-subtrees", Volume: att, VolumeStatusDir: statusDir}, "42", true)
+
+	if count, sum := subtreeSample(t, "binaries"); count != binariesCount+1 || sum-binariesSum != 7<<30 {
+		t.Errorf("binaries = (%d, %v); want (%d, %v)", count, sum-binariesSum, binariesCount+1, float64(7<<30))
+	}
+	if count, _ := subtreeSample(t, "cas"); count != casCount+1 {
+		t.Errorf("cas observations = %d; want %d", count, casCount+1)
+	}
+	if count, _ := subtreeSample(t, subtreeOther); count != otherCount+1 {
+		t.Errorf("other observations = %d; want %d (an unnamed directory is still measured)", count, otherCount+1)
+	}
+
+	// Runs + the unnamed category, and NOT the binary cache or the CAS: those two
+	// have pruners, and counting them here would hide the quantity the image's
+	// reserve is actually asked to absorb.
+	if count, sum := unbudgetedSample(t); count != unbudgetedCount+1 || sum-unbudgetedSum != float64(1<<30+512<<20) {
+		t.Errorf("unbudgeted = (%d, %v); want (%d, %v)", count, sum-unbudgetedSum, unbudgetedCount+1, float64(1<<30+512<<20))
 	}
 }

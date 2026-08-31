@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 func TestGuestDiskUsageGauge(t *testing.T) {
@@ -58,5 +59,27 @@ func TestCacheVolumePromoteSeriesInitialized(t *testing.T) {
 	// reads 0 (not "No data") while promotions happen with zero rejections.
 	if got := testutil.CollectAndCount(cacheVolumePromoteTotal); got < 3 {
 		t.Fatalf("promote series count = %d, want >= 3 (accepted/rejected/error pre-initialized)", got)
+	}
+}
+
+// The per-subtree attribution is the point of the whole guest-side walk: without
+// these families registered, a full cache image is only ever a fill percentage
+// with nothing to blame it on.
+func TestCacheVolumeSubtreeMetricsRegistered(t *testing.T) {
+	families, err := metrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	registered := map[string]bool{}
+	for _, f := range families {
+		registered[f.GetName()] = true
+	}
+	for _, name := range []string{
+		"tart_kubelet_cache_volume_subtree_bytes",
+		"tart_kubelet_cache_volume_unbudgeted_bytes",
+	} {
+		if !registered[name] {
+			t.Errorf("metric %q is not registered", name)
+		}
 	}
 }

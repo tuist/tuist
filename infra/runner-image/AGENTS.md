@@ -116,8 +116,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   image would kill the job rather than cost it warmth.
   Teardown order is load-bearing: **wait for the compilation cache's
   publications to reach the remote** (`drain_cas_publications`, below), sample
-  the signals that need a live mount (fill
-  %), then **detach**, then measure the SETTLED image for the digest this job
+  the signals that need a live mount (fill %, per-subtree bytes), then
+  **detach**, then measure the SETTLED image for the digest this job
   publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
   the same view the verifying host uses), then write `cache-dirty` (only after both
   a clean detach and a successful measurement — its absence is what tells the host
@@ -190,6 +190,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  `sample_cache_usage` attributes that shared cap. It writes one
+  `<name><TAB><KiB>` line per directory under the cache root, plus `cas` for the
+  folded store, into `cache-subtree-kib` in the `status` share. The host maps
+  each onto `tart_kubelet_cache_volume_subtree_bytes{subtree=...}` and totals the
+  subtrees no pruner bounds (everything except the binary cache and the CAS)
+  into `tart_kubelet_cache_volume_unbudgeted_bytes`, the quantity
+  `cacheImageSplit`'s reserve has to absorb. A directory the host's label map
+  does not name is reported as `subtree="other"` and counts toward that total.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown. The store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming

@@ -57,6 +57,12 @@ var guestStatusReaders = []struct {
 		accepted: func(d string) bool { return readFillPercent(d) != -1 },
 	},
 	{
+		name:     "cache-subtree-kib",
+		file:     subtreeUsageFile,
+		content:  "Binaries\t3000\ncas\t8000\n",
+		accepted: func(d string) bool { return readSubtreeUsage(d) != nil },
+	},
+	{
 		name:     "cache-promote-result",
 		file:     promoteResultFile,
 		content:  "accepted 9\n",
