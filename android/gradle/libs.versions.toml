@@ -20,7 +20,7 @@ playPublisher = "3.11.0"
 openapiGenerator = "7.20.0"
 junit = "4.13.2"
 mockk = "1.13.13"
-turbine = "1.2.0"
+turbine = "1.2.1"
 robolectric = "4.14.1"
 coil = "3.1.0"
 
