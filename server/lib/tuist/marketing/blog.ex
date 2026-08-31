@@ -105,6 +105,11 @@ defmodule Tuist.Marketing.Blog do
         "github_handle" => "asmitbm",
         "fediverse_username" => "@asmitbm@mastodon.online"
       },
+      "rofle100lvl" => %{
+        "role" => "iOS engineer at Yandex Travel",
+        "name" => "Roman Gorbenko",
+        "github_handle" => "rofle100lvl"
+      },
       "cschmatzler" => %{
         "role" => "Software Engineer at Tuist",
         "name" => "Christoph Schmatzler",
