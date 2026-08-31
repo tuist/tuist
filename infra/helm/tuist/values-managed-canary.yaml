@@ -505,25 +505,25 @@ ovhFleets:
   # third of the cost. Canary does not need production throughput; it needs to
   # run the production integration.
   #
-  # THIS FLEET SCHEDULES NOTHING. The box joins tainted and carries its own pool
-  # label, so no Runner Profile, RunnerPool, or other workload can land on it.
-  # Nothing here touches the tuist-bm-canary-* bare-metal hosts serving the fleet
-  # today.
+  # IN SERVICE: the box carries the `runners-linux` pool label and only the
+  # runner-tier taint, so the existing Linux Runner Profiles dispatch onto it
+  # alongside the tuist-bm-canary-* hosts, which are untouched. Same RISE-S
+  # shape that ran the staging smoke job to success in a kata microVM.
   runners-linux:
     enabled: true
-    # 0 until a RISE-S is ordered, prepped and marked for canary. An enabled
-    # fleet with no adoptable box parks the MachineDeployment at 0/1, which
-    # wedges `helm --wait` into an --atomic rollback. Raise it once
-    # `baremetal:prep-ovh` has marked a box.
-    replicas: 0
+    # MUST equal the number of boxes already prepped and marked for canary. Too
+    # high parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing while nothing
+    # adopts it.
+    replicas: 1
     # Same entity as the ca-east fleet above: the RISE range's EU-datacenter
     # plan codes (25rises01-v1-eu) are orderable on OVHcloud US, so a Gravelines
     # box needs no second endpoint.
     endpoint: ovh-us
-    # Deliberately NOT runners-linux, the pool the Linux Runner Profiles select
-    # on. Putting the box in service is renaming this (or repointing the
-    # profiles at it), as one reviewed step.
-    nodePool: runners-linux-ovh
+    # The same pool the tuist-bm-canary-* hosts carry, so the existing Linux
+    # Runner Profiles dispatch across both fleets. The Hetzner hosts are
+    # untouched: an overlap, not a cutover.
+    nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
       # Case-insensitive substring of the box's commercialRange; the range alone
@@ -541,15 +541,12 @@ ovhFleets:
       # label. Without it the box joins Ready and every runner Pod stays
       # unschedulable, which is the failure this flag exists to prevent.
       kataRuntime: true
-      # runner-tier is the steady-state taint the bare-metal runner hosts carry;
-      # fleet-bringup is the holdout nothing tolerates, and dropping it is what
-      # puts the box into service.
+      # Only the steady-state taint the bare-metal runner hosts carry, which
+      # runner Pods tolerate and nothing else does. The fleet-bringup holdout is
+      # gone: the path was proven on staging, on this same RISE-S shape.
       nodeTaints:
         - key: tuist.dev/runner-tier
           value: bare-metal
-          effect: NoSchedule
-        - key: tuist.dev/fleet-bringup
-          value: "true"
           effect: NoSchedule
       # Unset egressBudgetMbps: it advertises tuist.dev/egress-mbps for Kura
       # cache pod bin-packing and no cache pod runs here. RISE-S also has no

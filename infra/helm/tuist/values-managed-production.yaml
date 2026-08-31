@@ -828,13 +828,16 @@ ovhFleets:
   # 128 GB across 32 threads clears the RAM-per-vCPU floor that rules out the
   # 64 GB alternatives. Four boxes match today's ~128 slots.
   #
-  # THIS FLEET SCHEDULES NOTHING. The box joins tainted and carries its own pool
-  # label, so no Runner Profile, RunnerPool, or other workload can land on it; a
-  # follow-up drops the bringup taint and moves pool targeting over. Nothing here
-  # touches the AX162-R hosts, which keep serving the fleet meanwhile.
+  # IN SERVICE: the box carries the `runners-linux` pool label and only the
+  # runner-tier taint, so the existing Linux Runner Profiles dispatch onto it
+  # alongside the AX162-R hosts. Those hosts are untouched — this is an overlap
+  # that adds capacity, and retiring them is a separate decision.
   #
-  # Start at one box and validate the whole path (order, prep, adopt, self-join,
-  # Node Ready) before ordering the other three.
+  # One box to start. The integration is proven end to end on staging, where the
+  # Gravelines RISE-S ran the Linux smoke job to success inside a kata microVM
+  # (reported `AMD Ryzen 7 9700X`, a kata guest kernel, and the 8 GB shape plus
+  # kata's ~2 GB overhead). What one box still proves is RISE-L specifically:
+  # a different SKU, so `offer: rise-l` has never matched a real box.
   #
   # Two shape differences from the AX162-R worth carrying forward. Its 128 GB is
   # DDR5 On-Die ECC, not registered ECC: On-Die correction happens inside the
@@ -853,23 +856,26 @@ ovhFleets:
   # re-check it before raising slots per box rather than box count.
   runners-linux:
     enabled: true
-    # 0 until a RISE-L is ordered, prepped and marked for production. An enabled
-    # fleet with no adoptable box parks the MachineDeployment at 0/1, which
-    # wedges `helm --wait` into an --atomic rollback — the documented cold-start
-    # trap. The dig-based template preserves an explicit 0, so this is the safe
-    # value; raise it to the box count once `baremetal:prep-ovh` has marked them.
-    replicas: 0
+    # MUST equal the number of boxes already prepped and marked for production.
+    # Too high parks the MachineDeployment at 0/N and wedges `helm --wait` into
+    # an --atomic rollback; too low leaves an ordered box billing while nothing
+    # adopts it. One to start: RISE-L is a different SKU from the RISE-S proven
+    # on staging, so `offer: rise-l` has never matched a real box. The two
+    # AX162-R hosts keep serving throughout, so this adds capacity rather than
+    # replacing it. Raise to 4 (the count matching today's ~128 slots) once each
+    # additional box has been through `baremetal:prep-ovh`.
+    replicas: 1
     # Same OVHcloud US entity as the cache fleets above, which the RISE range's
     # EU-datacenter plan codes (25risel01-v1-eu, 25rises01-v1-eu) are orderable
     # under. That is what lets a Gravelines box share the one OVH_ENDPOINT the
     # reconciler resolves; an EU-entity order would need a second endpoint the
     # operator Deployment has no room for.
     endpoint: ovh-us
-    # Deliberately NOT runners-linux: that is the AX162-R pool every Linux Runner
-    # Profile selects on, and reusing it here would route live jobs onto a box
-    # that has never run one. Putting the OVH boxes in service is renaming this
-    # (or repointing the profiles at it), as one reviewed step.
-    nodePool: runners-linux-ovh
+    # The same pool the AX162-R hosts carry, so the existing Linux Runner
+    # Profiles dispatch across both fleets and the OVH box takes real work. The
+    # Hetzner hosts are untouched: this is an overlap, not a cutover, and
+    # decommissioning them is a separate decision.
+    nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-production
       # Case-insensitive substring of the box's commercialRange. The range alone
@@ -889,20 +895,14 @@ ovhFleets:
       # label. Without it the box joins Ready and every runner Pod stays
       # unschedulable, which is the failure this flag exists to prevent.
       kataRuntime: true
-      # The box joins with BOTH: runner-tier is the steady-state taint the
-      # AX162-R hosts carry, so the DaemonSets that already tolerate it (alloy,
-      # kata-deploy) treat this box like any other runner host; fleet-bringup is
-      # the holdout nothing tolerates, and dropping it is what puts the box into
-      # service. node-exporter tolerates any NoSchedule taint, so host metrics
-      # flow from day one; alloy-logs enumerates the keys it tolerates and so
-      # stays off until the holdout is dropped, which costs nothing on a box
-      # running no pods.
+      # Only the steady-state taint the AX162-R hosts carry, which runner Pods
+      # tolerate and nothing else does. The fleet-bringup holdout this fleet
+      # carried during bring-up is gone: the path was proven on staging, where
+      # the Gravelines box ran the Linux smoke job to success inside a kata
+      # microVM.
       nodeTaints:
         - key: tuist.dev/runner-tier
           value: bare-metal
-          effect: NoSchedule
-        - key: tuist.dev/fleet-bringup
-          value: "true"
           effect: NoSchedule
       # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
       # pod bin-packing, and no cache pod runs here. The box does have 1 Gbit/s
