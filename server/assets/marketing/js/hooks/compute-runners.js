@@ -4,7 +4,7 @@
  *   - idle cells are blank outlines; only active cells carry the dithered
  *     dot texture, whose dots twinkle;
  *   - a rotating random subset of cells is "active" (purple-500 border,
- *     purple-50 highlight, purple corner dot + dither);
+ *     purple corner dot + dither);
  *   - a cell flickers when it first activates — "a task is being acquired" —
  *     then settles to a soft pulse;
  *   - the active set changes at random over time.
@@ -271,11 +271,6 @@ export const RunnerGrid = {
     }
 
     const level = this.cellLevel(cell, now);
-    if (level > 0.01) {
-      ctx.fillStyle = this.rgba(this.cPurple50, 0.85 * level);
-      ctx.fill(path);
-    }
-
     if (level > 0.01) {
       ctx.save();
       ctx.clip(path);
