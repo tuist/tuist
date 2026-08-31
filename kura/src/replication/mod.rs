@@ -27,7 +27,8 @@ use crate::{
     config::Config,
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, OUTBOX_MAX_INFLIGHT, REPLICATION_BATCH_MAX_BYTES,
-        REPLICATION_BATCH_MAX_ITEMS, REPLICATION_RETRY_SECS, RESPONSE_STREAM_CHUNK_BYTES,
+        REPLICATION_BATCH_MAX_ITEMS, REPLICATION_BATCH_MAX_ROUNDS, REPLICATION_RETRY_SECS,
+        RESPONSE_STREAM_CHUNK_BYTES,
     },
     failpoints::FailpointName,
     http::{ReplicateBatchItemMeta, ReplicateBatchOutcomes, encode_replicate_batch_frame},
@@ -599,6 +600,14 @@ async fn replicate_batch(
             HeaderValue::from_static("application/octet-stream"),
         );
 
+        // Charged before the send, the same budget the per-message path meters
+        // its body stream against. Batching made this the dominant replication
+        // path, so skipping it would let peer sync ignore the adaptive backoff
+        // that yields bandwidth to public cache traffic.
+        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            limiter.acquire(body.len()).await;
+        }
+
         let response = state
             .client()
             .put(&url)
@@ -660,7 +669,7 @@ async fn drain_metadata_batches(
     state: &SharedState,
     current_targets: &BTreeSet<String>,
 ) -> Result<(), String> {
-    loop {
+    for _round in 0..REPLICATION_BATCH_MAX_ROUNDS {
         let mut buckets: BTreeMap<String, Vec<(Vec<u8>, OutboxMessage)>> = BTreeMap::new();
         let mut after: Option<Vec<u8>> = None;
         let mut scanned = 0usize;
@@ -699,12 +708,18 @@ async fn drain_metadata_batches(
             return Ok(());
         }
 
-        let deliveries = buckets.into_iter().map(|(target, items)| async move {
+        // Bounded by the same ceiling as the per-message drain rather than by
+        // the bucket count: a scan window can hold hundreds of targets, and
+        // each delivery materializes its body before its first network await,
+        // so an unbounded fan-out is both a connection and a memory spike.
+        let results = stream::iter(buckets.into_iter().map(|(target, items)| async move {
             let started_at = std::time::Instant::now();
             let outcome = replicate_batch(state, &target, &items).await;
             (target, items, outcome, started_at.elapsed())
-        });
-        let results = futures_util::future::join_all(deliveries).await;
+        }))
+        .buffer_unordered(OUTBOX_MAX_INFLIGHT)
+        .collect::<Vec<_>>()
+        .await;
 
         let mut progressed = false;
         for (target, items, outcome, elapsed) in results {
@@ -744,6 +759,8 @@ async fn drain_metadata_batches(
             return Ok(());
         }
     }
+
+    Ok(())
 }
 
 // Next message at or after the cursor that is not already in flight. The scan
@@ -2669,6 +2686,93 @@ mod tests {
             queued.len(),
             1,
             "only the item the peer rejected should remain queued"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_namespace_delete_ships_in_the_same_pass_as_batched_messages() {
+        // The batch pre-pass restarts its scan at the outbox head after every
+        // round, and namespace deletes are never batchable. Without a bound on
+        // rounds, a target with a steady supply of batchable pairs keeps the
+        // pass inside the pre-pass and the per-message drain - the only thing
+        // that ships deletes, and the only path a peer without the batch route
+        // has - never runs.
+        let batches = Arc::new(AtomicU64::new(0));
+        let deletes = Arc::new(AtomicU64::new(0));
+        let app = Router::new()
+            .route(
+                "/_internal/replicate/artifacts",
+                put({
+                    let batches = batches.clone();
+                    move |body: axum::body::Bytes| {
+                        let batches = batches.clone();
+                        async move {
+                            batches.fetch_add(1, Ordering::SeqCst);
+                            let frames = crate::http::decode_replicate_batch_frames(&body)
+                                .expect("batch body should decode");
+                            let outcomes = frames
+                                .iter()
+                                .map(|_| "applied".to_owned())
+                                .collect::<Vec<_>>();
+                            axum::Json(crate::http::ReplicateBatchOutcomes { outcomes })
+                        }
+                    }
+                }),
+            )
+            .route(
+                "/_internal/replicate/namespace",
+                axum::routing::delete({
+                    let deletes = deletes.clone();
+                    move || {
+                        let deletes = deletes.clone();
+                        async move {
+                            deletes.fetch_add(1, Ordering::SeqCst);
+                            StatusCode::NO_CONTENT
+                        }
+                    }
+                }),
+            );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 6).await;
+        ctx.state
+            .store
+            .enqueue(OutboxMessage {
+                target: peer_url.clone(),
+                operation: ReplicationOperation::DeleteNamespace {
+                    namespace_id: "namespace".into(),
+                    version_ms: 900,
+                },
+            })
+            .expect("delete should enqueue");
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert!(
+            batches.load(Ordering::SeqCst) >= 1,
+            "the inline messages should still have gone out batched"
+        );
+        assert_eq!(
+            deletes.load(Ordering::SeqCst),
+            1,
+            "the namespace delete must not be starved behind the batch pre-pass"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "both lanes should have drained in one pass"
         );
     }
 }

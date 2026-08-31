@@ -120,6 +120,14 @@ pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 // MAX_INLINE_REPLICATION_BODY_BYTES each) from assembling a request that has to
 // be buffered whole on both sides.
 pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
+// Batch rounds one pass may take before it hands control back to the
+// per-message drain. The batch pre-pass restarts its scan at the outbox head
+// after every round, so without a bound a target under sustained inflow keeps
+// producing batchable pairs and the pass never reaches the messages batching
+// declines — namespace deletes, and everything bound for a peer that predates
+// the batch route. Four rounds still moves thousands of messages before
+// yielding.
+pub const REPLICATION_BATCH_MAX_ROUNDS: usize = 4;
 pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
