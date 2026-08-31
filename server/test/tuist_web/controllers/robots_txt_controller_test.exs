@@ -6,7 +6,7 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       conn = get(conn, "/robots.txt")
       body = response(conn, 200)
 
-      assert body =~ "Content-Signal: ai-train=no, search=no, ai-input=no"
+      assert body =~ "Content-Signal: ai-train=yes, search=yes, ai-input=yes"
       assert body =~ "Content-Usage: /$ train-ai=y, search=y, ai-input=y"
       assert body =~ "Content-Usage: /blog train-ai=y, search=y, ai-input=y"
       assert body =~ "Content-Usage: /customers train-ai=y, search=y, ai-input=y"
