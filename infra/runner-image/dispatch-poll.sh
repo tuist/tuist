@@ -91,6 +91,41 @@ report_runner_exit() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-rc" 2>/dev/null || true
 }
 
+# report_heartbeat stamps this script's liveness into the status share for
+# tart-kubelet to publish on the Pod.
+#
+# tart-kubelet implements no container probes, so a macOS Pod reads
+# Running/Ready for as long as its VM process is up — whether or not
+# anything inside the guest is still polling for work. The
+# runners-controller has no other signal on this platform and keeps
+# counting such a Pod as warm capacity it can never actually use. Linux
+# gets the equivalent for free: its dispatch poller is an init container,
+# so the container runtime reports whether it is still running.
+#
+# The value is the state this script is in, and the file's mtime is the
+# beat. Two states, because "alive" and "available" are different
+# questions and the host has to answer both:
+#
+#   polling  - in the warm-standby loop, able to take a job.
+#   claimed  - dispatched; running a job. Written once, then left alone:
+#              from here the script blocks in `wait` on run.sh and cannot
+#              beat again, so the state is what marks the Pod busy rather
+#              than freshness. It also says so independently of the
+#              server's best-effort owner label.
+#
+# Best-effort and guarded on the share exactly like report_runner_exit:
+# hosts with the cache-volume feature off have no share, and there no
+# heartbeat is published at all. That absence reads as "no signal" on the
+# controller side, never as "dead" — a runner image or host that does not
+# produce this must keep counting as capacity.
+HEARTBEAT_POLLING=polling
+HEARTBEAT_CLAIMED=claimed
+
+report_heartbeat() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -1099,6 +1134,11 @@ attempt=0
 
 while true; do
   attempt=$((attempt + 1))
+  # Beat before the request, not after: this says the loop is running,
+  # and a curl that hangs to its --max-time is exactly the stall the
+  # beat needs to expose. One iteration is bounded by that timeout, so
+  # a healthy warm runner never goes more than ~12s without a beat.
+  report_heartbeat "${HEARTBEAT_POLLING}"
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as
@@ -1131,6 +1171,10 @@ while true; do
         continue
       fi
       printf '%s\n' "$(date -u +%FT%TZ)" >"${SHELL_CLAIM_MARKER}" 2>/dev/null || true
+      # Last beat of the warm-standby life. Everything below runs the job,
+      # so the loop stops beating here by design and the state — not the
+      # age — is what tells the host this Pod is no longer warm.
+      report_heartbeat "${HEARTBEAT_CLAIMED}"
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —

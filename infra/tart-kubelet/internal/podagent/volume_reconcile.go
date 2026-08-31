@@ -248,6 +248,60 @@ func readRunnerExitTime(statusDir string) (time.Time, bool) {
 	return fi.ModTime(), true
 }
 
+// runnerHeartbeatFile is the guest's liveness beat: dispatch-poll.sh
+// rewrites it once per poll while it is warm, and once more when it takes
+// a job. The contents are the state it is in; the mtime is the beat.
+//
+// It exists because a macOS Pod's Ready condition says only that the VM
+// process is up and has an IP. tart-kubelet runs no container probes, so
+// a guest whose poller died still reads 1/1 Running indefinitely and the
+// runners-controller goes on counting it as warm capacity that can never
+// take a job. Linux needs none of this: its poller is an init container,
+// so the container runtime already reports whether it is running.
+//
+// Absent on hosts with no status share, and on runner images from before
+// the guest wrote it. Both must read as "no signal" rather than "dead" —
+// see publishRunnerHeartbeat.
+const runnerHeartbeatFile = "runner-heartbeat"
+
+// Heartbeat states dispatch-poll.sh writes. Anything else is a guest
+// writing something we do not model, which reads as no signal at all
+// rather than as a state to act on.
+const (
+	heartbeatStatePolling = "polling"
+	heartbeatStateClaimed = "claimed"
+)
+
+// readRunnerHeartbeat returns the guest's last beat: the state it reported
+// and the mtime of the report.
+//
+// The mtime is the host's, not the guest's — the write lands on the host
+// filesystem through virtio-fs, so the host kernel stamps it, which is
+// what makes it comparable to the host clock here. readRunnerExitTime
+// dates a runner's halt off the same property.
+//
+// An unrecognized state reads as no beat. The file is guest-written and
+// the states drive whether the controller counts this Pod as capacity, so
+// the set is closed rather than passed through.
+func readRunnerHeartbeat(statusDir string) (string, time.Time, bool) {
+	f, fi, ok := openGuestFile(statusDir, runnerHeartbeatFile)
+	if !ok {
+		return "", time.Time{}, false
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, guestMarkerMaxBytes+1))
+	if err != nil || int64(len(b)) > guestMarkerMaxBytes {
+		return "", time.Time{}, false
+	}
+	switch state := strings.TrimSpace(string(b)); state {
+	case heartbeatStatePolling, heartbeatStateClaimed:
+		return state, fi.ModTime(), true
+	default:
+		return "", time.Time{}, false
+	}
+}
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).

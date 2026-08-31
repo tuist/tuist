@@ -401,8 +401,33 @@ independent workqueues:
   counts, because that is where a warm dispatch poller spends its whole
   idle life. Getting this wrong inverts the reading — a fleet starved of
   hosts would report idle Pods sitting on queued work, which is the
-  fingerprint of the opposite failure. Together they separate two failures
-  that every other series conflates:
+  fingerprint of the opposite failure.
+
+  On darwin `Running` is necessary but not sufficient, so the guest's own
+  heartbeat is consulted on top of it. tart-kubelet synthesizes a macOS
+  Pod's phase and Ready condition from "the VM process is alive and has an
+  IP" and runs no container probes, so a guest whose dispatch poller died
+  reads 1/1 Running for the rest of the VM's life — and nothing bounds
+  that life, since warm standby is deliberately unbounded and a warm macOS
+  runner is in practice recycled only when its SA token expires around the
+  8h mark. `dispatch-poll.sh` therefore beats into the per-VM status share
+  every poll and tart-kubelet republishes it as
+  `tuist.dev/runner-heartbeat-state` (`polling` / `claimed`) plus
+  `tuist.dev/runner-heartbeat-at`; a `polling` beat older than
+  `guestHeartbeatStaleAfter` stops counting. Linux needs none of it — the
+  poller is an init container, so the container runtime already reports
+  whether it is running.
+
+  **Absence is not death.** A Pod carrying no heartbeat annotations is one
+  the host cannot speak for: pools with the cache-volume feature off have
+  no status share to read, and runner images from before the guest wrote a
+  beat produce none. Those keep their benefit of the doubt. Reading
+  absence as dead would drop every such Pod out of warm capacity at once,
+  which besides being wrong also stalls rolls fleet-wide, because
+  `isWarmCapacity` decides what counts against the roll's availability
+  budget. The image and the controller can therefore ship in either order.
+
+  Together they separate two failures that every other series conflates:
 
   - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
     The fix is capacity.

@@ -524,6 +524,28 @@ customer-facing profile selection.
    publishes nothing — that case already arrives distinguishably as
    `TartRunExited`.
 
+   Both of those describe a runner that *ended*. `runner-heartbeat`
+   in the same share covers the runner that does not: the poll loop
+   rewrites it every iteration with the state it is in (`polling`
+   while warm, `claimed` once it takes a job), and the file's mtime
+   is the beat. It exists because a macOS Pod's phase and Ready
+   condition are synthesized from "the VM process is alive and has
+   an IP" — tart-kubelet runs no container probes — so a guest whose
+   poller died reads 1/1 Running for the rest of the VM's life, and
+   nothing bounds that life: warm standby is deliberately unbounded
+   and in practice a warm macOS runner is recycled only when its SA
+   token expires around the 8h mark. tart-kubelet publishes the beat
+   as the `tuist.dev/runner-heartbeat-state` and
+   `tuist.dev/runner-heartbeat-at` Pod annotations and the
+   runners-controller stops counting a stale one as warm capacity.
+   `claimed` is written once and then never refreshed — from there
+   the script is blocked in `wait` on `run.sh` — so it is the state,
+   not the age, that marks the Pod busy; it also does so
+   independently of the server's best-effort owner label. Same
+   `status`-share dependency as the two above, and the absence is
+   read as "no signal" rather than "dead", so a pool with cache
+   volumes off keeps counting as capacity.
+
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
 (`runnersFleet.pools[]`) — they're the right place for routing
