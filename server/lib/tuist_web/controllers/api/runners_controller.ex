@@ -14,12 +14,12 @@ defmodule TuistWeb.API.RunnersController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
+  plug(TuistWeb.Plugs.LoaderPlug)
+
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
-
-  plug(TuistWeb.Plugs.LoaderPlug)
 
   # Profiles live on the account settings surface, where the dashboard
   # requires account administrators even for the read-only table. The

@@ -261,8 +261,10 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         |> TuistWeb.Authentication.put_current_user(user)
         |> get("/api/accounts/#{user.account.name}/tokens/#{token.id}")
 
+      token_id = token.id
+
       assert %{
-               "id" => token.id,
+               "id" => ^token_id,
                "name" => "dashboard-token",
                "scopes" => ["project:cache:read"]
              } = json_response(conn, :ok)
