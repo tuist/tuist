@@ -1098,11 +1098,42 @@ count by (cluster, env, queue, node) (
 ) > 0
 ```
 
-- Pending period: 5 minutes
+- Pending period: 20 minutes
 - Keep firing for: 5 minutes
 - Severity: critical
 - Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
   without completing any for over 15 minutes`
+
+The pending period is 20 minutes rather than 5 because a Pod that is
+being drained satisfies this condition on its way out. It keeps a recent
+`last_attempt` while it stops completing, and its series does not vanish
+when the Pod does: the host-side `:9091` forwarder caches the guest's
+metrics, so a dead Pod's last sample outlives it.
+
+On 2026-08-31 this paged for `xcresult-processor-b24xg` about five
+minutes after a release deploy had already deleted it.
+`terminationGracePeriodSeconds` is 30, so the Pod was long gone and the
+entire firing window was stale data. Replayed against that window the
+condition holds for roughly 10 minutes; 20 is twice that, and a genuinely
+wedged consumer holds it for hours, so nothing real is lost.
+
+A pod-existence join on `kube_pod_status_phase` was tried and rejected.
+It only trims the tail — a terminating Pod is still `phase="Running"`,
+so replaying it still fired for 7 of the 10 minutes — and it would make a
+critical rule depend on kube-state-metrics, so the rule would go silently
+dead if KSM broke. That is the exact fourteen-hours-undetected failure
+this rule exists to prevent, traded for a little deploy noise.
+
+Two traps when triaging this, both hit on 2026-08-31:
+
+- **Check the Pod still exists** before treating it as a wedge:
+  `kubectl --context tuist-k8s-production get pods -n tuist | grep xcresult`.
+  A node named here that is not in that list is a stale page.
+- **Do not read a missing `completed` row as proof of a gap.** Completed
+  jobs are pruned aggressively; the table held 7 across a healthy fleet.
+  Use `tuist_oban_node_last_completion_timestamp_seconds`, or the hourly
+  `parse_timeout` rate off the `errors` array, which went 36/hr while
+  wedged to 4/hr once restored.
 
 The `count by` wrapper exists to give the threshold something to compare.
 The inner expression's own value is seconds since the node's last
