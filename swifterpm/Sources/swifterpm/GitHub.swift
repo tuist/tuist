@@ -31,10 +31,7 @@ private actor GitHubTokenCache {
         }
         loaded = true
 
-        let env = ProcessInfo.processInfo.environment
-        if let token = env["SWIFTERPM_GITHUB_TOKEN"] ?? env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
-           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
+        if let token = GitHubAuth.envToken(from: ProcessInfo.processInfo.environment) {
             cachedToken = token
             return token
         }
@@ -52,6 +49,18 @@ private actor GitHubTokenCache {
 private let githubTokenCache = GitHubTokenCache()
 
 enum GitHubAuth {
+    private static let envKeys = ["SWIFTERPM_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]
+
+    static func envToken(from environment: [String: String]) -> String? {
+        for key in envKeys {
+            if let value = environment[key] {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        return nil
+    }
+
     static func token() async -> String? {
         await githubTokenCache.token()
     }
