@@ -239,6 +239,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			ClusterCAPEM:   identity.CA,
 			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:         machine.Spec.NodeTaints,
+			KataRuntime:    machine.Spec.KataRuntime,
 			BootstrapUser:  ovhBootstrapUser,
 			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
 			InstanceType:   ovhInstanceType,
@@ -442,7 +443,13 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     machine.Name,
-		SSHKey:       string(ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
+		// newline, and OVH reads that trailing byte as a second, empty key:
+		// "only 1 single SSH key can be provided". That 400 is returned on every
+		// retry, so the release wedges the Machine in Deleting forever and the box
+		// is never returned to the pool. The adopt path never hit it because prep
+		// passes the key read straight from 1Password, which carries no newline.
+		SSHKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))),
 	})
 }
 

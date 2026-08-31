@@ -13,9 +13,9 @@ machine kinds:
   **reinstalls it (wipe) on release**.
 - `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
-- `OVHDedicatedMachine` — OVHcloud US bare metal (us-east / us-west);
-  adopts a pre-prepped box and reinstalls it (wipe) back to the pool on
-  release.
+- `OVHDedicatedMachine` — OVHcloud US bare metal (the us-east / us-west /
+  ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
+  pre-prepped box and reinstalls it (wipe) back to the pool on release.
 
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The three Linux kinds share the
@@ -32,7 +32,7 @@ detail the Apple Silicon kind.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Left installed on release. |
-| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (us-east / us-west): adopts a pre-prepped box by displayName prefix, `fleetName`. Left installed on release. |
+| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Left installed on release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
@@ -559,7 +559,13 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 **Steps:**
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
-   never order). OVH ADVANCE-1 for the US regions, Dedibox for eu-central.
+   never order). OVH ADVANCE-1 for the US cache regions, ADVANCE-2 for
+   ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
+   for the Linux runner pool, Dedibox for eu-central. The RISE range's
+   EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
+   on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
+   OVH fleet shares. Stock per plan and datacenter is public and needs no token:
+   `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.
 2. **Prep it.** Installs Ubuntu + the fleet key + sudo password, then sets the
    adoption marker as its final step, reading the tag / displayName prefix from
    `values-managed-<env>.yaml`. The install is async (~20-40 min; poll the
@@ -587,7 +593,17 @@ in the `ovhFleets` map and render `tuist-tuist-ovh-fleet-<key>` (e.g.
 `tuist-tuist-ovh-fleet-us-east`). The adopt marker comes from that fleet's
 values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
 Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
-`tuist-kura-ovh-production-us-east` / `-us-west` (OVH).
+`tuist-kura-ovh-production-us-east` / `-us-west` / `-ap-southeast` and
+`tuist-runners-ovh-production` (OVH).
+
+Not every `ovhFleets` entry is a cache region. `machine.nodeTaints` is what says
+which it is: unset renders `tuist.dev/kura-cache=true:NoSchedule` and puts the
+pool in the cache-only surfaces keyed off that map (the volume quota exporter's
+node affinity in `infra/helm/tuist/templates/kura-fleet-storage.yaml`), while a
+fleet that sets its own taints stays out of them. The Linux runner fleets set
+`tuist.dev/runner-tier=bare-metal` plus a `tuist.dev/fleet-bringup` holdout
+nothing tolerates, so their boxes join and stay empty until that second taint is
+dropped.
 
 Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstalls
 the box back into the pool**. It stays a monthly contract (release is not a contract

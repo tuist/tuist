@@ -481,9 +481,19 @@ node for a metrics endpoint.
 {{- if .Values.ovhFleet.enabled }}
 {{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") }}
 {{- end }}
+{{- /* An ovhFleets entry is a cache pool exactly when its nodes carry the
+   kura-cache taint, which is also the only OVH taint this DaemonSet tolerates.
+   Fleets in that map that are not cache pools (the OVH Linux runner boxes) set
+   their own taints and stay out of the affinity list, so a privileged hostPID
+   exporter is never pointed at a box with no cache volumes to read. Mirrors the
+   default in ovh-fleets.yaml: taints unset means the kura-cache taint. */ -}}
 {{- range $key, $fleet := .Values.ovhFleets }}
 {{- if $fleet.enabled }}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet }}
+{{- if eq $taint.key "tuist.dev/kura-cache" }}
 {{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 apiVersion: apps/v1
