@@ -436,6 +436,31 @@ struct SupportTests {
     }
 
     @Test
+    func gitHubDownloadsDropAnAmbientTokenThatBelongsToAnotherGitHubInstance() async throws {
+        let asset = URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+
+        let scoped = try await Environment.$values.withValue([
+            "GITHUB_TOKEN": "ghs_secret",
+            "GITHUB_SERVER_URL": "https://github.acme-internal.test",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(for: asset)
+            }
+        }
+        #expect(scoped != "Bearer ghs_secret")
+
+        let ownInstance = try await Environment.$values.withValue([
+            "GITHUB_TOKEN": "ghs_secret",
+            "GITHUB_SERVER_URL": "https://github.com",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(for: asset)
+            }
+        }
+        #expect(ownInstance == "Bearer ghs_secret")
+    }
+
+    @Test
     func realpathFollowsSymlinksAndKeepsThePathWhenItCannotResolve() async throws {
         try await withTemporaryDirectory { directory in
             let target = directory.appendingPathComponent("Target")
