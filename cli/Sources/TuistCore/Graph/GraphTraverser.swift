@@ -29,6 +29,7 @@ public class GraphTraverser: GraphTraversing {
     private let conditionalTargets: Set<GraphDependency>
     private let precompiledSwiftMacroExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let precompiledDynamicLibrariesAndFrameworksCache = GraphCache<GraphDependency, [GraphDependency]>()
+    private let precompiledDependenciesLinkedThroughStaticTargetsCache = GraphCache<GraphDependency, Set<GraphDependency>>()
     private let linkableDependenciesCache = GraphCache<LinkableDependenciesKey, Set<GraphDependencyReference>>()
     private let searchablePathDependenciesCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
     private let transitiveStaticDependenciesCache = GraphCache<GraphDependency, Set<GraphDependency>>()
@@ -713,17 +714,13 @@ public class GraphTraverser: GraphTraversing {
                 }
 
             let staticDependenciesPrecompiledLibrariesAndFrameworks =
-                transitiveStaticTargetReferences.flatMap { dependency in
-                    self.graph.dependencies[dependency, default: []]
-                        .lazy
-                        .filter { $0.isPrecompiled && $0.isLinkable }
-                }
+                precompiledDependenciesLinkedThroughStaticTargets(from: targetGraphDependency)
 
             let allDependencies =
                 (
                     transitiveStaticTargetReferences
                         + staticDependenciesDynamicLibrariesAndFrameworks
-                        + staticDependenciesPrecompiledLibrariesAndFrameworks
+                        + Array(staticDependenciesPrecompiledLibrariesAndFrameworks)
                 )
 
             references.formUnion(
@@ -911,6 +908,31 @@ public class GraphTraverser: GraphTraversing {
         let result: [GraphDependency] = precompiled.union(precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
         precompiledDynamicLibrariesAndFrameworksCache[cacheKey] = result
+        return result
+    }
+
+    private func precompiledDependenciesLinkedThroughStaticTargets(
+        from rootDependency: GraphDependency
+    ) -> Set<GraphDependency> {
+        if let cached = precompiledDependenciesLinkedThroughStaticTargetsCache[rootDependency] {
+            return cached
+        }
+
+        let directPrecompiledDependencies = Set(
+            transitiveStaticDependencies(from: rootDependency).flatMap { dependency in
+                self.graph.dependencies[dependency, default: []]
+                    .lazy
+                    .filter { $0.isPrecompiled && $0.isLinkable }
+            }
+        )
+
+        let result = directPrecompiledDependencies.union(
+            filterDependencies(
+                from: directPrecompiledDependencies,
+                test: \.isPrecompiledDynamicAndLinkable
+            )
+        )
+        precompiledDependenciesLinkedThroughStaticTargetsCache[rootDependency] = result
         return result
     }
 
@@ -2233,6 +2255,9 @@ extension GraphTraverser {
                         if child.isPrecompiled, child.isLinkable { admit(child) }
                     }
                 }
+            }
+            for dependency in precompiledDependenciesLinkedThroughStaticTargets(from: from) {
+                admit(dependency)
             }
         }
 
