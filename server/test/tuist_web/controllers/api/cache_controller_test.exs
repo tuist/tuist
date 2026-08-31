@@ -1089,7 +1089,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
       expect(Storage, :multipart_start, fn ^object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)

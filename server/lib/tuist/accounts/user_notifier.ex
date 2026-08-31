@@ -104,8 +104,8 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to confirm account.
   """
   def deliver_confirmation_instructions(%{user: user, confirmation_url: confirmation_url}) do
-    deliver(
-      user.email,
+    user.email
+    |> build_email(
       dgettext("dashboard_account", "Confirmation instructions"),
       html_email(
         """
@@ -127,6 +127,7 @@ defmodule Tuist.Accounts.UserNotifier do
         Environment.email_icon_url()
       )
     )
+    |> Mailer.deliver_now()
   end
 
   @doc """

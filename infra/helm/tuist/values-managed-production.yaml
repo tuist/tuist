@@ -312,11 +312,9 @@ kuraController:
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
 # and its traffic is node-local runner reads that must not be shaped.
-# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
-  betaPodPrefix: "kura-tuist-"
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -719,7 +717,7 @@ dediboxFleet:
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
     # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
-    # 250-Mbps-floor cache pods against it.
+    # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
@@ -765,7 +763,8 @@ ovhFleets:
       datacenter: vin
       os: ubuntu_24.04
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
-      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
+      # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true
@@ -781,7 +780,8 @@ ovhFleets:
       datacenter: hil
       os: ubuntu_24.04
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
-      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
+      # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true

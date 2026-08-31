@@ -43,8 +43,9 @@ components:
         role:
           description: The organization member's role
           enum:
-            - admin
             - user
+            - admin
+            - viewer
           type: string
           x-struct:
           x-validate:
@@ -4610,6 +4611,15 @@ components:
           type: number
           x-struct:
           x-validate:
+        role:
+          description: The role the invitee gets when they accept the invitation
+          enum:
+            - user
+            - admin
+            - viewer
+          type: string
+          x-struct:
+          x-validate:
         token:
           description: The token to accept the invitation
           type: string
@@ -4621,6 +4631,7 @@ components:
         - organization_id
         - inviter
         - token
+        - role
       title: Invitation
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Invitation
@@ -9233,14 +9244,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -9261,6 +9264,14 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -9656,6 +9667,16 @@ paths:
               properties:
                 invitee_email:
                   description: The email of the invitee.
+                  type: string
+                  x-struct:
+                  x-validate:
+                role:
+                  default: user
+                  description: The role the invitee gets when they accept the invitation.
+                  enum:
+                    - user
+                    - admin
+                    - viewer
                   type: string
                   x-struct:
                   x-validate:
@@ -17187,6 +17208,15 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -17200,15 +17230,6 @@ paths:
           name: project_handle
           required: true
           schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The ID of the bundle.
-          in: path
-          name: bundle_id
-          required: true
-          schema:
-            format: uuid
             type: string
             x-struct:
             x-validate:
@@ -20600,8 +20621,9 @@ paths:
                 role:
                   description: The role to update the member to
                   enum:
-                    - admin
                     - user
+                    - admin
+                    - viewer
                   type: string
                   x-struct:
                   x-validate:

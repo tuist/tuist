@@ -17,6 +17,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
   setup do
     stub(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, pod_items(["pod-1"])} end)
+
+    stub(GitHubClient, :workflow_run_status, fn _installation, _repository, _run_id ->
+      {:ok, %{status: "in_progress", conclusion: nil}}
+    end)
+
     :ok
   end
 
@@ -25,6 +30,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       workflow_job_id: Keyword.get(opts, :workflow_job_id, 76_348_428_905),
       account_id: Keyword.get(opts, :account_id, 3),
       repository: Keyword.get(opts, :repository, "tuist/tuist"),
+      workflow_run_id: Keyword.get(opts, :workflow_run_id, 32_985_506_614),
       claimed_at: Keyword.get(opts, :claimed_at, ~U[2026-05-16 21:14:06.616167Z]),
       started_at: Keyword.get(opts, :started_at, ~U[2026-05-16 21:14:07.711527Z]),
       pod_name: Keyword.get(opts, :pod_name, "pod-1"),
@@ -39,6 +45,78 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   end
 
   describe "perform/1" do
+    test "completes instead of re-queueing when the parent workflow run is already completed" do
+      # A run that ends in `startup_failure` leaves its remaining jobs
+      # `queued` on GitHub permanently: the run is terminal, so no runner
+      # is ever assigned, yet the per-job endpoint keeps answering
+      # `queued`. Re-queueing on that answer alone returns the job to the
+      # head of the fleet queue (dispatch orders by oldest `enqueued_at`),
+      # where the next Pod claims it, strands, and is recovered again.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(GitHubClient, :workflow_run_status, fn _installation, "tuist/tuist", run_id ->
+        assert run_id == orphan.workflow_run_id
+        {:ok, %{status: "completed", conclusion: "startup_failure"}}
+      end)
+
+      reject(&Claims.release/2)
+
+      expect(Claims, :complete, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :complete, fn wfid, conclusion ->
+        assert wfid == orphan.workflow_job_id
+        assert conclusion == "startup_failure"
+        {:ok, %{}}
+      end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "still re-queues when the parent workflow run is not terminal" do
+      # The run is live, so `queued` means the runner never came up and
+      # the job is genuinely re-dispatchable.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(GitHubClient, :workflow_run_status, fn _i, _r, _run_id ->
+        {:ok, %{status: "in_progress", conclusion: nil}}
+      end)
+
+      reject(&Jobs.complete/2)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
     test "re-queues + releases when GitHub still reports the workflow_job as queued" do
       # The exact case shard 0 hit on 2026-05-16: PG/CH said the
       # workflow_job was claimed and running, but the Pod's container

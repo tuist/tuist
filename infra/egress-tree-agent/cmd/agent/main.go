@@ -167,7 +167,6 @@ func main() {
 	a := &agent.Agent{
 		NodeName:          nodeName,
 		DefaultNodeMbps:   defaultNodeMbps,
-		BetaPodPrefix:     os.Getenv("BETA_POD_PREFIX"),
 		ReturnDetachAfter: returnDetachAfter,
 		Pods:              podInformer.Lister(),
 		Nodes:             nodeInformer.Lister(),

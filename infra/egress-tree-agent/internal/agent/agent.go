@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net"
 	"slices"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -26,17 +25,6 @@ type Agent struct {
 	// that do not advertise tuist.dev/egress-mbps capacity. Zero means: no
 	// budget, no tree, pods stay unshaped.
 	DefaultNodeMbps int64
-	// BetaPodPrefix, when non-empty, restricts attachment to pods whose
-	// name starts with the prefix (a beta-rollout gate: shape one account's
-	// pods before the fleet). Excluded pods stay on the unshaped
-	// Cilium-only path and are counted separately from skipped pods so the
-	// exclusion never alerts. The desired tree and the sibling allowlists
-	// are still computed over every annotated pod, so a matched pod keeps
-	// its co-located sibling in the bypass even when that sibling is not
-	// itself attached. Clearing or changing the prefix converges through
-	// the normal reconcile: newly matched pods attach, no-longer-matched
-	// pods detach via stale-pin cleanup within one cycle.
-	BetaPodPrefix string
 	// ReturnDetachAfter is the number of consecutive return-program attach
 	// failures after which every pod program is detached. Attached pod
 	// programs redirect into the trampoline, and without a return program
@@ -109,7 +97,6 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		// skipped-pod gauge carries the signal.
 		a.Metrics.NodeBudgetMbps.Set(0)
 		a.Metrics.AttachedPods.Set(0)
-		a.Metrics.BetaExcludedPods.Set(0)
 		a.Metrics.SkippedPods.Set(float64(len(pods) + skipped))
 		if len(pods) > 0 {
 			a.Log.Warn("node advertises no egress budget; pods stay unshaped",
@@ -154,7 +141,6 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	}
 
 	attached := 0
-	betaExcluded := 0
 	active := map[string]bool{}
 	deviceOf := map[string]string{}
 	// Pods still desired but unconverged this cycle: their last known-good
@@ -164,10 +150,6 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	retained := map[string]bool{}
 	for _, attachment := range attachments {
 		key := attachment.Namespace + "/" + attachment.Name
-		if a.BetaPodPrefix != "" && !strings.HasPrefix(attachment.Name, a.BetaPodPrefix) {
-			betaExcluded++
-			continue
-		}
 		device, ok := interfaces[key]
 		if !ok {
 			skipped++
@@ -205,7 +187,6 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	}
 	a.Metrics.AttachedPods.Set(float64(attached))
 	a.Metrics.SkippedPods.Set(float64(skipped))
-	a.Metrics.BetaExcludedPods.Set(float64(betaExcluded))
 
 	if err := a.Attacher.CleanupStale(active); err != nil {
 		a.Log.Error("cleaning stale pins failed", "error", err)

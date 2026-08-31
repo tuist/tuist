@@ -430,3 +430,125 @@ func TestMoveIP(t *testing.T) {
 		t.Fatalf("move body = %s", b)
 	}
 }
+
+// Carries the two neighbouring fields the client must ignore: `connection` and
+// `vrack.bandwidth` report the 25 Gbit/s switch link whatever the public path is
+// limited to.
+func egressResponse(bandwidth any) map[string]any {
+	return map[string]any{
+		"bandwidth":  bandwidth,
+		"connection": map[string]any{"unit": "Mbps", "value": 25000},
+		"vrack":      map[string]any{"bandwidth": map[string]any{"unit": "Mbps", "value": 25000}, "type": "standard"},
+	}
+}
+
+func TestPublicEgressReadsOvhToInternet(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "Mbps", "value": 5000},
+			"InternetToOvh": map[string]any{"unit": "Mbps", "value": 5000},
+			"OvhToOvh":      map[string]any{"unit": "Mbps", "value": 5000},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 5000 {
+		t.Fatalf("Mbps = %d, want 5000 (the public limitation, not the 25000 link rate)", got.Mbps)
+	}
+	if got.Tier != "improved" {
+		t.Fatalf("Tier = %q, want %q", got.Tier, "improved")
+	}
+}
+
+func TestPublicEgressConvertsGbps(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "Gbps", "value": 5},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	// Taking the bare value would advertise 5 Mbps on a 5 Gbit/s box.
+	if got.Mbps != 5000 {
+		t.Fatalf("Mbps = %d, want 5000", got.Mbps)
+	}
+}
+
+func TestPublicEgressUnknownUnitIsUnresolved(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "quatloos", "value": 5000},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 0 {
+		t.Fatalf("Mbps = %d, want 0 for a unit we cannot convert", got.Mbps)
+	}
+	// The raw pair rides along so the log line can say what OVH sent.
+	if got.Unit != "quatloos" || got.Value != 5000 {
+		t.Fatalf("raw reading = %d %q, want 5000 %q", got.Value, got.Unit, "quatloos")
+	}
+}
+
+func TestPublicEgressMissingBandwidthIsUnresolved(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(nil),
+	}}
+
+	// Nullable in OVH's schema, so a null block is an answer, not an error.
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 0 {
+		t.Fatalf("Mbps = %d, want 0", got.Mbps)
+	}
+}
+
+func TestPublicEgressPropagatesTransportErrors(t *testing.T) {
+	// Must reach the caller as an error, so a real outage leaves the last known
+	// reading in place instead of zeroing it.
+	if _, err := (&Client{API: &fakeAPI{get: map[string]any{}}}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us"); err == nil {
+		t.Fatal("PublicEgress: expected an error for a failing request")
+	}
+}
+
+func TestPublicEgressRejectsAnOutOfRangeValue(t *testing.T) {
+	// 4294967596 wraps to 300 through int32, which clears the caller's floor and
+	// reads like a legitimate reading. Out of range has to join everything else we
+	// cannot interpret at zero.
+	for name, reading := range map[string]map[string]any{
+		"beyond int32":                       {"unit": "Mbps", "value": int64(4294967596)},
+		"gbps that overflows the conversion": {"unit": "Gbps", "value": int64(1 << 62)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := &fakeAPI{get: map[string]any{
+				"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+					"OvhToInternet": reading,
+					"type":          "improved",
+				}),
+			}}
+
+			got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+			if err != nil {
+				t.Fatalf("PublicEgress: %v", err)
+			}
+			if got.Mbps != 0 {
+				t.Fatalf("Mbps = %d, want 0", got.Mbps)
+			}
+		})
+	}
+}
