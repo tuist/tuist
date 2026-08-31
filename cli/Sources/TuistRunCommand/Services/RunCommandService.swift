@@ -7,6 +7,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
+import TuistNooraExtension
 import TuistServer
 import TuistSupport
 
@@ -546,6 +547,12 @@ struct RunCommandService {
             }
         }
 
+        private static func downloadProgressMessage(for progress: RemoteArtifactDownloadProgress) -> String {
+            let downloaded = Formatters.formatBytes(Int(progress.downloadedBytes))
+            let total = Formatters.formatBytes(Int(progress.totalBytes))
+            return "Downloading preview... \(Int(progress.fraction * 100))% (\(downloaded) of \(total))"
+        }
+
         private func downloadAppleAppBundle(
             for destination: DestinationType,
             preview: Components.Schemas.Preview,
@@ -557,8 +564,16 @@ struct RunCommandService {
             else {
                 throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
             }
-            let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
-                return try await remoteArtifactDownloader.download(url: buildURL)
+            let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { updateProgress in
+                let (progressUpdates, continuation) = AsyncStream<RemoteArtifactDownloadProgress>.makeStream()
+                let downloaded = Task {
+                    defer { continuation.finish() }
+                    return try await remoteArtifactDownloader.download(url: buildURL, progress: continuation)
+                }
+                for await progress in progressUpdates {
+                    updateProgress(Self.downloadProgressMessage(for: progress))
+                }
+                return try await downloaded.value
             }
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
