@@ -1168,7 +1168,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "tears the retired instance down once its drain window has elapsed" do
       account = account(plan: :enterprise)
-      source = active_instance(account)
+      _source = active_instance(account)
       _destination = active_instance_in(account, "eu-central")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
