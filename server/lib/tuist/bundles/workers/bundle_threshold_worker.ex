@@ -106,7 +106,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
            vcs_connection: %{github_app_installation: installation, repository_full_handle: repo_handle},
            account: %{name: account_name},
            name: project_name
-         },
+         } = project,
          bundle,
          git_commit_sha,
          result
@@ -133,13 +133,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
     params =
       if conclusion == "action_required" do
-        Map.put(params, :actions, [
-          %{
-            label: "Accept",
-            description: "Accept the bundle size increase",
-            identifier: "accept_bundle_size"
-          }
-        ])
+        Map.put(params, :actions, [Bundles.bundle_size_check_run_action(project)])
       else
         params
       end

@@ -154,4 +154,4 @@ By default anyone with write access to the repository can accept a size increase
 - **Anyone**: the default. Anyone with write access to the repository.
 - **Selected GitHub users**: only the GitHub usernames you add.
 
-Someone not on the list leaves the check failing with an explanation, and the button stays for whoever can use it.
+Someone not on the list leaves the check failing with an explanation, and the button stays for whoever can use it. GitHub confirms every press with "You have successfully requested 'Accept'" whether or not the person may accept, so read the check run itself for the outcome.

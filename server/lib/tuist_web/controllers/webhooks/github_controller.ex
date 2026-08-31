@@ -427,17 +427,17 @@ defmodule TuistWeb.Webhooks.GitHubController do
             accept_bundle_size(check_run_params, sender)
 
           {:error, reason} ->
-            reject_bundle_size(check_run_params, check_run, sender, reason)
+            reject_bundle_size(check_run_params, check_run, sender, reason, project)
         end
 
       {:error, :not_found} ->
-        reject_bundle_size(check_run_params, check_run, sender, :bundle_not_found)
+        reject_bundle_size(check_run_params, check_run, sender, :bundle_not_found, nil)
     end
   end
 
   defp authorize_unstamped_check_run(check_run, check_run_params, sender, repository_full_name) do
     if repository_restricts_bundle_size_approvals?(repository_full_name) do
-      reject_bundle_size(check_run_params, check_run, sender, :check_run_predates_policy)
+      reject_bundle_size(check_run_params, check_run, sender, :check_run_predates_policy, nil)
     else
       accept_bundle_size(check_run_params, sender)
     end
@@ -473,33 +473,33 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # Leaves the check run failing and re-sends the action so whoever is
   # allowed to accept still has a button to press, with the size report still
   # under it so they can see what they would be accepting.
-  defp reject_bundle_size(check_run_params, check_run, sender, reason) do
+  #
+  # GitHub answers the press with "You have successfully requested 'Accept'",
+  # which reads as though the increase went through. That banner is GitHub's
+  # own and takes no input from us, so the title carries the refusal too: a
+  # refusal only at the end of the summary leaves the check looking unchanged
+  # where the eye lands.
+  defp reject_bundle_size(check_run_params, check_run, sender, reason, project) do
     VCS.update_check_run(
       Map.merge(check_run_params, %{
         conclusion: "action_required",
         output: %{
-          title: existing_output(check_run, "title") || "Bundle size increase not accepted",
-          summary: summary_with_refusal(existing_output(check_run, "summary"), rejected_summary(sender, reason))
+          title: rejected_title(sender, reason),
+          summary: summary_with_refusal(existing_summary(check_run), rejected_summary(sender, reason, project))
         },
-        actions: [
-          %{
-            label: "Accept",
-            description: "Accept the bundle size increase",
-            identifier: "accept_bundle_size"
-          }
-        ]
+        actions: [Bundles.bundle_size_check_run_action(project)]
       })
     )
   end
 
-  defp existing_output(%{"output" => output}, key) when is_map(output) do
-    case output[key] do
+  defp existing_summary(%{"output" => output}) when is_map(output) do
+    case output["summary"] do
       value when is_binary(value) and value != "" -> value
       _ -> nil
     end
   end
 
-  defp existing_output(_check_run, _key), do: nil
+  defp existing_summary(_check_run), do: nil
 
   defp summary_with_refusal(nil, refusal), do: refusal
 
@@ -513,27 +513,67 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
   defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
 
-  defp rejected_summary(_sender, :bundle_not_found) do
-    "This check run could not be matched to its bundle, so who may accept could not be checked. Press Accept again in a moment."
+  defp rejected_title(sender, :not_an_approver), do: "Not accepted: #{who_mid_sentence(sender)} is not an approver"
+
+  defp rejected_title(_sender, :bundle_not_found), do: "Not accepted: this check could not be matched to its bundle"
+
+  defp rejected_title(_sender, :check_run_predates_policy), do: "Not accepted: this check predates the approver list"
+
+  defp rejected_title(_sender, _reason), do: "Bundle size increase not accepted"
+
+  defp rejected_summary(_sender, :bundle_not_found, _project) do
+    "**Not accepted.** This check could not be matched to its bundle, so who is allowed to accept could not be checked. That is usually momentary. Press Accept again."
   end
 
-  defp rejected_summary(_sender, :check_run_predates_policy) do
-    "This check run was created before approvals were restricted for this repository, so who may accept cannot be checked. Push a new commit to get a check run that can be."
+  defp rejected_summary(_sender, :check_run_predates_policy, _project) do
+    "**Not accepted.** This check was created before approvals were restricted for this repository, so who is allowed to accept cannot be checked. Push a new commit to get a check that can be."
   end
 
-  defp rejected_summary(sender, :not_an_approver) do
-    "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
+  defp rejected_summary(sender, :not_an_approver, project) do
+    "**Not accepted.** #{who(sender)} is not on this project's list of people who can accept a bundle size increase.\n\n" <>
+      approver_guidance(project)
   end
 
   # Any denial reason without its own wording still has to produce a check run
   # update: falling through to a FunctionClauseError here would 500 the
   # webhook and leave the check run without the button it needs.
-  defp rejected_summary(sender, _reason) do
-    "#{who(sender)} is not allowed to accept bundle size increases for this project."
+  defp rejected_summary(sender, _reason, _project) do
+    "**Not accepted.** #{who(sender)} cannot accept bundle size increases for this project."
   end
+
+  defp approver_guidance(%Project{} = project) do
+    case Bundles.list_bundle_size_approvers(project) do
+      [] ->
+        "The list is empty, so nobody can accept it yet. A project admin adds approvers under #{settings_link(project)}."
+
+      approvers ->
+        "Ask one of the approvers to press Accept: #{approver_handles(approvers)}. A project admin can change the list under #{settings_link(project)}."
+    end
+  end
+
+  @listed_approvers 10
+
+  defp approver_handles(approvers) do
+    listed = Enum.take(approvers, @listed_approvers)
+    handles = Enum.map_join(listed, ", ", &"@#{&1.github_handle}")
+
+    case length(approvers) - length(listed) do
+      0 -> handles
+      rest -> "#{handles} and #{rest} more"
+    end
+  end
+
+  defp settings_link(%Project{name: name, account: %{name: account_name}}) do
+    "[Settings > Bundles](#{Environment.app_url(path: "/#{account_name}/#{name}/settings/bundles")})"
+  end
+
+  defp settings_link(_project), do: "Settings > Bundles in Tuist"
 
   defp who(%{handle: nil}), do: "This GitHub account"
   defp who(%{handle: handle}), do: "@#{handle}"
+
+  defp who_mid_sentence(%{handle: nil}), do: "this GitHub account"
+  defp who_mid_sentence(sender), do: who(sender)
 
   defp delete_github_app_installation(conn, body, installation_id) do
     case lookup_installation_by_id(conn, body, installation_id) do

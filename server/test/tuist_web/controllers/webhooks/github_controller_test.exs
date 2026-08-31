@@ -423,8 +423,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       expect(VCS, :update_check_run, fn params ->
         assert params.output.summary =~ "View bundle details"
-        assert params.output.summary =~ "is not allowed to accept"
-        assert params.output.title == "Bundle size threshold exceeded"
+        assert params.output.summary =~ "is not on this project's list"
+        assert params.output.title == "Not accepted: @octocat is not an approver"
         {:ok, %{"id" => 42}}
       end)
 
@@ -448,13 +448,13 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       conn = put_req_header(conn, "x-github-event", "check_run")
 
       already_refused =
-        "The size report\n\n---\n\n@octocat is not allowed to accept bundle size increases for this project."
+        "The size report\n\n---\n\n**Not accepted.** @octocat is not on this project's list of people who can accept a bundle size increase."
 
       expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
 
       expect(VCS, :update_check_run, fn params ->
         assert params.output.summary =~ "The size report"
-        refusals = params.output.summary |> String.split("is not allowed to accept") |> length()
+        refusals = params.output.summary |> String.split("**Not accepted.**") |> length()
         assert refusals == 2
         {:ok, %{"id" => 42}}
       end)
@@ -526,9 +526,11 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       expect(VCS, :update_check_run, fn params ->
         assert params.conclusion == "action_required"
-        assert params.output.title == "Bundle size increase not accepted"
-        assert params.output.summary =~ "@octocat is not allowed to accept"
+        assert params.output.title == "Not accepted: @octocat is not an approver"
+        assert params.output.summary =~ "@octocat is not on this project's list"
+        assert params.output.summary =~ "The list is empty"
         assert hd(params.actions).identifier == "accept_bundle_size"
+        assert hd(params.actions).description == "Only listed approvers can accept"
         {:ok, %{"id" => 42}}
       end)
 
@@ -538,6 +540,31 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Then
       assert result.status == 200
       assert is_nil(Bundles.get_bundle_size_approval(bundle.id))
+    end
+
+    test "names the approvers to ask and where the list is edited", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "alice", github_id: "111")
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "bob", github_id: "222")
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      account_handle = Projects.get_project_by_id(project.id).account.name
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.output.summary =~ "Ask one of the approvers to press Accept: @alice, @bob."
+        assert params.output.summary =~ "/#{account_handle}/#{project.name}/settings/bundles"
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
     end
 
     test "accepts when the sender is on the allowlist", %{conn: conn} do

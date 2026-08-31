@@ -833,6 +833,29 @@ defmodule Tuist.Bundles do
     end
   end
 
+  @doc """
+  The `Accept` action offered on a `tuist/bundle-size` check run.
+
+  The description states the restriction, so a project that limits who can
+  accept says so on the button rather than only in the refusal that follows a
+  press.
+  """
+  def bundle_size_check_run_action(%Project{bundle_size_approval_policy: :selected}) do
+    %{
+      label: "Accept",
+      description: "Only listed approvers can accept",
+      identifier: "accept_bundle_size"
+    }
+  end
+
+  def bundle_size_check_run_action(_project) do
+    %{
+      label: "Accept",
+      description: "Accept the bundle size increase",
+      identifier: "accept_bundle_size"
+    }
+  end
+
   def delete_bundle_size_approver(%BundleSizeApprover{} = approver) do
     Repo.delete(approver)
   end
