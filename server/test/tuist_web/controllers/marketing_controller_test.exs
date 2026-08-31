@@ -54,6 +54,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /sitemap.xml" do
+    # The sitemap enumerates documentation slugs, which include command-line
+    # pages fetched from the latest GitHub release. Stub them so the test does
+    # not depend on the network.
+    setup do
+      stub(Tuist.Docs.CLI, :get_pages, fn -> [] end)
+      :ok
+    end
+
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 

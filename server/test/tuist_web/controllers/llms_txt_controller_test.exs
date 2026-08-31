@@ -1,7 +1,18 @@
 defmodule TuistWeb.LlmsTxtControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Tuist.Docs.CLI
 
   describe "GET /llms.txt" do
+    # The index walks every documentation page, and the command-line pages are
+    # fetched from the latest GitHub release. Stub them so the test does not
+    # depend on the network.
+    setup do
+      stub(CLI, :get_pages, fn -> [] end)
+      :ok
+    end
+
     test "serves the index as plain text instead of redirecting to the login page", %{conn: conn} do
       conn = get(conn, "/llms.txt")
 
