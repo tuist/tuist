@@ -62,7 +62,7 @@ pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 // chunk for a segment-backed artifact, or up to
 // `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one — so 8 buys an order
 // of magnitude of headroom for a few MiB.
-pub const DEFAULT_OUTBOX_MAX_INFLIGHT: usize = 8;
+pub const OUTBOX_MAX_INFLIGHT: usize = 8;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;

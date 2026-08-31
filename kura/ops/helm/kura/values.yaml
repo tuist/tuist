@@ -181,14 +181,6 @@ config:
     # attempt is abandoned and retried. This is the only deadline on that path,
     # so it is tunable without a code change if the default proves wrong.
     uploadStallMs: 60000
-    # Outbox deliveries dispatched before the drain waits for one to finish.
-    # This is what separates queue throughput from the round trip to a peer:
-    # throughput is roughly this many messages per RTT, and at 1 the drain is
-    # serial and delivers one message per RTT however much bandwidth it has.
-    # Every artifact enqueues one message per peer, so the artifact rate is
-    # this divided by the peer count. Raise it for a write-primary whose peers
-    # are far away; the cost is one in-flight body per slot.
-    outboxMaxInflight: 8
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

@@ -26,7 +26,8 @@ use crate::{
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{
-        MAX_INLINE_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS, RESPONSE_STREAM_CHUNK_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, OUTBOX_MAX_INFLIGHT, REPLICATION_RETRY_SECS,
+        RESPONSE_STREAM_CHUNK_BYTES,
     },
     failpoints::FailpointName,
     state::SharedState,
@@ -237,7 +238,7 @@ async fn outbox_task_loop(state: SharedState) {
         // buy nothing.
         //
         // The memory a pause could reclaim does not justify either case. The
-        // pass keeps at most `outbox_max_inflight` deliveries in flight
+        // pass keeps at most `OUTBOX_MAX_INFLIGHT` deliveries in flight
         // node-wide, regardless of peer count or backlog depth — a queued
         // message costs RocksDB, not RAM — and takes no transient reservation.
         // Each delivery holds a single `SegmentReader` chunk (512 KiB) for a
@@ -554,7 +555,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         !state.runtime.peer_view_pending() && state.initial_discovery_completed().await;
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
-    // Deliveries are pipelined: up to `outbox_max_inflight` are dispatched
+    // Deliveries are pipelined: up to `OUTBOX_MAX_INFLIGHT` are dispatched
     // before the first completion is awaited. Awaiting each message in turn
     // pinned a node's throughput to one delivery per round trip, which for a
     // write-primary whose peers sit on another continent lands below the rate
@@ -566,7 +567,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     // last-writer-wins on `version_ms` (`Store::artifact_apply_outcome`), so a
     // message landing after a newer one for the same key is ignored rather than
     // resurrecting stale bytes.
-    let max_inflight = state.config.outbox_max_inflight.max(1);
     let mut inflight = FuturesUnordered::new();
     // Dispatched but unresolved keys. `rewind_to_priority_head` sends the scan
     // back to the head mid-pass, so without this the same message could be
@@ -585,7 +585,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     let mut after = None::<Vec<u8>>;
 
     loop {
-        while inflight.len() < max_inflight {
+        while inflight.len() < OUTBOX_MAX_INFLIGHT {
             let Some((message_key, message)) =
                 next_undispatched_message(state, after.as_deref(), &inflight_keys)?
             else {
@@ -2099,8 +2099,7 @@ mod tests {
         // bandwidth the node had. The peer here holds every request open for a
         // fixed delay and records how many were open at once: a serial drain
         // can never record more than one.
-        const INFLIGHT: usize = 4;
-        const MESSAGES: usize = 8;
+        const MESSAGES: usize = 16;
 
         let open = Arc::new(AtomicU64::new(0));
         let peak = Arc::new(AtomicU64::new(0));
@@ -2128,7 +2127,6 @@ mod tests {
             let peer_url = peer_url.clone();
             move |config| {
                 config.peers = vec![peer_url.clone()];
-                config.outbox_max_inflight = INFLIGHT;
             }
         })
         .await;
@@ -2167,8 +2165,8 @@ mod tests {
             "deliveries never overlapped (peak in flight was {peak}); the drain is still serial"
         );
         assert!(
-            peak <= INFLIGHT as u64,
-            "peak in flight was {peak}, above the configured limit of {INFLIGHT}"
+            peak <= OUTBOX_MAX_INFLIGHT as u64,
+            "peak in flight was {peak}, above the {OUTBOX_MAX_INFLIGHT} the drain admits"
         );
     }
 
