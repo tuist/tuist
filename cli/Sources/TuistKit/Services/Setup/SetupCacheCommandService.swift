@@ -481,6 +481,13 @@ struct SetupCacheCommandService {
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             environmentVariables["TUIST_CAS_PROXY_REGISTRY"] = registry
         }
+        // The proxy's diagnostics (the `incomplete closure` shapes and the
+        // periodic stats line) are written only to the file this variable names,
+        // never to stdout or stderr, so without forwarding it there is no way to
+        // turn them on for a proxy running under launchd.
+        if let logPath = Environment.current.variables["TUIST_CAS_LOG"] {
+            environmentVariables["TUIST_CAS_LOG"] = logPath
+        }
         // Trunk ingestion pays for itself only where the machine can warm the CAS
         // BEFORE a build: it pulls the trunk closure in the background so the next
         // build finds it local. CI has no such window. The proxy and the build
