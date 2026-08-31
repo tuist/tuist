@@ -474,14 +474,34 @@ defmodule Tuist.Builds do
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
+    {custom_tag_filters, attrs} = pop_custom_tag_filters(attrs)
 
-    base_query = apply_custom_values_filter(from(b in Build, hints: ["FINAL"]), custom_values)
+    base_query =
+      from(b in Build, hints: ["FINAL"])
+      |> apply_custom_values_filter(custom_values)
+      |> apply_custom_tag_filters(custom_tag_filters)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
     results = Repo.preload(results, preload)
 
     {results, meta}
+  end
+
+  defp pop_custom_tag_filters(attrs) do
+    {filters, attrs} = Map.pop(attrs, :filters, [])
+    {custom_tag_filters, filters} = Enum.split_with(filters, &custom_tag_filter?/1)
+    {custom_tag_filters, Map.put(attrs, :filters, filters)}
+  end
+
+  defp custom_tag_filter?(%{field: :custom_tags, op: op}) when op in [:contains, :not_contains], do: true
+  defp custom_tag_filter?(_), do: false
+
+  defp apply_custom_tag_filters(query, filters) do
+    Enum.reduce(filters, query, fn
+      %{op: :contains, value: value}, q -> from(b in q, where: fragment("has(?, ?)", b.custom_tags, ^value))
+      %{op: :not_contains, value: value}, q -> from(b in q, where: fragment("NOT has(?, ?)", b.custom_tags, ^value))
+    end)
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
