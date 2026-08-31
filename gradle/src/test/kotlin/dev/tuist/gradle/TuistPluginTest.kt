@@ -443,6 +443,50 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `plugin reuses Gradle configuration cache`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello")
+        """.trimIndent())
+
+        val first = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--configuration-cache")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, first.task(":hello")?.outcome)
+        assertTrue(
+            !first.output.contains("Configuration cache state could not be cached"),
+            "Unexpected configuration cache serialization error:\n${first.output}"
+        )
+
+        val second = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--configuration-cache")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, second.task(":hello")?.outcome)
+        assertTrue(second.output.contains("Reusing configuration cache"), second.output)
+    }
+
+    @Test
     fun `plugin logs message when build cache is configured`() {
         settingsFile.writeText("""
             plugins {

@@ -7,6 +7,13 @@ interface GitInfoProvider {
     fun remoteUrlOrigin(): String?
 }
 
+object EmptyGitInfoProvider : GitInfoProvider {
+    override fun branch(): String? = null
+    override fun commitSha(): String? = null
+    override fun ref(): String? = null
+    override fun remoteUrlOrigin(): String? = null
+}
+
 class ProcessGitInfoProvider(
     private val environmentProvider: (String) -> String? = { System.getenv(it) },
     private val gitCommandRunner: (List<String>) -> String = ::runGitProcess

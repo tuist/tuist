@@ -6,6 +6,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.GradleInternal
+import org.gradle.api.internal.StartParameterInternal
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
@@ -15,6 +16,11 @@ import org.gradle.build.event.BuildEventsListenerRegistry
 import org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheLocalLoadBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperationType
+import org.gradle.caching.internal.operations.BuildCacheRemoteStoreBuildOperationType
+import org.gradle.configuration.project.ConfigureProjectBuildOperationType
+import org.gradle.initialization.ConfigureBuildBuildOperationType
+import org.gradle.initialization.EvaluateSettingsBuildOperationType
+import org.gradle.internal.configurationcache.ConfigurationCacheLoadBuildOperationType
 import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.BuildOperationListener
@@ -23,6 +29,8 @@ import org.gradle.internal.operations.OperationFinishEvent
 import org.gradle.internal.operations.OperationIdentifier
 import org.gradle.internal.operations.OperationProgressEvent
 import org.gradle.internal.operations.OperationStartEvent
+import org.gradle.operations.configuration.ConfigurationCacheCheckFingerprintBuildOperationType
+import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
 import org.gradle.tooling.events.FinishEvent
 import org.gradle.tooling.events.OperationCompletionListener
 import org.gradle.tooling.events.task.TaskFinishEvent
@@ -46,6 +54,11 @@ import javax.inject.Inject
 
 enum class CacheHitType { LOCAL, REMOTE, MISS }
 
+internal fun isConfigurationCacheRequested(project: Project): Boolean =
+    (project.gradle.startParameter as? StartParameterInternal)
+        ?.configurationCache
+        ?.get() == true
+
 enum class TaskOutcome(val value: String) {
     @SerializedName("local_hit") LOCAL_HIT("local_hit"),
     @SerializedName("remote_hit") REMOTE_HIT("remote_hit"),
@@ -59,7 +72,9 @@ enum class TaskOutcome(val value: String) {
 data class TaskCacheMetadata(
     val cacheKey: String? = null,
     val artifactSize: Long? = null,
-    val cacheHitType: CacheHitType = CacheHitType.MISS
+    val cacheHitType: CacheHitType = CacheHitType.MISS,
+    val remoteCacheMiss: Boolean = false,
+    val remoteCacheStored: Boolean? = null
 )
 
 data class TaskOutcomeData(
@@ -69,7 +84,9 @@ data class TaskOutcomeData(
     val durationMs: Long,
     val cacheKey: String?,
     val cacheArtifactSize: Long?,
-    val startedAt: String?
+    val startedAt: String?,
+    val remoteCacheMiss: Boolean = false,
+    val remoteCacheStored: Boolean? = null
 )
 
 data class TaskReportEntry(
@@ -79,7 +96,34 @@ data class TaskReportEntry(
     @SerializedName("duration_ms") val durationMs: Long,
     @SerializedName("cache_key") val cacheKey: String?,
     @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?,
-    @SerializedName("started_at") val startedAt: String?
+    @SerializedName("started_at") val startedAt: String?,
+    @SerializedName("remote_cache_miss") val remoteCacheMiss: Boolean = false,
+    @SerializedName("remote_cache_stored") val remoteCacheStored: Boolean? = null
+)
+
+data class ConfigurationCacheReport(
+    val status: String,
+    @SerializedName("entry_size") val entrySize: Long? = null,
+    @SerializedName("load_duration_ms") val loadDurationMs: Long? = null,
+    @SerializedName("invalidation_reasons") val invalidationReasons: List<String> = emptyList()
+)
+
+data class ConfigurationOperationReportEntry(
+    val phase: String,
+    @SerializedName("build_path") val buildPath: String,
+    @SerializedName("project_path") val projectPath: String? = null,
+    @SerializedName("duration_ms") val durationMs: Long,
+    @SerializedName("started_at") val startedAt: String
+)
+
+data class ArtifactTransformReportEntry(
+    @SerializedName("transformer_name") val transformerName: String,
+    @SerializedName("transform_action_class") val transformActionClass: String,
+    @SerializedName("subject_name") val subjectName: String,
+    @SerializedName("artifact_name") val artifactName: String,
+    @SerializedName("consumer_project_path") val consumerProjectPath: String,
+    @SerializedName("duration_ms") val durationMs: Long,
+    @SerializedName("started_at") val startedAt: String
 )
 
 data class BuildReportRequest(
@@ -96,7 +140,10 @@ data class BuildReportRequest(
     @SerializedName("root_project_name") val rootProjectName: String?,
     @SerializedName("requested_tasks") val requestedTasks: List<String>,
     val tasks: List<TaskReportEntry>,
-    @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null
+    @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null,
+    @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
+    @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
+    @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
 )
 
 data class BuildReportResponse(val id: String)
@@ -116,6 +163,7 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val configurationCacheRequested: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -128,6 +176,8 @@ abstract class TuistBuildInsightsService :
     val buildId: String = UUID.randomUUID().toString()
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
+    private val configurationOperations = ConcurrentLinkedQueue<ConfigurationOperationReportEntry>()
+    private val artifactTransforms = ConcurrentLinkedQueue<ArtifactTransformReportEntry>()
     private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val requestedTaskNames: MutableList<String> = mutableListOf()
     private var buildStartTime: Long = System.currentTimeMillis()
@@ -137,6 +187,10 @@ abstract class TuistBuildInsightsService :
     private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
     private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
     private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
+    private val configurationCacheInvalidationReasons = ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var configurationCacheStatus: String? = null
+    @Volatile private var configurationCacheEntrySize: Long? = null
+    @Volatile private var configurationCacheLoadDurationMs: Long? = null
 
     fun setCacheableTasks(paths: Set<String>) {
         cacheableTaskPaths.addAll(paths)
@@ -179,16 +233,22 @@ abstract class TuistBuildInsightsService :
                 }
             }
             is BuildCacheRemoteLoadBuildOperationType.Result -> {
-                if (result.isHit) {
-                    val taskPath = findTaskPathForOperation(opId) ?: return
-                    val cacheKey = (details as? BuildCacheRemoteLoadBuildOperationType.Details)?.cacheKey
-                    val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
-                    taskCacheMetadata[taskPath] = existing.copy(
-                        cacheKey = cacheKey,
-                        artifactSize = result.archiveSize,
-                        cacheHitType = CacheHitType.REMOTE
-                    )
-                }
+                val taskPath = findTaskPathForOperation(opId) ?: return
+                val cacheKey = (details as? BuildCacheRemoteLoadBuildOperationType.Details)?.cacheKey
+                val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
+                taskCacheMetadata[taskPath] =
+                    if (result.isHit) {
+                        existing.copy(
+                            cacheKey = cacheKey,
+                            artifactSize = result.archiveSize,
+                            cacheHitType = CacheHitType.REMOTE
+                        )
+                    } else {
+                        existing.copy(
+                            cacheKey = cacheKey,
+                            remoteCacheMiss = true
+                        )
+                    }
             }
             is BuildCacheArchivePackBuildOperationType.Result -> {
                 val taskPath = findTaskPathForOperation(opId) ?: return
@@ -199,7 +259,20 @@ abstract class TuistBuildInsightsService :
                     artifactSize = result.archiveSize
                 )
             }
+            is BuildCacheRemoteStoreBuildOperationType.Result -> {
+                val taskPath = findTaskPathForOperation(opId) ?: return
+                val cacheKey = (details as? BuildCacheRemoteStoreBuildOperationType.Details)?.cacheKey
+                val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
+                taskCacheMetadata[taskPath] = existing.copy(
+                    cacheKey = cacheKey ?: existing.cacheKey,
+                    remoteCacheStored = result.isStored
+                )
+            }
         }
+
+        recordConfigurationOperation(details, finishEvent)
+        recordConfigurationCacheMetadata(result, finishEvent)
+        recordArtifactTransform(details, finishEvent)
 
         // Clean up when task-level operations finish
         if (buildOperation.details is ExecuteTaskBuildOperationType.Details) {
@@ -273,12 +346,97 @@ abstract class TuistBuildInsightsService :
                 durationMs = durationMs,
                 cacheKey = metadata?.cacheKey,
                 cacheArtifactSize = metadata?.artifactSize,
-                startedAt = startedAt
+                startedAt = startedAt,
+                remoteCacheMiss = metadata?.remoteCacheMiss ?: false,
+                remoteCacheStored = metadata?.remoteCacheStored
             )
         )
 
         taskCacheMetadata.remove(taskPath)
     }
+
+    private fun recordConfigurationOperation(details: Any?, finishEvent: OperationFinishEvent) {
+        val durationMs = finishEvent.endTime - finishEvent.startTime
+        val startedAt = formatTimestamp(finishEvent.startTime)
+
+        val operation = when (details) {
+            is ConfigureBuildBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "build",
+                buildPath = details.buildPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            is EvaluateSettingsBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "settings",
+                buildPath = details.buildPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            is ConfigureProjectBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "project",
+                buildPath = details.buildPath,
+                projectPath = details.projectPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            else -> null
+        }
+
+        operation?.let(configurationOperations::add)
+    }
+
+    private fun recordConfigurationCacheMetadata(result: Any?, finishEvent: OperationFinishEvent) {
+        when {
+            result is ConfigurationCacheLoadBuildOperationType.Result -> {
+                configurationCacheStatus = "reused"
+                configurationCacheEntrySize = result.cacheEntrySize
+                configurationCacheLoadDurationMs = finishEvent.endTime - finishEvent.startTime
+            }
+            result is ConfigurationCacheCheckFingerprintBuildOperationType.Result -> {
+                configurationCacheStatus = result.status.name.lowercase()
+                result.buildInvalidationReasons
+                    .flatMap { it.invalidationReasons }
+                    .map { it.message }
+                    .forEach(configurationCacheInvalidationReasons::add)
+                result.projectInvalidationReasons
+                    .flatMap { it.invalidationReasons }
+                    .map { it.message }
+                    .forEach(configurationCacheInvalidationReasons::add)
+            }
+        }
+    }
+
+    private fun recordArtifactTransform(details: Any?, finishEvent: OperationFinishEvent) {
+        if (details !is ExecutePlannedTransformStepBuildOperationType.Details) return
+
+        val identity = details.plannedTransformStepIdentity
+        artifactTransforms.add(
+            ArtifactTransformReportEntry(
+                transformerName = details.transformerName,
+                transformActionClass = details.transformActionClass.name,
+                subjectName = details.subjectName,
+                artifactName = identity.artifactName,
+                consumerProjectPath = identity.consumerProjectPath,
+                durationMs = finishEvent.endTime - finishEvent.startTime,
+                startedAt = formatTimestamp(finishEvent.startTime)
+            )
+        )
+    }
+
+    private fun configurationCacheReport(): ConfigurationCacheReport? {
+        val status = configurationCacheStatus ?: return null
+        return ConfigurationCacheReport(
+            status = status,
+            entrySize = configurationCacheEntrySize,
+            loadDurationMs = configurationCacheLoadDurationMs,
+            invalidationReasons = configurationCacheInvalidationReasons.toList().sorted()
+        )
+    }
+
+    private fun formatTimestamp(timestampMs: Long): String =
+        Instant.ofEpochMilli(timestampMs)
+            .atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
     override fun close() {
         try {
@@ -339,8 +497,11 @@ abstract class TuistBuildInsightsService :
             rootProjectName = parameters.rootProjectName.orNull,
             requestedTasks = requestedTaskNames.toList(),
             ciDetector = ciDetector,
-            gitInfoProvider = gitInfoProvider,
-            machineMetrics = machineMetrics
+            gitInfoProvider = reportGitInfoProvider(),
+            machineMetrics = machineMetrics,
+            configurationCache = configurationCacheReport(),
+            configurationOperations = configurationOperations.toList(),
+            artifactTransforms = artifactTransforms.toList()
         )
 
         val response = httpClient.execute { config ->
@@ -385,6 +546,13 @@ abstract class TuistBuildInsightsService :
             logger.warn("Tuist: Failed to report build insights.")
         }
     }
+
+    private fun reportGitInfoProvider(): GitInfoProvider =
+        if (parameters.configurationCacheRequested.getOrElse(false) && gitInfoProvider is ProcessGitInfoProvider) {
+            EmptyGitInfoProvider
+        } else {
+            gitInfoProvider
+        }
 }
 
 internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
@@ -405,7 +573,10 @@ internal fun buildReport(
     requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
-    machineMetrics: List<MachineMetricSample>? = null
+    machineMetrics: List<MachineMetricSample>? = null,
+    configurationCache: ConfigurationCacheReport? = null,
+    configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
+    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
 ): BuildReportRequest {
     val status = when {
         buildFailed -> "failure"
@@ -434,10 +605,15 @@ internal fun buildReport(
                 durationMs = task.durationMs,
                 cacheKey = task.cacheKey,
                 cacheArtifactSize = task.cacheArtifactSize,
-                startedAt = task.startedAt
+                startedAt = task.startedAt,
+                remoteCacheMiss = task.remoteCacheMiss,
+                remoteCacheStored = task.remoteCacheStored
             )
         },
-        machineMetrics = machineMetrics
+        machineMetrics = machineMetrics,
+        configurationCache = configurationCache,
+        configurationOperations = configurationOperations,
+        artifactTransforms = artifactTransforms
     )
 }
 
@@ -450,6 +626,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
+        val configurationCacheRequested = isConfigurationCacheRequested(project)
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
@@ -461,6 +638,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.configurationCacheRequested.set(configurationCacheRequested)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)
@@ -477,6 +655,9 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 .flatMap { it.args }
 
             val service = serviceProvider.get()
+            if (configurationCacheRequested) {
+                service.gitInfoProvider = EmptyGitInfoProvider
+            }
             service.setCacheableTasks(cacheablePaths)
             service.setRequestedTasks(requestedTasks)
             service.uploadInBackground = config.uploadInBackground

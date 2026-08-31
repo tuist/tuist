@@ -192,6 +192,71 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute html =~ ":app:compileJava"
   end
 
+  test "shows cache-miss diagnostics and setup telemetry", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        configuration_cache: %{
+          status: "invalid",
+          invalidation_reasons: ["an environment variable changed"]
+        },
+        configuration_operations: [
+          %{
+            phase: "project",
+            build_path: ":",
+            project_path: ":app",
+            duration_ms: 300,
+            started_at: ~U[2026-08-31 12:00:00Z]
+          }
+        ],
+        artifact_transforms: [
+          %{
+            transformer_name: "JetifyTransform",
+            transform_action_class: "com.example.JetifyTransform",
+            subject_name: "example.jar",
+            artifact_name: "example.jar",
+            consumer_project_path: ":app",
+            duration_ms: 200,
+            started_at: ~U[2026-08-31 12:00:01Z]
+          }
+        ],
+        tasks: [
+          %{
+            task_path: ":app:compileKotlin",
+            outcome: "executed",
+            cacheable: true,
+            duration_ms: 1_000,
+            remote_cache_miss: true,
+            remote_cache_stored: true
+          }
+        ]
+      )
+
+    {:ok, _lv, cache_html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=gradle-cache"
+      )
+
+    assert cache_html =~ "No remote entry, then stored"
+    assert cache_html =~ "Confirmed remote misses"
+
+    {:ok, _lv, setup_html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=build-setup"
+      )
+
+    assert setup_html =~ "Configuration"
+    assert setup_html =~ "an environment variable changed"
+    assert setup_html =~ "JetifyTransform"
+  end
+
   test "search event triggers filtering via form change", %{
     conn: conn,
     organization: organization,

@@ -64,6 +64,15 @@
       patch={"?#{Query.put(@uri.query, "tab", "gradle-cache")}"}
     />
     <.tab_menu_horizontal_item
+      :if={
+        @build.configuration_cache_status != "" or @configuration_operations != [] or
+          @artifact_transforms != []
+      }
+      label={dgettext("dashboard_gradle", "Build Setup")}
+      selected={@selected_tab == "build-setup"}
+      patch={"?#{Query.put(@uri.query, "tab", "build-setup")}"}
+    />
+    <.tab_menu_horizontal_item
       :if={length(@machine_metrics) > 0}
       label={dgettext("dashboard_gradle", "Machine Metrics")}
       selected={@selected_tab == "machine-metrics"}
@@ -295,6 +304,124 @@
       </.card_section>
     </.card>
   <% end %>
+  <%= if @selected_tab == "build-setup" do %>
+    <div data-part="build-setup">
+      <.card
+        title={dgettext("dashboard_gradle", "Configuration")}
+        icon="settings"
+        data-part="configuration-card"
+      >
+        <.card_section data-part="configuration-summary">
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration time")}
+            description={
+              dgettext("dashboard_gradle", "Time Gradle spent configuring this build.")
+            }
+            value={format_duration(@configuration_duration_ms)}
+            id="widget-configuration-time"
+            empty={@configuration_duration_ms == 0}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration cache")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Status of Gradle's configuration cache for this build."
+              )
+            }
+            value={configuration_cache_status_label(@build.configuration_cache_status)}
+            id="widget-configuration-cache"
+            empty={@build.configuration_cache_status == ""}
+            empty_label={dgettext("dashboard_gradle", "Not requested")}
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration cache load")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Time spent loading a reused configuration cache entry."
+              )
+            }
+            value={
+              if @build.configuration_cache_load_duration_ms,
+                do: format_duration(@build.configuration_cache_load_duration_ms),
+                else: dgettext("dashboard_gradle", "—")
+            }
+            id="widget-configuration-cache-load"
+            empty={is_nil(@build.configuration_cache_load_duration_ms)}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+        </.card_section>
+        <.card_section :if={@build.configuration_cache_invalidation_reasons != []}>
+          <div data-part="title">
+            <span data-part="label">{dgettext("dashboard_gradle", "Invalidation reasons")}</span>
+          </div>
+          <ul>
+            <li :for={reason <- @build.configuration_cache_invalidation_reasons}>{reason}</li>
+          </ul>
+        </.card_section>
+        <.card_section :if={@configuration_operations != []} data-part="configuration-operations">
+          <.table id="gradle-configuration-operations-table" rows={@configuration_operations}>
+            <:col :let={operation} label={dgettext("dashboard_gradle", "Phase")}>
+              <.text_cell label={configuration_phase_label(operation.phase)} />
+            </:col>
+            <:col :let={operation} label={dgettext("dashboard_gradle", "Scope")}>
+              <.text_cell label={
+                if operation.project_path == "",
+                  do: operation.build_path,
+                  else: operation.project_path
+              } />
+            </:col>
+            <:col :let={operation} label={dgettext("dashboard_gradle", "Duration")}>
+              <.text_cell label={format_duration(operation.duration_ms)} icon="history" />
+            </:col>
+          </.table>
+        </.card_section>
+      </.card>
+      <.card
+        :if={@artifact_transforms != []}
+        title={dgettext("dashboard_gradle", "Artifact Transforms")}
+        icon="subtask"
+        data-part="artifact-transforms-card"
+      >
+        <.card_section data-part="artifact-transforms-summary">
+          <.widget
+            title={dgettext("dashboard_gradle", "Transforms")}
+            description={
+              dgettext("dashboard_gradle", "Artifact transforms recorded for this build.")
+            }
+            value={length(@artifact_transforms)}
+            id="widget-artifact-transforms"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Transform time")}
+            description={
+              dgettext("dashboard_gradle", "Total time spent in recorded artifact transforms.")
+            }
+            value={format_duration(@artifact_transform_duration_ms)}
+            id="widget-artifact-transform-time"
+          />
+        </.card_section>
+        <.card_section data-part="artifact-transforms-table-section">
+          <.table id="gradle-artifact-transforms-table" rows={@artifact_transforms}>
+            <:col :let={transform} label={dgettext("dashboard_gradle", "Transform")}>
+              <.text_cell label={transform.transformer_name} />
+            </:col>
+            <:col :let={transform} label={dgettext("dashboard_gradle", "Artifact")}>
+              <.text_cell label={transform.artifact_name} />
+            </:col>
+            <:col :let={transform} label={dgettext("dashboard_gradle", "Subject")}>
+              <.text_cell label={transform.subject_name} />
+            </:col>
+            <:col :let={transform} label={dgettext("dashboard_gradle", "Duration")}>
+              <.text_cell label={format_duration(transform.duration_ms)} icon="history" />
+            </:col>
+          </.table>
+        </.card_section>
+      </.card>
+    </div>
+  <% end %>
   <%= if @selected_tab == "machine-metrics" do %>
     <.machine_metrics_charts metrics={@machine_metrics} />
   <% end %>
@@ -358,6 +485,39 @@
             }
             value={ByteFormatter.format_bytes(@cache_upload_bytes)}
             id="widget-cache-uploads"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Confirmed remote misses")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Cacheable tasks for which Gradle checked the remote cache and found no entry."
+              )
+            }
+            value={@confirmed_remote_cache_miss_count}
+            id="widget-confirmed-remote-misses"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Missed execution time")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Time spent executing tasks after a confirmed remote cache miss."
+              )
+            }
+            value={format_duration(@confirmed_remote_cache_miss_duration_ms)}
+            id="widget-missed-execution-time"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Remote entries stored")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Task outputs this build successfully stored in the remote cache."
+              )
+            }
+            value={@remote_cache_entries_stored_count}
+            id="widget-remote-entries-stored"
           />
         </.card_section>
       </.card>
@@ -639,6 +799,9 @@
               }
             >
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />
+            </:col>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Why it missed")}>
+              <.text_cell label={cache_miss_reason(task)} />
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Cache key")}>
               <.text_cell label={task.cache_key || dgettext("dashboard_gradle", "—")} />

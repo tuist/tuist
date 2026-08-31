@@ -49,6 +49,10 @@ defmodule Tuist.Gradle.Build do
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :requested_tasks, {:array, Ch}, type: "String", default: []
+    field :configuration_cache_status, Ch, type: "LowCardinality(String)"
+    field :configuration_cache_entry_size, Ch, type: "Nullable(Int64)"
+    field :configuration_cache_load_duration_ms, Ch, type: "Nullable(UInt64)"
+    field :configuration_cache_invalidation_reasons, {:array, Ch}, type: "String", default: []
     field :inserted_at, Ch, type: "DateTime"
     has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :gradle_build_id, references: :id
   end

@@ -52,6 +52,8 @@ defmodule TuistWeb.GradleBuildLive do
 
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
+    configuration_operations = Gradle.list_configuration_operations(build.id)
+    artifact_transforms = Gradle.list_artifact_transforms(build.id)
     machine_metrics = build.machine_metrics
 
     download_throughput =
@@ -72,6 +74,12 @@ defmodule TuistWeb.GradleBuildLive do
     from_cache = local_hits + remote_hits
     cacheable = build.cacheable_tasks_count || 0
 
+    configuration_duration_ms =
+      configuration_operations
+      |> Enum.filter(&(&1.phase == "build"))
+      |> Enum.map(& &1.duration_ms)
+      |> Enum.sum()
+
     socket
     |> assign(:build, build)
     |> assign(:test_run, test_run)
@@ -84,6 +92,13 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
     |> assign(:download_throughput, download_throughput)
     |> assign(:upload_throughput, upload_throughput)
+    |> assign(:confirmed_remote_cache_miss_count, aggregates.confirmed_remote_cache_miss_count)
+    |> assign(:confirmed_remote_cache_miss_duration_ms, aggregates.confirmed_remote_cache_miss_duration_ms)
+    |> assign(:remote_cache_entries_stored_count, aggregates.remote_cache_entries_stored_count)
+    |> assign(:configuration_operations, configuration_operations)
+    |> assign(:configuration_duration_ms, configuration_duration_ms)
+    |> assign(:artifact_transforms, artifact_transforms)
+    |> assign(:artifact_transform_duration_ms, Enum.sum_by(artifact_transforms, & &1.duration_ms))
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
     |> assign(:machine_metrics, machine_metrics)
@@ -330,6 +345,28 @@ defmodule TuistWeb.GradleBuildLive do
   defp outcome_label("skipped"), do: dgettext("dashboard_gradle", "Skipped")
   defp outcome_label("no_source"), do: dgettext("dashboard_gradle", "No source")
   defp outcome_label(other), do: other
+
+  defp cache_miss_reason(%{remote_cache_miss: true, remote_cache_stored: true}) do
+    dgettext("dashboard_gradle", "No remote entry, then stored")
+  end
+
+  defp cache_miss_reason(%{remote_cache_miss: true}) do
+    dgettext("dashboard_gradle", "No remote entry")
+  end
+
+  defp cache_miss_reason(_task), do: dgettext("dashboard_gradle", "—")
+
+  defp configuration_cache_status_label("reused"), do: dgettext("dashboard_gradle", "Reused")
+  defp configuration_cache_status_label("valid"), do: dgettext("dashboard_gradle", "Valid")
+  defp configuration_cache_status_label("not_found"), do: dgettext("dashboard_gradle", "No entry")
+  defp configuration_cache_status_label("partial"), do: dgettext("dashboard_gradle", "Partially invalid")
+  defp configuration_cache_status_label("invalid"), do: dgettext("dashboard_gradle", "Invalid")
+  defp configuration_cache_status_label(status), do: status
+
+  defp configuration_phase_label("build"), do: dgettext("dashboard_gradle", "Build")
+  defp configuration_phase_label("settings"), do: dgettext("dashboard_gradle", "Settings")
+  defp configuration_phase_label("project"), do: dgettext("dashboard_gradle", "Project")
+  defp configuration_phase_label(phase), do: phase
 
   defp format_duration(duration_ms) do
     DateFormatter.format_duration_from_milliseconds(duration_ms)
