@@ -30,8 +30,8 @@ struct GitFetchTests {
 
                 #expect(output.contains("refs/tags/1.0.0"))
                 #expect(attempted == [configArguments, []])
-                #expect(server.authenticatedRequests.isEmpty == false)
-                #expect(server.anonymousRequests.isEmpty == false)
+                #expect(server.authenticatedRequests.contains("/repo.git/info/refs"))
+                #expect(server.anonymousRequests.contains("/repo.git/info/refs"))
             }
         }
     }
