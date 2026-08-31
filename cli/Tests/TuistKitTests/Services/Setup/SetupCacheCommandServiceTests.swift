@@ -388,6 +388,42 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsCASLogPath() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the proxy writes its diagnostics only to the file this variable
+        // names, so without forwarding them they cannot be turned on for a proxy
+        // running under launchd.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": "/tmp/cas.log",
+                ])
+            )
+            .called(1)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
