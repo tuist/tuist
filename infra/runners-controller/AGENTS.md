@@ -120,13 +120,22 @@ independent workqueues:
     yields.
 
     On darwin the unit is guest slots: a 12 vCPU Pod needs both of an
-    M4-XL's. On linux it is memory: a 64 GiB shape costs a third of an
-    AX162-R (64 GiB plus the kata RuntimeClass's 2.5 GiB podFixed), so
-    it needs a contiguous third of a host that 8 and 16 GiB Pods keep
-    carving up. The linux drain is progressive rather than all-or-
-    nothing — the taint stops new Pods landing, running jobs finish and
-    free their memory, and the starved Pod is placed the moment its
-    shape fits rather than when the host is empty.
+    M4-XL's. On linux it is memory: a 64 GiB shape costs 66.5 GiB (the
+    shape plus the kata RuntimeClass's 2.5 GiB podFixed), a third of an
+    AX162-R and over half of the OVH RISE-L the fleet is moving to, so
+    it needs a contiguous block that 8 and 16 GiB Pods keep carving up.
+    The linux drain is progressive rather than all-or-nothing — the
+    taint stops new Pods landing, running jobs finish and free their
+    memory, and the starved Pod is placed the moment its shape fits
+    rather than when the host is empty.
+
+    A reservation is never taken on a fleet with fewer than two healthy
+    hosts (`healthyNodes`). The taint is NoSchedule for every pool but
+    the reserving one, so on a single-host fleet it would stop dispatch
+    outright until it cleared. The granularity guard below does not
+    cover that case on linux — a 64 GiB shape is genuinely coarse even
+    on a lone host, so it passes — and the linux fleet is small enough
+    for one host to be a real configuration.
 
     `fleetNodeSelector` addresses each platform's hosts by the labels
     that platform's Pods select on (`tuist.dev/fleet` on darwin,
@@ -156,8 +165,9 @@ independent workqueues:
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a
     reservation is capacity withdrawn from the small shapes while it
-    converges. On the two-host production Linux fleet that is half the
-    hosts closed to new Pods, which is why the cap stays at one.
+    converges. On the production Linux fleet, a handful of bare-metal
+    boxes, one reservation is already a large share of it, which is why
+    the cap stays at one and why `healthyNodes` floors it.
 
     A timed-out release rests the host for `reservationCooldown` (15m)
     via a `tuist.dev/reservation-cooldown-until` annotation. Without it

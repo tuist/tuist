@@ -186,9 +186,14 @@ func TestReservation_HoldsAHostForAStarvedShape(t *testing.T) {
 	node := m4Node("m4-0")
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, smallPool(), node, starved,
+	r := reservationReconciler(pool, smallPool(), node, m4Node("m4-1"), starved,
 		placedPod("small-0", "macos-26-6", "m4-0", "acme"),
 		placedPod("small-1", "macos-26-6", "m4-0", "acme"),
+		// m4-1 keeps the fleet above the last-host floor and is busier,
+		// so m4-0 stays the host that converges soonest.
+		placedPod("small-2", "macos-26-6", "m4-1", "acme"),
+		placedPod("small-3", "macos-26-6", "m4-1", "acme"),
+		placedPod("small-4", "macos-26-6", "m4-1", "acme"),
 	)
 
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
@@ -392,8 +397,12 @@ func TestReservation_HoldsALinuxHostForAStarvedShape(t *testing.T) {
 	node := ax162Node("bm-0")
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, linuxSmallPool(), node, starved,
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("bm-1"), starved,
 		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+		// bm-1 keeps the fleet above the last-host floor and is busier,
+		// so bm-0 stays the host that converges soonest.
+		placedPod("small-1", linuxSmallPoolName, "bm-1", "acme"),
+		placedPod("small-2", linuxSmallPoolName, "bm-1", "acme"),
 	)
 
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
@@ -497,6 +506,50 @@ func TestReservation_RetiresIdleLinuxPodsButNeverRunningJobs(t *testing.T) {
 	}
 	if !names["small-owned"] {
 		t.Error("a Pod running a customer job must never be evicted by a reservation")
+	}
+}
+
+// A reservation taints a host NoSchedule for every pool but its own, so
+// on a single-host fleet it stops job dispatch outright until it clears.
+// The granularity guard does not catch this on Linux: a 64 GB shape
+// genuinely IS coarser than its siblings on one big host, so it passes
+// that test and would close the fleet. Reachable in practice — the
+// Linux fleet is small and moving to smaller boxes.
+func TestReservation_NeverTakesTheFleetsLastHost(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, starved,
+		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("reserving the fleet's only host closes it to every pool")
+	}
+}
+
+// A second host that is down is not a second host: reserving the one
+// still serving work closes the fleet just the same.
+func TestReservation_CountsOnlyHealthyHostsTowardTheFloor(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	down := ax162Node("bm-1")
+	down.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionFalse}}
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, down, starved,
+		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("a NotReady sibling must not count as the host that keeps the fleet open")
 	}
 }
 
@@ -635,7 +688,11 @@ func TestReservation_ResumesAfterTheCooldownExpires(t *testing.T) {
 	}
 	starved := pendingPod("large-0", pool.Name, time.Hour)
 
-	r := reservationReconciler(pool, smallPool(), node, starved)
+	// m4-1 is busier, so the expired cooldown on m4-0 is the only thing
+	// that could keep it from being chosen.
+	r := reservationReconciler(pool, smallPool(), node, m4Node("m4-1"), starved,
+		placedPod("small-0", "macos-26-6", "m4-1", "acme"),
+	)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}

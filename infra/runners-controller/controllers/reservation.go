@@ -20,10 +20,11 @@ import (
 // of a host than any single small Pod does. An M4-XL seats two 6 vCPU
 // guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a host's
 // slots free at the same instant. The Linux fleet is the same problem at
-// a different granularity: a 64 GiB shape costs a third of an AX162-R,
-// so it needs a contiguous third of a host that a steady trickle of 8
-// and 16 GiB Pods keeps carving up. Nothing in Kubernetes arranges
-// either on its own:
+// a different granularity: a 64 GiB shape costs 66.5 GiB with the kata
+// overhead — a third of an AX162-R, over half of the OVH RISE-L the
+// fleet is moving to — so it needs a contiguous block that a steady
+// trickle of 8 and 16 GiB Pods keeps carving up. Nothing in Kubernetes
+// arranges either on its own:
 //
 //   - kube-scheduler does not hold a queue on an unschedulable Pod. The
 //     large Pod is attempted, fails the CPU filter, and is set aside;
@@ -92,8 +93,10 @@ const (
 	// it converges, so this stays at one. On macOS a second concurrent
 	// drain would hold two hosts, up to 4 of the 13-slot production
 	// fleet, to serve two large jobs. On Linux the argument is sharper
-	// still: that fleet is two AX162-R hosts, so one reservation is
-	// already half of it taken out of general circulation.
+	// still: that fleet is a handful of bare-metal boxes, so a single
+	// reservation is already a large share of it out of circulation.
+	// `healthyNodes` puts a floor under that — the last host is never
+	// taken.
 	//
 	// A held Linux host is not idled, only closed to new Pods — running
 	// jobs finish and free memory progressively, and the starved Pod
@@ -168,6 +171,24 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return err
 	}
 	if reservationCount(fresh) >= maxFleetReservations {
+		return nil
+	}
+	// Never close the fleet. The taint is NoSchedule for every pool but
+	// this one, so on a single-host fleet a reservation stops dispatch
+	// outright until it clears — up to reservationTimeout, and again
+	// after each cooldown.
+	//
+	// pickReservationTarget's granularity guard does not cover this. It
+	// asks whether the shape is coarse relative to its siblings, which
+	// on Linux a 64 GiB shape genuinely is even on a lone host, so it
+	// passes. The guard only happens to cover the one-host macOS fleets
+	// because a single-guest host gives every shape exactly one seat.
+	//
+	// Waiting is the right behaviour here, and it is the same conclusion
+	// the one-guest fleets reach: nothing a drain produces is worth the
+	// fleet being shut to everyone else, and the allocator's cross-pool
+	// reclaim is the mechanism that frees room on a fleet this small.
+	if healthyNodes(fresh) < 2 {
 		return nil
 	}
 
@@ -632,4 +653,17 @@ func reservationAge(node *corev1.Node, now time.Time) time.Duration {
 // conflict instead, and the next reconcile recomputes from fresh state.
 func optimisticPatch(base client.Object) client.Patch {
 	return client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})
+}
+
+// healthyNodes counts a fleet's hosts that could take work right now.
+// Reserving is only safe while at least one other host remains to serve
+// every other pool.
+func healthyNodes(nodes []corev1.Node) int {
+	count := 0
+	for i := range nodes {
+		if nodeFilterReason(&nodes[i]) == "" {
+			count++
+		}
+	}
+	return count
 }
