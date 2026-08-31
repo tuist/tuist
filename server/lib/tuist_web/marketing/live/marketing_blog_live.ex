@@ -114,7 +114,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(:head_include_blog_rss_and_atom, true)
       |> assign(:head_include_changelog_rss_and_atom, false)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_blog_structured_markup_data(socket.assigns.structured_posts))
+      |> put_structured_data(get_blog_structured_markup_data(socket.assigns.structured_posts))
       |> assign(
         :head_description,
         dgettext("marketing", "Read engaging stories and expert insights.")

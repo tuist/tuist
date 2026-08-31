@@ -30,18 +30,43 @@ defmodule TuistWeb.LayoutComponents do
     """
   end
 
+  defp default_description do
+    dgettext(
+      "dashboard",
+      "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
+    )
+  end
+
   def head_meta_meta_tags(assigns) do
     ~H"""
-    <% default_description =
-      dgettext("dashboard", "Tuist extends Apple's tools, helping you ship apps that stand out.") %>
-    <meta name="description" content={assigns[:head_description] || default_description} />
+    <meta name="description" content={assigns[:head_description] || default_description()} />
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
     <meta property="og:url" content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={assigns[:head_og_type] || "website"} />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
-    <meta property="og:description" content={assigns[:head_description] || default_description} />
+    <meta property="og:description" content={assigns[:head_description] || default_description()} />
+    <meta
+      :if={not is_nil(assigns[:head_site_name])}
+      property="og:site_name"
+      content={assigns[:head_site_name]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_published_time])}
+      property="article:published_time"
+      content={assigns[:head_published_time]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_modified_time])}
+      property="article:modified_time"
+      content={assigns[:head_modified_time]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_article_author])}
+      property="article:author"
+      content={assigns[:head_article_author]}
+    />
     <meta
       :if={not is_nil(assigns[:head_fediverse_creator])}
       name="fediverse:creator"
@@ -82,11 +107,15 @@ defmodule TuistWeb.LayoutComponents do
       <meta name="twitter:image" content={assigns[:head_image]} />
     <% end %>
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
+    <meta name="twitter:description" content={assigns[:head_description] || default_description()} />
     <meta
       property="twitter:domain"
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
     />
-    <meta property="twitter:url" content={Tuist.Environment.app_url()} />
+    <meta
+      property="twitter:url"
+      content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")}
+    />
     """
   end
 
