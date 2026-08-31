@@ -483,8 +483,16 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "prices nothing at all while the trial is still running", %{account: account} do
-      account = on_trial_since(account, DateTime.add(DateTime.utc_now(), -30, :day))
-      ran_minutes(account, DateTime.add(DateTime.utc_now(), -4, :hour), 180)
+      # This is the one trial case that takes the default window, which
+      # is the calendar month, so the trial only covers the whole of it
+      # when it started before the 1st. The clock is frozen because on
+      # the 31st a trial that started 30 days ago starts inside the
+      # month, and on the 1st a run four hours ago falls before it.
+      now = ~U[2024-01-17 12:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
+      account = on_trial_since(account, DateTime.add(now, -30, :day))
+      ran_minutes(account, DateTime.add(now, -4, :hour), 180)
 
       breakdown = Allowance.period_breakdown(account)
 
