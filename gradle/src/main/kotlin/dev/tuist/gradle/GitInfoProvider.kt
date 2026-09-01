@@ -5,7 +5,6 @@ interface GitInfoProvider {
     fun commitSha(): String?
     fun ref(): String?
     fun remoteUrlOrigin(): String?
-    fun isDirty(): Boolean? = null
 }
 
 class ProcessGitInfoProvider(
@@ -35,11 +34,6 @@ class ProcessGitInfoProvider(
 
     override fun remoteUrlOrigin(): String? =
         runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()?.takeIf(String::isNotBlank)
-
-    override fun isDirty(): Boolean? =
-        runCatching { gitCommandRunner(listOf("status", "--porcelain")) }
-            .getOrNull()
-            ?.let(String::isNotBlank)
 
     private fun ciRef(): String? =
         refEnvironmentVariables
@@ -85,11 +79,12 @@ class ProcessGitInfoProvider(
 }
 
 private fun runGitProcess(args: List<String>): String {
-    val process = ProcessBuilder(listOf("git") + args)
-        .redirectErrorStream(true)
-        .start()
+    val process =
+        ProcessBuilder(listOf("git") + args)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
     try {
-        val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
         val exitCode = process.waitFor()
         if (exitCode != 0) {
             throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
