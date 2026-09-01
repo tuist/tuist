@@ -102,6 +102,9 @@ defmodule Tuist.Runners.RunnerSessions do
       # that already ran.
       billing_multiplier: Catalog.billing_multiplier(platform, vcpus, memory_gb),
       pod_name: pod_name,
+      # Optional: a dispatch that could not resolve the node still bills
+      # correctly, it just cannot be attributed to a machine afterwards.
+      node_name: Map.get(attrs, :node_name),
       runner_name: Map.get(attrs, :runner_name, ""),
       repository: Map.get(attrs, :repository, ""),
       workflow_name: Map.get(attrs, :workflow_name, ""),
