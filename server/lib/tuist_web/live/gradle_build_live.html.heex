@@ -353,7 +353,10 @@
             empty_label={dgettext("dashboard_gradle", "No data")}
           />
         </.card_section>
-        <.card_section :if={@build.configuration_cache_invalidation_reasons != []}>
+        <.card_section
+          :if={@build.configuration_cache_invalidation_reasons != []}
+          data-part="configuration-cache-invalidation-reasons"
+        >
           <div data-part="title">
             <span data-part="label">{dgettext("dashboard_gradle", "Invalidation reasons")}</span>
           </div>

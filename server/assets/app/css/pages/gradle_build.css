@@ -164,6 +164,54 @@
     }
   }
 
+  & > [data-part="build-setup"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="configuration-summary"].noora-card__section,
+    & [data-part="artifact-transforms-summary"].noora-card__section {
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-8);
+
+      & > * {
+        flex-grow: 1;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+
+    & [data-part="configuration-cache-invalidation-reasons"].noora-card__section {
+      gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-8);
+
+      & [data-part="title"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & ul {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        margin: 0;
+        padding-left: var(--noora-spacing-5);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & [data-part="configuration-operations"].noora-card__section,
+    & [data-part="artifact-transforms-table-section"].noora-card__section {
+      padding: var(--noora-spacing-8);
+    }
+  }
+
   & [data-part="cacheable-tasks-outer-section"] {
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
