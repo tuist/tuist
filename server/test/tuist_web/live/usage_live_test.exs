@@ -506,10 +506,6 @@ defmodule TuistWeb.UsageLiveTest do
       now = DateTime.utc_now()
       started = DateTime.add(now, -2, :hour)
 
-      stub(Tuist.Billing, :current_billing_period, fn _account ->
-        {DateTime.add(now, -15, :day), DateTime.add(now, 15, :day)}
-      end)
-
       Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
         workflow_job_id: System.unique_integer([:positive]),
@@ -537,7 +533,17 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−7.50"
       # 20 minutes past the allowance at the standard rate.
       assert html =~ "1.50"
-      assert html =~ "On track for about"
+    end
+
+    test "renders a pace for a projected runner receipt" do
+      pace =
+        UsageLive.pace_label(%{
+          minutes: 120,
+          projected_minutes: 1_800,
+          previous_minutes: 0
+        })
+
+      assert pace =~ "On track for about"
     end
   end
 
