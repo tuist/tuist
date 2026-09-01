@@ -276,6 +276,86 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual([], gotSideEffects)
     }
 
+    func test_map_when_static_xcframework_library_was_linked_directly_before_binary_cache_replacement() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let googleMapsPath = projectPath
+            .parentDirectory
+            .appending(component: "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers", "GoogleMaps")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let googleMaps: GraphDependency = .testXCFramework(
+            path: googleMapsPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "GoogleMaps.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                googleMapsHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let cachedDynamicFramework: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "Consumer.xcframework")
+        )
+        let project: Project = .test(
+            path: projectPath,
+            targets: [
+                .test(name: "App"),
+            ]
+        )
+        let graphWithSources: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    googleMaps,
+                ],
+            ]
+        )
+        let graphWithBinaryCache: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    cachedDynamicFramework,
+                ],
+                cachedDynamicFramework: [
+                    googleMaps,
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = graphWithSources
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
+            graph: graphWithBinaryCache,
+            environment: environment
+        )
+
+        // Then
+        XCTAssertBetterEqual(graphWithBinaryCache, gotGraph)
+        XCTAssertBetterEqual([], gotSideEffects)
+    }
+
     func test_map_when_static_xcframework_library_is_linked_directly_for_other_platforms() async throws {
         // Given
         let projectPath = try temporaryPath()
