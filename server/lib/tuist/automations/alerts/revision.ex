@@ -21,7 +21,7 @@ defmodule Tuist.Automations.Alerts.Revision do
     belongs_to :automation_alert, Alert
     belongs_to :actor, User, type: :integer
 
-    timestamps(updated_at: false, type: :utc_datetime)
+    timestamps(updated_at: false, type: :utc_datetime_usec)
   end
 
   def changeset(revision, attrs) do
