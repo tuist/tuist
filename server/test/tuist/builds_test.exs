@@ -429,6 +429,91 @@ defmodule Tuist.BuildsTest do
     end
   end
 
+  describe "list_build_runs/1 with custom_tags filter" do
+    test "filters build runs containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :contains, value: "release"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "filters build runs not containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :not_contains, value: "staging"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "ignores unsupported custom tag operators" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly"]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["release"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :==, value: "nightly"}
+          ]
+        })
+
+      assert length(builds) == 2
+    end
+  end
+
   describe "list_build_runs/1" do
     test "lists build runs" do
       # Given

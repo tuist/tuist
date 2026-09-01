@@ -494,13 +494,14 @@ defmodule Tuist.Builds do
     {custom_tag_filters, Map.put(attrs, :filters, filters)}
   end
 
-  defp custom_tag_filter?(%{field: :custom_tags, op: op}) when op in [:contains, :not_contains], do: true
+  defp custom_tag_filter?(%{field: :custom_tags}), do: true
   defp custom_tag_filter?(_), do: false
 
   defp apply_custom_tag_filters(query, filters) do
     Enum.reduce(filters, query, fn
       %{op: :contains, value: value}, q -> from(b in q, where: fragment("has(?, ?)", b.custom_tags, ^value))
       %{op: :not_contains, value: value}, q -> from(b in q, where: fragment("NOT has(?, ?)", b.custom_tags, ^value))
+      _, q -> q
     end)
   end
 
