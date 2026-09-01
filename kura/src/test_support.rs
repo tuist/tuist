@@ -190,6 +190,7 @@ where
         tmp_staging_budget,
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });

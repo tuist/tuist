@@ -1656,6 +1656,126 @@ that week on the two busy pods, in bursts that peaked between 47% and 100%, with
 at least one burst per pod holding above 5% for a full 10 minutes. Nothing else
 in the fleet came close.
 
+### Kura shedding cache writes from the replication outbox
+
+```promql
+sum by (cluster, pod) (
+  rate(kura_capacity_sheds_total_total{kind="outbox"}[5m])
+)
+```
+
+- Live: rule `efwtvv4wuspvkc`, titled `Kura - cache writes shed by the
+  replication outbox`, `severity: warning`, `for: 10m`, threshold `> 1` shed/s,
+  folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`.
+- Summary: `Kura pod {{ $labels.pod }} is shedding {{ $values.A.Value | printf
+  "%.1f" }} cache writes/sec in {{ $labels.cluster }}`.
+
+Sibling to the read shed above, in a deliberately different shape: an absolute
+rate rather than a ratio.
+
+#### Why this one is worse than the read shed
+
+A shed read answers 429 with `Retry-After` and the client retries, so the build
+slows down. A shed write is simply gone. The cache client installs
+`RetryMiddleware(retryableRequestMethods: ["GET"])`, so these upload POSTs are
+never retried, on 429 or on 503. Every event this counter records is an artifact
+that was dropped and becomes a future cache miss. No build fails, nobody
+notices, and the tenant quietly gets a worse hit rate, which is the whole reason
+the rule needs to exist.
+
+#### Why an absolute rate and not a ratio
+
+There is no usable denominator. `kura_http_requests_total` has no method label,
+and the routes serving both reads and writes cannot be split by route either, so
+"writes attempted" is not expressible. That is survivable here precisely because
+each shed is a discrete loss: the raw count already means something, where the
+read-shed ratio on its own would not.
+
+#### Threshold
+
+Measured over the 7 days to 2026-08-31, the peak of
+`rate(kura_capacity_sheds_total_total{kind="outbox"}[5m])` was 76.5/s on one
+dedicated instance, 0.77/s on `kura-tuist-scw-fr-par-0`, 0.67/s on one other,
+and exactly zero across the remaining fifty-odd pods. Sampling that week at 5m
+resolution, 23 samples exceeded 1/s and all 23 belonged to the same pod, in
+contiguous runs comfortably longer than the 10m `for`. So the rule would have
+fired once, for roughly two hours, on a real incident, and stayed silent for
+everything else. The two sub-1/s pods are genuine but are trickles (order 10^3
+and 10^2 events across the entire week), not artifact-loss worth paging on.
+
+#### When it fires
+
+Read `kura_outbox_messages` for that pod. The gate trips when the outbox reaches
+its 100,000 cap, and a pod sitting at exactly 100000 is pinned against it.
+
+Do not assume the peers are unreachable. Both
+`kura_peer_connection_failures_total` and
+`kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
+throughout the 2026-08-28 episode this rule was written from, with bandwidth
+sitting at its configured 512 MiB/s ceiling almost the whole time. The backlog
+was ingest outrunning replication drain. Why drain falls behind on a node whose
+peers and pipe are both fine is still open.
+
+#### It is also a rollout signal
+
+`Tuist.Kura.Rollouts.gate_checks/2` compares each canary's `outboxMessages`
+against `baseline + 10%`, so an instance firing this rule is very likely the one
+holding a Kura runtime rollout in wave 0. A stuck rollout and this rule firing
+are usually the same problem, not two.
+
+#### Not covered
+
+The other write-shed kinds (`multipart_uploads`, `multipart_storage`,
+`upload_memory`, `tmp_staging`, `memory_pressure_write`) drop artifacts the same
+way and have no rule of their own. `multipart_uploads` is the next most active.
+
+### Kura replication outbox approaching its cap
+
+```promql
+max by (cluster, pod) (kura_outbox_messages)
+```
+
+- Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
+  cap`, `severity: warning`, `for: 15m`, threshold `> 75000`, folder `Alerts`,
+  group `Cache`, receiver `Slack #notifications 2`.
+- Summary: `Kura pod {{ $labels.pod }} has {{ $values.A.Value | printf "%.0f" }}
+  messages in its replication outbox in {{ $labels.cluster }}`.
+
+Leading indicator for the write shed above. That rule tells you writes are
+already being lost; this one is the window before it starts.
+
+#### The lead time is hours, and the reason matters
+
+A full outbox sheds nothing until traffic actually arrives, so the gap between
+this rule and the write-shed rule is however long it is until the tenant's next
+CI wave. In the 2026-08-28 episode the outbox crossed 75000 at 19:00 the
+previous evening and sat at or near the cap all night, and the first write was
+not shed until roughly 00:15, when that tenant's builds started. Over five hours
+of warning, and acting on it overnight is what buys the whole window.
+
+The corollary is that a pod parked at the cap looks harmless on the write-shed
+rule while it is quiet. Do not read a silent write-shed rule as a drained
+outbox.
+
+#### Threshold
+
+Measured over the 7 days to 2026-08-31 at 5m resolution, samples above 75000
+occurred on exactly three pods (128, 88 and 15 samples, roughly 10.7h, 7.3h and
+1.25h). Those same three are the only pods that ever reach the cap, so there is
+no false-positive population to trade off against: raising the bar to 90000 only
+shortens the warning (73, 50 and 6 samples) without removing a noisy pod.
+75000 was chosen for lead time rather than to suppress anything.
+
+#### Aggregate by pod, not by series
+
+`kura_outbox_messages` carries an `instance` label, and a pod that has restarted
+appears under several instance IPs across a long window. A bare
+`kura_outbox_messages > 75000` therefore returns one series per historical IP and
+counts a single pod many times: one chronically backlogged pod showed up as seven
+separate series over a week. Always reduce with `max by (pod)` (or
+`by (cluster, pod)`) first. The same applies when counting how long a pod spent
+above a threshold.
+
 ### Swift registry release work repeatedly deferred
 
 ```promql
