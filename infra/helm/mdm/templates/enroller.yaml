@@ -1,0 +1,109 @@
+{{- $host := required "host is required" .Values.host -}}
+{{- $fullname := include "mdm.fullname" . -}}
+{{- $enrollerTag := required "images.enroller.tag is required" .Values.images.enroller.tag -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-enroller
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: enroller
+spec:
+  replicas: {{ .Values.enroller.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: enroller
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: enroller
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      containers:
+        - name: enroller
+          image: "{{ .Values.images.enroller.repository }}:{{ $enrollerTag }}"
+          imagePullPolicy: {{ .Values.images.enroller.pullPolicy }}
+          env:
+            - name: ENROLLER_PUBLIC_URL
+              value: "https://{{ $host }}"
+            - name: ENROLLER_NANOMDM_URL
+              value: "http://{{ $fullname }}-nanomdm:9000"
+            - name: ENROLLER_SVC_ACCOUNT_SHORTNAME
+              value: {{ .Values.enroller.serviceAccount.shortName | quote }}
+            - name: ENROLLER_SVC_ACCOUNT_FULLNAME
+              value: {{ .Values.enroller.serviceAccount.fullName | quote }}
+            - name: ENROLLER_ORG_NAME
+              value: {{ .Values.enroller.organization | quote }}
+            - name: ENROLLER_NANOMDM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: nanomdm-api-key
+            - name: ENROLLER_PUSH_TOPIC
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: push-topic
+                  optional: true
+            - name: ENROLLER_SCEP_CHALLENGE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: scep-challenge
+            - name: ENROLLER_ENROLL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: enroll-token
+                  optional: true
+            - name: ENROLLER_SVC_ACCOUNT_PASSWORD_HASH_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: svc-account-password-hash-b64
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 9004
+          volumeMounts:
+            - name: assets
+              mountPath: /assets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.enroller.resources | nindent 12 }}
+      volumes:
+        - name: assets
+          secret:
+            secretName: {{ $fullname }}-assets
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-enroller
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: enroller
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9004
+      targetPort: http
+  selector:
+    {{- include "mdm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: enroller

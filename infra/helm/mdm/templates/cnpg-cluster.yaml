@@ -1,0 +1,71 @@
+{{- /*
+CNPG cluster shared by nanomdm and nanodep (their pgsql schemas have no
+overlapping objects). The NanoMDM/NanoDEP schema files are vendored
+under files/schema/ from the pinned upstream tags and applied once at
+initdb via postInitApplicationSQLRefs; upstream pgsql schema changes
+are rare and land as manual migrations documented in infra/mdm/README.md.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mdm.pgClusterName" . }}-init-sql
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+data:
+  01-nanomdm.sql: |
+{{ .Files.Get "files/schema/nanomdm-pgsql-schema.sql" | indent 4 }}
+  02-nanodep.sql: |
+{{ .Files.Get "files/schema/nanodep-pgsql-schema.sql" | indent 4 }}
+  03-grants.sql: |
+{{ .Files.Get "files/schema/grants.sql" | indent 4 }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "mdm.pgClusterName" . }}
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.instances }}
+  imageName: {{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+  primaryUpdateStrategy: unsupervised
+
+  {{- with .Values.postgresql.parameters }}
+  postgresql:
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database | quote }}
+      owner: {{ .Values.postgresql.owner | quote }}
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - name: {{ include "mdm.pgClusterName" . }}-init-sql
+            key: 01-nanomdm.sql
+          - name: {{ include "mdm.pgClusterName" . }}-init-sql
+            key: 02-nanodep.sql
+          - name: {{ include "mdm.pgClusterName" . }}-init-sql
+            key: 03-grants.sql
+
+  storage:
+    size: {{ .Values.postgresql.storageSize | quote }}
+    {{- with .Values.postgresql.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+
+  resources:
+    {{- toYaml .Values.postgresql.resources | nindent 4 }}
+
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required

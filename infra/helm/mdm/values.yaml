@@ -1,0 +1,121 @@
+global:
+  commonLabels: {}
+  podLabels: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Public hostnames. `host` is the device-facing MDM endpoint and is
+# effectively immutable once devices enroll: the MDM protocol has no
+# way to change an enrollment's ServerURL, so a hostname change means
+# re-enrolling (DFU-reprovisioning) every device.
+host: ""
+# nanodep's depserver API (token ceremonies, DEP proxy). Operator-facing
+# only; split from `host` so its /v1 does not collide with nanomdm's.
+depHost: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  tlsSecretName: mdm-tls
+  annotations: {}
+
+images:
+  nanomdm:
+    repository: ghcr.io/micromdm/nanomdm
+    tag: "0.9.0"
+    pullPolicy: IfNotPresent
+  nanodep:
+    repository: ghcr.io/micromdm/nanodep
+    tag: "0.7.0"
+    pullPolicy: IfNotPresent
+  # Built from infra/mdm/scep (no upstream image exists); tag set by the
+  # deploy workflow.
+  scep:
+    repository: ghcr.io/tuist/scepserver
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Built from infra/mdm/enroller; tag set by the deploy workflow.
+  enroller:
+    repository: ghcr.io/tuist/mdm-enroller
+    tag: ""
+    pullPolicy: IfNotPresent
+
+nanomdm:
+  replicaCount: 1
+  # delete=1 removes acknowledged commands/results so the queue tables
+  # do not grow forever.
+  storageOptions: "delete=1"
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+nanodep:
+  replicaCount: 1
+  syncer:
+    enabled: true
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+scep:
+  replicaCount: 1
+  # Device identity certificate validity in days. Long-lived on purpose:
+  # the fleet is reprovisioned by DFU restore, not kept alive for years,
+  # and macOS does not renew the MDM identity on its own.
+  certValidityDays: 3650
+  depotSize: 1Gi
+  depotStorageClass: ""
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+enroller:
+  replicaCount: 1
+  serviceAccount:
+    shortName: tuist
+    fullName: Tuist Runner Operator
+  organization: Tuist
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+postgresql:
+  clusterName: ""
+  # Two instances, not one: CNPG's `<cluster>-primary` PDB makes a
+  # single-instance cluster undrainable and wedges CAPI node drains
+  # (see infra/helm/tuist-ops/values.yaml for the incident writeup).
+  instances: 2
+  image:
+    repository: ghcr.io/cloudnative-pg/postgresql
+    tag: "17.5"
+  database: mdm
+  owner: mdm
+  storageSize: 5Gi
+  storageClass: ""
+  parameters: {}
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+# Secrets. With externalSecret.enabled the three runtime Secrets are
+# synced by ESO from a single 1Password item in the env's vault;
+# otherwise they are rendered inline from the values below (CI /
+# local-lint only — do not put real secrets in values files).
+runtimeSecrets:
+  externalSecret:
+    enabled: false
+    item: MDM
+  inline:
+    nanomdmAPIKey: ""
+    nanodepAPIKey: ""
+    scepChallenge: ""
+    pushTopic: ""
+    enrollToken: ""
+    svcAccountPasswordHashB64: ""
+    scepCACertPEM: ""
+    scepCAKeyPEM: ""
+    bootstrapPkgB64: ""

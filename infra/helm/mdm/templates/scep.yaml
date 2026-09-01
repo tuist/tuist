@@ -1,0 +1,120 @@
+{{- $fullname := include "mdm.fullname" . -}}
+{{- $scepTag := required "images.scep.tag is required" .Values.images.scep.tag -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullname }}-scep-depot
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.scep.depotSize }}
+  {{- with .Values.scep.depotStorageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-scep
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scep
+spec:
+  replicas: {{ .Values.scep.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scep
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scep
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      initContainers:
+        # Seed the file depot with the CA generated in the offline
+        # ceremony (held in 1Password, synced by ESO). The depot also
+        # accumulates the issued-cert index and serial state, which is
+        # why it lives on a PVC rather than being rebuilt per pod.
+        - name: seed-depot
+          image: public.ecr.aws/docker/library/busybox:1.37
+          command:
+            - sh
+            - -ec
+            - |
+              if [ ! -f /depot/ca.pem ]; then
+                cp /scep-ca/ca.pem /scep-ca/ca.key /depot/
+                chmod 600 /depot/ca.key
+              fi
+          volumeMounts:
+            - name: depot
+              mountPath: /depot
+            - name: scep-ca
+              mountPath: /scep-ca
+              readOnly: true
+      containers:
+        - name: scepserver
+          image: "{{ .Values.images.scep.repository }}:{{ $scepTag }}"
+          imagePullPolicy: {{ .Values.images.scep.pullPolicy }}
+          args:
+            - -depot
+            - /depot
+            - -port
+            - "8080"
+            - -crtvalid
+            - {{ .Values.scep.certValidityDays | quote }}
+          env:
+            - name: SCEP_CHALLENGE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: scep-challenge
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: depot
+              mountPath: /depot
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            {{- toYaml .Values.scep.resources | nindent 12 }}
+      volumes:
+        - name: depot
+          persistentVolumeClaim:
+            claimName: {{ $fullname }}-scep-depot
+        - name: scep-ca
+          secret:
+            secretName: {{ $fullname }}-scep-ca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-scep
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scep
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    {{- include "mdm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scep
