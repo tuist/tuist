@@ -31,6 +31,11 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
         var treeShakenProjects: [AbsolutePath: Project] = [:]
         var treeShakenDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
+        // Schemes of projects that lost every target, but that still reference targets kept in
+        // other projects. An aggregate test scheme declared on the app project is the common case:
+        // a cache hit on the app's own test target empties that project, and dropping the scheme
+        // with it would leave the non-cached test targets of every other project unrunnable.
+        var reparentedSchemes: [Scheme] = []
 
         for (projectPath, project) in graph.projects {
             let (treeShakenTargets, projecttreeShakenDependencies) = treeShake(
@@ -40,12 +45,14 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 graph: graph,
                 sourceTargets: sourceTargets
             )
-            if !treeShakenTargets.isEmpty {
-                let schemes = treeShake(
-                    schemes: project.schemes,
-                    sourceTargets: sourceTargets,
-                    prunedTargets: prunedTargets
-                )
+            let schemes = treeShake(
+                schemes: project.schemes,
+                sourceTargets: sourceTargets,
+                prunedTargets: prunedTargets
+            )
+            if treeShakenTargets.isEmpty {
+                reparentedSchemes.append(contentsOf: schemes)
+            } else {
                 var project = project
                 project.schemes = schemes
                 project.targets = Dictionary(
@@ -62,7 +69,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             workspace: graph.workspace,
             projects: Array(treeShakenProjects.values),
             sourceTargets: sourceTargets,
-            prunedTargets: prunedTargets
+            prunedTargets: prunedTargets,
+            reparentedSchemes: reparentedSchemes.sorted(by: { $0.name < $1.name })
         )
 
         var graph = graph
@@ -76,15 +84,21 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         workspace: Workspace,
         projects: [Project],
         sourceTargets: Set<TargetReference>,
-        prunedTargets: Set<TargetReference>
+        prunedTargets: Set<TargetReference>,
+        reparentedSchemes: [Scheme]
     ) -> Workspace {
         let projectPaths = Set(projects.map(\.path))
         let projects = workspace.projects.filter { projectPaths.contains($0) }
-        let schemes = treeShake(
+        var schemes = treeShake(
             schemes: workspace.schemes,
             sourceTargets: sourceTargets,
             prunedTargets: prunedTargets
         )
+        var schemeNames = Set(schemes.map(\.name))
+        for scheme in reparentedSchemes where !schemeNames.contains(scheme.name) {
+            schemes.append(scheme)
+            schemeNames.insert(scheme.name)
+        }
         var workspace = workspace
         workspace.schemes = schemes
         workspace.projects = projects

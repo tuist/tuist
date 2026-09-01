@@ -378,6 +378,66 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_keeps_project_schemes_referencing_kept_targets_when_their_project_is_removed() throws {
+        // Given: an aggregate test scheme declared on the app project, whose test action also
+        // references test targets from other projects. The app project's only test target gets a
+        // selective-testing cache hit and is pruned, emptying the project. The scheme must survive
+        // so the non-cached test targets still run.
+        let appProjectPath = try AbsolutePath(validating: "/App")
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+
+        let appTests = Target.test(
+            name: "AppTests",
+            product: .unitTests,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+
+        let unitTestsScheme = Scheme.test(
+            name: "UnitTests",
+            buildAction: nil,
+            testAction: .test(
+                targets: [
+                    TestableTarget(target: .init(projectPath: appProjectPath, name: appTests.name)),
+                    TestableTarget(target: .init(projectPath: featureProjectPath, name: featureTests.name)),
+                ]
+            ),
+            runAction: nil
+        )
+
+        let appProject = Project.test(path: appProjectPath, targets: [appTests], schemes: [unitTestsScheme])
+        let featureProject = Project.test(path: featureProjectPath, targets: [featureTests])
+
+        let workspace = Workspace.test(
+            projects: [appProjectPath, featureProjectPath]
+        )
+
+        let graph = Graph.test(
+            path: appProjectPath,
+            workspace: workspace,
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertNil(gotGraph.projects[appProjectPath], "The emptied project should still be removed")
+        let gotScheme = GraphTraverser(graph: gotGraph).schemes().first(where: { $0.name == "UnitTests" })
+        XCTAssertNotNil(
+            gotScheme,
+            "UnitTests should survive the removal of the project that declared it because it still references kept targets"
+        )
+        XCTAssertEqual(
+            gotScheme?.testAction?.targets.map(\.target.name),
+            ["FeatureTests"]
+        )
+    }
+
     func test_map_removes_the_workspace_projects_that_no_longer_exist() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
