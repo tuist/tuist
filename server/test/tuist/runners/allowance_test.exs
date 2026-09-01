@@ -202,8 +202,11 @@ defmodule Tuist.Runners.AllowanceTest do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the
       # third is entirely billed.
-      for days_ago <- [3, 2, 1] do
-        started = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+      period_start = ~U[2026-08-01 00:00:00Z]
+      period_end = ~U[2026-08-04 00:00:00Z]
+
+      for day_offset <- 0..2 do
+        started = DateTime.add(period_start, day_offset, :day)
 
         Repo.insert!(%RunnerSession{
           account_id: account.id,
@@ -223,7 +226,7 @@ defmodule Tuist.Runners.AllowanceTest do
         })
       end
 
-      breakdown = Allowance.period_breakdown(account)
+      breakdown = Allowance.period_breakdown(account, {period_start, period_end})
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.
