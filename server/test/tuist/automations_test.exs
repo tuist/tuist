@@ -19,9 +19,21 @@ defmodule Tuist.AutomationsTest do
     test "returns automations for the given project ordered by insertion time" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
-      first = AutomationsFixtures.automation_alert_fixture(project: project, name: "first")
+      inserted_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      first =
+        [project: project, name: "first"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: inserted_at)
+        |> Repo.update!()
+
       _other = AutomationsFixtures.automation_alert_fixture(project: other_project)
-      second = AutomationsFixtures.automation_alert_fixture(project: project, name: "second")
+
+      second =
+        [project: project, name: "second"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: DateTime.add(inserted_at, 1, :second))
+        |> Repo.update!()
 
       ids = project.id |> Automations.list_alerts() |> Enum.map(& &1.id)
       assert ids == [first.id, second.id]
