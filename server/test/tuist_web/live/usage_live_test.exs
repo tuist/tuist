@@ -503,7 +503,12 @@ defmodule TuistWeb.UsageLiveTest do
   describe "runner usage receipt" do
     test "walks from minutes to money, showing the allowance as a credit", %{conn: conn, user: user} do
       account = user.account
-      started = DateTime.add(DateTime.utc_now(), -2, :hour)
+      now = DateTime.utc_now()
+      started = DateTime.add(now, -2, :hour)
+
+      stub(Tuist.Billing, :current_billing_period, fn _account ->
+        {DateTime.add(now, -15, :day), DateTime.add(now, 15, :day)}
+      end)
 
       Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
