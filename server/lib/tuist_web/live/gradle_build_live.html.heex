@@ -364,22 +364,231 @@
             <li :for={reason <- @build.configuration_cache_invalidation_reasons}>{reason}</li>
           </ul>
         </.card_section>
-        <.card_section :if={@configuration_operations != []} data-part="configuration-operations">
-          <.table id="gradle-configuration-operations-table" rows={@configuration_operations}>
-            <:col :let={operation} label={dgettext("dashboard_gradle", "Phase")}>
+      </.card>
+      <.card
+        :if={@configuration_timeline_operations != []}
+        title={dgettext("dashboard_gradle", "Configuration timeline")}
+        icon="history"
+        data-part="configuration-timeline-card"
+      >
+        <.card_section data-part="configuration-timeline-section">
+          <div data-part="timeline-scale">
+            <span></span>
+            <div data-part="timeline-scale-labels">
+              <span>0s</span>
+              <span>{format_duration(@configuration_timeline_range.duration_ms)}</span>
+            </div>
+            <span></span>
+          </div>
+          <div data-part="timeline">
+            <div :for={timeline_operation <- @configuration_timeline_operations} data-part="timeline-row">
+              <div data-part="timeline-label">
+                <span data-part="timeline-phase">
+                  {configuration_phase_label(timeline_operation.operation.phase)}
+                </span>
+                <span data-part="timeline-scope">
+                  {configuration_operation_scope(timeline_operation.operation)}
+                </span>
+              </div>
+              <div data-part="timeline-track">
+                <div
+                  data-part="timeline-bar"
+                  data-phase={timeline_operation.operation.phase}
+                  style={configuration_timeline_bar_style(timeline_operation)}
+                  title={
+                    "#{configuration_phase_label(timeline_operation.operation.phase)} · #{configuration_operation_scope(timeline_operation.operation)} · #{format_duration(timeline_operation.operation.duration_ms)}"
+                  }
+                >
+                </div>
+              </div>
+              <span data-part="timeline-duration">
+                {format_duration(timeline_operation.operation.duration_ms)}
+              </span>
+            </div>
+          </div>
+          <p data-part="timeline-note">
+            {dgettext(
+              "dashboard_gradle",
+              "Operations can overlap. Build timing includes its settings and project configuration."
+            )}
+          </p>
+        </.card_section>
+      </.card>
+      <.card
+        :if={@configuration_operations != []}
+        title={dgettext("dashboard_gradle", "Configuration operations")}
+        icon="settings"
+        data-part="configuration-operations-card"
+      >
+        <.card_section data-part="configuration-operations-table-section">
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-configuration-operations" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-configuration-operations"
+                name="search"
+                placeholder={dgettext("dashboard_gradle", "Search scope...")}
+                show_suffix={false}
+                data-part="search"
+                value={@configuration_operations_filter}
+              />
+            </.form>
+            <.dropdown
+              id="configuration-operations-sort-by"
+              label={configuration_operations_sort_label(@configuration_operations_sort_by)}
+              secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+            >
+              <.dropdown_item
+                value="started_at"
+                label={dgettext("dashboard_gradle", "Started after")}
+                patch={configuration_operations_sort_patch(@uri.query, "started_at", "asc")}
+                data-selected={@configuration_operations_sort_by == "started_at"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration_ms"
+                label={dgettext("dashboard_gradle", "Duration")}
+                patch={configuration_operations_sort_patch(@uri.query, "duration_ms", "desc")}
+                data-selected={@configuration_operations_sort_by == "duration_ms"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="phase"
+                label={dgettext("dashboard_gradle", "Phase")}
+                patch={configuration_operations_sort_patch(@uri.query, "phase", "asc")}
+                data-selected={@configuration_operations_sort_by == "phase"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="scope"
+                label={dgettext("dashboard_gradle", "Configured unit")}
+                patch={configuration_operations_sort_patch(@uri.query, "scope", "asc")}
+                data-selected={@configuration_operations_sort_by == "scope"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+            <.dropdown
+              id="configuration-operations-phase"
+              label={configuration_operations_phase_label(@configuration_operations_phase)}
+              secondary_text={dgettext("dashboard_gradle", "Phase:")}
+            >
+              <.dropdown_item
+                value="all"
+                label={dgettext("dashboard_gradle", "All phases")}
+                patch={configuration_operations_phase_patch(@uri.query, nil)}
+                data-selected={is_nil(@configuration_operations_phase)}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                :for={phase <- ["build", "settings", "project"]}
+                value={phase}
+                label={configuration_phase_label(phase)}
+                patch={configuration_operations_phase_patch(@uri.query, phase)}
+                data-selected={@configuration_operations_phase == phase}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.table id="gradle-configuration-operations-table" rows={@configuration_operations_table}>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Phase")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "phase",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={@configuration_operations_sort_by == "phase" && @configuration_operations_sort_order}
+            >
               <.text_cell label={configuration_phase_label(operation.phase)} />
             </:col>
-            <:col :let={operation} label={dgettext("dashboard_gradle", "Scope")}>
-              <.text_cell label={
-                if operation.project_path == "",
-                  do: operation.build_path,
-                  else: operation.project_path
-              } />
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Configured unit")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "scope",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={@configuration_operations_sort_by == "scope" && @configuration_operations_sort_order}
+            >
+              <.badge_cell
+                :if={root_build_configuration_operation?(operation)}
+                label={dgettext("dashboard_gradle", "Root build")}
+                color="neutral"
+                style="light-fill"
+              />
+              <.text_cell
+                :if={not root_build_configuration_operation?(operation)}
+                label={configuration_operation_scope(operation)}
+              />
             </:col>
-            <:col :let={operation} label={dgettext("dashboard_gradle", "Duration")}>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Started after")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "started_at",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "started_at" &&
+                  @configuration_operations_sort_order
+              }
+            >
+              <.text_cell label={started_after(operation, @configuration_timeline_range.start_at)} />
+            </:col>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "duration_ms",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "duration_ms" &&
+                  @configuration_operations_sort_order
+              }
+            >
               <.text_cell label={format_duration(operation.duration_ms)} icon="history" />
             </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="settings"
+                title={dgettext("dashboard_gradle", "No configuration operations")}
+                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or phase filter.")}
+              />
+            </:empty_state>
           </.table>
+          <.pagination_group
+            :if={@configuration_operations_page_count > 1}
+            current_page={@configuration_operations_page}
+            number_of_pages={@configuration_operations_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "configuration-operations-page", page)}"
+              end
+            }
+          />
         </.card_section>
       </.card>
       <.card

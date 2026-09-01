@@ -80,6 +80,8 @@ defmodule TuistWeb.GradleBuildLive do
       |> Enum.map(& &1.duration_ms)
       |> Enum.sum()
 
+    configuration_timeline_range = configuration_timeline_range(configuration_operations)
+
     socket
     |> assign(:build, build)
     |> assign(:test_run, test_run)
@@ -96,6 +98,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:confirmed_remote_cache_miss_duration_ms, aggregates.confirmed_remote_cache_miss_duration_ms)
     |> assign(:remote_cache_entries_stored_count, aggregates.remote_cache_entries_stored_count)
     |> assign(:configuration_operations, configuration_operations)
+    |> assign(:configuration_timeline_range, configuration_timeline_range)
     |> assign(:configuration_duration_ms, configuration_duration_ms)
     |> assign(:artifact_transforms, artifact_transforms)
     |> assign(:artifact_transform_duration_ms, Enum.sum_by(artifact_transforms, & &1.duration_ms))
@@ -137,6 +140,15 @@ defmodule TuistWeb.GradleBuildLive do
       socket.assigns.uri.query
       |> Query.put("cacheable-tasks-filter", search)
       |> Query.put("cacheable-tasks-page", "1")
+
+    {:noreply, push_patch(socket, to: "#{build_run_path(socket)}?#{query}")}
+  end
+
+  def handle_event("search-configuration-operations", %{"search" => search}, socket) do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("configuration-operations-filter", search)
+      |> Query.put("configuration-operations-page", "1")
 
     {:noreply, push_patch(socket, to: "#{build_run_path(socket)}?#{query}")}
   end
@@ -243,7 +255,206 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:available_filters, define_cacheable_task_filters())
   end
 
+  defp assign_tab_data(socket, "build-setup", params) do
+    filter_text = params["configuration-operations-filter"] || ""
+    phase = configuration_phase_filter(params["configuration-operations-phase"])
+    sort_by = configuration_operations_sort_by(params["configuration-operations-sort-by"])
+    sort_order = configuration_operations_sort_order(params["configuration-operations-sort-order"])
+
+    filtered_operations = filter_configuration_operations(socket.assigns.configuration_operations, filter_text, phase)
+
+    sorted_operations = sort_configuration_operations(filtered_operations, sort_by, sort_order)
+
+    {configuration_operations, page, page_count} =
+      paginate_configuration_operations(
+        sorted_operations,
+        params["configuration-operations-page"]
+      )
+
+    socket
+    |> assign(
+      :configuration_timeline_operations,
+      configuration_timeline_operations(filtered_operations, socket.assigns.configuration_timeline_range)
+    )
+    |> assign(:configuration_operations_table, configuration_operations)
+    |> assign(:configuration_operations_filter, filter_text)
+    |> assign(:configuration_operations_phase, phase)
+    |> assign(:configuration_operations_sort_by, sort_by)
+    |> assign(:configuration_operations_sort_order, sort_order)
+    |> assign(:configuration_operations_page, page)
+    |> assign(:configuration_operations_page_count, page_count)
+  end
+
   defp assign_tab_data(socket, _tab, _params), do: socket
+
+  defp filter_configuration_operations(operations, filter_text, phase) do
+    search = String.downcase(filter_text)
+
+    Enum.filter(operations, fn operation ->
+      phase_matches? = is_nil(phase) or operation.phase == phase
+
+      search_matches? =
+        search == "" or
+          String.contains?(String.downcase(configuration_operation_searchable_text(operation)), search)
+
+      phase_matches? and search_matches?
+    end)
+  end
+
+  defp sort_configuration_operations(operations, "started_at", sort_order) do
+    Enum.sort(operations, fn first, second ->
+      case NaiveDateTime.compare(first.started_at, second.started_at) do
+        :lt -> sort_order == "asc"
+        :gt -> sort_order == "desc"
+        :eq -> first.phase <= second.phase
+      end
+    end)
+  end
+
+  defp sort_configuration_operations(operations, sort_by, sort_order) do
+    direction = if sort_order == "desc", do: :desc, else: :asc
+
+    Enum.sort_by(operations, &configuration_operation_sort_value(&1, sort_by), direction)
+  end
+
+  defp configuration_operation_sort_value(operation, "duration_ms"), do: operation.duration_ms
+  defp configuration_operation_sort_value(operation, "scope"), do: configuration_operation_scope(operation)
+  defp configuration_operation_sort_value(operation, "phase"), do: operation.phase
+  defp configuration_operation_sort_value(operation, _started_at), do: operation.started_at
+
+  defp paginate_configuration_operations(operations, page_param) do
+    page_count = max(div(length(operations) + @table_page_size - 1, @table_page_size), 1)
+    page = page_param |> parse_configuration_operations_page() |> min(page_count)
+    offset = (page - 1) * @table_page_size
+
+    {Enum.slice(operations, offset, @table_page_size), page, page_count}
+  end
+
+  defp parse_configuration_operations_page(nil), do: 1
+
+  defp parse_configuration_operations_page(page) do
+    case Integer.parse(page) do
+      {value, ""} when value > 0 -> value
+      _ -> 1
+    end
+  end
+
+  defp configuration_timeline_range(operations) do
+    operations = Enum.filter(operations, & &1.started_at)
+
+    case operations do
+      [] ->
+        %{start_at: nil, duration_ms: 0}
+
+      [first | rest] ->
+        start_at = Enum.reduce(rest, first.started_at, &min_configuration_started_at/2)
+
+        end_at =
+          Enum.reduce(rest, configuration_operation_end_at(first), fn operation, latest_end_at ->
+            max_configuration_ended_at(configuration_operation_end_at(operation), latest_end_at)
+          end)
+
+        %{
+          start_at: start_at,
+          duration_ms: max(NaiveDateTime.diff(end_at, start_at, :millisecond), 1)
+        }
+    end
+  end
+
+  defp min_configuration_started_at(operation, started_at) do
+    case NaiveDateTime.compare(operation.started_at, started_at) do
+      :lt -> operation.started_at
+      _ -> started_at
+    end
+  end
+
+  defp max_configuration_ended_at(operation_end_at, latest_end_at) do
+    case NaiveDateTime.compare(operation_end_at, latest_end_at) do
+      :gt -> operation_end_at
+      _ -> latest_end_at
+    end
+  end
+
+  defp configuration_operation_end_at(operation) do
+    NaiveDateTime.add(operation.started_at, operation.duration_ms, :millisecond)
+  end
+
+  defp configuration_timeline_operations(_operations, %{start_at: nil}), do: []
+
+  defp configuration_timeline_operations(operations, %{start_at: start_at, duration_ms: duration_ms}) do
+    operations
+    |> sort_configuration_operations("started_at", "asc")
+    |> Enum.map(fn operation ->
+      %{
+        operation: operation,
+        start_percentage: NaiveDateTime.diff(operation.started_at, start_at, :millisecond) / duration_ms * 100,
+        duration_percentage: operation.duration_ms / duration_ms * 100
+      }
+    end)
+  end
+
+  defp configuration_timeline_bar_style(timeline_operation) do
+    "--configuration-operation-start: #{timeline_operation.start_percentage}%; " <>
+      "--configuration-operation-duration: #{timeline_operation.duration_percentage}%;"
+  end
+
+  defp configuration_operation_searchable_text(operation) do
+    Enum.join(
+      [operation.phase, configuration_operation_scope(operation), operation.build_path, operation.project_path],
+      " "
+    )
+  end
+
+  defp configuration_operation_scope(%{project_path: project_path}) when project_path != "", do: project_path
+
+  defp configuration_operation_scope(%{build_path: ":"}), do: dgettext("dashboard_gradle", "Root build")
+  defp configuration_operation_scope(%{build_path: build_path}), do: build_path
+
+  defp root_build_configuration_operation?(operation) do
+    operation.project_path == "" and operation.build_path == ":"
+  end
+
+  defp configuration_phase_filter(phase) when phase in ["build", "settings", "project"], do: phase
+  defp configuration_phase_filter(_), do: nil
+
+  defp configuration_operations_sort_by(value) when value in ["started_at", "duration_ms", "phase", "scope"], do: value
+
+  defp configuration_operations_sort_by(_), do: "started_at"
+
+  defp configuration_operations_sort_order(value) when value in ["asc", "desc"], do: value
+  defp configuration_operations_sort_order(_), do: "asc"
+
+  defp configuration_operations_sort_label("duration_ms"), do: dgettext("dashboard_gradle", "Duration")
+  defp configuration_operations_sort_label("phase"), do: dgettext("dashboard_gradle", "Phase")
+  defp configuration_operations_sort_label("scope"), do: dgettext("dashboard_gradle", "Configured unit")
+  defp configuration_operations_sort_label(_), do: dgettext("dashboard_gradle", "Started after")
+
+  defp configuration_operations_phase_label(nil), do: dgettext("dashboard_gradle", "All phases")
+  defp configuration_operations_phase_label(phase), do: configuration_phase_label(phase)
+
+  defp configuration_operations_phase_patch(uri_query, phase) do
+    query =
+      if is_nil(phase) do
+        Query.drop(uri_query, "configuration-operations-phase")
+      else
+        Query.put(uri_query, "configuration-operations-phase", phase)
+      end
+
+    "?#{Query.put(query, "configuration-operations-page", "1")}"
+  end
+
+  defp configuration_operations_sort_patch(uri_query, sort_by, sort_order) do
+    "?#{uri_query |> Query.put("configuration-operations-sort-by", sort_by) |> Query.put("configuration-operations-sort-order", sort_order) |> Query.drop("configuration-operations-page")}"
+  end
+
+  defp configuration_operations_column_sort_patch(uri_query, sort_by, current_sort_by, current_sort_order) do
+    sort_order =
+      if sort_by == current_sort_by,
+        do: if(current_sort_order == "asc", do: "desc", else: "asc"),
+        else: "asc"
+
+    configuration_operations_sort_patch(uri_query, sort_by, sort_order)
+  end
 
   defp define_task_filters do
     [

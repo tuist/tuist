@@ -207,11 +207,25 @@ defmodule TuistWeb.GradleBuildLiveTest do
         },
         configuration_operations: [
           %{
+            phase: "build",
+            build_path: ":",
+            project_path: "",
+            duration_ms: 2_300,
+            started_at: ~U[2026-08-31 12:00:00Z]
+          },
+          %{
+            phase: "settings",
+            build_path: ":",
+            project_path: "",
+            duration_ms: 640,
+            started_at: ~U[2026-08-31 12:00:00Z]
+          },
+          %{
             phase: "project",
             build_path: ":",
             project_path: ":app",
-            duration_ms: 300,
-            started_at: ~U[2026-08-31 12:00:00Z]
+            duration_ms: 910,
+            started_at: ~U[2026-08-31 12:00:00.640Z]
           }
         ],
         artifact_transforms: [
@@ -246,15 +260,27 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert cache_html =~ "No remote entry, then stored"
     assert cache_html =~ "Confirmed remote misses"
 
-    {:ok, _lv, setup_html} =
+    {:ok, lv, setup_html} =
       live(
         conn,
         ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=build-setup"
       )
 
     assert setup_html =~ "Configuration"
+    assert setup_html =~ "Configuration timeline"
+    assert setup_html =~ "Configuration operations"
+    assert setup_html =~ "Root build"
+    assert setup_html =~ ":app"
     assert setup_html =~ "an environment variable changed"
     assert setup_html =~ "JetifyTransform"
+
+    lv
+    |> element("[phx-change=\"search-configuration-operations\"]")
+    |> render_change(%{search: ":app"})
+
+    filtered_html = render(lv)
+    assert filtered_html =~ ":app"
+    refute filtered_html =~ "Root build"
   end
 
   test "search event triggers filtering via form change", %{
