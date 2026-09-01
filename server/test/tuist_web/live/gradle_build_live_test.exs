@@ -237,6 +237,15 @@ defmodule TuistWeb.GradleBuildLiveTest do
             consumer_project_path: ":app",
             duration_ms: 200,
             started_at: ~U[2026-08-31 12:00:01Z]
+          },
+          %{
+            transformer_name: "DexingTransform",
+            transform_action_class: "com.example.DexingTransform",
+            subject_name: "other.jar",
+            artifact_name: "other.jar",
+            consumer_project_path: ":app",
+            duration_ms: 100,
+            started_at: ~U[2026-08-31 12:00:02Z]
           }
         ],
         tasks: [
