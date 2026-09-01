@@ -21,12 +21,16 @@ defmodule Tuist.Automations.Alerts.Revision do
     belongs_to :automation_alert, Alert
     belongs_to :actor, User, type: :integer
 
-    timestamps(updated_at: false, type: :utc_datetime_usec)
+    field :recorded_at, :utc_datetime_usec
+
+    timestamps(updated_at: false, type: :utc_datetime)
   end
 
   def changeset(revision, attrs) do
+    attrs = Map.put_new(attrs, :recorded_at, DateTime.utc_now())
+
     revision
-    |> cast(attrs, [:automation_alert_id, :actor_id, :event, :source, :changes, :snapshot, :inserted_at])
+    |> cast(attrs, [:automation_alert_id, :actor_id, :event, :source, :changes, :snapshot, :recorded_at, :inserted_at])
     |> validate_required([:automation_alert_id, :event, :source, :snapshot])
     |> validate_inclusion(:event, ~w(created updated))
     |> foreign_key_constraint(:automation_alert_id)
