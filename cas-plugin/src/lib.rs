@@ -644,16 +644,75 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
 }
 
 
+/// Soft cap on the `TUIST_CAS_LOG` file, enforced by truncating it in place.
+///
+/// Sized to hold a whole build's diagnostics with room to spare. The bulk of the
+/// output is the per-process block each compiler frontend writes on dispose (a
+/// handful of ~150-byte lines), so even a workspace spawning tens of thousands of
+/// frontends lands in the low tens of megabytes, and everything else logged here
+/// is an exceptional path plus the proxy's periodic stats line. The per-resolve
+/// firehose is the one writer that will roll this over routinely, and it is
+/// behind its own `TUIST_CAS_LOG_RESOLVES` flag.
+const MAX_LOG_BYTES: u64 = 32 * 1024 * 1024;
+
+/// How many bytes a process appends between size checks, so the bound costs one
+/// `metadata` call per this much output rather than one per line.
+const LOG_SIZE_CHECK_INTERVAL: u64 = 64 * 1024;
+
+/// Seeded AT the interval so the FIRST line a process writes checks the size, and
+/// only then does the counter amortize. Every compiler frontend on the machine is
+/// its own writer and most of them never produce 64 KiB, so a counter starting at
+/// zero would leave the common case — thousands of short-lived processes, none of
+/// them individually chatty — never checking at all, which is unbounded growth
+/// spelled differently.
+static LOG_BYTES_SINCE_CHECK: AtomicU64 = AtomicU64::new(LOG_SIZE_CHECK_INTERVAL);
+
 pub fn log_line(message: &str) {
-    if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
-        use std::io::Write;
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let _ = writeln!(file, "[tuist-cas-plugin t={now} pid={}] {message}", std::process::id());
-        }
+    let Ok(path) = std::env::var("TUIST_CAS_LOG") else { return };
+    use std::io::Write;
+    let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    // Formatted into one buffer and written with a single `write_all`, rather than
+    // formatted straight into the file: `File` is unbuffered, so writing through
+    // the format machinery issues a syscall per fragment and lines from the many
+    // processes sharing this path interleave mid-line. It also hands the size
+    // check below the byte count for free, with no second look at the file.
+    let line = format!("[tuist-cas-plugin t={now} pid={}] {message}\n", std::process::id());
+    // Bound checked BEFORE the write, so a line that trips the rollover survives
+    // it as the first line of the fresh file rather than being the one thing the
+    // truncation takes.
+    enforce_log_bound(&file, line.len() as u64);
+    let _ = file.write_all(line.as_bytes());
+}
+
+/// Keeps the file under `MAX_LOG_BYTES` by truncating it in place, which keeps
+/// the RECENT output: the lines that explain a failed build are the last ones, so
+/// refusing to write past a ceiling would drop exactly what a reader came for.
+///
+/// Truncation rather than rename-based rotation because the writers here are the
+/// proxy plus a plugin instance inside every compiler frontend on the machine,
+/// all on one path. A rename splits them across two inodes — whoever holds the
+/// old descriptor keeps appending to a file that is no longer at the path, and a
+/// second rotator can unlink it outright — whereas a truncate races only with
+/// itself and costs at worst one extra truncation. `O_APPEND` is what makes it
+/// safe: every write re-seeks to the current end of the file, so a concurrent
+/// writer whose offset was past the truncation point cannot leave a NUL hole.
+///
+/// Soft rather than exact: the file may run over by whatever the writers produce
+/// between checks, which is bounded by the interval and, because each process
+/// checks on its first line, small in practice.
+fn enforce_log_bound(file: &std::fs::File, about_to_write: u64) {
+    if LOG_BYTES_SINCE_CHECK.fetch_add(about_to_write, Ordering::Relaxed) + about_to_write < LOG_SIZE_CHECK_INTERVAL {
+        return;
+    }
+    LOG_BYTES_SINCE_CHECK.store(0, Ordering::Relaxed);
+    if file.metadata().map(|metadata| metadata.len()).unwrap_or(0) > MAX_LOG_BYTES {
+        let _ = file.set_len(0);
     }
 }
 

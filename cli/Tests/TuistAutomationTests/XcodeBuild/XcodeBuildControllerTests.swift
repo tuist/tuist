@@ -486,6 +486,53 @@ struct XcodeBuildControllerTests {
             passthroughXcodeBuildArguments: []
         )
     }
+
+    /// Half of the CAS plugin's diagnostics come from the plugin instance loaded
+    /// into each compiler frontend, which inherits its environment from the process
+    /// that spawned `xcodebuild`. Defaulting only the proxy's launch agent would
+    /// capture the other half and leave the per-compilation counters unwritten.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_defaultsTheCASLogPathOnCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables["CI"] = "1"
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild", "build"], output: "output")
+
+        // When
+        try await subject.run(arguments: ["build"])
+
+        // Then
+        #expect(commandRunner.env["TUIST_CAS_LOG"] == environment.casLogPath().pathString)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_doesNotDefaultTheCASLogPathOffCI() async throws {
+        // Given
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild", "build"], output: "output")
+
+        // When
+        try await subject.run(arguments: ["build"])
+
+        // Then
+        #expect(commandRunner.env["TUIST_CAS_LOG"] == nil)
+    }
+
+    /// A value the caller exported reaches the frontends by plain shell inheritance
+    /// today, and the default must not take that away from them.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_prefersAnExplicitCASLogPathOverTheCIDefault() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables["CI"] = "1"
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/explicit-cas.log"
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild", "build"], output: "output")
+
+        // When
+        try await subject.run(arguments: ["build"])
+
+        // Then
+        #expect(commandRunner.env["TUIST_CAS_LOG"] == "/tmp/explicit-cas.log")
+    }
 }
 
 extension AsyncSequence {

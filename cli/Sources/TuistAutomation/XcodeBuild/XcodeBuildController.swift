@@ -346,6 +346,18 @@ public struct XcodeBuildController: XcodeBuildControlling {
         // no-output timeout. NSUnbufferedIO makes it flush in real time.
         var environment = Environment.current.variables
         environment["NSUnbufferedIO"] = "YES"
+        // The CAS plugin's diagnostics are written by two different processes. The
+        // proxy's half is covered by the launch agent's environment (`tuist setup
+        // cache`); this is the other half, the plugin instance loaded into every
+        // compiler frontend, which inherits its environment from here. Defaulting
+        // only the agent would capture the proxy-side lines and none of the
+        // per-compilation ones, which is worse than the manual path it replaces:
+        // someone exporting the variable in their workflow gets both halves today
+        // through plain shell inheritance. CI only, matching the agent side, and
+        // never overriding a value the caller set.
+        if Environment.current.isCI, environment["TUIST_CAS_LOG"] == nil {
+            environment["TUIST_CAS_LOG"] = Environment.current.casLogPath().pathString
+        }
         for try await event in commandRunner.run(arguments: command, environment: environment) {
             switch event {
             case let .standardOutput(bytes):

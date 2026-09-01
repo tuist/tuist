@@ -487,6 +487,17 @@ struct SetupCacheCommandService {
         // turn them on for a proxy running under launchd.
         if let logPath = Environment.current.variables["TUIST_CAS_LOG"] {
             environmentVariables["TUIST_CAS_LOG"] = logPath
+        } else if Environment.current.isCI {
+            // CI only, and deliberately not on developer machines. The counters
+            // that tell the three CAS failure shapes apart are written ONLY to
+            // this file, so a variable nobody knew to set is off during every
+            // incident that needs it. What makes defaulting it acceptable is that
+            // the file is bounded (the plugin truncates it in place past a cap),
+            // and what keeps it off locally is that the proxy there is a
+            // long-lived LaunchAgent: even a bounded file is state we would
+            // create on every `tuist setup cache` for a reader who never asked
+            // for it. A CI machine is ephemeral and the job bounds it.
+            environmentVariables["TUIST_CAS_LOG"] = Environment.current.casLogPath().pathString
         }
         // Trunk ingestion pays for itself only where the machine can warm the CAS
         // BEFORE a build: it pulls the trunk closure in the background so the next

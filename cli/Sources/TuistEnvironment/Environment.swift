@@ -88,6 +88,13 @@ public protocol Environmenting: Sendable {
     /// baked into a build setting.
     func casProxySocketPathString() -> String
 
+    /// Where the CAS diagnostics `TUIST_CAS_LOG` names when nothing set it. The two
+    /// halves of that logging live in different processes — the proxy under launchd
+    /// writes one set of lines, the plugin inside every compiler frontend writes the
+    /// other — and correlating them means both halves landing in ONE file, so the
+    /// path is computed here rather than at each of the two call sites.
+    func casLogPath() -> AbsolutePath
+
     /// A path with its `$HOME` prefix restored, so a value baked into a build setting
     /// does not hard-code one machine's home directory. Paths outside `$HOME` are
     /// returned unchanged.
@@ -438,6 +445,12 @@ public struct Environment: Environmenting {
 
     public func casProxySocketPathString() -> String {
         homeRelativePathString(casProxySocketPath())
+    }
+
+    /// Beside the proxy's own launchd `stdout`/`stderr` logs, which `setupLaunchAgent`
+    /// already puts under `stateDirectory`.
+    public func casLogPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas.log")
     }
 
     public func homeRelativePathString(_ path: AbsolutePath) -> String {
