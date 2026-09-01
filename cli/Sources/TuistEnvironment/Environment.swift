@@ -88,11 +88,11 @@ public protocol Environmenting: Sendable {
     /// baked into a build setting.
     func casProxySocketPathString() -> String
 
-    /// Where the CAS diagnostics `TUIST_CAS_LOG` names when nothing set it. The two
-    /// halves of that logging live in different processes — the proxy under launchd
-    /// writes one set of lines, the plugin inside every compiler frontend writes the
-    /// other — and correlating them means both halves landing in ONE file, so the
-    /// path is computed here rather than at each of the two call sites.
+    /// Where the CAS diagnostics `TUIST_CAS_LOG` names when nothing set it, used to
+    /// seed the proxy's launch agent. Must stay in step with the cas-plugin's own
+    /// `default_log_path`, which resolves this path independently inside compiler
+    /// frontends: the proxy writes one set of lines and the plugin the other, and
+    /// correlating them means both halves landing in ONE file.
     func casLogPath() -> AbsolutePath
 
     /// A path with its `$HOME` prefix restored, so a value baked into a build setting
