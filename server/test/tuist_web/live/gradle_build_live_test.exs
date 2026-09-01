@@ -267,12 +267,12 @@ defmodule TuistWeb.GradleBuildLiveTest do
       )
 
     assert setup_html =~ "Configuration"
-    assert setup_html =~ "Configuration timeline"
-    assert setup_html =~ "Configuration operations"
+    assert setup_html =~ "Filter"
     assert setup_html =~ "Root build"
     assert setup_html =~ ":app"
     assert setup_html =~ "an environment variable changed"
     assert setup_html =~ "JetifyTransform"
+    assert setup_html =~ "DexingTransform"
 
     lv
     |> element("[phx-change=\"search-configuration-operations\"]")
@@ -281,6 +281,30 @@ defmodule TuistWeb.GradleBuildLiveTest do
     filtered_html = render(lv)
     assert filtered_html =~ ":app"
     refute filtered_html =~ "Root build"
+
+    lv
+    |> element("[phx-change=\"search-artifact-transforms\"]")
+    |> render_change(%{search: "Dexing"})
+
+    filtered_html = render(lv)
+    assert filtered_html =~ "DexingTransform"
+    refute filtered_html =~ "JetifyTransform"
+
+    configuration_phase_filter =
+      URI.encode_query(%{
+        "tab" => "build-setup",
+        "filter_configuration_operation_phase_op" => "==",
+        "filter_configuration_operation_phase_val" => "settings"
+      })
+
+    {:ok, phase_filtered_lv, _phase_filtered_html} =
+      live(
+        conn,
+        "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?#{configuration_phase_filter}"
+      )
+
+    assert has_element?(phase_filtered_lv, "#gradle-configuration-operations-table td", "Settings")
+    refute has_element?(phase_filtered_lv, "#gradle-configuration-operations-table td", "Project")
   end
 
   test "search event triggers filtering via form change", %{

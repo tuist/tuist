@@ -364,14 +364,10 @@
             <li :for={reason <- @build.configuration_cache_invalidation_reasons}>{reason}</li>
           </ul>
         </.card_section>
-      </.card>
-      <.card
-        :if={@configuration_timeline_operations != []}
-        title={dgettext("dashboard_gradle", "Configuration timeline")}
-        icon="history"
-        data-part="configuration-timeline-card"
-      >
-        <.card_section data-part="configuration-timeline-section">
+        <.card_section
+          :if={@configuration_timeline_operations != []}
+          data-part="configuration-timeline-section"
+        >
           <div data-part="timeline-scale">
             <span></span>
             <div data-part="timeline-scale-labels">
@@ -381,7 +377,10 @@
             <span></span>
           </div>
           <div data-part="timeline">
-            <div :for={timeline_operation <- @configuration_timeline_operations} data-part="timeline-row">
+            <div
+              :for={timeline_operation <- @configuration_timeline_operations}
+              data-part="timeline-row"
+            >
               <div data-part="timeline-label">
                 <span data-part="timeline-phase">
                   {configuration_phase_label(timeline_operation.operation.phase)}
@@ -413,21 +412,17 @@
             )}
           </p>
         </.card_section>
-      </.card>
-      <.card
-        :if={@configuration_operations != []}
-        title={dgettext("dashboard_gradle", "Configuration operations")}
-        icon="settings"
-        data-part="configuration-operations-card"
-      >
-        <.card_section data-part="configuration-operations-table-section">
+        <.card_section
+          :if={@configuration_operations != []}
+          data-part="configuration-operations-table-section"
+        >
           <div data-part="filters">
             <.form for={%{}} phx-change="search-configuration-operations" phx-debounce="200">
               <.text_input
                 type="search"
                 id="search-configuration-operations"
                 name="search"
-                placeholder={dgettext("dashboard_gradle", "Search scope...")}
+                placeholder={dgettext("dashboard_gradle", "Search...")}
                 show_suffix={false}
                 data-part="search"
                 value={@configuration_operations_filter}
@@ -471,31 +466,26 @@
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
             </.dropdown>
-            <.dropdown
-              id="configuration-operations-phase"
-              label={configuration_operations_phase_label(@configuration_operations_phase)}
-              secondary_text={dgettext("dashboard_gradle", "Phase:")}
-            >
-              <.dropdown_item
-                value="all"
-                label={dgettext("dashboard_gradle", "All phases")}
-                patch={configuration_operations_phase_patch(@uri.query, nil)}
-                data-selected={is_nil(@configuration_operations_phase)}
-              >
-                <:right_icon><.check /></:right_icon>
-              </.dropdown_item>
-              <.dropdown_item
-                :for={phase <- ["build", "settings", "project"]}
-                value={phase}
-                label={configuration_phase_label(phase)}
-                patch={configuration_operations_phase_patch(@uri.query, phase)}
-                data-selected={@configuration_operations_phase == phase}
-              >
-                <:right_icon><.check /></:right_icon>
-              </.dropdown_item>
-            </.dropdown>
+            <.filter_dropdown
+              id="configuration-operations-filter-dropdown"
+              label={dgettext("dashboard_gradle", "Filter")}
+              available_filters={@configuration_operations_available_filters}
+              active_filters={@configuration_operations_active_filters}
+            />
           </div>
-          <.table id="gradle-configuration-operations-table" rows={@configuration_operations_table}>
+          <div
+            :if={Enum.any?(@configuration_operations_active_filters)}
+            data-part="active-filters"
+          >
+            <.active_filter
+              :for={filter <- @configuration_operations_active_filters}
+              filter={filter}
+            />
+          </div>
+          <.table
+            id="gradle-configuration-operations-table"
+            rows={@configuration_operations_table}
+          >
             <:col
               :let={operation}
               label={dgettext("dashboard_gradle", "Phase")}
@@ -507,7 +497,10 @@
                   @configuration_operations_sort_order
                 )
               }
-              sort_order={@configuration_operations_sort_by == "phase" && @configuration_operations_sort_order}
+              sort_order={
+                @configuration_operations_sort_by == "phase" &&
+                  @configuration_operations_sort_order
+              }
             >
               <.text_cell label={configuration_phase_label(operation.phase)} />
             </:col>
@@ -522,17 +515,19 @@
                   @configuration_operations_sort_order
                 )
               }
-              sort_order={@configuration_operations_sort_by == "scope" && @configuration_operations_sort_order}
+              sort_order={
+                @configuration_operations_sort_by == "scope" &&
+                  @configuration_operations_sort_order
+              }
             >
               <.badge_cell
-                :if={root_build_configuration_operation?(operation)}
-                label={dgettext("dashboard_gradle", "Root build")}
+                label={
+                  if root_build_configuration_operation?(operation),
+                    do: dgettext("dashboard_gradle", "Root build"),
+                    else: configuration_operation_scope(operation)
+                }
                 color="neutral"
                 style="light-fill"
-              />
-              <.text_cell
-                :if={not root_build_configuration_operation?(operation)}
-                label={configuration_operation_scope(operation)}
               />
             </:col>
             <:col
@@ -575,7 +570,7 @@
               <.table_empty_state
                 icon="settings"
                 title={dgettext("dashboard_gradle", "No configuration operations")}
-                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or phase filter.")}
+                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or filters.")}
               />
             </:empty_state>
           </.table>
@@ -616,20 +611,154 @@
           />
         </.card_section>
         <.card_section data-part="artifact-transforms-table-section">
-          <.table id="gradle-artifact-transforms-table" rows={@artifact_transforms}>
-            <:col :let={transform} label={dgettext("dashboard_gradle", "Transform")}>
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-artifact-transforms" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-artifact-transforms"
+                name="search"
+                placeholder={dgettext("dashboard_gradle", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@artifact_transforms_filter}
+              />
+            </.form>
+            <.dropdown
+              id="artifact-transforms-sort-by"
+              label={artifact_transforms_sort_label(@artifact_transforms_sort_by)}
+              secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+            >
+              <.dropdown_item
+                value="transformer_name"
+                label={dgettext("dashboard_gradle", "Transform")}
+                patch={artifact_transforms_sort_patch(@uri.query, "transformer_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "transformer_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="artifact_name"
+                label={dgettext("dashboard_gradle", "Artifact")}
+                patch={artifact_transforms_sort_patch(@uri.query, "artifact_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "artifact_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="subject_name"
+                label={dgettext("dashboard_gradle", "Subject")}
+                patch={artifact_transforms_sort_patch(@uri.query, "subject_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "subject_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration_ms"
+                label={dgettext("dashboard_gradle", "Duration")}
+                patch={artifact_transforms_sort_patch(@uri.query, "duration_ms", "desc")}
+                data-selected={@artifact_transforms_sort_by == "duration_ms"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+            <.filter_dropdown
+              id="artifact-transforms-filter-dropdown"
+              label={dgettext("dashboard_gradle", "Filter")}
+              available_filters={@artifact_transforms_available_filters}
+              active_filters={@artifact_transforms_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@artifact_transforms_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @artifact_transforms_active_filters} filter={filter} />
+          </div>
+          <.table id="gradle-artifact-transforms-table" rows={@artifact_transforms_table}>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Transform")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "transformer_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "transformer_name" &&
+                  @artifact_transforms_sort_order
+              }
+            >
               <.text_cell label={transform.transformer_name} />
             </:col>
-            <:col :let={transform} label={dgettext("dashboard_gradle", "Artifact")}>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Artifact")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "artifact_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "artifact_name" && @artifact_transforms_sort_order
+              }
+            >
               <.text_cell label={transform.artifact_name} />
             </:col>
-            <:col :let={transform} label={dgettext("dashboard_gradle", "Subject")}>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Subject")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "subject_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "subject_name" && @artifact_transforms_sort_order
+              }
+            >
               <.text_cell label={transform.subject_name} />
             </:col>
-            <:col :let={transform} label={dgettext("dashboard_gradle", "Duration")}>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "duration_ms",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "duration_ms" && @artifact_transforms_sort_order
+              }
+            >
               <.text_cell label={format_duration(transform.duration_ms)} icon="history" />
             </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="subtask"
+                title={dgettext("dashboard_gradle", "No artifact transforms")}
+                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or filters.")}
+              />
+            </:empty_state>
           </.table>
+          <.pagination_group
+            :if={@artifact_transforms_page_count > 1}
+            current_page={@artifact_transforms_page}
+            number_of_pages={@artifact_transforms_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "artifact-transforms-page", page)}"
+              end
+            }
+          />
         </.card_section>
       </.card>
     </div>
