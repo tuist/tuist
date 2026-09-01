@@ -223,7 +223,7 @@ defmodule Tuist.Gradle do
     FROM gradle_builds
     WHERE project_id = {project_id:Int64}
       AND length(custom_tags) > 0
-      AND inserted_at > {since:DateTime}
+      AND inserted_at > {since:DateTime64(6)}
     ORDER BY tag
     LIMIT 1000
     """

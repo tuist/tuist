@@ -201,6 +201,27 @@ defmodule Tuist.GradleTest do
     end
   end
 
+  describe "project_build_tags/1" do
+    test "returns the unique tags from a project's recent builds" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: account_id,
+        custom_tags: ["nightly", "release"]
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      assert Gradle.project_build_tags(project) == ["nightly", "release", "staging"]
+    end
+  end
+
   describe "cache_hit_rate/1 with cacheable_tasks_count" do
     test "is 100% when all cacheable tasks are hits, even with non-cacheable executed tasks" do
       build_id =
