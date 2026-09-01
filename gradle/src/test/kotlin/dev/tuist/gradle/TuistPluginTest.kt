@@ -16,13 +16,11 @@ class TuistPluginTest {
 
     private lateinit var settingsFile: File
     private lateinit var buildFile: File
-    private lateinit var gradleUserHome: File
 
     @BeforeEach
     fun setup() {
         settingsFile = File(testProjectDir, "settings.gradle.kts")
         buildFile = File(testProjectDir, "build.gradle.kts")
-        gradleUserHome = File(testProjectDir, "gradle-user-home")
     }
 
     @Test
@@ -466,12 +464,12 @@ class TuistPluginTest {
             tasks.register("hello")
         """.trimIndent())
 
-        val first = GradleRunner.create()
+        val runner = GradleRunner.create()
             .withProjectDir(testProjectDir)
-            .withEnvironment(System.getenv() + ("GRADLE_USER_HOME" to gradleUserHome.absolutePath))
             .withArguments("hello", "--configuration-cache")
             .withPluginClasspath()
-            .build()
+
+        val first = runner.build()
 
         assertEquals(TaskOutcome.UP_TO_DATE, first.task(":hello")?.outcome)
         assertTrue(
@@ -479,12 +477,7 @@ class TuistPluginTest {
             "Unexpected configuration cache serialization error:\n${first.output}"
         )
 
-        val second = GradleRunner.create()
-            .withProjectDir(testProjectDir)
-            .withEnvironment(System.getenv() + ("GRADLE_USER_HOME" to gradleUserHome.absolutePath))
-            .withArguments("hello", "--configuration-cache")
-            .withPluginClasspath()
-            .build()
+        val second = runner.build()
 
         assertEquals(TaskOutcome.UP_TO_DATE, second.task(":hello")?.outcome)
         assertTrue(second.output.contains("Reusing configuration cache"), second.output)
