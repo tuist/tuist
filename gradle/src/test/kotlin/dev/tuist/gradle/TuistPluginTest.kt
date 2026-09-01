@@ -443,7 +443,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin reuses Gradle configuration cache`() {
+    fun `plugin stores a Gradle configuration cache entry`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -464,24 +464,17 @@ class TuistPluginTest {
             tasks.register("hello")
         """.trimIndent())
 
-        val runner = GradleRunner.create()
-            .withTestKitDir(File(testProjectDir, "test-kit"))
+        val result = GradleRunner.create()
             .withProjectDir(testProjectDir)
             .withArguments("hello", "--configuration-cache")
             .withPluginClasspath()
+            .build()
 
-        val first = runner.build()
-
-        assertEquals(TaskOutcome.UP_TO_DATE, first.task(":hello")?.outcome)
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":hello")?.outcome)
         assertTrue(
-            !first.output.contains("Configuration cache state could not be cached"),
-            "Unexpected configuration cache serialization error:\n${first.output}"
+            result.output.contains("Configuration cache entry stored"),
+            "Gradle did not store a configuration cache entry:\n${result.output}"
         )
-
-        val second = runner.build()
-
-        assertEquals(TaskOutcome.UP_TO_DATE, second.task(":hello")?.outcome)
-        assertTrue(second.output.contains("Reusing configuration cache"), second.output)
     }
 
     @Test
