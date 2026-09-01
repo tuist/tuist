@@ -465,6 +465,7 @@ class TuistPluginTest {
         """.trimIndent())
 
         val runner = GradleRunner.create()
+            .withTestKitDir(File(testProjectDir, "test-kit"))
             .withProjectDir(testProjectDir)
             .withArguments("hello", "--configuration-cache")
             .withPluginClasspath()
