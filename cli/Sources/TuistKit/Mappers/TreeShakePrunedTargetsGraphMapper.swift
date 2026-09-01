@@ -35,7 +35,10 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         // other projects. An aggregate test scheme declared on the app project is the common case:
         // a cache hit on the app's own test target empties that project, and dropping the scheme
         // with it would leave the non-cached test targets of every other project unrunnable.
-        var reparentedSchemes: [Scheme] = []
+        // The originating path is carried so that two removed projects declaring a same-named
+        // scheme resolve to the same winner on every run, rather than to whichever one
+        // `graph.projects` happened to yield first.
+        var reparentedSchemes: [(projectPath: AbsolutePath, scheme: Scheme)] = []
 
         for (projectPath, project) in graph.projects {
             let (treeShakenTargets, projecttreeShakenDependencies) = treeShake(
@@ -51,7 +54,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 prunedTargets: prunedTargets
             )
             if treeShakenTargets.isEmpty {
-                reparentedSchemes.append(contentsOf: schemes)
+                reparentedSchemes.append(contentsOf: schemes.map { (projectPath, $0) })
             } else {
                 var project = project
                 project.schemes = schemes
@@ -70,7 +73,9 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             projects: Array(treeShakenProjects.values),
             sourceTargets: sourceTargets,
             prunedTargets: prunedTargets,
-            reparentedSchemes: reparentedSchemes.sorted(by: { $0.name < $1.name })
+            reparentedSchemes: reparentedSchemes
+                .sorted { ($0.scheme.name, $0.projectPath.pathString) < ($1.scheme.name, $1.projectPath.pathString) }
+                .map(\.scheme)
         )
 
         var graph = graph
@@ -94,6 +99,10 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             sourceTargets: sourceTargets,
             prunedTargets: prunedTargets
         )
+        // A workspace can only hold one scheme per name, so a reparented scheme yields to a
+        // workspace scheme that already owns its name, and to the reparented scheme that sorts
+        // first. `reparentedSchemes` arrives ordered by name and originating project path, which
+        // is what makes the surviving scheme the same on every run.
         var schemeNames = Set(schemes.map(\.name))
         for scheme in reparentedSchemes where !schemeNames.contains(scheme.name) {
             schemes.append(scheme)
