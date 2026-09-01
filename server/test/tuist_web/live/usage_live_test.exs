@@ -503,7 +503,7 @@ defmodule TuistWeb.UsageLiveTest do
   describe "runner usage receipt" do
     test "walks from minutes to money, showing the allowance as a credit", %{conn: conn, user: user} do
       account = user.account
-      now = DateTime.truncate(DateTime.utc_now(), :second)
+      now = DateTime.utc_now()
       period_start = DateTime.add(now, -4, :day)
       period_end = DateTime.add(now, 20, :day)
       started = DateTime.add(now, -2, :hour)
