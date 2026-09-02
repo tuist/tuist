@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,12 @@ type OVHDedicatedMachineReconciler struct {
 	CredentialsManager *credentials.Manager
 	Kubeconfig         *kubeconfig.Builder
 
+	// adoptMu serializes the claim window across the controller's concurrent
+	// workers (see --machine-max-concurrent-reconciles). Leader election means
+	// one manager reconciles at a time, so a process-local lock is the whole
+	// mutual exclusion this needs.
+	adoptMu sync.Mutex
+
 	// KubernetesMinor is the pkgs.k8s.io channel the self-join installs kubelet
 	// from (e.g. "v1.34"); keep in step with the control plane.
 	KubernetesMinor string
@@ -144,10 +151,10 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	return r.reconcileNormal(ctx, machine)
+	return r.reconcileNormal(ctx, machine, patchHelper)
 }
 
-func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine) (ctrl.Result, error) {
+func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, patchHelper *patch.Helper) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	datacenter := firstNonEmpty(machine.Spec.Datacenter, r.DefaultDatacenter)
 
@@ -166,6 +173,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		// Adopt: claim a free pre-ordered box not already held by a sibling CR.
 		if machine.Status.ServiceName == "" {
+			// A claim only becomes visible to siblings once its status patch
+			// lands, so the read-pick-persist window has to be atomic: two
+			// workers that both list before either writes will pick the same
+			// box, bootstrap it twice, and leave two Nodes sharing one
+			// providerID, which wedges the CAPI node lookup for both.
+			r.adoptMu.Lock()
+			defer r.adoptMu.Unlock()
+
 			claimed, claimErr := r.claimedServiceNames(ctx, machine)
 			if claimErr != nil {
 				return ctrl.Result{}, claimErr
@@ -191,12 +206,15 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted OVH server %s in %s", server.Name, datacenter)
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
-			// Persist the claim before the long bootstrap that follows (mint
-			// identity, SSH self-join): a crash or leader failover before the
-			// deferred status patch would drop the in-memory claim and let a sibling
-			// Machine adopt the same box. Requeue so the deferred patch flushes
-			// Status.ServiceName now; the next reconcile resumes from the durable
-			// claim (re-fetching the box via GetServer).
+			// Persist inside the lock: the deferred patch flushes only after the
+			// lock is released, which would reopen the window it exists to close.
+			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.Name, patchErr)
+			}
+			// Requeue rather than bootstrapping inline: the next reconcile
+			// resumes from the now-durable claim (re-fetching the box via
+			// GetServer), so a crash or leader failover during the long
+			// bootstrap that follows never drops the claim.
 			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 
@@ -360,6 +378,13 @@ func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicate
 	}
 }
 
+func (r *OVHDedicatedMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
+}
+
 // claimedServiceNames is the set of OVH service names already held by other
 // OVHDedicatedMachines in the namespace, so adoption never double-claims a box.
 // Claim state lives in the CR status rather than OVH-side because the cluster
@@ -367,7 +392,10 @@ func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicate
 // claim marker the way Scaleway names do.
 func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context, self *infrav1.OVHDedicatedMachine) (map[string]bool, error) {
 	list := &infrav1.OVHDedicatedMachineList{}
-	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+	// Uncached: the informer cache lags its own writes by long enough that a
+	// sibling that already claimed a box still reads as unclaimed, which is a
+	// double-claim rather than a stale view a later reconcile repairs.
+	if err := r.reader().List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
 		return nil, fmt.Errorf("list OVHDedicatedMachines: %w", err)
 	}
 	claimed := make(map[string]bool, len(list.Items))

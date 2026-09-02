@@ -976,9 +976,11 @@ Shape:
 
 - `dind-sock` emptyDir at `/var/run` (both containers) exposes
   `/var/run/docker.sock`.
-- `work` emptyDir at `/home/runner/actions-runner/_work` (both
-  containers) so `docker run -v $PWD:/x` paths resolve the same
-  on either side.
+- `work` emptyDir at `/home/runner/work` (both containers) so
+  `docker run -v $PWD:/x` paths resolve the same on either side.
+  That path is the `work_folder` the server mints into the JIT
+  config, **not** the runner's `<runner root>/_work` default —
+  see "Why the work directory is /home/runner/work" below.
 - `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
   (sidecar only), filled by the `dind-externals` init container —
   the runner image running `cp -a` out of its own image layer into
@@ -1004,28 +1006,52 @@ Shape:
 
 A workflow that declares `jobs.<id>.container` doesn't run its
 steps in the runner container at all: the runner asks dockerd to
-create a container and bind-mounts five well-known directories
-into it — work as `/__w`, temp as `/__t`, actions as `/__a`,
-tools as `/__o`, externals as `/__e`. Those source paths are
-resolved by **dockerd**, so they have to exist in the sidecar's
-mount namespace, not the runner's.
+create a container and bind-mounts its own directories into it —
+the work directory as `/__w`, then `_temp`, `_actions` and `_tool`
+under it, `_temp/_github_home` as `/github/home`,
+`_temp/_github_workflow` as `/github/workflow`, and `externals` as
+`/__e`. Those source paths are resolved by **dockerd**, so they
+have to exist in the sidecar's mount namespace, not the runner's,
+and docker silently creates an empty directory for any that don't.
 
-Four of the five already do: temp, actions and tools default to
-`_work/_temp`, `_work/_actions` and `_work/_tool` (the runner image
-sets no `RUNNER_TOOL_CACHE` / `AGENT_TOOLSDIRECTORY`), all under the
-shared `work` volume. `externals` — the node runtimes every JS
-action executes under — ships in the runner image alone. Without
-the staged copy docker creates an empty directory for it daemon-
-side and every step in the job container dies on a missing
-`/__e/node2x/bin/node`, which is what made `container:` jobs
-unusable on the fleet while plain `docker` commands in a `run:`
-step worked fine.
+Everything but `externals` hangs off the work directory, which the
+`work` volume shares with the sidecar. `externals` — the node
+runtimes every JS action executes under — ships in the runner
+image alone. Without the staged copy every step in the job
+container dies on a missing `/__e/node2x/bin/node`.
 
 Same fix ARC ships as `init-dind-externals`. The copy runs before
 the sidecar, so it is in place by the time dockerd can serve a
 container and a runner image that stops shipping externals fails
 the Pod early rather than at job time. Cost is a per-Pod copy of
 the node runtimes at warm-up, off the job's critical path.
+
+### Why the work directory is /home/runner/work
+
+`Tuist.Runners` mints the JIT config with an absolute
+`work_folder` — `/home/runner/work` on Linux, `/Users/runner/work`
+on macOS — to match GitHub-hosted's layout so on-disk artifacts
+that bake absolute paths stay interchangeable between hosted and
+self-hosted runs. The runner honors it and **never touches its own
+`<runner root>/_work` default**.
+
+So the `work` volume has to be mounted at `/home/runner/work`. Get
+this wrong and nothing looks broken from the outside: normal jobs
+keep passing, because the runner just writes to a container-local
+directory instead of the shared volume. Only `container:` jobs
+notice — dockerd bind-mounts a path that doesn't exist on its
+side, docker creates it empty, and every step fails. `run:` steps
+die first, on a missing `/__w/_temp/<id>.sh`; JS actions die on a
+missing `/__w/_actions/<owner>/<repo>/<ref>/dist/index.js`.
+
+Keep the two in sync: the podtemplate constant `workPath` and the
+`work_folder` in `Tuist.Runners`. `TestBuild_LinuxDindSharesRunnerWorkDirectory`
+pins the constant.
+
+The PTY socket deliberately lives on its own `shell-sock` volume
+rather than under the work directory: the runner hands the whole
+work tree to a job container as `/__w`, and the runner container's
+shell entry point has no business in there.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 

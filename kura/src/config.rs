@@ -120,6 +120,9 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
+const KURA_REQUEST_LOG_SAMPLE_RATE: &str = "KURA_REQUEST_LOG_SAMPLE_RATE";
+const KURA_SLOW_REQUEST_THRESHOLD_MS: &str = "KURA_SLOW_REQUEST_THRESHOLD_MS";
+const KURA_WARNING_LOG_INTERVAL_MS: &str = "KURA_WARNING_LOG_INTERVAL_MS";
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
@@ -130,6 +133,9 @@ const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
 const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 512 * BYTES_PER_MIB;
 const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
+const DEFAULT_REQUEST_LOG_SAMPLE_RATE: f64 = 0.0;
+const DEFAULT_SLOW_REQUEST_THRESHOLD_MS: u64 = 30_000;
+const DEFAULT_WARNING_LOG_INTERVAL_MS: u64 = 60_000;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
@@ -225,6 +231,9 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
+    pub request_log_sample_rate: f64,
+    pub slow_request_threshold_ms: u64,
+    pub warning_log_interval_ms: u64,
     /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
     /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
     /// the datacenter the node runs in; there is no runtime discovery behind
@@ -1586,6 +1595,46 @@ impl Config {
                 "{KURA_SENTRY_DSN} must be a valid Sentry DSN: {error}"
             ));
         }
+        let request_log_sample_rate = optional_parsed_value(
+            &mut lookup,
+            KURA_REQUEST_LOG_SAMPLE_RATE,
+            &mut invalid,
+            |value| {
+                let rate = value.parse::<f64>().map_err(|_| {
+                    format!("{KURA_REQUEST_LOG_SAMPLE_RATE} must be a number between 0 and 1")
+                })?;
+                if rate.is_finite() && (0.0..=1.0).contains(&rate) {
+                    Ok(rate)
+                } else {
+                    Err(format!(
+                        "{KURA_REQUEST_LOG_SAMPLE_RATE} must be a number between 0 and 1"
+                    ))
+                }
+            },
+        )
+        .unwrap_or(DEFAULT_REQUEST_LOG_SAMPLE_RATE);
+        let slow_request_threshold_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_SLOW_REQUEST_THRESHOLD_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_SLOW_REQUEST_THRESHOLD_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_SLOW_REQUEST_THRESHOLD_MS);
+        let warning_log_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_WARNING_LOG_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_WARNING_LOG_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_WARNING_LOG_INTERVAL_MS);
 
         if let (Some(port), Some(internal_port)) = (port, internal_port) {
             if internal_port == port {
@@ -1782,6 +1831,9 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
+            request_log_sample_rate,
+            slow_request_threshold_ms,
+            warning_log_interval_ms,
             node_country_override,
             node_subdivision_override,
         })
@@ -2621,6 +2673,18 @@ mod tests {
             }
         );
         assert_eq!(config.sentry_dsn, None);
+        assert_eq!(
+            config.request_log_sample_rate,
+            DEFAULT_REQUEST_LOG_SAMPLE_RATE
+        );
+        assert_eq!(
+            config.slow_request_threshold_ms,
+            DEFAULT_SLOW_REQUEST_THRESHOLD_MS
+        );
+        assert_eq!(
+            config.warning_log_interval_ms,
+            DEFAULT_WARNING_LOG_INTERVAL_MS
+        );
     }
 
     #[test]
@@ -2783,6 +2847,9 @@ mod tests {
             ),
             (KURA_OTEL_SERVICE_NAME, "kura-eu"),
             (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+            (KURA_REQUEST_LOG_SAMPLE_RATE, "0.25"),
+            (KURA_SLOW_REQUEST_THRESHOLD_MS, "15000"),
+            (KURA_WARNING_LOG_INTERVAL_MS, "30000"),
         ])
         .expect("expected config overrides to parse");
 
@@ -2843,6 +2910,19 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
+        assert_eq!(config.request_log_sample_rate, 0.25);
+        assert_eq!(config.slow_request_threshold_ms, 15_000);
+        assert_eq!(config.warning_log_interval_ms, 30_000);
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_request_log_sample_rates() {
+        for value in ["-0.1", "1.1", "NaN", "not-a-number"] {
+            let error = config_from(&[(KURA_REQUEST_LOG_SAMPLE_RATE, value)])
+                .expect_err("expected invalid request log sample rate to fail");
+
+            assert!(error.contains(KURA_REQUEST_LOG_SAMPLE_RATE));
+        }
     }
 
     #[test]
