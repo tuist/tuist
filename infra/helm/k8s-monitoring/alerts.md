@@ -1942,7 +1942,8 @@ max by (cluster, region, pod, kind) (
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Pending period: the same as the live outbox rule it replaces
+- Pending period: the same as the live outbox rule it replaces (group
+  `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
@@ -2060,50 +2061,89 @@ max by (pod) (kura_outbox_messages)
 ### Kura replication outbox approaching its cap
 
 ```promql
-max by (cluster, pod) (kura_outbox_messages)
+max by (cluster, pod) (
+  (kura_outbox_messages > 25000 and predict_linear(kura_outbox_messages[5m], 600) > 100000)
+  or
+  (kura_outbox_messages > 90000)
+)
 ```
 
+- Threshold: `> 0`, as a separate threshold expression on `A`; the comparisons
+  inside the query filter the series and keep the depth as the value
 - Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
-  cap`, `severity: warning`, `for: 15m`, threshold `> 75000`, folder `Alerts`,
-  group `Cache`, receiver `Slack #notifications 2`.
-- Summary: `Kura pod {{ $labels.pod }} has {{ $values.A.Value | printf "%.0f" }}
-  messages in its replication outbox in {{ $labels.cluster }}`.
+  cap`, `severity: warning`, folder `Alerts`, group `Cache` (evaluated every
+  5 minutes), receiver `Slack #notifications 2`. Moved to this form on
+  2026-08-31 from `> 75000` for 15 minutes.
+- Summary: `Kura pod {{ $labels.pod }} is heading for its replication outbox
+  cap in {{ $labels.cluster }} (depth {{ $values.A.Value | printf "%.0f" }}),
+  where it starts refusing customer writes`
+- Description: `Leading indicator for "Kura shedding cache writes by kind"
+  (the outbox kind). Once the outbox reaches its cap both write gates refuse
+  public writes: HTTP answers 429 and the remote-execution surface answers gRPC
+  RESOURCE_EXHAUSTED; the cache client only retries GETs, so a refused HTTP
+  upload is lost rather than delayed. Do NOT assume an unreachable peer: check
+  max by (pod) (kura_outbox_messages) and sum by (pod)
+  (rate(kura_replication_requests_total_total{operation="upsert_artifact"}[10m]))
+  (filter by operation, the counter also counts backfill). Drain is serial and
+  node-wide, one delivery per peer round-trip, so a backlog is ingest
+  outrunning it. If the write-shed rule is also firing the window has closed.
+  The same backlog gates Kura runtime rollouts, so this pod is likely holding
+  a rollout in wave 0.`
 
 Leading indicator for the `outbox` kind of **Kura shedding cache writes by
 kind** above. That rule tells you writes are already being lost; this one is
-the window before it starts.
+the window before it starts. When the retired outbox rule is deleted, update
+this rule's description, which still names it by its old title.
 
-#### The lead time is hours, and the reason matters
+#### Two terms: a forecast that leads, and a static backstop
 
-A full outbox sheds nothing until traffic actually arrives, so the gap between
-this rule and the write-shed rule is however long it is until the tenant's next
-CI wave. In the 2026-08-28 episode the outbox crossed 75000 at 19:00 the
-previous evening and sat at or near the cap all night, and the first write was
-not shed until roughly 00:15, when that tenant's builds started. Over five hours
-of warning, and acting on it overnight is what buys the whole window.
+A depth threshold alone could not lead. In the 2026-08-31 episode one pod
+crossed 75000 and hit the cap under three minutes later; the old rule
+(`> 75000`, for 15 minutes, in the 5-minute Cache group) reached Alerting 28
+minutes *after* the cap. The `predict_linear` term, a 10-minute forecast over
+the last 5 minutes of depth, went true about 9 minutes before the cap at a
+depth around 32000. The 25000 floor keeps a short, self-resolving burst quiet.
 
-The corollary is that a pod parked at the cap looks harmless on the write-shed
-rule while it is quiet. Do not read a silent write-shed rule as a drained
-outbox.
+The `> 90000` term is the backstop for the case the forecast cannot see: a
+backlog parked just under the cap that is flat rather than rising. A full
+outbox sheds nothing until traffic arrives, so the gap between this rule and
+the shed can still be hours: in the 2026-08-28 episode the outbox sat near the
+cap all night and the first write was shed when the tenant's builds started the
+next morning. Do not read a silent shed rule as a drained outbox.
 
-#### Threshold
+Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
+than the old threshold on each of the three pods that ever reach the cap, so
+the form is net quieter as well as earlier.
 
-Measured over the 7 days to 2026-08-31 at 5m resolution, samples above 75000
-occurred on exactly three pods (128, 88 and 15 samples, roughly 10.7h, 7.3h and
-1.25h). Those same three are the only pods that ever reach the cap, so there is
-no false-positive population to trade off against: raising the bar to 90000 only
-shortens the warning (73, 50 and 6 samples) without removing a noisy pod.
-75000 was chosen for lead time rather than to suppress anything.
+#### Caveat: the cap is hardcoded
+
+Both 100000 and 90000 are `DEFAULT_OUTBOX_MAX_DEPTH`. `KURA_OUTBOX_MAX_DEPTH`
+is configurable per instance, so if the cap is ever raised for a tenant (the
+standing interim mitigation for this exact problem) this rule fires early and
+continuously for that pod until the numbers are updated. Kura does not export
+the cap as a metric yet; when it does, divide by it.
+
+#### Why the drain falls behind
+
+Do not assume the peers are unreachable. Through the 2026-08-31 episode
+`kura_peer_connection_failures_total` was 0, apply errors were 0, and
+replication bandwidth sat at its configured ceiling. Bandwidth is not the
+constraint: `process_outbox` awaits one delivery at a time, node-wide, so
+drain throughput is one message per peer round-trip, on the order of tens of
+messages per second at the fleet's mean RTT, and the pod in that episode was
+running at about 94% of that ceiling against a burst ingest several times
+higher. One artifact write also enqueues one message *per target*, so depth
+is not a count of artifacts.
 
 #### Aggregate by pod, not by series
 
-`kura_outbox_messages` carries an `instance` label, and a pod that has restarted
-appears under several instance IPs across a long window. A bare
-`kura_outbox_messages > 75000` therefore returns one series per historical IP and
-counts a single pod many times: one chronically backlogged pod showed up as seven
-separate series over a week. Always reduce with `max by (pod)` (or
-`by (cluster, pod)`) first. The same applies when counting how long a pod spent
-above a threshold.
+`kura_outbox_messages` carries an `instance` label, and a pod that has
+restarted appears under several instance IPs across a long window. A bare
+`kura_outbox_messages > 90000` therefore returns one series per historical IP
+and counts a single pod many times: one chronically backlogged pod showed up
+as seven separate series over a week. Always reduce with `max by (pod)` (or
+`by (cluster, pod)`) first. The same applies when counting how long a pod
+spent above a threshold.
 
 ### Kura region has room for one more instance
 
