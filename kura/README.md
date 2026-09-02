@@ -361,6 +361,14 @@ Kura ships with a fairly complete local observability story:
 - 🧭 Tempo traces
 - 🚨 Optional Sentry error reporting for panics and error-level tracing events
 
+The release version is included as `service.version` in startup and contextual log fields. Operators
+can also inspect it directly from a running container or from Prometheus:
+
+```bash
+docker compose exec kura /usr/local/bin/kura --version
+curl -sS http://127.0.0.1:4000/metrics | grep '^kura_build_info'
+```
+
 Prometheus exposes live metadata-store memory gauges:
 
 - `kura_rocksdb_block_cache_usage_bytes`
@@ -392,7 +400,7 @@ Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-C
 
 ### Disabling OTLP tracing
 
-OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). When it is set, Kura auto-detects OTLP HTTP vs gRPC from the endpoint shape: `/v1/traces` paths use HTTP, while root collector endpoints such as `http://collector:4317` use gRPC. Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.
+OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). Kura records that state once at info level and does not emit missing-layer warnings while handling requests. When the endpoint is set, Kura auto-detects OTLP HTTP vs gRPC from the endpoint shape: `/v1/traces` paths use HTTP, while root collector endpoints such as `http://collector:4317` use gRPC. Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.
 
 ## 📣 Runtime Analytics
 

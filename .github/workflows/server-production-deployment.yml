@@ -375,10 +375,11 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update Cargo.toml version
+      - name: Update Kura package version
         working-directory: kura
         run: |
           sed -i '0,/^version = ".*"/s//version = "${{ needs.check-releases.outputs.kura-next-version-number }}"/' Cargo.toml
+          sed -i 's/^_KURA_VERSION = ".*"/_KURA_VERSION = "${{ needs.check-releases.outputs.kura-next-version-number }}"/' BUILD.bazel
           env -u RUSTUP_TOOLCHAIN cargo update -w
 
       - name: Update CHANGELOG.md
@@ -391,6 +392,7 @@ jobs:
           name: kura-release-metadata
           path: |
             kura/CHANGELOG.md
+            kura/BUILD.bazel
             kura/Cargo.toml
             kura/Cargo.lock
           retention-days: 1

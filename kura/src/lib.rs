@@ -36,3 +36,15 @@ mod utils;
 mod test_support;
 
 pub use app::run;
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+mod version_tests {
+    use super::VERSION;
+
+    #[test]
+    fn build_version_is_configured() {
+        assert_ne!(VERSION, "0.0.0");
+    }
+}

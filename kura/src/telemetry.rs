@@ -13,11 +13,11 @@ use opentelemetry_sdk::{
     trace::{Sampler, SdkTracerProvider},
 };
 use sentry::{ClientInitGuard, ClientOptions};
-use tracing::{Span, field, warn};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing::{Span, field, info, warn};
+use tracing_opentelemetry::{OpenTelemetrySpanExt, SetParentError};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{config::Config, node_location::NodeLocation};
+use crate::{VERSION, config::Config, node_location::NodeLocation};
 
 pub struct TelemetryGuards {
     tracer_provider: Option<SdkTracerProvider>,
@@ -49,13 +49,13 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
         .with_ansi(false);
     let sentry_guard = init_sentry(config);
 
-    let tracer_result = match config.otlp_traces_endpoint.as_deref() {
-        Some(endpoint) => build_tracer_provider(config, endpoint, node_location),
-        None => Err("OTLP tracing disabled (no endpoint configured)".to_owned()),
-    };
+    let tracer_result = config
+        .otlp_traces_endpoint
+        .as_deref()
+        .map(|endpoint| build_tracer_provider(config, endpoint, node_location));
 
     match tracer_result {
-        Ok(tracer_provider) => {
+        Some(Ok(tracer_provider)) => {
             let tracer = tracer_provider.tracer("kura");
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
@@ -71,12 +71,17 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .with(tracing_opentelemetry::layer().with_tracer(tracer))
                     .init();
             }
+            info!(
+                service.name = %config.otel_service_name,
+                service.version = VERSION,
+                "OpenTelemetry tracing active"
+            );
             TelemetryGuards {
                 tracer_provider: Some(tracer_provider),
                 sentry_guard,
             }
         }
-        Err(error) => {
+        Some(Err(error)) => {
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
                     .with(env_filter)
@@ -89,24 +94,39 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .with(fmt_layer)
                     .init();
             }
-            let guards = TelemetryGuards {
-                tracer_provider: None,
-                sentry_guard,
-            };
             warn!(
                 error = %error,
                 service.name = %config.otel_service_name,
-                service.namespace = "kura",
-                service.version = env!("CARGO_PKG_VERSION"),
-                deployment.environment.name = %config.otel_deployment_environment,
-                kura.region = %config.region,
-                kura.tenant_id = %config.tenant_id,
-                geo.country.iso_code = node_location.country.as_deref().unwrap_or("unknown"),
-                geo.region.iso_code = node_location.subdivision.as_deref().unwrap_or("unknown"),
-                service.instance.id = %config.node_url,
-                "OTLP tracing not active"
+                service.version = VERSION,
+                "failed to initialize OpenTelemetry tracing"
             );
-            guards
+            TelemetryGuards {
+                tracer_provider: None,
+                sentry_guard,
+            }
+        }
+        None => {
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(sentry::integrations::tracing::layer())
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .init();
+            }
+            info!(
+                service.name = %config.otel_service_name,
+                service.version = VERSION,
+                "OpenTelemetry tracing disabled because no endpoint is configured"
+            );
+            TelemetryGuards {
+                tracer_provider: None,
+                sentry_guard,
+            }
         }
     }
 }
@@ -116,7 +136,7 @@ pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
         "kura.runtime",
         service.name = %config.otel_service_name,
         service.namespace = "kura",
-        service.version = env!("CARGO_PKG_VERSION"),
+        service.version = VERSION,
         deployment.environment.name = %config.otel_deployment_environment,
         kura.region = %config.region,
         kura.tenant_id = %config.tenant_id,
@@ -155,7 +175,7 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
                 .expect("sentry dsn should be valid when configuration is valid"),
         ),
         environment: Some(config.otel_deployment_environment.clone().into()),
-        release: Some(format!("{}@{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).into()),
+        release: Some(format!("kura@{VERSION}").into()),
         server_name: Some(config.otel_service_name.clone().into()),
         ..Default::default()
     }))
@@ -171,7 +191,7 @@ fn build_tracer_provider(
     let mut attributes = vec![
         KeyValue::new("service.name", config.otel_service_name.clone()),
         KeyValue::new("service.namespace", "kura"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        KeyValue::new("service.version", VERSION),
         KeyValue::new(
             "deployment.environment.name",
             config.otel_deployment_environment.clone(),
@@ -294,14 +314,24 @@ pub fn inject_current_trace_context(headers: &mut reqwest::header::HeaderMap) {
 }
 
 pub fn attach_parent_context(span: &Span, headers: &HeaderMap) {
-    if let Err(error) = span.set_parent(extract_parent_context(headers)) {
+    if let Err(error) = span.set_parent(extract_parent_context(headers))
+        && should_warn_about_parent_context_error(&error)
+    {
         warn!("failed to attach propagated trace context: {error:?}");
     }
 }
 
+fn should_warn_about_parent_context_error(error: &SetParentError) -> bool {
+    matches!(error, SetParentError::AlreadyStarted)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{OtlpTraceProtocol, otlp_trace_exporter_config};
+    use tracing_opentelemetry::SetParentError;
+
+    use super::{
+        OtlpTraceProtocol, otlp_trace_exporter_config, should_warn_about_parent_context_error,
+    };
 
     #[test]
     fn otlp_trace_exporter_config_uses_http_for_signal_paths() {
@@ -336,5 +366,22 @@ mod tests {
             otlp_trace_exporter_config("not-a-url").expect_err("expected invalid endpoint to fail");
 
         assert!(error.contains("must be a valid URL"));
+    }
+
+    #[test]
+    fn missing_or_filtered_tracing_layers_do_not_emit_warnings() {
+        assert!(!should_warn_about_parent_context_error(
+            &SetParentError::LayerNotFound
+        ));
+        assert!(!should_warn_about_parent_context_error(
+            &SetParentError::SpanDisabled
+        ));
+    }
+
+    #[test]
+    fn an_already_started_span_emits_a_warning() {
+        assert!(should_warn_about_parent_context_error(
+            &SetParentError::AlreadyStarted
+        ));
     }
 }

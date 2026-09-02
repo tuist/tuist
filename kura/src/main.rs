@@ -26,6 +26,11 @@ static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
 });
 
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("kura {}", kura::VERSION);
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     if let Err(error) = verify_jemalloc_configuration() {
         eprintln!("invalid jemalloc configuration: {error}");
