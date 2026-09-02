@@ -87,10 +87,6 @@ pub async fn enroll_on_boot() -> Result<Option<EnrollmentOutcome>, String> {
     }
 
     let inputs = inputs()?;
-    eprintln!(
-        "kura: enrolling node {} with control plane",
-        inputs.node_url
-    );
     let outcome = enroll(&inputs).await?;
     apply_env_defaults(&outcome);
     Ok(Some(outcome))

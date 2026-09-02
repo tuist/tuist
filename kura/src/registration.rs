@@ -21,7 +21,7 @@ use serde::Serialize;
 use tokio::time::{MissedTickBehavior, interval};
 use tracing::{info, warn};
 
-use crate::{VERSION, state::SharedState};
+use crate::{VERSION, request_observability::FailureLogThrottle, state::SharedState};
 
 const KURA_REGISTRATION_URL: &str = "KURA_REGISTRATION_URL";
 const KURA_ADVERTISED_HTTP_URL: &str = "KURA_ADVERTISED_HTTP_URL";
@@ -94,8 +94,10 @@ struct RegistrationHeartbeat<'a> {
 
 pub fn spawn(state: SharedState, config: RegistrationConfig) {
     info!(
-        "registering with control plane at {} (advertising {})",
-        config.registration_url, config.advertised_http_url
+        event.name = "kura.registration.started",
+        server.address = %config.registration_url,
+        kura.advertised_http_url = %config.advertised_http_url,
+        "control-plane registration started"
     );
     tokio::spawn(async move { run(state, config).await });
 }
@@ -104,11 +106,33 @@ async fn run(state: SharedState, config: RegistrationConfig) {
     let client = Client::new();
     let mut ticker = interval(config.interval);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut failure_logs =
+        FailureLogThrottle::new(Duration::from_millis(state.config.warning_log_interval_ms));
 
     loop {
         ticker.tick().await;
-        if let Err(error) = send_heartbeat(&client, &state, &config).await {
-            warn!("registration heartbeat failed: {error}");
+        match send_heartbeat(&client, &state, &config).await {
+            Ok(()) => {
+                if let Some((failures, suppressed)) = failure_logs.record_success() {
+                    info!(
+                        event.name = "kura.registration.recovered",
+                        kura.failure.count = failures,
+                        kura.log.suppressed_count = suppressed,
+                        "registration heartbeat recovered"
+                    );
+                }
+            }
+            Err(error) => {
+                if let Some(suppressed) = failure_logs.record_failure() {
+                    warn!(
+                        event.name = "kura.registration.heartbeat_failed",
+                        error = %error,
+                        kura.failure.consecutive_count = failure_logs.consecutive_failures(),
+                        kura.log.suppressed_count = suppressed,
+                        "registration heartbeat failed"
+                    );
+                }
+            }
         }
     }
 }

@@ -22,16 +22,21 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tower::ServiceExt;
-use tracing::{Instrument, info};
+use tracing::{Instrument, field, info};
 
 use crate::{
     analytics::Analytics,
     artifact::producer::ArtifactProducer,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
     extension::{AccessDecision, ExtensionContext},
+    request_observability::{
+        REQUEST_ID_HEADER, RequestCompletion, RequestContext, RequestLogPolicy,
+        log_request_completion, request_id, scope_request,
+    },
     runtime::HttpTrafficClass,
     state::SharedState,
     store::AcceleratedArtifactFile,
+    telemetry::{attach_parent_context_from_map, record_trace_context, trace_export_active},
     usage::Usage,
     utils::{blob_key, module_key},
 };
@@ -161,7 +166,7 @@ async fn serve_connection(
         // Axum/Hyper path before request bytes are consumed and without
         // re-evaluating access twice. The peek does not consume bytes, so Hyper
         // re-reads the request from the start.
-        let Some((parsed, artifact)) = classified else {
+        let Some((mut parsed, artifact)) = classified else {
             return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
         };
         let keep_alive = request_wants_keep_alive(&parsed);
@@ -169,7 +174,53 @@ async fn serve_connection(
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
             return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
         };
-        match open_and_authorize(&state, parsed, artifact).await {
+        let request_id = request_id(parsed.headers.get(REQUEST_ID_HEADER).map(String::as_str));
+        parsed
+            .headers
+            .insert(REQUEST_ID_HEADER.to_owned(), request_id.clone());
+        let tracing_active = trace_export_active();
+        let request_span = if tracing_active {
+            tracing::info_span!(
+                "http.request",
+                otel.name = %format!("GET {}", artifact.route),
+                otel.kind = "server",
+                http.request.method = "GET",
+                http.request.id = %request_id,
+                http.route = artifact.route,
+                url.path = %artifact.path,
+                http.response.status_code = field::Empty,
+                otel.status_code = field::Empty,
+                kura.response.serving_path = config.mode.as_str(),
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            )
+        } else {
+            tracing::Span::none()
+        };
+        if tracing_active {
+            attach_parent_context_from_map(&request_span, &parsed.headers);
+            record_trace_context(&request_span);
+        }
+        let request_context = RequestContext::new(
+            request_started_at,
+            request_id,
+            "GET".to_owned(),
+            artifact.route.to_owned(),
+            RequestLogPolicy {
+                sample_rate: state.config.request_log_sample_rate,
+                slow_request_threshold: Duration::from_millis(
+                    state.config.slow_request_threshold_ms,
+                ),
+                warning_log_interval: Duration::from_millis(state.config.warning_log_interval_ms),
+            },
+            request_span.clone(),
+        );
+        let classified = scope_request(
+            request_context.clone(),
+            open_and_authorize(&state, parsed, artifact).instrument(request_span.clone()),
+        )
+        .await;
+        match classified {
             ClassifiedRequest::Accelerate(candidate) => {
                 consume_headers(&mut stream, candidate.header_len).await?;
                 let reuse = serve_accelerated(
@@ -177,7 +228,7 @@ async fn serve_connection(
                     &state,
                     &config,
                     candidate,
-                    request_started_at,
+                    request_context,
                     keep_alive,
                 )
                 .await;
@@ -195,7 +246,10 @@ async fn serve_connection(
             ClassifiedRequest::Deny(denial) => {
                 drop(permit);
                 consume_headers(&mut stream, denial.header_len).await?;
-                let headers = BTreeMap::new();
+                let headers = BTreeMap::from([(
+                    REQUEST_ID_HEADER.to_owned(),
+                    request_context.request_id().to_owned(),
+                )]);
                 let result = write_response(
                     &mut stream,
                     denial.status,
@@ -211,6 +265,19 @@ async fn serve_connection(
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                     None,
                     Duration::ZERO,
+                );
+                let elapsed = request_context.started_at().elapsed();
+                request_span.record("http.response.status_code", denial.status);
+                log_request_completion(
+                    &request_context,
+                    RequestCompletion {
+                        status: denial.status,
+                        response_bytes: denial.body.len() as u64,
+                        time_to_first_byte: elapsed,
+                        total_duration: elapsed,
+                        serving_path: "accelerated_denial",
+                        result: if result.is_ok() { "ok" } else { "error" },
+                    },
                 );
                 return result;
             }
@@ -434,23 +501,86 @@ async fn open_and_authorize(
     parsed: ParsedRequest,
     artifact: ArtifactRequest,
 ) -> ClassifiedRequest {
-    let manifest = match state
+    let lookup_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.store.manifest_lookup",
+            kura.artifact.producer = artifact.producer.as_str(),
+            kura.store.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let manifest_result = state
         .store
         .fetch_artifact_for_serving(artifact.producer, &artifact.namespace_id, &artifact.key)
-        .await
-    {
-        Ok(Some(manifest)) => manifest,
-        _ => return ClassifiedRequest::Fallback,
+        .instrument(lookup_span.clone())
+        .await;
+    let manifest = match manifest_result {
+        Ok(Some(manifest)) => {
+            lookup_span.record("kura.store.result", "hit");
+            manifest
+        }
+        Ok(None) => {
+            lookup_span.record("kura.store.result", "miss");
+            return ClassifiedRequest::Fallback;
+        }
+        Err(_) => {
+            lookup_span.record("kura.store.result", "error");
+            return ClassifiedRequest::Fallback;
+        }
     };
-    let file = match state.store.open_accelerated_artifact_file(&manifest).await {
-        Ok(Some(file)) => file,
-        _ => return ClassifiedRequest::Fallback,
+    let open_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.store.artifact_open",
+            kura.artifact.producer = artifact.producer.as_str(),
+            kura.store.serving_path = "accelerated",
+            kura.store.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let file_result = state
+        .store
+        .open_accelerated_artifact_file(&manifest)
+        .instrument(open_span.clone())
+        .await;
+    let file = match file_result {
+        Ok(Some(file)) => {
+            open_span.record("kura.store.result", "ok");
+            file
+        }
+        Ok(None) => {
+            open_span.record("kura.store.result", "missing");
+            return ClassifiedRequest::Fallback;
+        }
+        Err(_) => {
+            open_span.record("kura.store.result", "error");
+            return ClassifiedRequest::Fallback;
+        }
     };
     let access_context = extension_context(state, &parsed, &artifact, None);
     let principal = if let Some(extension) = state.extension.as_ref() {
-        match extension.evaluate_access(&access_context).await {
-            AccessDecision::Allow(principal) => principal,
+        let access_span = if trace_export_active() {
+            tracing::info_span!(
+                "kura.extension.access",
+                kura.extension.transport = "http",
+                kura.extension.route = artifact.route,
+                kura.extension.result = field::Empty,
+            )
+        } else {
+            tracing::Span::none()
+        };
+        let access = extension
+            .evaluate_access(&access_context)
+            .instrument(access_span.clone())
+            .await;
+        match access {
+            AccessDecision::Allow(principal) => {
+                access_span.record("kura.extension.result", "allow");
+                principal
+            }
             AccessDecision::Deny(deny) => {
+                access_span.record("kura.extension.result", "deny");
                 return ClassifiedRequest::Deny(Denial {
                     header_len: parsed.header_len,
                     route: artifact.route,
@@ -464,11 +594,21 @@ async fn open_and_authorize(
         None
     };
     let extension_response_headers = if let Some(extension) = state.extension.as_ref() {
+        let response_headers_span = if trace_export_active() {
+            tracing::info_span!(
+                "kura.extension.response_headers",
+                kura.extension.transport = "http",
+                kura.extension.route = artifact.route,
+            )
+        } else {
+            tracing::Span::none()
+        };
         extension
             .response_headers(
                 &extension_context(state, &parsed, &artifact, Some(StatusCode::OK.as_u16())),
                 principal.as_ref(),
             )
+            .instrument(response_headers_span)
             .await
             .headers
     } else {
@@ -550,7 +690,7 @@ async fn serve_accelerated(
     state: &SharedState,
     config: &AcceleratedFileServingConfig,
     candidate: AcceleratedCandidate,
-    request_started_at: Instant,
+    request_context: Arc<RequestContext>,
     keep_alive: bool,
 ) -> std::io::Result<Option<TcpStream>> {
     let transfer_started_at = Instant::now();
@@ -566,12 +706,39 @@ async fn serve_accelerated(
     let namespace_id = candidate.artifact.namespace_id.clone();
     let analytics_key = candidate.artifact.analytics_key.clone();
     let route = candidate.artifact.route.to_owned();
-    let extension_headers = candidate.extension_response_headers.clone();
+    let mut extension_headers = candidate.extension_response_headers.clone();
+    extension_headers.insert(
+        REQUEST_ID_HEADER.to_owned(),
+        request_context.request_id().to_owned(),
+    );
     let content_type = sanitized_content_type(&file.content_type);
     let mode = config.mode;
     let chunk_bytes = config.chunk_bytes;
+    let body_span = if trace_export_active() {
+        let span = tracing::info_span!(
+            parent: request_context.request_span(),
+            "kura.http.response_body",
+            http.request.id = %request_context.request_id(),
+            http.response.status_code = 200_u16,
+            kura.artifact.producer = producer.as_str(),
+            kura.response.serving_path = mode.as_str(),
+            http.response.body.size = field::Empty,
+            kura.request.time_to_first_byte_ms = field::Empty,
+            kura.request.duration_ms = field::Empty,
+            kura.response.result = field::Empty,
+            trace_id = field::Empty,
+            span_id = field::Empty,
+        );
+        record_trace_context(&span);
+        span
+    } else {
+        tracing::Span::none()
+    };
+    let transfer_span = body_span.clone();
+    let request_started_at = request_context.started_at();
     let result = tokio::task::spawn_blocking(
         move || -> std::io::Result<(std::net::TcpStream, u64, Duration)> {
+            let _entered = transfer_span.enter();
             let mut stream = stream.into_std()?;
             stream.set_nonblocking(false)?;
             stream.set_write_timeout(Some(IO_TIMEOUT))?;
@@ -597,6 +764,20 @@ async fn serve_accelerated(
 
     match result {
         Ok((std_stream, bytes, time_to_first_byte)) => {
+            let total_duration = request_context.started_at().elapsed();
+            request_context
+                .request_span()
+                .record("http.response.status_code", StatusCode::OK.as_u16());
+            body_span.record("http.response.body.size", bytes);
+            body_span.record(
+                "kura.request.time_to_first_byte_ms",
+                time_to_first_byte.as_secs_f64() * 1_000.0,
+            );
+            body_span.record(
+                "kura.request.duration_ms",
+                total_duration.as_secs_f64() * 1_000.0,
+            );
+            body_span.record("kura.response.result", "ok");
             state.runtime.record_public_request_latency(
                 &state.metrics,
                 "http",
@@ -628,6 +809,17 @@ async fn serve_accelerated(
                 analytics_key.as_deref(),
                 bytes,
             );
+            log_request_completion(
+                &request_context,
+                RequestCompletion {
+                    status: StatusCode::OK.as_u16(),
+                    response_bytes: bytes,
+                    time_to_first_byte,
+                    total_duration,
+                    serving_path: mode.as_str(),
+                    result: "ok",
+                },
+            );
             if keep_alive {
                 std_stream.set_nonblocking(true)?;
                 Ok(Some(TcpStream::from_std(std_stream)?))
@@ -636,6 +828,24 @@ async fn serve_accelerated(
             }
         }
         Err(error) => {
+            let total_duration = request_context.started_at().elapsed();
+            request_context.request_span().record(
+                "http.response.status_code",
+                StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+            );
+            request_context
+                .request_span()
+                .record("otel.status_code", "ERROR");
+            body_span.record("http.response.body.size", 0_u64);
+            body_span.record(
+                "kura.request.time_to_first_byte_ms",
+                total_duration.as_secs_f64() * 1_000.0,
+            );
+            body_span.record(
+                "kura.request.duration_ms",
+                total_duration.as_secs_f64() * 1_000.0,
+            );
+            body_span.record("kura.response.result", "error");
             state.metrics.record_http(
                 route,
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -648,6 +858,17 @@ async fn serve_accelerated(
                 "error",
                 0,
                 transfer_started_at.elapsed(),
+            );
+            log_request_completion(
+                &request_context,
+                RequestCompletion {
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    response_bytes: 0,
+                    time_to_first_byte: total_duration,
+                    total_duration,
+                    serving_path: mode.as_str(),
+                    result: "error",
+                },
             );
             Err(error)
         }

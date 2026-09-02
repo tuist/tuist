@@ -8,7 +8,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
+- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-bootstrap): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`

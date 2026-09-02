@@ -24,9 +24,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use tokio::sync::{Mutex, RwLock};
-use tracing::warn;
+use tracing::{Instrument, field, warn};
 
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    request_observability::{REQUEST_ID_HEADER, current_request},
+    telemetry::{inject_current_trace_context, record_trace_context, trace_export_active},
+};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -320,14 +324,34 @@ impl ExtensionEngine {
             }
             None => {
                 self.metrics.record_extension_cache("authenticate", "miss");
-                match self.run_authenticate(ctx).await {
+                let authenticate_span = if trace_export_active() {
+                    tracing::info_span!(
+                        "kura.extension.authenticate",
+                        kura.extension.cache = "miss",
+                        kura.extension.result = field::Empty,
+                    )
+                } else {
+                    tracing::Span::none()
+                };
+                match self
+                    .run_authenticate(ctx)
+                    .instrument(authenticate_span.clone())
+                    .await
+                {
                     Ok(result) => {
+                        authenticate_span.record("kura.extension.result", "ok");
                         self.store_authenticate_result(&authenticate_cache_key, result.clone())
                             .await;
                         result
                     }
                     Err(error) => {
-                        warn!("extension authenticate hook failed: {error}");
+                        authenticate_span.record("kura.extension.result", "error");
+                        warn!(
+                            event.name = "kura.extension.hook_failed",
+                            kura.extension.hook = "authenticate",
+                            error = %error,
+                            "extension hook failed"
+                        );
                         self.metrics.record_extension_hook(
                             "authenticate",
                             "error",
@@ -373,14 +397,34 @@ impl ExtensionEngine {
             }
             None => {
                 self.metrics.record_extension_cache("authorize", "miss");
-                match self.run_authorize(ctx, principal.as_ref()).await {
+                let authorize_span = if trace_export_active() {
+                    tracing::info_span!(
+                        "kura.extension.authorize",
+                        kura.extension.cache = "miss",
+                        kura.extension.result = field::Empty,
+                    )
+                } else {
+                    tracing::Span::none()
+                };
+                match self
+                    .run_authorize(ctx, principal.as_ref())
+                    .instrument(authorize_span.clone())
+                    .await
+                {
                     Ok(result) => {
+                        authorize_span.record("kura.extension.result", "ok");
                         self.store_authorize_result(&authorize_cache_key, result.clone())
                             .await;
                         result
                     }
                     Err(error) => {
-                        warn!("extension authorize hook failed: {error}");
+                        authorize_span.record("kura.extension.result", "error");
+                        warn!(
+                            event.name = "kura.extension.hook_failed",
+                            kura.extension.hook = "authorize",
+                            error = %error,
+                            "extension hook failed"
+                        );
                         self.metrics.record_extension_hook(
                             "authorize",
                             "error",
@@ -419,7 +463,12 @@ impl ExtensionEngine {
         match self.run_response_headers(ctx, principal).await {
             Ok(result) => result,
             Err(error) => {
-                warn!("extension response_headers hook failed: {error}");
+                warn!(
+                    event.name = "kura.extension.hook_failed",
+                    kura.extension.hook = "response_headers",
+                    error = %error,
+                    "extension hook failed"
+                );
                 self.metrics.record_extension_hook(
                     "response_headers",
                     "error",
@@ -835,11 +884,40 @@ async fn execute_http_json(
     let response = loop {
         attempt += 1;
         let start = Instant::now();
-        let result = build_http_json_request(client, method.clone(), &url, &request)
-            .send()
-            .await;
+        let request_span = if trace_export_active() {
+            tracing::info_span!(
+                "kura.http.client.request",
+                otel.name = %format!("{} {route}", method.as_str()),
+                otel.kind = "client",
+                http.request.method = %method,
+                http.route = route,
+                server.address = %client.base_url,
+                kura.extension.client_id = %normalized_client_id,
+                kura.http.attempt = attempt,
+                http.response.status_code = field::Empty,
+                otel.status_code = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            )
+        } else {
+            tracing::Span::none()
+        };
+        if trace_export_active() {
+            record_trace_context(&request_span);
+        }
+        let result = async {
+            build_http_json_request(client, method.clone(), &url, &request)
+                .send()
+                .await
+        }
+        .instrument(request_span.clone())
+        .await;
         match result {
             Ok(response) => {
+                request_span.record("http.response.status_code", response.status().as_u16());
+                if response.status().is_server_error() {
+                    request_span.record("otel.status_code", "ERROR");
+                }
                 metrics.record_extension_http_client(
                     &normalized_client_id,
                     route,
@@ -851,6 +929,7 @@ async fn execute_http_json(
                 break response;
             }
             Err(error) => {
+                request_span.record("otel.status_code", "ERROR");
                 let error_kind = classify_reqwest_error(&error);
                 metrics.record_extension_http_client(
                     &normalized_client_id,
@@ -907,6 +986,14 @@ fn build_http_json_request(
     if let Some(body) = &request.body {
         builder = builder.json(body);
     }
+    let mut propagated_headers = reqwest::header::HeaderMap::new();
+    inject_current_trace_context(&mut propagated_headers);
+    if let Some(context) = current_request()
+        && let Ok(value) = reqwest::header::HeaderValue::from_str(context.request_id())
+    {
+        propagated_headers.insert(REQUEST_ID_HEADER, value);
+    }
+    builder = builder.headers(propagated_headers);
     builder
 }
 
@@ -1301,6 +1388,53 @@ mod tests {
 
     static ENV_LOCK: std::sync::LazyLock<tokio::sync::Mutex<()>> =
         std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+    #[tokio::test]
+    async fn extension_requests_propagate_the_current_request_id() {
+        let client = ExtensionHttpClient {
+            base_url: "https://tuist.example.com".into(),
+            client: Client::new(),
+        };
+        let request = HttpJsonRequest {
+            method: "GET".into(),
+            path: "/api/cache/access".into(),
+            headers: BTreeMap::new(),
+            query: BTreeMap::new(),
+            body: None,
+        };
+        let context = crate::request_observability::RequestContext::new(
+            Instant::now(),
+            "client-request-123".into(),
+            "GET".into(),
+            "/api/cache/module/{id}".into(),
+            crate::request_observability::RequestLogPolicy {
+                sample_rate: 0.0,
+                slow_request_threshold: Duration::from_secs(30),
+                warning_log_interval: Duration::from_secs(60),
+            },
+            tracing::Span::none(),
+        );
+
+        crate::request_observability::scope_request(context, async {
+            let request = build_http_json_request(
+                &client,
+                Method::GET,
+                "https://tuist.example.com/api/cache/access",
+                &request,
+            )
+            .build()
+            .expect("request should build");
+
+            assert_eq!(
+                request
+                    .headers()
+                    .get(REQUEST_ID_HEADER)
+                    .and_then(|value| value.to_str().ok()),
+                Some("client-request-123")
+            );
+        })
+        .await;
+    }
 
     async fn test_engine(script: &str, configure_env: impl FnOnce(&Path)) -> SharedExtension {
         let _guard = ENV_LOCK.lock().await;
