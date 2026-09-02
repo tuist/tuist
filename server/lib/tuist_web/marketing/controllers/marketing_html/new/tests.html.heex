@@ -1,8 +1,7 @@
 <%!-- Redesigned tests page (styles in css/new/routes/tests.css). Same frame
 recipe as the cache and compute pages: left-aligned hero card, features
 frame (intro text + four full-width showcase cards), CTA between dithered
-dividers. The selective-testing and sharding cards carry their
-illustrations; the other two are reserved slots until the artwork lands. --%>
+dividers. All four showcase cards carry their illustrations. --%>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-tests">
     <%!-- Hero card: same left-aligned 600px frame as the cache and compute
@@ -59,8 +58,7 @@ illustrations; the other two are reserved slots until the artwork lands. --%>
         </p>
       </div>
       <%!-- Four full-width showcase cards, stacked flush so the hairlines
-      read as one continuous frame. The first two carry their illustrations;
-      the rest are reserved slots until the real artwork lands. --%>
+      read as one continuous frame. --%>
       <div data-part="showcase">
         <div data-part="cell">
           <figure data-part="illustration" data-illustration="selective" aria-hidden="true">
@@ -257,6 +255,52 @@ illustrations; the other two are reserved slots until the artwork lands. --%>
         </div>
         <div data-part="cell">
           <figure data-part="illustration" data-illustration="insights" aria-hidden="true">
+            <%!-- Test analytics: four floating stat cards over faint step-line
+            series (one per metric colour) that scroll continuously, drawn by
+            the InsightsChart hook. The scene is the comp's 1200x400 frame;
+            cards sit at its pixel positions, the chart covers it. --%>
+            <div data-part="scene">
+              <canvas data-part="chart" id="tests-insights-chart" phx-hook="InsightsChart"></canvas>
+              <div data-part="card" data-color="purple" style="--x: 103; --y: 34">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Test runs")}
+                </span>
+                <span data-part="value">75</span>
+              </div>
+              <div data-part="card" data-color="yellow" style="--x: 354; --y: 116">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Skipped tests")}
+                </span>
+                <span data-part="value">5</span>
+              </div>
+              <div data-part="card" data-color="red" style="--x: 604; --y: 196">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Failed test runs")}
+                </span>
+                <span data-part="value">15</span>
+              </div>
+              <div data-part="card" data-color="blue" style="--x: 854; --y: 82">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "p90 test run duration")}
+                  <svg
+                    data-part="chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 9l6 6l6 -6" />
+                  </svg>
+                </span>
+                <span data-part="value">1m 40s</span>
+              </div>
+            </div>
           </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Know what's slowing you down")}</h3>
@@ -269,7 +313,16 @@ illustrations; the other two are reserved slots until the artwork lands. --%>
           </div>
         </div>
         <div data-part="cell">
-          <figure data-part="illustration" data-illustration="flaky" aria-hidden="true"></figure>
+          <figure data-part="illustration" data-illustration="flaky" aria-hidden="true">
+            <%!-- Flaky-test quarantine: the FlakyQuarantine hook draws the
+            test-suite grid and the quarantine grid, sweeps a crosshair onto
+            each flake and flies it into quarantine. The label is positioned
+            over the quarantine grid by the hook. --%>
+            <div data-part="scene">
+              <canvas data-part="grid" id="tests-flaky-quarantine" phx-hook="FlakyQuarantine"></canvas>
+              <span data-part="label">{dgettext("marketing", "Quarantined tests")}</span>
+            </div>
+          </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Stop flakes from blocking CI")}</h3>
             <p data-part="description">
