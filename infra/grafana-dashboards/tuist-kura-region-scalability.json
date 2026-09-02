@@ -1,0 +1,1487 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-kura-region-scalability"
+  },
+  "spec": {
+    "title": "Tuist Kura / Region Scalability",
+    "uid": "tuist-kura-region-scalability",
+    "description": "How far each Kura region is from the point where it needs another node, per resource: instances the scheduler can still place, reservations versus capacity, and real host memory. RAM today; disk and egress columns to follow. Thresholds match the region capacity alerts in infra/helm/k8s-monitoring/alerts.md.",
+    "schemaVersion": 39,
+    "version": 1,
+    "editable": true,
+    "graphTooltip": 1,
+    "refresh": "1m",
+    "tags": [
+      "tuist",
+      "kura",
+      "capacity"
+    ],
+    "time": {
+      "from": "now-7d",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "links": [
+      {
+        "title": "Tuist Kura",
+        "type": "dashboards",
+        "tags": [
+          "kura"
+        ],
+        "asDropdown": true,
+        "includeVars": false,
+        "keepTime": true
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "type": "datasource",
+          "name": "datasource",
+          "label": "Data Source",
+          "query": "prometheus",
+          "current": {
+            "selected": false,
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "options": [],
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false
+        },
+        {
+          "type": "query",
+          "name": "env",
+          "label": "Environment",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "query": {
+            "query": "label_values(kura_node_geo_info, env)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "definition": "label_values(kura_node_geo_info, env)",
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "options": [],
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1
+        },
+        {
+          "type": "textbox",
+          "name": "instance_ceiling_mib",
+          "query": "4096",
+          "hide": 0,
+          "skipUrlSync": false,
+          "current": {
+            "selected": false,
+            "text": "4096",
+            "value": "4096"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "4096",
+              "value": "4096"
+            }
+          ],
+          "label": "Instance ceiling (MiB)",
+          "description": "Per-replica memory limit of the profile to size for; the enterprise profile requests 4096 MiB as the tuist.dev/memory-ceiling-mib extended resource. Multiplied by two replicas."
+        },
+        {
+          "type": "textbox",
+          "name": "instance_floor_mib",
+          "query": "1024",
+          "hide": 0,
+          "skipUrlSync": false,
+          "current": {
+            "selected": false,
+            "text": "1024",
+            "value": "1024"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "1024",
+              "value": "1024"
+            }
+          ],
+          "label": "Instance floor (MiB)",
+          "description": "Per-replica memory request of the profile to size for (Tuist.Kura.Regions.memory_profile/1); 1024 MiB for enterprise. Multiplied by two replicas."
+        },
+        {
+          "type": "constant",
+          "name": "node_region",
+          "query": "max by (cluster, node, region) (kube_pod_info{namespace=\"kura\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))",
+          "hide": 2,
+          "skipUrlSync": false,
+          "current": {
+            "selected": false,
+            "text": "max by (cluster, node, region) (kube_pod_info{namespace=\"kura\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))",
+            "value": "max by (cluster, node, region) (kube_pod_info{namespace=\"kura\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "max by (cluster, node, region) (kube_pod_info{namespace=\"kura\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))",
+              "value": "max by (cluster, node, region) (kube_pod_info{namespace=\"kura\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))"
+            }
+          ],
+          "description": "The node → region join every query on this dashboard uses, kept in one place. Mirrors the kura:node_region recording rule in infra/helm/k8s-monitoring/alerts.md; swap this value for `kura:node_region` once that rule exists."
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 100,
+        "type": "row",
+        "title": "RAM",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 1,
+        "type": "table",
+        "title": "RAM by region",
+        "description": "One row per Kura region. **Fit (ceiling)** and **Fit (memory)** count how many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor, set in the variables above) the scheduler can still place; `floor()` is taken per node before the sum, so free memory fragmented across boxes reads as zero. The next provisioning is declined when either reaches 0 — the **Kura region cannot place another instance** alert. The ceiling binds first wherever `memory_ceiling_bin_packed` is on; a region with no ceiling advertised has an empty ceiling cell.\n\n**Ceiling reserved** / **Memory requested** are the scheduler's view (reservations, not usage); **Host memory used** is the kernel's (`1 - MemAvailable/MemTotal`, reclaimable cache counts as available) and is what **Kura region host memory low** watches. Reservations full while host memory is low means a node or a smaller ceiling profile; host memory high while reservations have room means pods living above their floors.\n\nRegion comes from joining each node to the Kura pods it hosts (`kura_node_geo_info`): a freshly added, still empty node is invisible here until its first placement lands on it.",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 1
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "count by (cluster, region) (max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "B",
+            "expr": "count by (cluster, region) (kube_pod_info{namespace=\"kura\", env=\"$env\"} * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info))",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "C",
+            "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"})) / (2 * $instance_ceiling_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "D",
+            "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"})) / 1048576 / (2 * $instance_floor_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "E",
+            "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "F",
+            "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "G",
+            "expr": "1 - sum by (cluster, region) (node_memory_MemAvailable_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (node_memory_MemTotal_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "renameByName": {
+                "Value #A": "Nodes",
+                "Value #B": "Kura pods",
+                "Value #C": "Fit (ceiling)",
+                "Value #D": "Fit (memory)",
+                "Value #E": "Ceiling reserved",
+                "Value #F": "Memory requested",
+                "Value #G": "Host memory used"
+              },
+              "indexByName": {
+                "region": 0,
+                "cluster": 1,
+                "Nodes": 2,
+                "Kura pods": 3,
+                "Fit (ceiling)": 4,
+                "Fit (memory)": 5,
+                "Ceiling reserved": 6,
+                "Memory requested": 7,
+                "Host memory used": 8
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false,
+              "filterable": false
+            },
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "text",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "region"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 180
+                },
+                {
+                  "id": "displayName",
+                  "value": "Region"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "cluster"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "displayName",
+                  "value": "Cluster"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Nodes"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 90
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Kura pods"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 90
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fit (ceiling)"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background",
+                    "mode": "basic"
+                  }
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fit (memory)"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background",
+                    "mode": "basic"
+                  }
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Ceiling reserved"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.8
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Memory requested"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.8
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Host memory used"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.85
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.92
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "md",
+          "footer": {
+            "show": false,
+            "reducer": [
+              "sum"
+            ],
+            "fields": ""
+          },
+          "sortBy": [
+            {
+              "displayName": "Fit (ceiling)",
+              "desc": false
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "type": "table",
+        "title": "RAM by node",
+        "description": "The per-box breakdown of the table above, for finding which box is full or fragmented. A region can read 0 fits while every box still has free memory if no single box has one instance's worth. **Host memory used** here is what **Kura cache box out of memory** watches (critical below 8% available).",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 10
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "sum by (cluster, region, node) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"})) / (2 * $instance_ceiling_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "B",
+            "expr": "sum by (cluster, region, node) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"})) / 1048576 / (2 * $instance_floor_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "C",
+            "expr": "sum by (cluster, region, node) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "D",
+            "expr": "sum by (cluster, region, node) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "E",
+            "expr": "1 - sum by (cluster, region, node) (label_replace(node_memory_MemAvailable_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\")) / sum by (cluster, region, node) (label_replace(node_memory_MemTotal_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\"))",
+            "editorMode": "code",
+            "instant": true,
+            "range": false,
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "renameByName": {
+                "Value #A": "Fit (ceiling)",
+                "Value #B": "Fit (memory)",
+                "Value #C": "Ceiling reserved",
+                "Value #D": "Memory requested",
+                "Value #E": "Host memory used"
+              },
+              "indexByName": {
+                "region": 0,
+                "node": 1,
+                "cluster": 2,
+                "Fit (ceiling)": 3,
+                "Fit (memory)": 4,
+                "Ceiling reserved": 5,
+                "Memory requested": 6,
+                "Host memory used": 7
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false,
+              "filterable": false
+            },
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "text",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "region"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 180
+                },
+                {
+                  "id": "displayName",
+                  "value": "Region"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "node"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 360
+                },
+                {
+                  "id": "displayName",
+                  "value": "Node"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "cluster"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "displayName",
+                  "value": "Cluster"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fit (ceiling)"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background",
+                    "mode": "basic"
+                  }
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fit (memory)"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background",
+                    "mode": "basic"
+                  }
+                },
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                },
+                {
+                  "id": "custom.width",
+                  "value": 150
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "decimals",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Ceiling reserved"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.8
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Memory requested"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.8
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Host memory used"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "gauge",
+                    "mode": "gradient",
+                    "valueDisplayMode": "text"
+                  }
+                },
+                {
+                  "id": "custom.width",
+                  "value": 190
+                },
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
+                  "id": "max",
+                  "value": 1
+                },
+                {
+                  "id": "decimals",
+                  "value": 1
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.85
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.92
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "md",
+          "footer": {
+            "show": false,
+            "reducer": [
+              "sum"
+            ],
+            "fields": ""
+          },
+          "sortBy": [
+            {
+              "displayName": "Fit (ceiling)",
+              "desc": false
+            }
+          ]
+        }
+      },
+      {
+        "id": 101,
+        "type": "row",
+        "title": "RAM trends",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 19
+        }
+      },
+      {
+        "id": 3,
+        "type": "timeseries",
+        "title": "Instances that still fit by ceiling",
+        "description": "Same count as the table's **Fit (ceiling)** column over time. Each provisioning steps it down by one; a new node steps it up. Dashed lines at 2 (warning) and 1 (critical).",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 20
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"})) / (2 * $instance_ceiling_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{region}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 0,
+              "showPoints": "never",
+              "spanNulls": true,
+              "axisPlacement": "auto",
+              "thresholdsStyle": {
+                "mode": "dashed"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 1
+                },
+                {
+                  "color": "green",
+                  "value": 2
+                }
+              ]
+            },
+            "min": 0,
+            "decimals": 0
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true,
+            "calcs": [
+              "lastNotNull",
+              "min"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "asc"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "Instances that still fit by memory",
+        "description": "Same count as the table's **Fit (memory)** column over time: placements the native memory request (the floor) still allows. The ceiling binds long before this one wherever it is advertised.",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 20
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"})) / 1048576 / (2 * $instance_floor_mib)) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{region}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 0,
+              "showPoints": "never",
+              "spanNulls": true,
+              "axisPlacement": "auto",
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "min": 0,
+            "decimals": 0
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true,
+            "calcs": [
+              "lastNotNull",
+              "min"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "asc"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Ceiling reserved",
+        "description": "Share of the advertised `tuist.dev/memory-ceiling-mib` capacity already requested across the region's boxes. The slope is the onboarding rate; the gap to 100% is the runway.",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 28
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+            "editorMode": "code",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{region}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 0,
+              "showPoints": "never",
+              "spanNulls": true,
+              "axisPlacement": "auto",
+              "thresholdsStyle": {
+                "mode": "dashed"
+              }
+            },
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 0.8
+                },
+                {
+                  "color": "red",
+                  "value": 0.95
+                }
+              ]
+            },
+            "min": 0,
+            "max": 1
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true,
+            "calcs": [
+              "lastNotNull",
+              "min"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "asc"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Host memory used",
+        "description": "`1 - MemAvailable/MemTotal` summed across the region's boxes. Dashed lines at 85% (warning, 15% available) and 92% (critical, 8% available) match the region and box alerts.",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 28
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "refId": "A",
+            "expr": "1 - sum by (cluster, region) (node_memory_MemAvailable_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (node_memory_MemTotal_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "editorMode": "code",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{region}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 0,
+              "showPoints": "never",
+              "spanNulls": true,
+              "axisPlacement": "auto",
+              "thresholdsStyle": {
+                "mode": "dashed"
+              }
+            },
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 0.85
+                },
+                {
+                  "color": "red",
+                  "value": 0.92
+                }
+              ]
+            },
+            "min": 0,
+            "max": 1
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true,
+            "calcs": [
+              "lastNotNull",
+              "min"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "asc"
+          }
+        }
+      }
+    ]
+  }
+}
