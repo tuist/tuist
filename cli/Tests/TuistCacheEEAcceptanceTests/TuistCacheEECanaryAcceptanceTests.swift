@@ -36,6 +36,12 @@ struct TuistCacheEECanaryAcceptanceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
 
+        // This test drives the legacy per-project cache daemon: it starts `cache-start`
+        // and points Xcode at that daemon's socket. The kura lane instead expects the
+        // machine-wide CAS proxy and the plugin dylib, neither of which this process
+        // has, so it is opted out explicitly rather than inherited from the default.
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
+
         try await withShortStateDirectory(fileSystem: fileSystem) { stateDirectory in
             let previousStateDirectory = environment.stateDirectory
             environment.stateDirectory = stateDirectory
