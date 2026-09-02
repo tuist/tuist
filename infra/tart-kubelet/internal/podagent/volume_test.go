@@ -1271,48 +1271,67 @@ func TestFinalizeVolumePromoteAccounting(t *testing.T) {
 func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 
-	// CAS off: the binary cache gets ~80% of a mid cap; no CAS budget.
-	if b, cas := cacheImageSplit(20, 0); b != 20*gib*80/100 || cas != 0 {
-		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, cas, 20*gib*80/100)
+	// CAS off: the binary cache gets ~80% of a mid cap; no CAS budget. The support
+	// share still comes off usable, and 80% of cap fits under what is left.
+	if b, cas, sup := cacheImageSplit(20, 0); b != 20*gib*80/100 || cas != 0 || sup != gib {
+		t.Fatalf("cap20 cas0 = %d,%d,%d; want %d,0,1GiB", b, cas, sup, 20*gib*80/100)
 	}
 
 	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 5%=1 GiB) = 2 GiB (the FLOOR
-	// binds); binary 10 GiB, CAS the requested 8 GiB exactly, summing to cap.
-	if b, cas := cacheImageSplit(20, 8); b != 10*gib || cas != 8*gib || b+cas+2*gib != 20*gib {
-		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,8GiB summing to cap", b, cas)
+	// binds); support = min(1 GiB, 10% of 18 GiB) = 1 GiB (the CEILING binds);
+	// binary 9 GiB, CAS the requested 8 GiB exactly, the four summing to cap.
+	if b, cas, sup := cacheImageSplit(20, 8); b != 9*gib || cas != 8*gib || sup != gib ||
+		b+cas+sup+2*gib != 20*gib {
+		t.Fatalf("cap20 cas8 = %d,%d,%d; want 9GiB,8GiB,1GiB summing to cap", b, cas, sup)
 	}
 
-	// Large cap: the PERCENT reserve binds, not the floor (5% of 100 = 5 GiB > 2).
-	// CAS 20 of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS the requested 20.
-	if b, cas := cacheImageSplit(100, 20); b != 75*gib || cas != 20*gib {
-		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20GiB", b, cas)
+	// Large cap: the PERCENT reserve binds, not the floor (5% of 100 = 5 GiB > 2),
+	// while the support CEILING still binds — these caches hold the same bytes on a
+	// 100 GiB image as on a 20 GiB one. CAS 20 of 100 → binary = 100 - 5 - 1 - 20.
+	if b, cas, sup := cacheImageSplit(100, 20); b != 74*gib || cas != 20*gib || sup != gib {
+		t.Fatalf("cap100 cas20 = %d,%d,%d; want 74GiB,20GiB,1GiB", b, cas, sup)
 	}
 
 	// Small cap: the floor binds — reserve stays 2 GiB on a 10 GiB cap (20%), where
 	// a flat 5% would have left far too little.
-	if b, _ := cacheImageSplit(10, 4); 10*gib-(b+4*gib) != 2*gib {
-		t.Fatalf("cap10 cas4 reserve = %d GiB; want 2 (floor)", (10*gib-(b+4*gib))/gib)
+	if b, _, sup := cacheImageSplit(10, 4); 10*gib-(b+4*gib+sup) != 2*gib {
+		t.Fatalf("cap10 cas4 reserve = %d; want 2 GiB (floor)", 10*gib-(b+4*gib+sup))
+	}
+
+	// Small cap: the support PERCENT binds, so the share degrades with the image
+	// rather than taking a fixed 1 GiB out of a cache that has none to spare.
+	if _, _, sup := cacheImageSplit(10, 4); sup != 8*gib*10/100 {
+		t.Fatalf("cap10 support = %d; want 10%% of 8 GiB usable", sup)
 	}
 
 	// Oversized CASGiB: clamped so the binary cache keeps a slice and the
-	// invariant binary + CAS + reserve <= cap still holds (the ENOSPC guard).
-	b, cas := cacheImageSplit(20, 25)
+	// invariant binary + CAS + support + reserve <= cap still holds (the ENOSPC guard).
+	b, cas, sup := cacheImageSplit(20, 25)
 	if b == 0 {
 		t.Fatal("oversized cas-gib starved the binary cache to 0")
 	}
-	if b+cas+2*gib > 20*gib {
-		t.Fatalf("oversized: binary(%d)+cas(%d)+reserve exceeds cap", b, cas)
+	if b+cas+sup+2*gib > 20*gib {
+		t.Fatalf("oversized: binary(%d)+cas(%d)+support(%d)+reserve exceeds cap", b, cas, sup)
 	}
 
-	// writeCacheBudget stages exactly the binary half.
+	// writeCacheBudget stages the binary and support shares of the same split, so
+	// the guest cannot export one budget without the other.
 	dir := t.TempDir()
 	writeCacheBudget(dir, 20, 8)
-	raw, err := os.ReadFile(filepath.Join(dir, cacheBudgetFile))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 10*gib {
-		t.Fatalf("staged budget = %d; want 10 GiB", got)
+	for _, want := range []struct {
+		file  string
+		bytes uint64
+	}{
+		{cacheBudgetFile, 9 * gib},
+		{cacheSupportBudgetFile, gib},
+	} {
+		raw, err := os.ReadFile(filepath.Join(dir, want.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := strconv.ParseUint(string(raw), 10, 64); got != want.bytes {
+			t.Fatalf("staged %s = %d; want %d", want.file, got, want.bytes)
+		}
 	}
 }
 

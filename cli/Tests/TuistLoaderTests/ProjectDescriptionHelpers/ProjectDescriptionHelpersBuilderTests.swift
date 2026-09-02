@@ -1,3 +1,4 @@
+import Foundation
 import Path
 import TuistSupport
 import XCTest
@@ -104,6 +105,38 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(commandRunner.calls.count, 3) // one per path
         XCTAssertEqual(allModules.uniqued().count, 3)
+    }
+
+    func test_build_marks_a_cached_module_as_used() async throws {
+        // Given
+        let path: AbsolutePath = "/path/to/helpers/1"
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+        commandRunner.defaultCaptureStubs = (nil, nil, 0)
+        projectDescriptionHelpersHasher.stubHash = { $0.basename }
+        helpersDirectoryLocator.locateStub = path
+
+        try await prepareProjectDescriptionHelpersCacheDirectory(for: path)
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+        let moduleCacheDirectory = cachePath.appending(component: hash)
+        let compiledAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+        try FileManager.default.setAttributes(
+            [.modificationDate: compiledAt],
+            ofItemAtPath: moduleCacheDirectory.pathString
+        )
+
+        // When
+        _ = try await subject.build(
+            at: path,
+            projectDescriptionSearchPaths: searchPaths,
+            projectDescriptionHelperPlugins: []
+        )
+
+        // Then: a hit recompiles nothing, so without this the support-cache retention reads a module
+        // every command uses as untouched since the day it was compiled, and evicts it first.
+        XCTAssertEqual(commandRunner.calls.count, 0)
+        let lastUsed = try await XCTUnwrap(fileSystem.fileMetadata(at: moduleCacheDirectory)?.lastModificationDate)
+        XCTAssertGreaterThan(lastUsed, compiledAt)
     }
 
     private func prepareProjectDescriptionHelpersCacheDirectory(for path: AbsolutePath) async throws {

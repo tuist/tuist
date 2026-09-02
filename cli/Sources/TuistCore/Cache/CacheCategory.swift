@@ -1,3 +1,5 @@
+import Foundation
+
 /// A cache category.
 public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The plugins cache.
@@ -50,6 +52,57 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "GenerationMetadata"
         }
     }
+
+    /// Which byte budget bounds a category's growth.
+    ///
+    /// The cache directory can be a runner's per-account cache volume, an image with a fixed
+    /// capacity that the host splits between the tenants writing into it. Every category has to
+    /// name the budget that bounds it, so that adding one cannot silently add an unbounded tenant.
+    public enum Budget: Equatable, Sendable {
+        /// Bounded by the binary cache's own budget (`TUIST_CACHE_MAX_BYTES`), enforced where the
+        /// artifacts are stored and fetched.
+        case binaries
+
+        /// Bounded by the shared support-cache budget (`TUIST_SUPPORT_CACHE_MAX_BYTES`), enforced
+        /// by `SupportCachePruner`. Entries unused for `maxAge` are dropped before the budget is
+        /// considered, so what the budget arbitrates is only what is still in use.
+        case support(maxAge: TimeInterval)
+    }
+
+    private static let day: TimeInterval = 60 * 60 * 24
+
+    public var budget: Budget {
+        switch self {
+        case .binaries:
+            return .binaries
+        case .runs:
+            // A result bundle is only alive between the run finishing and its analytics upload,
+            // which deletes it. A survivor is a run whose process died, and nothing will ever
+            // upload it.
+            return .support(maxAge: Self.day)
+        case .manifests, .projectDescriptionHelpers, .editProjects, .generatedAutomationProjects:
+            // Recomputed from the sources they were derived from: a manifest reload, one swiftc
+            // invocation, a project generation.
+            return .support(maxAge: 7 * Self.day)
+        case .plugins, .selectiveTests, .generationMetadata:
+            // Refetched over the network, or read long after the run that wrote them, so these are
+            // kept for as long as they plausibly stay relevant.
+            return .support(maxAge: 30 * Self.day)
+        }
+    }
+
+    /// The categories the shared support-cache budget bounds, in the order they are evicted:
+    /// what costs the least to lose goes first.
+    public static let supportCaches: [CacheCategory] = [
+        .runs,
+        .manifests,
+        .editProjects,
+        .generatedAutomationProjects,
+        .projectDescriptionHelpers,
+        .selectiveTests,
+        .generationMetadata,
+        .plugins,
+    ]
 }
 
 public enum RemoteCacheCategory: Codable {

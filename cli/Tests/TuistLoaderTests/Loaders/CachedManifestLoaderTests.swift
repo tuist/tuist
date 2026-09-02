@@ -115,6 +115,25 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestCachedMarksTheEntryAsUsed() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
+        try await stubProject(Project.test(name: "App"), at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+
+        let entry = try #require(try await fileSystem.glob(directory: cacheDirectory, include: ["*"]).collect().first)
+        let cachedAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: cachedAt], ofItemAtPath: entry.pathString)
+
+        // When
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then: a hit only reads the entry, so without this the support-cache retention drops a
+        // manifest that has been loaded on every run since it was first cached.
+        let lastUsed = try #require(try await fileSystem.fileMetadata(at: entry)?.lastModificationDate)
+        #expect(lastUsed > cachedAt)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestHashChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")

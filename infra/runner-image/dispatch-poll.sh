@@ -360,6 +360,7 @@ use_local_cold_cache() {
   mkdir -p "${local_cache}/tuist" 2>/dev/null || true
   export TUIST_XDG_CACHE_HOME="${local_cache}"
   unset TUIST_CACHE_MAX_BYTES
+  unset TUIST_SUPPORT_CACHE_MAX_BYTES
   CACHE_MOUNT=""
   CACHE_IMAGE_ACTIVE=""
   CACHE_INVENTORY_BEFORE=""
@@ -418,7 +419,17 @@ attach_cache_image() {
   if [ -n "${budget}" ] && [ "${budget}" -gt 0 ] 2>/dev/null; then
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+  # Byte budget for everything else the CLI caches in this image — result bundles,
+  # compiled project description helpers, manifests, plugin checkouts. The binary
+  # cache and the CAS each had a budget; these grew into the image's reserve until
+  # it ran out and every command died at its first cache write. Same split, so the
+  # three budgets cannot over-commit the one image.
+  local support_budget
+  support_budget=$(cat "${STATUS_SHARE}/cache-support-max-bytes" 2>/dev/null)
+  if [ -n "${support_budget}" ] && [ "${support_budget}" -gt 0 ] 2>/dev/null; then
+    export TUIST_SUPPORT_CACHE_MAX_BYTES="${support_budget}"
+  fi
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none}, support=${TUIST_SUPPORT_CACHE_MAX_BYTES:-none})"
   # The CAS store is folded into this image; point the compiler at it (if enabled).
   setup_cas_store
   return 0
