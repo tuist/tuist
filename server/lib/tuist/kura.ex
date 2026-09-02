@@ -1898,10 +1898,8 @@ defmodule Tuist.Kura do
     with {:ok, region} <- Regions.fetch(region_id),
          :ok <- ensure_movable_region(region),
          {:ok, account} <- Accounts.get_account_by_id(source.account_id),
-         :ok <- ensure_no_move_in_progress(source),
-         {:ok, ref} <- move_target_ref(account, region, source),
-         :ok <- validate_provisioner_node_ref(account, ref) do
-      insert_move_target(source, region, account, ref, target_node)
+         :ok <- ensure_no_move_in_progress(source) do
+      insert_move_target(source, region, account, target_node)
     end
   end
 
@@ -1934,11 +1932,10 @@ defmodule Tuist.Kura do
   # the account's current claim rather than inheriting the source's. This is the
   # path an instance whose plan changed while it was serving takes to the claim
   # that plan is worth.
-  defp insert_move_target(%Server{} = source, region, account, ref, target_node) do
+  defp insert_move_target(%Server{} = source, region, account, target_node) do
     attrs = %{
       account_id: source.account_id,
       region: source.region,
-      provisioner_node_ref: ref,
       move_phase: :moving_in,
       target_node: target_node
     }
@@ -1948,6 +1945,9 @@ defmodule Tuist.Kura do
 
            with :ok <- Admission.lock(region),
                 :ok <- Admission.admit?(region, server_candidate(attrs, account)),
+                {:ok, ref} <- move_target_ref(account, region, source),
+                :ok <- validate_provisioner_node_ref(account, ref),
+                attrs = Map.put(attrs, :provisioner_node_ref, ref),
                 {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
              Repo.preload(target, :deployments)
