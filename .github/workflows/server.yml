@@ -381,6 +381,9 @@ jobs:
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/github-deps-auth
+        with:
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install mix dependencies
         run: mix deps.get
       - name: Install aube dependencies
