@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: interleaved inline-artifact stream speedup from slicing the existing bytes instead of copying each chunk (ratio, higher is better)
-- Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
+- Primary: 95th-percentile blocking-dispatch latency as a share of one 512-kibibyte chunk's wire time at the fleet's fastest 3-gigabit-per-second public egress rate (percentage, lower is better)
+- Secondary: blocking dispatch and cached positional-read latency, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
 
@@ -46,6 +46,7 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Linux `sendfile` and `splice` already cover Kura's eligible plaintext artifact downloads. Remote Execution responses still require protocol framing, so the target there is one owned message buffer plus the encoder and transport buffers.
 - [Tokio implements ordinary file operations on its blocking pool](https://docs.rs/tokio/latest/tokio/fs/index.html). Kura's `SegmentReader` likewise performs positional reads there, but previously returned a private vector and then copied it into the caller's asynchronous read buffer. Returning that owned vector directly removes the copy without changing runtimes.
 - The separate [`tokio-uring` runtime](https://github.com/tokio-rs/tokio-uring) accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
+- Production Kura nodes advertise 1- or 3-gigabit-per-second public egress budgets. At the fastest rate, one 512-kibibyte chunk occupies the wire for 1.398 milliseconds; slower nodes give each handoff more time.
 
 ## What's Been Tried
 
@@ -69,9 +70,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Batched backfill spooling now writes each owned segment chunk directly into the temporary file while retaining exact-length validation. The paired reader-to-sink benchmark measured a 1.216 times median speedup over Tokio's generic copy path.
 - Backfill spool responses now use the same owned positional-read stream and reserve three live chunks instead of four. The paired spool-reader benchmark measured a 1.233 times median speedup over Tokio's file stream adapter.
 - Inline byte-stream consumers now yield slices of the existing reference-counted value. Pointer identity proves no byte allocation or copy; the synthetic materialization benchmark measured 372.308 times the copied path because the candidate moves no payload bytes.
+- A paced benchmark staggers 32 concurrent streams across the fastest production node's 3-gigabit-per-second aggregate egress budget. Across three runs, the 95th-percentile Tokio blocking handoff was 31.083, 48.625, and 43.750 microseconds, with a median of 43.750 microseconds. That is 3.129 percent of a single chunk's 1.398-millisecond wire time; the complete cached positional read's median 95th percentile was 92.625 microseconds. Replacing Tokio would attack a small residual cost while introducing a second, Linux-specific runtime and file-resource model, so keep Tokio and optimize the remaining allocation work instead.
 
 ## Next Segment
 
-- Measure blocking-pool dispatch under realistic concurrent network-limited reads, not only warm single-stream memory throughput.
-- Keep Tokio unless production traces show that dispatch materially contributes to response latency after these copy removals.
+- Remove whole-artifact buffer initialization before positional reads while keeping the existing materialization admission bound.
 - Continue the ownership audit in accelerated request classification and metadata caches.

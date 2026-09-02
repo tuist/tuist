@@ -178,9 +178,121 @@ fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Resu
 
 #[cfg(all(test, unix))]
 mod tests {
-    use std::{os::unix::fs::FileExt as _, time::Duration};
+    use std::{os::unix::fs::FileExt as _, sync::Arc, time::Duration};
 
     use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn segment_reader_blocking_dispatch_benchmark() {
+        const STREAM_COUNT: usize = 32;
+        const CHUNKS_PER_STREAM: usize = 64;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const WIRE_BYTES_PER_SECOND: u64 = 3_000_000_000 / 8;
+
+        async fn measure_paced(
+            file: Option<Arc<std::fs::File>>,
+            start_at: tokio::time::Instant,
+            stream_interval: Duration,
+        ) -> Vec<Duration> {
+            let mut tasks = Vec::with_capacity(STREAM_COUNT);
+            for stream_index in 0..STREAM_COUNT {
+                let file = file.clone();
+                tasks.push(tokio::spawn(async move {
+                    let phase = stream_interval.mul_f64(stream_index as f64 / STREAM_COUNT as f64);
+                    let mut deadline = start_at + phase;
+                    let mut samples = Vec::with_capacity(CHUNKS_PER_STREAM);
+                    for chunk_index in 0..CHUNKS_PER_STREAM {
+                        tokio::time::sleep_until(deadline).await;
+                        let started_at = std::time::Instant::now();
+                        if let Some(file) = file.as_ref() {
+                            let file = file.clone();
+                            let offset = (chunk_index * CHUNK_BYTES) as u64;
+                            let bytes = tokio::task::spawn_blocking(move || {
+                                read_chunk_from_file(file.as_ref(), offset, CHUNK_BYTES)
+                            })
+                            .await
+                            .expect("join benchmark file read")
+                            .expect("benchmark file read");
+                            assert_eq!(bytes.len(), CHUNK_BYTES);
+                            std::hint::black_box(bytes.as_ptr());
+                        } else {
+                            tokio::task::spawn_blocking(|| std::hint::black_box(()))
+                                .await
+                                .expect("join benchmark dispatch");
+                        }
+                        samples.push(started_at.elapsed());
+                        deadline += stream_interval;
+                    }
+                    samples
+                }));
+            }
+
+            let mut samples = Vec::with_capacity(STREAM_COUNT * CHUNKS_PER_STREAM);
+            for task in tasks {
+                samples.extend(task.await.expect("join benchmark stream"));
+            }
+            samples.sort_unstable();
+            samples
+        }
+
+        fn percentile(samples: &[Duration], percentile: f64) -> Duration {
+            let index = ((samples.len() - 1) as f64 * percentile).ceil() as usize;
+            samples[index]
+        }
+
+        let stream_interval = Duration::from_secs_f64(
+            (CHUNK_BYTES * STREAM_COUNT) as f64 / WIRE_BYTES_PER_SECOND as f64,
+        );
+        let wire_chunk_budget =
+            Duration::from_secs_f64(CHUNK_BYTES as f64 / WIRE_BYTES_PER_SECOND as f64);
+
+        let file = Arc::new(tempfile::tempfile().expect("create sparse benchmark file"));
+        file.set_len((CHUNKS_PER_STREAM * CHUNK_BYTES) as u64)
+            .expect("size sparse benchmark file");
+        let warm =
+            read_chunk_from_file(file.as_ref(), 0, CHUNK_BYTES).expect("warm benchmark file");
+        assert_eq!(warm.len(), CHUNK_BYTES);
+        let mut warm_tasks = Vec::with_capacity(STREAM_COUNT);
+        for _ in 0..STREAM_COUNT {
+            warm_tasks.push(tokio::task::spawn_blocking(|| ()));
+        }
+        for task in warm_tasks {
+            task.await.expect("warm blocking pool");
+        }
+
+        let dispatch = measure_paced(
+            None,
+            tokio::time::Instant::now() + Duration::from_millis(100),
+            stream_interval,
+        )
+        .await;
+        let reads = measure_paced(
+            Some(file),
+            tokio::time::Instant::now() + Duration::from_millis(100),
+            stream_interval,
+        )
+        .await;
+
+        let dispatch_p50 = percentile(&dispatch, 0.50);
+        let dispatch_p95 = percentile(&dispatch, 0.95);
+        let dispatch_p99 = percentile(&dispatch, 0.99);
+        let read_p50 = percentile(&reads, 0.50);
+        let read_p95 = percentile(&reads, 0.95);
+        let read_p99 = percentile(&reads, 0.99);
+        let dispatch_share = dispatch_p95.as_secs_f64() / wire_chunk_budget.as_secs_f64() * 100.0;
+
+        println!(
+            "blocking dispatch benchmark: streams={STREAM_COUNT} chunks_per_stream={CHUNKS_PER_STREAM} chunk_bytes={CHUNK_BYTES} wire_chunk_budget_us={:.3} dispatch_p50_us={:.3} dispatch_p95_us={:.3} dispatch_p99_us={:.3} dispatch_p95_percent={dispatch_share:.3} read_p50_us={:.3} read_p95_us={:.3} read_p99_us={:.3}",
+            wire_chunk_budget.as_secs_f64() * 1_000_000.0,
+            dispatch_p50.as_secs_f64() * 1_000_000.0,
+            dispatch_p95.as_secs_f64() * 1_000_000.0,
+            dispatch_p99.as_secs_f64() * 1_000_000.0,
+            read_p50.as_secs_f64() * 1_000_000.0,
+            read_p95.as_secs_f64() * 1_000_000.0,
+            read_p99.as_secs_f64() * 1_000_000.0,
+        );
+    }
 
     #[test]
     #[ignore = "performance benchmark run by autoresearch.sh"]
