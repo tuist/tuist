@@ -24,7 +24,7 @@ public enum InspectBundleCommandServiceError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            "To analyze the app bundle, run 'tuist init' to connect to the Tuist server."
+            "To analyze the app bundle, connect the project to the Tuist server by adding a 'tuist.toml' at the root of your repository with 'project = \"my-account/my-project\"'."
         }
     }
 }
