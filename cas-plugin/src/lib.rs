@@ -27,7 +27,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use proxy_proto::{Backing, ProxyClient, Resolution};
+use proxy_proto::{ProxyClient, Resolution};
 use reapi::OpStats;
 use types::*;
 use upstream::Upstream;
@@ -286,17 +286,6 @@ struct CasState {
     // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
-    // Local associations withheld because the remote does not hold the key, so
-    // nothing could have produced the interior nodes the root probe cannot see.
-    // Counted apart from unbacked_local_hits: that one means the value ROOT is
-    // gone from this store, while this one means the store is fine and the
-    // association came from somewhere that never finished publishing it — a
-    // different author, and the one that survives a whole-image cache-volume
-    // promote between hosts.
-    stats_unbacked_associations: AtomicU64,
-    // One build-log line per frontend that hits an unproducible object; see
-    // report_unproducible_object.
-    reported_unproducible: AtomicBool,
     // Resolve hits whose association was NOT recorded because the graph had not
     // materialized yet. Not a degradation: the key resolves again next build and
     // is recorded then. A count that stays high across builds means graphs are
@@ -565,8 +554,6 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
         stats_unbacked_local_hits: AtomicU64::new(0),
-        stats_unbacked_associations: AtomicU64::new(0),
-        reported_unproducible: AtomicBool::new(false),
         stats_poisoned_puts: AtomicU64::new(0),
         stats_deferred_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
@@ -621,11 +608,9 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // This does cover the build system's own instance, which issues the gets.
         let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
         let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
-        let associations = state.stats_unbacked_associations.load(Ordering::Relaxed);
-        if unbacked > 0 || poisoned > 0 || associations > 0 {
+        if unbacked > 0 || poisoned > 0 {
             log_line(&format!(
-                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned} \
-                 unbacked_associations={associations}"
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
             ));
         }
         // Deliberately NOT part of `degraded:`. A deferral is the expected
@@ -998,40 +983,6 @@ unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
 }
 
 
-/// Names, in the build log, the object the proxy could not produce.
-///
-/// What the compiler prints on its own is `CAS operation failed: missing object
-/// '0~...'` — no target, no file, no instance, and a digest that is usually an
-/// interior node rather than the cache key the failing task is named after. It
-/// reads as a flake, it self-heals on a re-run once the recompile republishes
-/// the object, and it has been retried away repeatedly. This line is what makes
-/// the next occurrence identify itself: stderr from a compiler frontend lands in
-/// the xcodebuild log, where `TUIST_CAS_LOG` (a file, unset on CI) does not.
-///
-/// Once per process. A frontend compiles one primary input, so one line still
-/// attributes the failure to the compile that hit it, without a graph's worth of
-/// missing nodes flooding the log. The lookup result is deliberately unchanged:
-/// NOTFOUND is what lets the Swift lane downgrade to a replay warning and
-/// recompile, and turning it into an ABI error would break that to make the
-/// clang lane — which fails either way — no better.
-unsafe fn report_unproducible_object(state: &CasState, id: llcas_objectid_t) {
-    if state.reported_unproducible.swap(true, Ordering::Relaxed) {
-        return;
-    }
-    let instance = if state.proxy_instance.is_empty() {
-        "<unset>"
-    } else {
-        &state.proxy_instance
-    };
-    eprintln!(
-        "tuist-cas-plugin: object {} is named by a cached compilation but no longer exists, \
-         and the remote cache for {instance} cannot supply it. This is a dangling cache entry, \
-         not a transient failure: retrying the build only helps because the recompile \
-         republishes the object. See cas-plugin/AGENTS.md, \"unbacked associations\".",
-        printed_digest(state, id)
-    );
-}
-
 unsafe fn load_object_impl(
     state: &CasState,
     id: llcas_objectid_t,
@@ -1077,7 +1028,6 @@ unsafe fn load_object_impl(
                     "proxy fetch_object could not produce {}",
                     printed_digest(state, id)
                 ));
-                report_unproducible_object(state, id);
             }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
@@ -1354,74 +1304,10 @@ unsafe fn verified_local_get(
         ));
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
-    // The probe above covers the root and nothing deeper, so it cannot see an
-    // association whose INTERIOR nodes are gone — the shape that reaches the
-    // compiler as `missing object` on a digest that is not the key, and that
-    // clang does not survive. A graph walk here is the wrong instrument (a load
-    // per node, transitively, on the serial task-setup path), and the write-side
-    // invariants that were meant to cover it only bind writers in this crate:
-    // an association that arrived by whole-image clone — the per-account runner
-    // cache volume promotes the local CAS between hosts — was written by a
-    // different machine, possibly a different plugin version, and no local
-    // invariant ever applied to it.
-    //
-    // So ask the one component that can answer cheaply. The proxy already holds
-    // the instance snapshot and, on a hit, registers the closure's fetch
-    // instructions, which is simultaneously the check and the repair: after a
-    // `Backed` answer a demand load for a missing interior node has an
-    // instruction to fetch it. Only a definitive `Unbacked` withholds the hit.
-    if !closure_is_backed(state, key_digest, value) {
-        state.stats_unbacked_associations.fetch_add(1, Ordering::Relaxed);
-        log_line(&format!(
-            "unbacked association, falling through to the remote: value={}",
-            printed_digest(state, value)
-        ));
-        return LLCAS_LOOKUP_RESULT_NOTFOUND;
-    }
     if !p_value.is_null() {
         *p_value = value;
     }
     LLCAS_LOOKUP_RESULT_SUCCESS
-}
-
-/// Whether the proxy can produce the closure named by an association the local
-/// store holds.
-///
-/// Every "cannot tell" regime is decided by the PROXY, which answers `Unknown`:
-/// no routable instance, a project that does not upload, or any transport
-/// failure. Nothing is filtered here first — in particular not on `state.upload`,
-/// which is the trap `Proxy::upload_enabled` documents: that flag comes from a
-/// compiler option that reaches Swift, while swift-build's Clang caching runs
-/// against a CAS created with a plugin path and no options and so reads as
-/// uploading even under an explicit opt-out. Gating client-side would have left
-/// the Clang lane — the one that fails the build — recompiling every valid
-/// local entry, every build.
-///
-/// What is left is the regime the invariant was written for: uploads on, where
-/// the design's own rule is that everything a promoted CAS claims must be
-/// resolvable from the remote.
-unsafe fn closure_is_backed(
-    state: &CasState,
-    key_digest: llcas_digest_t,
-    value: llcas_objectid_t,
-) -> bool {
-    let key = std::slice::from_raw_parts(key_digest.data, key_digest.size);
-    let cas_path = state
-        .cas_dir
-        .as_ref()
-        .map(|dir| dir.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    match state.proxy.backed(&cas_path, &state.proxy_instance, key) {
-        // Backed, but only for the graph the remote named. A remote value that
-        // differs from this association's is a key whose recompile was not
-        // byte-reproducible, and the instructions the check registered describe
-        // the OTHER graph — so this one is still unvouched. Withholding costs
-        // nothing here: the fall-through resolves the same key and serves the
-        // remote's value, which does have its closure registered.
-        Backing::Backed(remote_value) => remote_value == digest_bytes(state, value),
-        Backing::Unbacked => false,
-        Backing::Unknown => true,
-    }
 }
 
 /// Whether a put failure is the store declining to CHANGE an existing
