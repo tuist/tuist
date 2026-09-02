@@ -1713,7 +1713,11 @@ impl Proxy {
                 }
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
                 if let Some(analytics) = &self.analytics {
-                    analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+                    analytics.record_keyvalue(
+                        key,
+                        "read",
+                        crate::analytics::millis(op_start.elapsed()),
+                    );
                 }
                 return Ok(None);
             }
@@ -1731,7 +1735,7 @@ impl Proxy {
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(key, "read", crate::analytics::millis(op_start.elapsed()));
         }
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
@@ -1988,13 +1992,16 @@ impl Proxy {
                     let transfer = if inlined {
                         0.0
                     } else {
-                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64)
+                        crate::analytics::millis(fetch_elapsed)
+                            * (compressed as f64 / total_compressed as f64)
                     };
-                    let codec = codec_elapsed.as_secs_f64();
-                    // This node's own transfer, keyed by its content-digest hex
-                    // (which equals the checksum in its parent's reference).
+                    let codec = crate::analytics::millis(codec_elapsed);
+                    // This node's own transfer. Keyed by the node, not by a hex
+                    // of its digest: the checksum the server joins on is the
+                    // separate digest this node's PARENT carries next to its
+                    // casID, which the root of this graph records below.
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(&entry.llcas_digest),
+                        &entry.llcas_digest,
                         frame.len() as i64,
                         compressed,
                         transfer + codec,
@@ -2782,12 +2789,12 @@ impl Proxy {
             let upload_start = Instant::now();
             remote.batch_update(uploads)?;
             if let Some(analytics) = &self.analytics {
-                let elapsed = upload_start.elapsed().as_secs_f64();
+                let elapsed = crate::analytics::millis(upload_start.elapsed());
                 let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
                 for (digest, size, compressed, data) in &upload_meta {
                     let transfer = elapsed * (*compressed as f64 / total as f64);
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(digest),
+                        digest,
                         *size,
                         *compressed,
                         transfer,
@@ -2802,7 +2809,11 @@ impl Proxy {
         }
         let result = remote.update_action(&record.key, &entries, branch, trunk);
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(
+                &record.key,
+                "write",
+                crate::analytics::millis(op_start.elapsed()),
+            );
         }
         result
     }
