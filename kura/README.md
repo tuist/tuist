@@ -280,6 +280,9 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_BACKFILL_READY_RING_PERCENT` | Segment-ring fullness percent at which a node still running its initial backfill cycle marks itself ready; readiness then latches for the process lifetime. | Yes | half of `KURA_BACKFILL_MARGIN_PERCENT` |
 | `KURA_BACKFILL_BATCH_BYTES` | Byte threshold a backfill pass composes one bodies batch against, and the cutoff above which a listed entry is fetched through the per-artifact endpoint. Must not exceed the compiled 32 MiB response ceiling shared by both sides of the bodies protocol. | Yes | `33554432` |
 | `KURA_AUTH_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the authentication and authorization caches. New entries are dropped once the cap is reached and no expired entries remain. | Yes | `100000` |
+| `KURA_REQUEST_LOG_SAMPLE_RATE` | Fraction of successful request completions emitted as structured logs, deterministically selected by request identifier. Slow and failed request warnings are independent of this setting. | Yes | `0` |
+| `KURA_SLOW_REQUEST_THRESHOLD_MS` | Total request duration that emits a structured slow-request warning. Set to `0` to disable these warnings. | Yes | `30000` |
+| `KURA_WARNING_LOG_INTERVAL_MS` | Minimum interval between repeated warnings of the same bounded class. Suppressed counts are attached to the next emitted event. Set to `0` to disable rate limiting. | Yes | `60000` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
 
 ### Backfill operations
@@ -383,6 +386,13 @@ Kura also exports:
 - 🔁 replication latency and result metrics
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
+
+Every cache response carries an `x-request-id`. Kura preserves a valid incoming value or creates a
+bounded identifier and adds it to request spans and structured completion events. Successful completion events are disabled by default and can be
+sampled with `KURA_REQUEST_LOG_SAMPLE_RATE`. Requests exceeding
+`KURA_SLOW_REQUEST_THRESHOLD_MS`, failed streams, and server errors emit rate-limited warnings with
+response bytes, time to first byte, total duration, and the serving path. The rate limit uses
+constant process memory and reports the number of suppressed events on the next warning.
 
 HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 

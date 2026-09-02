@@ -1,4 +1,8 @@
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use axum::http::HeaderMap;
 use opentelemetry::{
@@ -19,6 +23,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{VERSION, config::Config, node_location::NodeLocation};
 
+static TRACE_EXPORT_ACTIVE: AtomicBool = AtomicBool::new(false);
+
 pub struct TelemetryGuards {
     tracer_provider: Option<SdkTracerProvider>,
     sentry_guard: Option<ClientInitGuard>,
@@ -29,7 +35,11 @@ impl TelemetryGuards {
         if let Some(provider) = self.tracer_provider
             && let Err(error) = provider.shutdown()
         {
-            eprintln!("failed to shutdown OTLP tracer provider: {error}");
+            warn!(
+                event.name = "kura.telemetry.shutdown_failed",
+                error = %error,
+                "failed to shut down trace exporter"
+            );
         }
 
         drop(self.sentry_guard);
@@ -71,7 +81,9 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .with(tracing_opentelemetry::layer().with_tracer(tracer))
                     .init();
             }
+            TRACE_EXPORT_ACTIVE.store(true, Ordering::Relaxed);
             info!(
+                event.name = "kura.telemetry.tracing_active",
                 service.name = %config.otel_service_name,
                 service.version = VERSION,
                 "OpenTelemetry tracing active"
@@ -82,6 +94,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
             }
         }
         Some(Err(error)) => {
+            TRACE_EXPORT_ACTIVE.store(false, Ordering::Relaxed);
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
                     .with(env_filter)
@@ -95,6 +108,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .init();
             }
             warn!(
+                event.name = "kura.telemetry.initialization_failed",
                 error = %error,
                 service.name = %config.otel_service_name,
                 service.version = VERSION,
@@ -106,6 +120,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
             }
         }
         None => {
+            TRACE_EXPORT_ACTIVE.store(false, Ordering::Relaxed);
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
                     .with(env_filter)
@@ -119,6 +134,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .init();
             }
             info!(
+                event.name = "kura.telemetry.tracing_disabled",
                 service.name = %config.otel_service_name,
                 service.version = VERSION,
                 "OpenTelemetry tracing disabled because no endpoint is configured"
@@ -129,6 +145,10 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
             }
         }
     }
+}
+
+pub fn trace_export_active() -> bool {
+    TRACE_EXPORT_ACTIVE.load(Ordering::Relaxed)
 }
 
 pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
@@ -287,6 +307,18 @@ impl Extractor for RequestHeaderExtractor<'_> {
 
 struct ReqwestHeaderInjector<'a>(&'a mut reqwest::header::HeaderMap);
 
+struct MapHeaderExtractor<'a>(&'a BTreeMap<String, String>);
+
+impl Extractor for MapHeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(String::as_str)
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(String::as_str).collect()
+    }
+}
+
 impl Injector for ReqwestHeaderInjector<'_> {
     fn set(&mut self, key: &str, value: String) {
         let Ok(name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) else {
@@ -314,10 +346,25 @@ pub fn inject_current_trace_context(headers: &mut reqwest::header::HeaderMap) {
 }
 
 pub fn attach_parent_context(span: &Span, headers: &HeaderMap) {
-    if let Err(error) = span.set_parent(extract_parent_context(headers))
+    attach_extracted_parent_context(span, extract_parent_context(headers));
+}
+
+pub fn attach_parent_context_from_map(span: &Span, headers: &BTreeMap<String, String>) {
+    let context = global::get_text_map_propagator(|propagator| {
+        propagator.extract(&MapHeaderExtractor(headers))
+    });
+    attach_extracted_parent_context(span, context);
+}
+
+fn attach_extracted_parent_context(span: &Span, context: opentelemetry::Context) {
+    if let Err(error) = span.set_parent(context)
         && should_warn_about_parent_context_error(&error)
     {
-        warn!("failed to attach propagated trace context: {error:?}");
+        warn!(
+            error = ?error,
+            event.name = "kura.telemetry.parent_context.attach_failed",
+            "failed to attach propagated trace context"
+        );
     }
 }
 

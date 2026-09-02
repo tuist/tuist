@@ -24,6 +24,7 @@ mod peer_tls;
 mod reapi;
 mod registration;
 mod replication;
+mod request_observability;
 mod runtime;
 mod segment;
 mod state;
