@@ -326,16 +326,6 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
-        live Path.join(locale_path_prefix, "/flaky-tests"),
-             TuistWeb.Marketing.MarketingFlakyTestsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/test-insights"),
-             TuistWeb.Marketing.MarketingTestInsightsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: @marketing_route_metadata,
@@ -360,6 +350,12 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/compute"),
           MarketingController,
           :compute,
+          metadata: @marketing_route_metadata,
+          private: private
+
+      get Path.join(locale_path_prefix, "/tests"),
+          MarketingController,
+          :tests,
           metadata: @marketing_route_metadata,
           private: private
 

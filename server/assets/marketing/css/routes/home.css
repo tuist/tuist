@@ -790,35 +790,6 @@
         }
       }
 
-      &[data-variant="flaky-tests"] > [data-part="image-container"] {
-        @media (min-width: 1180px) {
-          padding: 0;
-          width: 446px;
-          height: 260px;
-        }
-
-        & > [data-part="illustration"] {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          object-position: center;
-        }
-      }
-
-      &[data-variant="test-insights"] > [data-part="image-container"] {
-        @media (min-width: 1180px) {
-          padding: 0;
-          width: 446px;
-          height: 260px;
-        }
-
-        & > [data-part="illustration"] {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          object-position: center;
-        }
-      }
     }
 
     & [data-part="feature-row"] {
@@ -831,21 +802,6 @@
 
       & > [data-part="feature-block"] {
         flex: 1;
-
-        &[data-variant="flaky-tests"] {
-          border-bottom: 1px solid var(--noora-surface-border-primary);
-
-          @media (min-width: 1180px) {
-            border-right: 1px solid var(--noora-surface-border-primary);
-            border-bottom: none;
-          }
-        }
-
-        &[data-variant="test-insights"] {
-          @media (min-width: 1180px) {
-            border-left: none;
-          }
-        }
       }
     }
   }

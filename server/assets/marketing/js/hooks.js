@@ -27,6 +27,7 @@ import { ComputeMacDither } from "./hooks/compute-mac-dither.js";
 import { RunnerGrid } from "./hooks/compute-runners.js";
 import { TaskFeed } from "./hooks/compute-tasks.js";
 import { TestGrid } from "./hooks/test-grid.js";
+import { ShardingTimeline } from "./hooks/sharding-timeline.js";
 import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
 import { ThemeSwitcher } from "./hooks/theme-switcher.js";
 import { DitherPing } from "./hooks/dither-ping.js";
@@ -53,6 +54,7 @@ const Hooks = {
   RunnerGrid,
   TaskFeed,
   TestGrid,
+  ShardingTimeline,
   TuistDitherParticles,
   ThemeSwitcher,
   DitherPing,
