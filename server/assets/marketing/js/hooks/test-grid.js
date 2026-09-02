@@ -11,9 +11,12 @@
  *
  * … then it loops back to loading. Each pass re-deals the cell states with
  * jittered densities, so every loop shows a different grid and different
- * counts. The clock starts on the first on-screen frame and rendering pauses
- * while the canvas is off-screen. The grid is a
- * fixed size, centred in the slightly taller stage and cropped left/right on
+ * counts. The clock starts the first time the grid scrolls into view — an
+ * IntersectionObserver, since checkVisibility() only reports CSS visibility,
+ * not the viewport, and would start the story on page load with the grid
+ * still below the fold — so the loading state is what greets the reader,
+ * and rendering pauses while the canvas is off-screen. The grid is a fixed
+ * size, centred in the slightly taller stage and cropped left/right on
  * narrow viewports.
  *
  * Options (data attributes):
@@ -187,10 +190,21 @@ export const TestGrid = {
       return;
     }
 
+    // Hold the loading frame until the grid is actually on-screen; the
+    // story's clock is stamped on the first in-view frame below.
+    this.inView = false;
+    this.io = new IntersectionObserver(
+      (entries) => {
+        this.inView = entries.some((e) => e.isIntersecting);
+      },
+      { threshold: 0.4 },
+    );
+    this.io.observe(this.canvas);
+
     this.lastDraw = -Infinity;
     const tick = (now) => {
       this.raf = requestAnimationFrame(tick);
-      if (this.canvas.checkVisibility && !this.canvas.checkVisibility()) return;
+      if (!this.inView) return;
       this.now = now;
       // Start the loop the first time the grid is actually on-screen.
       if (this.revealStart == null) this.revealStart = now;
@@ -205,6 +219,7 @@ export const TestGrid = {
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();
+    if (this.io) this.io.disconnect();
   },
 
   // Re-deal every cell's state. Densities jitter around the reference mix
