@@ -4372,7 +4372,7 @@
         "spec": {
           "id": 16,
           "title": "Egress by account",
-          "description": "One row per account per box: the HTB class the egress tree shapes for every replica the account has there. **Sent** is the class's 10 m transmit rate, **Ceiling** what HTB is enforcing (`egress_burst_mbps` or the per-account override, clamps included), **Ceiling share** the ratio. A burst to the ceiling is expected; an hour within 10 % of it (**Kura account at its egress ceiling**) means the ceiling is the account's bottleneck and the lever is its per-region egress override, unless the box is near its budget too, in which case the box is the bottleneck. Sorted by ceiling share, so the accounts driving a box are on top.",
+          "description": "One row per account per box: the HTB class the egress tree shapes for every replica the account has there. **Sent (10 m)** is the class's transmit rate averaged over the last ten minutes, the alert's window; **Peak sent** is the highest 5 m rate over the dashboard range, which is where a bursty account's real demand shows (a 10 m average reads several times lower than a two-minute burst; the class counter is refreshed once per 2 m reconcile, so windows under 5 m are not honest and the NIC's own 2 m peak in **Egress by node** runs higher still). **Ceiling** is what HTB is enforcing (`egress_burst_mbps` or the per-account override, clamps included), **Ceiling share** the 10 m ratio. A burst to the ceiling is expected; an hour within 10 % of it (**Kura account at its egress ceiling**) means the ceiling is the account's bottleneck and the lever is its per-region egress override, unless the box is near its budget too, in which case the box is the bottleneck. Sorted by peak, so the accounts driving a box are on top.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4390,7 +4390,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\", account!=\"\"}[10m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -4413,7 +4413,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\"}) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "expr": "max_over_time((max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\", account!=\"\"}[5m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region))[$__range:1m])",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -4436,7 +4436,30 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (cluster, region, account, node) ((sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) / sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\", account!=\"\"}) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "D",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (cluster, region, account, node) ((sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\", account!=\"\"}[10m])) / sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\", account!=\"\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -4456,7 +4479,7 @@
                   "spec": {
                     "options": {
                       "include": {
-                        "pattern": "^(region|account|node|Value #[ABC])$"
+                        "pattern": "^(region|account|node|Value #[ABCD])$"
                       }
                     }
                   }
@@ -4481,7 +4504,8 @@
                         "node": 2,
                         "Value #A": 3,
                         "Value #B": 4,
-                        "Value #C": 5
+                        "Value #C": 5,
+                        "Value #D": 6
                       }
                     }
                   }
@@ -4572,7 +4596,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Sent"
+                        "value": "Sent (10 m)"
                       },
                       {
                         "id": "custom.width",
@@ -4600,6 +4624,34 @@
                     "properties": [
                       {
                         "id": "displayName",
+                        "value": "Peak sent (5 m, range)"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 170
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "Mbits"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
                         "value": "Ceiling"
                       },
                       {
@@ -4623,12 +4675,12 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Value #C"
+                      "options": "Value #D"
                     },
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Ceiling share"
+                        "value": "Ceiling share (10 m)"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -4687,7 +4739,7 @@
                 "cellHeight": "md",
                 "sortBy": [
                   {
-                    "displayName": "Ceiling share",
+                    "displayName": "Peak sent (5 m, range)",
                     "desc": true
                   }
                 ]
@@ -5700,7 +5752,7 @@
         "spec": {
           "id": 21,
           "title": "Top accounts by egress",
-          "description": "The five accounts sending the most through their egress-tree classes (10 m rate), which is the \"who is driving it\" annotation behind the budget alerts.",
+          "description": "The five accounts sending the most through their egress-tree classes (5 m rate; the class counter refreshes once per 2 m reconcile, so shorter windows are not honest and bursts under five minutes read lower than the NIC shows), which is the \"who is driving it\" annotation behind the budget alerts.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5718,7 +5770,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "topk(5, max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region))",
+                        "expr": "topk(5, max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\", account!=\"\"}[5m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region))",
                         "legendFormat": "{{account}} on {{node}}",
                         "instant": false,
                         "range": true
