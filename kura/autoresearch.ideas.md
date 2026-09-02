@@ -11,3 +11,6 @@
 - Audit response-stream memory multipliers after every proven buffer removal.
 - Measure whether one-chunk read-ahead improves cold-disk throughput enough to justify its extra bounded buffer.
 - Audit manifest and handle cache key ownership for duplicate strings retained across indexes.
+- Avoid request-arrival shutdown notifications and steady-state completion notifications.
+- Measure authorization consultation-lock contention separately for cold misses and cache hits.
+- Check whether the response admission turn lock is reached only after bounded immediate admission fails.

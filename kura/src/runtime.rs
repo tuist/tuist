@@ -419,7 +419,7 @@ fn try_lock_exclusive(_file: &File) -> Result<(), std::io::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{sync::Barrier, time::Duration};
 
     use tempfile::tempdir;
     use tokio::time::timeout;
@@ -450,6 +450,53 @@ mod tests {
         timeout(Duration::from_secs(1), notified)
             .await
             .expect("request completion should wake inflight waiters");
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn inflight_request_accounting_benchmark() {
+        const WORKERS: usize = 8;
+        const REQUESTS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        fn measure() -> f64 {
+            let runtime = RuntimeState::new();
+            let metrics = Metrics::new("region".into(), "tenant".into());
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::time::Instant::now();
+            std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let runtime = runtime.clone();
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..REQUESTS_PER_WORKER {
+                            drop(runtime.start_http_request(
+                                &metrics,
+                                HttpTrafficClass::Public,
+                            ));
+                        }
+                    });
+                }
+                barrier.wait();
+            });
+            let requests = (WORKERS * REQUESTS_PER_WORKER) as f64;
+            requests / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure();
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC request_accounting_requests_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
     }
 
     #[test]

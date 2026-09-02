@@ -1,13 +1,13 @@
-# Autoresearch: Kura bounded-resource throughput
+# Autoresearch: Kura bounded-resource request concurrency
 
 ## Objective
 
-Increase Kura's cache throughput and reduce tail latency without weakening its hard memory, file descriptor, temporary disk, or background-work bounds. Prefer removing copies, allocations, system calls, and serialization points over raising limits.
+Increase Kura's concurrent request throughput and reduce tail latency by removing unnecessary synchronization from request entry and completion. Do not weaken hard memory, file descriptor, temporary disk, or background-work bounds.
 
 ## Metrics
 
-- Primary: paired existence-cache hit speedup from sharing one immutable key between the lookup and recency indexes (ratio, higher is better)
-- Secondary: retained key allocations, eviction order, expiration, manifest byte accounting, compile and lint status
+- Primary: concurrent request accounting throughput (requests per second, higher is better)
+- Secondary: shutdown-drain correctness, exact in-flight counts and gauges, compile and lint status
 
 ## How to Run
 
@@ -16,6 +16,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 ## Files in Scope
 
 - `src/reapi/service.rs`: Remote Execution ByteStream and batch response materialization
+- `src/runtime.rs`: request in-flight accounting and shutdown notifications
+- `src/app.rs`: shutdown-drain waiter and its notification contract
 - `src/segment/reader.rs`: bounded asynchronous file reads
 - `src/store.rs`: append-only segment persistence and metadata access
 - `src/accelerated_file_serving.rs`: Linux direct file serving and request classification
@@ -47,9 +49,11 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - [Tokio implements ordinary file operations on its blocking pool](https://docs.rs/tokio/latest/tokio/fs/index.html). Kura's `SegmentReader` likewise performs positional reads there, but previously returned a private vector and then copied it into the caller's asynchronous read buffer. Returning that owned vector directly removes the copy without changing runtimes.
 - The separate [`tokio-uring` runtime](https://github.com/tokio-rs/tokio-uring) accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
 - Production Kura nodes advertise 1- or 3-gigabit-per-second public egress budgets. At the fastest rate, one 512-kibibyte chunk occupies the wire for 1.398 milliseconds; slower nodes give each handoff more time.
+- Every request arrival and completion currently calls `Notify::notify_waiters`, although the only consumer waits for the in-flight count to reach zero during shutdown. An arrival can never make that condition true, and steady-state completions need no shutdown wake-up before draining begins.
 
 ## What's Been Tried
 
+- Baseline request accounting, with every arrival and completion notifying the shutdown waiter, sustained 279,259.648 requests per second across eight concurrent workers.
 - Added a release-mode, in-memory ByteStream chunk-materialization benchmark and a correctness test.
 - Baseline: the unchanged `ReaderStream` plus `Bytes::to_vec` path reached 17,599.189 mebibytes per second. The cold optimized Bazel build took 1,142 seconds; subsequent experiments reuse its dependency cache, and build duration is not part of the throughput metric.
 - Experiment: fill the generated response's final `Vec<u8>` directly through Tokio's `read_buf`, removing the intermediate `BytesMut` allocation and full-chunk copy while retaining the same chunk cap.
@@ -79,5 +83,6 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Next Segment
 
-- Remove the temporary prefixed string allocation on persistent-file handle cache hits.
-- Profile manifest result cloning before considering shared manifest values.
+- Measure request entry and completion notification contention under concurrent load.
+- Remove notifications that cannot advance shutdown draining, then retain a focused drain-race check.
+- Inspect authorization consultation and response admission locks only after request accounting is no longer adding global synchronization.
