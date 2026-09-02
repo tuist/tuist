@@ -99,6 +99,7 @@ Increase Kura's concurrent artifact-read throughput by avoiding redundant persis
 - Final validation after the Tokio dispatch measurement and four kept optimizations: production compilation, formatting, and Clippy passed; the complete unit suite passed 821 tests with 0 failures and 13 intentionally ignored performance benchmarks.
 - Final validation after the request-accounting synchronization pass: production compilation, formatting, and Clippy passed; the complete unit suite passed 822 tests with 0 failures and 14 intentionally ignored performance benchmarks.
 - Final validation after shared manifest retention and the first hot-handle candidate: production compilation, formatting, and Clippy passed; the complete unit suite passed 825 tests with 0 failures and 16 intentionally ignored performance benchmarks.
+- Final validation after bounded hot-handle promotion: production compilation, formatting, and Clippy passed; the complete unit suite passed 825 tests with 0 failures and 17 intentionally ignored performance benchmarks.
 
 ## Next Segment
 
