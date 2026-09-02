@@ -502,17 +502,11 @@ defmodule TuistWeb.UsageLiveTest do
 
   describe "runner usage receipt" do
     test "walks from minutes to money, showing the allowance as a credit", %{conn: conn, user: user} do
+      now = ~U[2026-01-17 12:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
       account = user.account
-      started = DateTime.add(DateTime.utc_now(), -2, :hour)
-
-      # The pace sentence is withheld until a tenth of the period has
-      # elapsed, so the window has to be underway rather than the calendar
-      # month, which is hours old on the first days of a month.
-      period_start = DateTime.new!(Date.add(Date.utc_today(), -20), ~T[00:00:00], "Etc/UTC")
-
-      stub(Tuist.Billing, :current_billing_period, fn _account ->
-        {period_start, DateTime.shift(period_start, month: 1)}
-      end)
+      started = DateTime.add(now, -2, :hour)
 
       Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
@@ -527,8 +521,8 @@ defmodule TuistWeb.UsageLiveTest do
         started_at: started,
         job_started_at: started,
         job_ended_at: DateTime.add(started, 120 * 60, :second),
-        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
-        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        inserted_at: DateTime.truncate(now, :second),
+        updated_at: DateTime.truncate(now, :second)
       })
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")

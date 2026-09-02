@@ -202,8 +202,11 @@ defmodule Tuist.Runners.AllowanceTest do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the
       # third is entirely billed.
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+
       for days_ago <- [3, 2, 1] do
-        started = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+        started = DateTime.add(now, -days_ago, :day)
 
         Repo.insert!(%RunnerSession{
           account_id: account.id,
@@ -223,10 +226,7 @@ defmodule Tuist.Runners.AllowanceTest do
         })
       end
 
-      # The period is given rather than left to the calendar month, which
-      # holds fewer than three days back on the first days of a month.
-      period_start = DateTime.new!(Date.add(Date.utc_today(), -3), ~T[00:00:00], "Etc/UTC")
-      breakdown = Allowance.period_breakdown(account, {period_start, DateTime.shift(period_start, month: 1)})
+      breakdown = Allowance.period_breakdown(account, period)
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.
@@ -455,7 +455,7 @@ defmodule Tuist.Runners.AllowanceTest do
     test "leaves a day that ran wholly inside the trial with nothing billed", %{account: account} do
       # Past the allowance, so a day the trial covered has to be zeroed
       # deliberately rather than by the free tier happening to reach it.
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[12:00:00], "Etc/UTC")
       period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
       account = trial_ended(account, DateTime.add(now, -2, :day))
 

@@ -625,10 +625,8 @@ defmodule Tuist.Runners.PrepaidTest do
     defp account, do: %Account{customer_id: "cus_#{System.unique_integer([:positive])}"}
 
     test "sums what is left and reports the soonest expiry" do
-      # Both have to sit in the future whenever this runs, or the sooner
-      # one is filtered out as already expired.
-      soon = :second |> DateTime.utc_now() |> DateTime.add(30, :day)
-      later = :second |> DateTime.utc_now() |> DateTime.add(180, :day)
+      soon = DateTime.utc_now() |> DateTime.add(1, :day) |> DateTime.truncate(:second)
+      later = DateTime.add(soon, 365, :day)
 
       soon_grant = grant(%{expires_at: DateTime.to_unix(soon)})
       later_grant = grant(%{expires_at: DateTime.to_unix(later)})
