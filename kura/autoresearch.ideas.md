@@ -16,3 +16,4 @@
 - Check whether the response admission turn lock is reached only after bounded immediate admission fails.
 - Move manifest string cloning outside the global cache lock through shared retained values.
 - Measure whether sampled recency updates can safely reduce hot-key write-lock pressure without changing eviction quality.
+- Add a one-entry lock-free front for repeated hits to the same open segment handle.

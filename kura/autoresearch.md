@@ -1,13 +1,13 @@
-# Autoresearch: Kura bounded-resource manifest concurrency
+# Autoresearch: Kura bounded-resource handle concurrency
 
 ## Objective
 
-Increase Kura's concurrent cached-read throughput by shortening metadata-cache critical sections. Do not weaken hard memory, file descriptor, temporary disk, or background-work bounds.
+Increase Kura's concurrent artifact-read throughput by avoiding redundant persistent-file handle cache locks. Do not weaken hard memory, file descriptor, temporary disk, or background-work bounds.
 
 ## Metrics
 
-- Primary: paired concurrent manifest-cache hit speedup (ratio, higher is better)
-- Secondary: exact manifests, least-recently-used eviction order, retained-byte accounting, compile and lint status
+- Primary: concurrent hot persistent-file handle cache throughput (lookups per second, higher is better)
+- Secondary: exact least-recently-used eviction, file descriptor capacity, removal and trimming correctness, compile and lint status
 
 ## How to Run
 
@@ -52,9 +52,11 @@ Increase Kura's concurrent cached-read throughput by shortening metadata-cache c
 - Production Kura nodes advertise 1- or 3-gigabit-per-second public egress budgets. At the fastest rate, one 512-kibibyte chunk occupies the wire for 1.398 milliseconds; slower nodes give each handoff more time.
 - Every request arrival and completion currently calls `Notify::notify_waiters`, although the only consumer waits for the in-flight count to reach zero during shutdown. An arrival can never make that condition true, and steady-state completions need no shutdown wake-up before draining begins.
 - Manifest-cache hits currently clone all owned manifest strings while holding the cache's global lock. The clone is required by the public store interface, but it does not need to serialize independent allocator work across requests.
+- Every chunk read from a popular segment currently takes the persistent-file handle cache's asynchronous mutex, mutates recency, and clones the same open handle. Repeated hits to the already most-recent handle do not change eviction order.
 
 ## What's Been Tried
 
+- Baseline repeated hits to one open persistent-file handle sustained 2,712,133.322 lookups per second across eight Tokio workers. The benchmark fixture initially proved the storage-root guard rejects paths outside configured roots; moving the synthetic handle under the configured data directory preserved that guard and measured the intended cache path.
 - Baseline same-hot-artifact manifest-cache hits sustained 1,423,779.733 lookups per second across eight concurrent workers while cloning all manifest strings under the global lock.
 - Retained cached manifests behind one shared allocation, cloned only that reference under the lock, and moved the required owned-string clone after unlock. Paired same-process runs measured 1.126040 and 1.140262 times speedups while pointer identity proved allocation reuse and retained-byte accounting includes the two reference counters.
 - Baseline request accounting, with every arrival and completion notifying the shutdown waiter, sustained 279,259.648 requests per second across eight concurrent workers.
@@ -91,6 +93,6 @@ Increase Kura's concurrent cached-read throughput by shortening metadata-cache c
 
 ## Next Segment
 
-- Measure same-hot-artifact manifest-cache hits across concurrent workers.
-- Move required owned-manifest cloning outside the cache lock without changing the public interface.
-- Preserve exact global least-recently-used order and byte-budget eviction.
+- Measure concurrent repeated hits to one already-open segment handle.
+- Test a bounded single-entry fast path that bypasses the cache lock only while the same handle remains most recent.
+- Clear or replace the fast path on every cache mutation so it cannot retain a handle beyond the configured capacity.

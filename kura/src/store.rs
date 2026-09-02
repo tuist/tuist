@@ -10716,6 +10716,72 @@ mod tests {
         assert_eq!(reloaded.artifact_id, second.artifact_id);
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn segment_handle_hot_cache_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(store: Arc<Store>, cache_key: Arc<str>) -> f64 {
+            let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+            let mut workers = tokio::task::JoinSet::new();
+            for _ in 0..WORKERS {
+                let store = store.clone();
+                let cache_key = cache_key.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for _ in 0..LOOKUPS_PER_WORKER {
+                        let handle = store
+                            .segment_handle_cache_get(&cache_key)
+                            .await
+                            .expect("benchmark handle should stay cached");
+                        std::hint::black_box(Arc::as_ptr(&handle));
+                    }
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let (_temp_dir, config, store) = temp_store();
+        let path = config.data_dir.join("hot-segment-handle");
+        std::fs::write(&path, b"segment").expect("write benchmark segment");
+        let handle = Arc::new(
+            store
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark segment"),
+        );
+        let cache_key: Arc<str> = Arc::from("segment:hot");
+        store
+            .segment_handles
+            .lock()
+            .await
+            .insert(cache_key.to_string(), handle);
+        let store = Arc::new(store);
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure(store.clone(), cache_key.clone()).await;
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_handle_cache_lookups_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
+    }
+
     #[tokio::test]
     async fn segment_handle_cache_evicts_least_recently_used_handles_when_full() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
