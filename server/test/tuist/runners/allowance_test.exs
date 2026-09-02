@@ -440,7 +440,7 @@ defmodule Tuist.Runners.AllowanceTest do
     test "leaves a day that ran wholly inside the trial with nothing billed", %{account: account} do
       # Past the allowance, so a day the trial covered has to be zeroed
       # deliberately rather than by the free tier happening to reach it.
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[12:00:00], "Etc/UTC")
       period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
       account = trial_ended(account, DateTime.add(now, -2, :day))
 

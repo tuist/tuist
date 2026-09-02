@@ -11,7 +11,7 @@
 It makes applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [Visual Studio Code](https://code.visualstudio.com) interoperable with Tuist.
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
-Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions.
+Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
 
 ## Model Context Protocol versus skills
@@ -204,13 +204,13 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `search_tuist` | Start answering Tuist questions from public documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+| `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
 #### Source-backed answers
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
-Compatible clients receive server instructions during initialization that route ordinary Tuist questions through documentation and source-backed tools before local files or general web search. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
+Compatible clients receive server instructions during initialization that describe when documentation and source-backed tools can provide useful evidence. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -298,7 +298,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 | `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
 | `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
-| `update_test_case` | Update a test case's state or flaky classification. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `update_test_case` | Update a test case's state or flaky classification. A change can dispatch an event to configured webhook endpoints, including external services. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
 
 #### Bundles

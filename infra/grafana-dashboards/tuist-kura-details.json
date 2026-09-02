@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Crosshair",
-    "description": "Every kura_* metric family exported by the Kura runtime (grouped by subsystem) plus the pod-level Kubernetes, cAdvisor and egress-tree series, filterable by environment and pod. Companion to Tuist Kura / Customer Overview: open a pod from there when a cell goes amber.",
+    "description": "Every kura_* metric family exported by the Kura runtime (grouped by subsystem) plus the pod-level Kubernetes, cAdvisor and egress-tree series, the pod's Loki logs, its Tempo traces and where it runs, filterable by environment and pod. Companion to Tuist Kura / Customer Overview: open a pod from there when a cell goes amber.",
     "editable": true,
     "elements": {
       "panel-1": {
@@ -9483,37 +9483,16 @@
                     },
                     "refId": "B"
                   }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_beta_excluded_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "beta-excluded {{node}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
-                  }
                 }
               ],
               "queryOptions": {},
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_attached_pods, _skipped_pods (unresolvable device or malformed annotation), _beta_excluded_pods (BETA_POD_PREFIX gate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_attached_pods, _skipped_pods (unresolvable device or malformed annotation). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 184,
           "links": [],
-          "title": "Attached / skipped / beta-excluded pods",
+          "title": "Attached / skipped pods",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -9763,14 +9742,56 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid) ((sum by (cluster, pod, classid) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "sent {{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "instant": false,
+                        "legendFormat": "rate {{node}} · {{account}} · {{classid}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "instant": false,
+                        "legendFormat": "ceil {{node}} · {{account}} · {{classid}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "C"
                   }
                 }
               ],
@@ -9778,7 +9799,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_sent_bytes by classid — kernel counter exported as a gauge, rate() × 8. classid 1:\u003chex\u003e is allocated per account by kura-controller (kura.tuist.dev/egress-class-id annotation); no metric exports the classid→account mapping. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_sent_bytes by account and classid — kernel counter exported as a gauge, rate() × 8 — against the rate and ceiling the kernel is enforcing (_class_rate_bytes_per_second, _class_ceil_bytes_per_second, also × 8). A tenant riding its ceiling wants a larger floor; one far under its rate is reserving room it does not use. classid 1:\u003chex\u003e is allocated per account by kura-controller and freed when the account's last instance goes, so the account label is what identifies the tenant over time. Node-level agent series, shown for the node(s) hosting the selected pod(s) — every class on those nodes, neighbours included, since they are what the tenant contends with.",
           "id": 186,
           "links": [],
           "title": "Class throughput (bits/s)",
@@ -9876,9 +9897,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid) ((sum by (cluster, pod, classid) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
@@ -9891,7 +9912,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_drops by classid (kernel counter as gauge, rate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_drops by account and classid (kernel counter as gauge, rate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 187,
           "links": [],
           "title": "Class drops",
@@ -9989,9 +10010,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid) ((max by (cluster, pod, classid) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
@@ -10004,7 +10025,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_backlog_bytes by classid — bytes queued in a tenant class. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_backlog_bytes by account and classid — bytes queued in a tenant class. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 188,
           "links": [],
           "title": "Class backlog",
@@ -19230,6 +19251,1506 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-193": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "kura_egress_tree_class_borrowed_packets / (borrowed + lended) — HTB's own accounting of where a class's traffic came from: a packet sent within the class's own rate counts as lended, one it could only send by taking tokens from the root class counts as borrowed. Near 1 means the tenant spends its time above the floor it reserves and is a candidate for a larger one; near 0 means the floor covers its demand. A class with no floor runs on the 1 Mbit trickle the agent gives it, so it borrows nearly everything by construction — read this against the rate on 'Class throughput'. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "id": 193,
+          "links": [],
+          "title": "Class borrow ratio",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-194": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$logs_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (level) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json [$__auto]))",
+                        "legendFormat": "{{level}}",
+                        "queryType": "range"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Lines per query step by `level`, parsed out of the runtime's JSON logs. A step in ERROR/WARN is the cheapest first read on whether a pod's problem is loud or silent; every level dropping to zero on a live pod means the runtime stopped logging (wedged), not that it went quiet.",
+          "id": 194,
+          "links": [],
+          "title": "Log volume by level",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ERROR"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "WARN"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "INFO"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "DEBUG"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "TRACE"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-195": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$logs_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (pod) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" [$__auto]))",
+                        "legendFormat": "{{pod}}",
+                        "queryType": "range"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Lines per query step per pod, unparsed. With several pods selected this is where one node that is retrying or thrashing separates itself from its peers.",
+          "id": 195,
+          "links": [],
+          "title": "Log volume by pod",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-196": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$logs_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json | level =~ \"ERROR|WARN\""
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "ERROR and WARN lines only. Expand a line to read the span fields the runtime stamps on every log (`span_kura_tenant_id`, `span_kura_region`, `trace_id`) and use `trace_id` to jump to the matching trace in the Traces row.",
+          "id": 196,
+          "links": [],
+          "title": "Errors \u0026 warnings",
+          "vizConfig": {
+            "group": "logs",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              },
+              "options": {
+                "dedupStrategy": "none",
+                "enableInfiniteScrolling": true,
+                "enableLogDetails": true,
+                "prettifyLogMessage": true,
+                "showCommonLabels": false,
+                "showControls": false,
+                "showFieldSelector": false,
+                "showLabels": false,
+                "showLevel": true,
+                "showLogAttributes": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "timestampResolution": "ms",
+                "unwrappedColumns": false,
+                "wrapLogMessage": false
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-197": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$logs_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Every line from the selected pods, JSON-parsed. Panel controls are on so a line filter can be typed here without leaving the dashboard. Non-JSON output (panics, pre-telemetry boot lines) still shows up, flagged with a parser error rather than dropped.",
+          "id": 197,
+          "links": [],
+          "title": "Kura logs",
+          "vizConfig": {
+            "group": "logs",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              },
+              "options": {
+                "dedupStrategy": "none",
+                "enableInfiniteScrolling": true,
+                "enableLogDetails": true,
+                "prettifyLogMessage": true,
+                "showCommonLabels": false,
+                "showControls": true,
+                "showFieldSelector": true,
+                "showLabels": false,
+                "showLevel": true,
+                "showLogAttributes": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "timestampResolution": "ms",
+                "unwrappedColumns": false,
+                "wrapLogMessage": false
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-198": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$traces_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "limit": 50,
+                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\" } with (most_recent=true)",
+                        "queryType": "traceql",
+                        "tableType": "traces"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Most recent spans exported by the selected pods, with liveness, readiness, scrape and rollout-status routes excluded so real client work is what's left. Traces carry the node's `kura.region`, `kura.tenant_id` and `geo.*` resource attributes, so a span identifies the node that served it.",
+          "id": 198,
+          "links": [],
+          "title": "Recent traces",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-199": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$traces_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "limit": 50,
+                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\"\n  \u0026\u0026 duration \u003e 500ms } with (most_recent=true)",
+                        "queryType": "traceql",
+                        "tableType": "traces"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Requests that took longer than half a second. Read alongside `public_request_latency_seconds` in the HTTP row: the histogram says the tail exists, this says which routes and payloads are in it.",
+          "id": 199,
+          "links": [],
+          "title": "Slow traces (\u003e 500 ms)",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-200": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$traces_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "limit": 50,
+                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 (status = error || span.http.response.status_code \u003e= 500) } with (most_recent=true)",
+                        "queryType": "traceql",
+                        "tableType": "traces"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Spans the runtime marked as errored, plus anything that answered 5xx. Empty here while `http_exceptions_total` climbs means the failures are being turned into 4xx responses, not faults.",
+          "id": 200,
+          "links": [],
+          "title": "Error traces",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-201": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$traces_datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "limit": 50,
+                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route =~ \"^/_internal/.*\" } with (most_recent=true)",
+                        "queryType": "traceql",
+                        "tableType": "traces"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Mesh-internal traffic only (`/_internal/*`): peer replication applies, backfill listings and body fetches. This is the row to open when the outbox or backfill panels show work that is not draining.",
+          "id": 201,
+          "links": [],
+          "title": "Peer replication \u0026 backfill traces",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-202": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": true,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (region) (\n  sum by (pod) (rate(kura_http_requests_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\", route!~\"/up|/ready|/metrics|/status/rollout|/_unmatched|/_internal/.*\"}[5m]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n)\nor sum by (region) (max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"}) * 0)",
+                        "instant": true,
+                        "legendFormat": "{{region}}",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "D"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "__expr__"
+                      },
+                      "group": "__expr__",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
+                        "type": "sql"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "E"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": true,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "max by (region, country, subdivision) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": true,
+                        "legendFormat": "{{region}}",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "F"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "__expr__"
+                      },
+                      "group": "__expr__",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expression": "SELECT region, country, subdivision,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
+                        "type": "sql"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "G"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Where the selected pods run (white markers, labelled by region) and how much public request traffic each region is taking (amber bubbles, sized and coloured by client req/s). Coordinates are the datacentre cities behind `Tuist.Kura.Regions`; a region with no mapped coordinates is left off the map and shows up only in the table beside it.",
+          "id": 202,
+          "links": [],
+          "title": "Node locations \u0026 request traffic",
+          "vizConfig": {
+            "group": "geomap",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "#f59e0b",
+                        "value": 0
+                      },
+                      {
+                        "color": "#f97316",
+                        "value": 30
+                      },
+                      {
+                        "color": "#ef4444",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "reqps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "basemap": {
+                  "config": {},
+                  "name": "Layer 0",
+                  "type": "default"
+                },
+                "controls": {
+                  "mouseWheelZoom": true,
+                  "showAttribution": true,
+                  "showDebug": false,
+                  "showMeasure": false,
+                  "showScale": false,
+                  "showZoom": true
+                },
+                "layers": [
+                  {
+                    "config": {
+                      "showLegend": true,
+                      "style": {
+                        "color": {
+                          "field": "Value",
+                          "fixed": "#f59e0b"
+                        },
+                        "opacity": 0.35,
+                        "size": {
+                          "field": "Value",
+                          "fixed": 20,
+                          "max": 80,
+                          "min": 20
+                        },
+                        "symbol": {
+                          "fixed": "img/icons/marker/circle.svg",
+                          "mode": "fixed"
+                        },
+                        "symbolAlign": {
+                          "horizontal": "center",
+                          "vertical": "center"
+                        },
+                        "text": {
+                          "fixed": "",
+                          "mode": "fixed"
+                        },
+                        "textConfig": {
+                          "fontSize": 12,
+                          "offsetX": 0,
+                          "offsetY": 0
+                        }
+                      }
+                    },
+                    "filterData": {
+                      "id": "byRefId",
+                      "options": "E"
+                    },
+                    "location": {
+                      "latitude": "lat",
+                      "longitude": "lon",
+                      "mode": "coords"
+                    },
+                    "name": "Request traffic",
+                    "tooltip": true,
+                    "type": "markers"
+                  },
+                  {
+                    "config": {
+                      "showLegend": true,
+                      "style": {
+                        "color": {
+                          "fixed": "#ffffff"
+                        },
+                        "opacity": 1,
+                        "size": {
+                          "fixed": 14,
+                          "max": 14,
+                          "min": 14
+                        },
+                        "symbol": {
+                          "fixed": "img/icons/marker/circle.svg",
+                          "mode": "fixed"
+                        },
+                        "symbolAlign": {
+                          "horizontal": "center",
+                          "vertical": "center"
+                        },
+                        "text": {
+                          "field": "region",
+                          "fixed": "",
+                          "mode": "field"
+                        },
+                        "textConfig": {
+                          "fontSize": 12,
+                          "offsetX": 0,
+                          "offsetY": -18,
+                          "textAlign": "center",
+                          "textBaseline": "middle"
+                        }
+                      }
+                    },
+                    "filterData": {
+                      "id": "byRefId",
+                      "options": "G"
+                    },
+                    "location": {
+                      "latitude": "lat",
+                      "longitude": "lon",
+                      "mode": "coords"
+                    },
+                    "name": "Server nodes",
+                    "tooltip": true,
+                    "type": "markers"
+                  }
+                ],
+                "tooltip": {
+                  "mode": "details"
+                },
+                "view": {
+                  "allLayers": true,
+                  "dashboardVariable": false,
+                  "id": "coords",
+                  "lat": 25,
+                  "lon": 0,
+                  "noRepeat": false,
+                  "zoom": 1.4
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-203": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "max by (pod, region, tenant_id, country, subdivision) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "format": "table",
+                        "instant": true,
+                        "legendFormat": "__auto",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "group": "labelsToFields",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "group": "organize",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true,
+                        "Value": true,
+                        "__name__": true,
+                        "container": true,
+                        "endpoint": true,
+                        "instance": true,
+                        "job": true,
+                        "namespace": true,
+                        "service": true
+                      },
+                      "indexByName": {
+                        "pod": 0,
+                        "region": 1,
+                        "tenant_id": 2,
+                        "country": 3,
+                        "subdivision": 4
+                      },
+                      "renameByName": {
+                        "country": "Country",
+                        "pod": "Pod",
+                        "region": "Region",
+                        "subdivision": "Subdivision",
+                        "tenant_id": "Customer"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "description": "Every selected pod with the region, tenant and ISO country / subdivision it reports. This is the authoritative list: unlike the map it needs no coordinate mapping, so a newly added region shows up here the moment its first node scrapes.",
+          "id": 203,
+          "links": [],
+          "title": "Node geography",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "text",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Pod"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 280
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "displayName": "Region"
+                  }
+                ]
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-204": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (region) (\n  sum by (pod) (rate(kura_http_requests_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\", route!~\"/up|/ready|/metrics|/status/rollout|/_unmatched|/_internal/.*\"}[$__rate_interval]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n)",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Public request rate rolled up per region, joined from per-pod counters through `kura_node_geo_info` (the HTTP counters carry no region label of their own). Probes, scrapes, unmatched paths and mesh-internal routes are excluded, so this is client-facing traffic only.",
+          "id": 204,
+          "links": [],
+          "title": "Request rate by region",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "reqps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-205": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.95, sum by (region, le) (\n  sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n))",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "p95 of `public_request_latency_seconds` per region. Regions serve different client populations over different paths, so a tail that belongs to one region is a routing or placement question, not a runtime one.",
+          "id": 205,
+          "links": [],
+          "title": "p95 public latency by region",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-206": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (region) (\n  sum by (pod) (rate(kura_artifact_egress_bytes_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n)",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Bytes served to clients per region. Read against the region's node NIC budget (`Bare-metal capacity` on Tuist Kura) when deciding whether a region needs another box.",
+          "id": 206,
+          "links": [],
+          "title": "Artifact egress by region",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Bps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
       }
     },
     "layout": {
@@ -19386,11 +20907,156 @@
                         "x": 16,
                         "y": 4
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-193"
+                        },
+                        "height": 4,
+                        "width": 4,
+                        "x": 20,
+                        "y": 4
+                      }
                     }
                   ]
                 }
               },
               "title": "State"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-194"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-195"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-196"
+                        },
+                        "height": 10,
+                        "width": 24,
+                        "x": 0,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-197"
+                        },
+                        "height": 12,
+                        "width": 24,
+                        "x": 0,
+                        "y": 18
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Logs (Loki) (4)"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-198"
+                        },
+                        "height": 10,
+                        "width": 24,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-199"
+                        },
+                        "height": 9,
+                        "width": 12,
+                        "x": 0,
+                        "y": 10
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-200"
+                        },
+                        "height": 9,
+                        "width": 12,
+                        "x": 12,
+                        "y": 10
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-201"
+                        },
+                        "height": 9,
+                        "width": 24,
+                        "x": 0,
+                        "y": 19
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Traces (Tempo) (4)"
             }
           },
           {
@@ -21445,6 +23111,85 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-202"
+                        },
+                        "height": 11,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-203"
+                        },
+                        "height": 11,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-204"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 11
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-205"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 11
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-206"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 11
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Geography (5)"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-157"
                         },
                         "height": 7,
@@ -21949,6 +23694,19 @@
                         "x": 8,
                         "y": 21
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-193"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 21
+                      }
                     }
                   ]
                 }
@@ -22024,6 +23782,46 @@
           "name": "datasource",
           "options": [],
           "pluginId": "prometheus",
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "DatasourceVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "grafanacloud-tuist-logs",
+            "value": "grafanacloud-logs"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "label": "Logs (Loki)",
+          "multi": false,
+          "name": "logs_datasource",
+          "options": [],
+          "pluginId": "loki",
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "DatasourceVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "grafanacloud-tuist-traces",
+            "value": "grafanacloud-traces"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "label": "Traces (Tempo)",
+          "multi": false,
+          "name": "traces_datasource",
+          "options": [],
+          "pluginId": "tempo",
           "refresh": "onDashboardLoad",
           "regex": "",
           "skipUrlSync": false

@@ -15,7 +15,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps + `patches/`, applied to rules_rs's pinned rules_rust); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development

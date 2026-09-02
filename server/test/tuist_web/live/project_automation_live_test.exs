@@ -3,9 +3,12 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Revision
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -54,6 +57,20 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
 
         automation
       end)
+
+    # All six revisions land in the same second, and the UUIDv7 that breaks the
+    # tie is random within a millisecond, so the creation is pushed back to keep
+    # it off the first page of history and the rest on it.
+    oldest =
+      automation.id
+      |> Automations.list_alert_revisions()
+      |> Enum.map(& &1.inserted_at)
+      |> Enum.min(DateTime)
+
+    Repo.update_all(
+      from(r in Revision, where: r.automation_alert_id == ^automation.id and r.event == "created"),
+      set: [inserted_at: DateTime.add(oldest, -1, :second)]
+    )
 
     {:ok, live_view, html} = open(conn, organization, project, automation)
 

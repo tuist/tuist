@@ -43,19 +43,10 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
-        // Xcode processes every unconditionally direct xcframework into the build products directory. That copy is
-        // visible to the target graph, so adding the same vendor module map from a dynamic route would define the
-        // module twice. A platform-qualified direct dependency cannot prove that it covers the dynamic route.
-        var unconditionallyDirectlyLinkedXCFrameworkPaths = Set<AbsolutePath>()
-        for (source, dependencies) in graph.dependencies {
-            guard case .target = source else { continue }
-            for dependency in dependencies {
-                guard graph.dependencyConditions[(source, dependency)] == nil,
-                      case let .xcframework(xcframework) = dependency
-                else { continue }
-                unconditionallyDirectlyLinkedXCFrameworkPaths.insert(xcframework.path)
-            }
-        }
+        let unconditionallyDirectlyLinkedXCFrameworkPaths = Self.unconditionallyDirectlyLinkedXCFrameworkPaths(
+            in: graph,
+            initialGraphWithSources: environment.initialGraphWithSources
+        )
 
         let graph = try await mapGraph(
             graph: graph
@@ -254,6 +245,45 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     private static func nestedModuleMap(for xcframework: GraphDependency.XCFramework) -> AbsolutePath? {
         guard let moduleMap = xcframework.moduleMaps.first else { return nil }
         return moduleMap.parentDirectory.basename == xcframework.path.basenameWithoutExt ? moduleMap : nil
+    }
+
+    /// Xcode processes every unconditionally direct xcframework into the build products directory. That copy is
+    /// visible to the target graph, so adding the same vendor module map from a dynamic route would define the module
+    /// twice. A platform-qualified direct dependency cannot prove that it covers the dynamic route. The original graph
+    /// is retained in the mapper environment before binary-cache replacement, which can otherwise remove the direct
+    /// dependency from the graph being generated. Only the targets that survive into the generated projects count
+    /// there: a target replaced by a cached binary, or dropped by tree shaking, no longer references the xcframework,
+    /// so Xcode never produces the copy that would define the module.
+    private static func unconditionallyDirectlyLinkedXCFrameworkPaths(
+        in graph: Graph,
+        initialGraphWithSources: Graph?
+    ) -> Set<AbsolutePath> {
+        var paths = unconditionallyDirectlyLinkedXCFrameworkPaths(in: graph)
+        if let initialGraphWithSources {
+            paths.formUnion(
+                unconditionallyDirectlyLinkedXCFrameworkPaths(in: initialGraphWithSources) { name, path in
+                    graph.projects[path]?.targets[name] != nil
+                }
+            )
+        }
+        return paths
+    }
+
+    private static func unconditionallyDirectlyLinkedXCFrameworkPaths(
+        in graph: Graph,
+        isGenerated: (String, AbsolutePath) -> Bool = { _, _ in true }
+    ) -> Set<AbsolutePath> {
+        var paths = Set<AbsolutePath>()
+        for (source, dependencies) in graph.dependencies {
+            guard case let .target(name, path, _) = source, isGenerated(name, path) else { continue }
+            for dependency in dependencies {
+                guard graph.dependencyConditions[(source, dependency)] == nil,
+                      case let .xcframework(xcframework) = dependency
+                else { continue }
+                paths.insert(xcframework.path)
+            }
+        }
+        return paths
     }
 
     /// Only called for flat layouts, which point at the derived module map whose umbrella header was

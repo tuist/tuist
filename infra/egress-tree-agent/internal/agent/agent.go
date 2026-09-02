@@ -203,7 +203,7 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		}
 	}
 
-	a.exportStats(ctx, attachments, deviceOf)
+	a.exportStats(ctx, classes, attachments, deviceOf)
 	return requeue, nil
 }
 
@@ -242,11 +242,19 @@ func (a *Agent) logClassChanges(classes map[uint16]TenantClass) {
 		switch {
 		case !ok:
 			a.Log.Info("added tenant class", "classid", ClassIDString(minor),
+				"account", class.Account,
 				"floor_mbps", class.FloorMbps, "burst_mbps", class.BurstMbps)
 		case old != class:
-			a.Log.Info("updated tenant class", "classid", ClassIDString(minor),
+			attrs := []any{"classid", ClassIDString(minor), "account", class.Account,
 				"old_floor_mbps", old.FloorMbps, "old_burst_mbps", old.BurstMbps,
-				"floor_mbps", class.FloorMbps, "burst_mbps", class.BurstMbps)
+				"floor_mbps", class.FloorMbps, "burst_mbps", class.BurstMbps}
+			// A classid outliving its account and being handed to the next
+			// one is what makes the account label necessary; say so where
+			// it happens, so the series break has a cause in the log.
+			if old.Account != class.Account {
+				attrs = append(attrs, "old_account", old.Account)
+			}
+			a.Log.Info("updated tenant class", attrs...)
 		}
 	}
 	a.appliedClasses = maps.Clone(classes)
@@ -300,7 +308,7 @@ func diffStrings(old, current []string) (added, removed []string) {
 	return added, removed
 }
 
-func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, deviceOf map[string]string) {
+func (a *Agent) exportStats(ctx context.Context, classes map[uint16]TenantClass, attachments []PodAttachment, deviceOf map[string]string) {
 	// Stats returns the class stats it collected even when the
 	// direct-packet read fails; export whatever arrived so the per-class
 	// gauges never freeze on their last good values — a frozen counter
@@ -311,11 +319,23 @@ func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, de
 		a.Metrics.ClassSentBytes.Reset()
 		a.Metrics.ClassDrops.Reset()
 		a.Metrics.ClassBacklogBytes.Reset()
+		a.Metrics.ClassLendedPackets.Reset()
+		a.Metrics.ClassBorrowedPackets.Reset()
+		a.Metrics.ClassRateBytes.Reset()
+		a.Metrics.ClassCeilBytes.Reset()
 		for _, class := range stats {
 			id := ClassIDString(class.Minor)
-			a.Metrics.ClassSentBytes.WithLabelValues(id).Set(float64(class.SentBytes))
-			a.Metrics.ClassDrops.WithLabelValues(id).Set(float64(class.Drops))
-			a.Metrics.ClassBacklogBytes.WithLabelValues(id).Set(float64(class.BacklogBytes))
+			// A kernel class with no desired class behind it is one this
+			// cycle is about to prune; it has no account to name, and an
+			// empty handle is the honest label for it.
+			account := classes[class.Minor].Account
+			a.Metrics.ClassSentBytes.WithLabelValues(id, account).Set(float64(class.SentBytes))
+			a.Metrics.ClassDrops.WithLabelValues(id, account).Set(float64(class.Drops))
+			a.Metrics.ClassBacklogBytes.WithLabelValues(id, account).Set(float64(class.BacklogBytes))
+			a.Metrics.ClassLendedPackets.WithLabelValues(id, account).Set(float64(class.LendedPackets))
+			a.Metrics.ClassBorrowedPackets.WithLabelValues(id, account).Set(float64(class.BorrowedPackets))
+			a.Metrics.ClassRateBytes.WithLabelValues(id, account).Set(float64(class.RateBps))
+			a.Metrics.ClassCeilBytes.WithLabelValues(id, account).Set(float64(class.CeilBps))
 		}
 	}
 	if err != nil {
@@ -391,6 +411,7 @@ func (a *Agent) shapedPods() ([]PodShape, int) {
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
 			IP:        pod.Status.PodIP,
+			Account:   pod.Labels[AccountLabel],
 			Minor:     minor,
 			FloorMbps: floor,
 			BurstMbps: burst,
