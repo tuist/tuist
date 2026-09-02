@@ -307,8 +307,9 @@ struct SetupCacheCommandService {
         }
 
         // The `kura` client feature flag selects the machine-wide CAS proxy +
-        // plugin. Without it, accounts stay on the legacy per-project cache daemon
-        // they rely on today, until they are migrated to kura.
+        // plugin. It is on unless `TUIST_FEATURE_FLAG_KURA` is set to a falsey
+        // value, which puts the machine back on the legacy per-project cache
+        // daemon.
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
             // Register BEFORE starting the proxy. The proxy
