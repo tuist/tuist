@@ -19331,7 +19331,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (level) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\", pod=~\"$pod\"} | json [$__auto]))",
+                        "expr": "sum by (level) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json [$__auto]))",
                         "legendFormat": "{{level}}",
                         "queryType": "range"
                       },
@@ -19499,7 +19499,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (pod) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\", pod=~\"$pod\"} [$__auto]))",
+                        "expr": "sum by (pod) (count_over_time({cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" [$__auto]))",
                         "legendFormat": "{{pod}}",
                         "queryType": "range"
                       },
@@ -19591,7 +19591,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\", pod=~\"$pod\"} | json | level =~ \"ERROR|WARN\""
+                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json | level =~ \"ERROR|WARN\""
                       },
                       "version": "v0"
                     },
@@ -19656,7 +19656,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\", pod=~\"$pod\"} | json"
+                        "expr": "{cluster=~\"tuist-$env\", namespace=\"kura\", container=\"kura\"} | pod=~\"$pod\" | json"
                       },
                       "version": "v0"
                     },
