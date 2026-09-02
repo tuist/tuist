@@ -509,7 +509,7 @@
                           "steps": [
                             {
                               "color": "red",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -560,7 +560,7 @@
                           "steps": [
                             {
                               "color": "red",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -624,7 +624,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -684,7 +684,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -744,7 +744,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1052,7 +1052,7 @@
                           "steps": [
                             {
                               "color": "red",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1103,7 +1103,7 @@
                           "steps": [
                             {
                               "color": "red",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1167,7 +1167,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1227,7 +1227,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1287,7 +1287,7 @@
                           "steps": [
                             {
                               "color": "green",
-                              "value": null
+                              "value": 0
                             },
                             {
                               "color": "orange",
@@ -1384,7 +1384,7 @@
                     "steps": [
                       {
                         "color": "red",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "orange",
@@ -1487,7 +1487,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   },
@@ -1582,7 +1582,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "orange",
@@ -1685,7 +1685,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "orange",
