@@ -589,9 +589,11 @@ defmodule Tuist.Runners do
     {dispatchable, withheld} =
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
+          headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+
           dispatchable =
             Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+              acc + min(count, Map.get(headrooms, account_id, 0))
             end)
 
           {dispatchable, raw - dispatchable}

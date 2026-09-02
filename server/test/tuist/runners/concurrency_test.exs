@@ -378,4 +378,36 @@ defmodule Tuist.Runners.ConcurrencyTest do
       assert Concurrency.headroom_jobs(account.id, %{}) == 0
     end
   end
+
+  describe "headroom_jobs_by_account/2" do
+    test "agrees with headroom_jobs/2 for every account" do
+      first = account_fixture()
+      second = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(11_301, first.id, "macos-pool", "p1", shape)
+
+      assert Concurrency.headroom_jobs_by_account([first.id, second.id], shape) == %{
+               first.id => Concurrency.headroom_jobs(first.id, shape),
+               second.id => Concurrency.headroom_jobs(second.id, shape)
+             }
+    end
+
+    test "reports 0 for an account with no limit row rather than omitting it" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert Concurrency.headroom_jobs_by_account([account.id, -1], shape) == %{
+               account.id => 2,
+               -1 => 0
+             }
+    end
+
+    test "returns an empty map for no accounts and 0s for a malformed shape" do
+      account = account_fixture()
+
+      assert Concurrency.headroom_jobs_by_account([], %{platform: :macos, vcpus: 6, memory_gb: 14}) == %{}
+      assert Concurrency.headroom_jobs_by_account([account.id], %{}) == %{account.id => 0}
+    end
+  end
 end

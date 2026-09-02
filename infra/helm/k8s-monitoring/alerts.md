@@ -830,7 +830,7 @@ was noticed by a person looking at the queue.
 
 ```promql
 max by (cluster, env, fleet) (
-  tuist_runners_queue_oldest_age_seconds
+  tuist_runners_queue_oldest_dispatchable_age_seconds
 ) > 1800
 ```
 
@@ -841,6 +841,38 @@ max by (cluster, env, fleet) (
 - Summary: `Workflow jobs on {{ $labels.fleet }} have been queued for
   over 30 minutes in {{ $labels.cluster }}: the fleet is not draining
   its queue`
+
+**Dispatchable** age, not raw age. `tuist_runners_queue_oldest_age_seconds`
+counts every queued row, including work the server deliberately withholds
+because its account is at its concurrency limit
+(`tuist_runners_queue_withheld`). That withholding is admission control
+working: dispatch declines those jobs on purpose, and the autoscaler
+declines to grow the fleet for them for the same reason. A rule on the
+raw age therefore pages on a design decision, and hands whoever answers
+it no lever but a commercial one — raising the account's limit.
+
+On 2026-09-02 this rule fired on `linux-16vcpu-32gb` for exactly that.
+The fleet is single-tenant, the account sat pinned on its 128 GB Linux
+budget from 05:00 to 08:00 UTC, and `queue_withheld` equalled the full
+queue depth throughout while `autoscaler_queued_jobs` read 0. Hardware
+was not short: node memory ran 34-50%. Nothing in the fleet was faulty,
+and there was no infrastructure action to take.
+
+The predicate has to be "nothing dispatchable", not "anything withheld".
+Suppressing whenever `queue_withheld > 0` would silence a genuine stall
+that happens while some other account is capped, and the two co-occur
+easily on a shared fleet. `oldest_dispatchable_age_seconds` is computed
+per account inside the same Postgres scan that produces depth and raw
+age (`Tuist.Runners.WorkflowJobs.queue_stats_by_fleet/1`), so it excludes
+only the accounts with no headroom and still reports an uncapped
+account's wait in full. Doing it in the metric rather than as a compound
+PromQL condition also avoids subtracting two gauges written by different
+code paths at different cadences — `queue_withheld` is emitted from the
+autoscaler's signal path, not this poll.
+
+Keep `tuist_runners_queue_length` and `tuist_runners_queue_oldest_age_seconds`
+on the dashboard: they still report the truth about what customers are
+waiting on, which is what the companion rule below watches.
 
 Age, not depth, for the same reason the remote-processing rule uses it,
 and the reason is already written into the metric's definition in
@@ -889,6 +921,41 @@ them:
 ```bash
 kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
 ```
+
+### Runner queue parked at an account concurrency limit
+
+```promql
+max by (cluster, env, fleet) (
+  tuist_runners_queue_withheld
+) > 0
+```
+
+- Pending period: 2 hours
+- Severity: warning
+- Route: commercial/account ownership, **not** on-call
+- Summary: `An account has had work queued on {{ $labels.fleet }} for
+  over 2 hours that its concurrency limit will not let it run`
+
+The information "Runner queue not draining" used to surface by accident,
+kept deliberately and at the right urgency. An account parked at its cap
+for hours is real — their jobs are waiting — but it is an entitlement
+question, not an incident: either they should buy more concurrency, or
+their limit is misconfigured relative to what they already bought.
+
+Two hours rather than minutes because short excursions are the limit
+doing its job on a burst and self-resolve. Fleet-scoped rather than
+account-scoped because the metric has no account label; identify the
+account from `runner_concurrency_limits` against
+`Tuist.Runners.Concurrency.usage_by_platform/1`, or from the fleet's
+queued rows in `runner_workflow_jobs`.
+
+Note the limit is a **resource** budget per account and platform
+(vCPU and memory), shared across every shape on that platform — so an
+account's smaller Linux jobs consume the same budget its large-shape
+jobs need, and a trickle of them can leave no contiguous room for a
+large shape. That is the account-budget analogue of the node-level
+starvation `infra/runners-controller/controllers/reservation.go` solves,
+and nothing guards it today.
 
 ### Node leaking cgroups
 

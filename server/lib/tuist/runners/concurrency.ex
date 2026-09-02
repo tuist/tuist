@@ -161,6 +161,68 @@ defmodule Tuist.Runners.Concurrency do
 
   def headroom_jobs(_account_id, _resources), do: 0
 
+  @doc """
+  `headroom_jobs/2` for many accounts at once, in two queries instead of
+  two per account.
+
+  Both callers need every queued account's headroom on one pass — the
+  autoscaler's demand signal and the queue gauges' dispatchable age —
+  and asking per account put a limits read and a usage aggregate on a
+  poll path that runs every 30 seconds across every fleet.
+
+  An account with no limit row is present with 0 rather than absent, so
+  a caller can tell "no headroom" from "not asked about" without
+  carrying the input list alongside the result.
+  """
+  def headroom_jobs_by_account(account_ids, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+      when is_list(account_ids) and platform in @platforms and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and
+             memory_gb > 0 do
+    account_ids = Enum.uniq(account_ids)
+    limits = limits_for_accounts(account_ids, platform)
+    usage = usage_for_accounts(account_ids, platform)
+
+    Map.new(account_ids, fn account_id ->
+      case Map.fetch(limits, account_id) do
+        {:ok, limit} ->
+          used = Map.get(usage, account_id, %{vcpus: 0, memory_gb: 0})
+
+          headroom =
+            [div(limit.vcpus - used.vcpus, vcpus), div(limit.memory_gb - used.memory_gb, memory_gb)]
+            |> Enum.min()
+            |> max(0)
+
+          {account_id, headroom}
+
+        :error ->
+          {account_id, 0}
+      end
+    end)
+  end
+
+  def headroom_jobs_by_account(account_ids, _resources) when is_list(account_ids) do
+    account_ids |> Enum.uniq() |> Map.new(&{&1, 0})
+  end
+
+  defp limits_for_accounts([], _platform), do: %{}
+
+  defp limits_for_accounts(account_ids, platform) do
+    ConcurrencyLimit
+    |> where([limit], limit.account_id in ^account_ids and limit.platform == ^platform)
+    |> Repo.all()
+    |> Map.new(&{&1.account_id, limit_resources(&1)})
+  end
+
+  defp usage_for_accounts([], _platform), do: %{}
+
+  defp usage_for_accounts(account_ids, platform) do
+    Claim
+    |> where([claim], claim.account_id in ^account_ids and claim.platform == ^platform)
+    |> group_by([claim], claim.account_id)
+    |> select([claim], {claim.account_id, %{vcpus: sum(claim.vcpus), memory_gb: sum(claim.memory_gb)}})
+    |> Repo.all()
+    |> Map.new()
+  end
+
   defp limit_for_platform(account_id, platform) do
     case Repo.get_by(ConcurrencyLimit, account_id: account_id, platform: platform) do
       nil -> :error
