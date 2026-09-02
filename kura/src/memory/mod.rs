@@ -84,6 +84,8 @@ struct MemoryControllerInner {
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
     response_stream_waiters: AtomicU64,
+    #[cfg(test)]
+    response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
     pools: MemoryPools,
@@ -203,6 +205,8 @@ impl MemoryController {
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
                 response_stream_waiters: AtomicU64::new(0),
+                #[cfg(test)]
+                response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
                 pools,
@@ -984,7 +988,11 @@ mod tests {
         const ADMISSIONS_PER_WORKER: usize = 50_000;
         const SAMPLES: usize = 8;
 
-        async fn measure(controller: MemoryController) -> f64 {
+        async fn measure(controller: MemoryController, always_notify: bool) -> f64 {
+            controller
+                .inner
+                .response_stream_notify_without_waiters
+                .store(always_notify, Ordering::Release);
             let barrier = Arc::new(Barrier::new(WORKERS + 1));
             let mut workers = JoinSet::new();
             for _ in 0..WORKERS {
@@ -1016,17 +1024,32 @@ mod tests {
             1024 * 1024 * 1024,
             1536 * 1024 * 1024,
         );
-        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut paired_speedups = Vec::with_capacity(SAMPLES - 1);
         for sample in 0..SAMPLES {
-            let rate = measure(controller.clone()).await;
+            let baseline_first = sample % 2 == 0;
+            let first = measure(controller.clone(), baseline_first).await;
+            let second = measure(controller.clone(), !baseline_first).await;
             if sample > 0 {
-                rates.push(rate);
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                paired_speedups.push(candidate / baseline);
             }
         }
-        rates.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        paired_speedups.sort_by(f64::total_cmp);
         println!(
-            "METRIC response_stream_admissions_per_second={:.3}",
-            rates[rates.len() / 2]
+            "METRIC response_stream_admissions_per_second={:.3} baseline_admissions_per_second={:.3} paired_speedup_ratio={:.6}",
+            candidate_rates[candidate_rates.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            paired_speedups[paired_speedups.len() / 2],
         );
     }
 
@@ -1779,6 +1802,59 @@ mod tests {
                 > ResponseStreamAdmissionPatience::Degradable.timeout(),
             "a caller whose fallback is an error must be the more patient one"
         );
+    }
+
+    #[tokio::test]
+    async fn releasing_a_response_stream_wakes_a_queued_waiter() {
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256 * 1024 * 1024,
+            128 * 1024 * 1024,
+            192 * 1024 * 1024,
+        );
+        let held = controller
+            .try_acquire_response_stream_memory(
+                controller.foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the fixed response pool should start empty")
+            .0;
+        let _elastic = controller
+            .try_acquire_response_stream_memory(
+                controller.elastic_foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the elastic response pool should start empty")
+            .0;
+
+        let waiter = tokio::spawn({
+            let controller = controller.clone();
+            async move {
+                controller
+                    .acquire_response_stream_memory(
+                        1024 * 1024,
+                        "http",
+                        ResponseStreamAdmissionPatience::Blocking,
+                    )
+                    .await
+            }
+        });
+        while controller
+            .inner
+            .response_stream_waiters
+            .load(Ordering::SeqCst)
+            == 0
+        {
+            tokio::task::yield_now().await;
+        }
+
+        drop(held);
+        let admitted = tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
+            .await
+            .expect("a released response permit should wake the queued waiter")
+            .expect("the waiter task should not panic")
+            .expect("the queued response should acquire released capacity");
+        drop(admitted);
     }
 
     #[tokio::test]
