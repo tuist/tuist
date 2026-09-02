@@ -153,6 +153,278 @@
       }
     ],
     "elements": {
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "id": 7,
+          "title": "Instances that still fit",
+          "description": "How many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor) each region can still place, by placement constraint. A pod places only if the node satisfies both, so the lower of the two is the region's real headroom; 0 means the next provisioning is declined and the region needs a node. **no ceiling** = the region's boxes advertise no `tuist.dev/memory-ceiling-mib` budget, so memory is its only constraint. The RAM section below has the reservations and host memory behind these counts.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_memory_ceiling_mib\", env=\"$env\"})) / (2 * $instance_ceiling_mib)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"memory\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"memory\", env=\"$env\"})) / 1048576 / (2 * $instance_floor_mib)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|Value #[AB])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "Value #A": 1,
+                        "Value #B": 2
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 220
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (ceiling)"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no ceiling",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (memory)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Fit (ceiling)",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
       "panel-1": {
         "kind": "Panel",
         "spec": {
@@ -1753,6 +2025,33 @@
       "kind": "RowsLayout",
       "spec": {
         "rows": [
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Overview",
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-7"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 24,
+                        "height": 7
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           {
             "kind": "RowsLayoutRow",
             "spec": {
