@@ -602,9 +602,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
-                        state
-                            .metrics
-                            .update_outbox_messages(snapshot.outbox_messages);
+                        state.metrics.update_outbox_messages(
+                            snapshot.outbox_messages,
+                            snapshot.outbox_bulk_messages,
+                        );
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics

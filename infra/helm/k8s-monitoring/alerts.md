@@ -2192,9 +2192,10 @@ the label cannot grow with traffic. Grouping by it costs nothing and names the
 limit in the summary, which is what the on-call needs to pick the lever:
 
 - `outbox`: the replication outbox reached its 100,000 cap. The drain is
-  serial and node-wide (one message per peer round-trip, on the order of tens
-  of messages per second), so a backlog is normally ingest outrunning it, not
-  peers being unreachable: in the 2026-08-28 episode both
+  pipelined (`OUTBOX_MAX_INFLIGHT` deliveries at once) and the metadata lane is
+  additionally batched, but the bulk lane still costs one delivery per message,
+  so a backlog is normally ingest outrunning it, not peers being unreachable:
+  in the 2026-08-28 episode both
   `kura_peer_connection_failures_total` and
   `kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
   and bandwidth sat at its configured ceiling almost the whole time. It is
@@ -2266,6 +2267,14 @@ kind** above. That rule tells you writes are already being lost; this one is
 the window before it starts. When the retired outbox rule is deleted, update
 this rule's description, which still names it by its old title.
 
+The live description also still says the drain is "serial and node-wide, one
+delivery per peer round-trip". That stopped being true when the drain was
+pipelined and the metadata lane batched; it reads as an instruction to look for
+a slow peer when the question is which lane is deep. Correct it in the same
+edit, to: `Drain is pipelined and the metadata lane is batched, but the bulk
+lane costs one delivery per message, so a backlog is ingest outrunning it.
+Split it with max by (pod, lane) (kura_outbox_lane_messages).`
+
 #### Two terms: a forecast that leads, and a static backstop
 
 A depth threshold alone could not lead. In the 2026-08-31 episode one pod
@@ -2296,15 +2305,30 @@ the cap as a metric yet; when it does, divide by it.
 
 #### Why the drain falls behind
 
-Do not assume the peers are unreachable. Through the 2026-08-31 episode
-`kura_peer_connection_failures_total` was 0, apply errors were 0, and
+Do not assume the peers are unreachable. Through the 2026-08-31 and 2026-09-02
+episodes `kura_peer_connection_failures_total` was 0, apply errors were 0, and
 replication bandwidth sat at its configured ceiling. Bandwidth is not the
-constraint: `process_outbox` awaits one delivery at a time, node-wide, so
-drain throughput is one message per peer round-trip, on the order of tens of
-messages per second at the fleet's mean RTT, and the pod in that episode was
-running at about 94% of that ceiling against a burst ingest several times
-higher. One artifact write also enqueues one message *per target*, so depth
-is not a count of artifacts.
+constraint, and neither is the round trip.
+
+Start by splitting the backlog by lane:
+
+```promql
+max by (pod, lane) (kura_outbox_lane_messages)
+```
+
+The two lanes fail for different reasons and have different levers. The
+metadata lane (inline upserts, namespace deletes) is amortized by
+`drain_metadata_batches`, which carries up to `REPLICATION_BATCH_MAX_ITEMS`
+messages per request. The bulk lane (segment-backed artifacts) is skipped by
+that path entirely and drains one delivery per message, `OUTBOX_MAX_INFLIGHT`
+at a time, so it is bounded by per-delivery *body transfer* rather than by RTT.
+A runner-cache workload is almost all bulk lane, and on 2026-09-02 a
+write-primary replicating to two peers one region away sustained ~17.7
+messages/s against ingest peaking near 97 messages/s. A deep bulk lane points
+at the in-flight ceiling; a deep metadata lane points at batching.
+
+One artifact write also enqueues one message *per target*, so depth is not a
+count of artifacts.
 
 #### Aggregate by pod, not by series
 

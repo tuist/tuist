@@ -20843,6 +20843,98 @@
             "version": "13.3.0-32457798232"
           }
         }
+      },
+      "panel-208": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod, lane) (kura_outbox_lane_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} · {{lane}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them, and it is the total that the cap and the public write gate are enforced against.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
+          "id": 208,
+          "links": [],
+          "title": "outbox_lane_messages",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -22843,11 +22935,24 @@
                         "x": 8,
                         "y": 14
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-208"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 14
+                      }
                     }
                   ]
                 }
               },
-              "title": "Peer replication \u0026 outbox (8)"
+              "title": "Peer replication \u0026 outbox (9)"
             }
           },
           {

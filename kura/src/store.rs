@@ -167,6 +167,11 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     outbox_depth: AtomicUsize,
+    // Depth of the bulk lane alone. `outbox_depth` is what the cap and the
+    // write gate are enforced against; this splits it so a backlog can be
+    // attributed to the lane that is actually deep, which decides whether the
+    // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`.
+    outbox_bulk_depth: AtomicUsize,
     outbox_max_depth: usize,
     multipart_uploads: AtomicUsize,
     multipart_stored_bytes: AtomicU64,
@@ -367,6 +372,9 @@ const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
 
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
+    /// How many of `outbox_messages` sit in the bulk lane. The rest are the
+    /// metadata lane, which `drain_metadata_batches` amortizes separately.
+    pub outbox_bulk_messages: usize,
     pub multipart_uploads: usize,
     pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
@@ -620,6 +628,7 @@ struct PersistArtifactSpec<'a> {
 
 struct OutboxReservation<'a> {
     depth: &'a AtomicUsize,
+    bulk_depth: &'a AtomicUsize,
     slots: usize,
     committed: bool,
 }
@@ -665,8 +674,15 @@ impl Drop for MultipartByteReservation<'_> {
 }
 
 impl OutboxReservation<'_> {
-    fn commit(mut self) {
+    /// `bulk_slots` is how many of the reserved slots were written to the bulk
+    /// lane. It is taken here rather than at reservation time because the lane
+    /// is only known once the messages are built, and it is applied on success
+    /// so a dropped reservation leaves the split untouched.
+    fn commit(mut self, bulk_slots: usize) {
         self.committed = true;
+        if bulk_slots > 0 {
+            self.bulk_depth.fetch_add(bulk_slots, Ordering::AcqRel);
+        }
     }
 }
 
@@ -1054,6 +1070,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             outbox_depth: AtomicUsize::new(0),
+            outbox_bulk_depth: AtomicUsize::new(0),
             outbox_max_depth: config.outbox_max_depth,
             multipart_uploads: AtomicUsize::new(0),
             multipart_stored_bytes: AtomicU64::new(0),
@@ -1100,8 +1117,11 @@ impl Store {
         store.replace_segment_state_snapshot(segment_state);
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
-        let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
+        let (outbox_depth, outbox_bulk_depth) = store.count_outbox_entries_exact()?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
+        store
+            .outbox_bulk_depth
+            .store(outbox_bulk_depth, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
         store
             .multipart_uploads
@@ -1131,10 +1151,20 @@ impl Store {
         self.outbox_depth.load(Ordering::Acquire)
     }
 
+    /// Bulk-lane depth. Capped at the total, because the two counters are read
+    /// separately and a delete landing between them could otherwise show a
+    /// bulk depth above the total and a negative metadata lane.
+    pub fn outbox_bulk_depth(&self) -> usize {
+        self.outbox_bulk_depth
+            .load(Ordering::Acquire)
+            .min(self.outbox_depth())
+    }
+
     fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
         if slots == 0 {
             return Ok(OutboxReservation {
                 depth: &self.outbox_depth,
+                bulk_depth: &self.outbox_bulk_depth,
                 slots,
                 committed: false,
             });
@@ -1158,6 +1188,7 @@ impl Store {
                 Ok(_) => {
                     return Ok(OutboxReservation {
                         depth: &self.outbox_depth,
+                        bulk_depth: &self.outbox_bulk_depth,
                         slots,
                         committed: false,
                     });
@@ -1542,15 +1573,23 @@ impl Store {
         outbox_reservation: OutboxReservation<'_>,
     ) -> Result<ArtifactManifest, String> {
         let mut batch = WriteBatch::default();
-        let manifest =
-            self.stage_segment_manifest(&mut batch, spec, artifact_id, existing, location, size)?;
+        let mut bulk_outbox = 0;
+        let manifest = self.stage_segment_manifest(
+            &mut batch,
+            spec,
+            artifact_id,
+            existing,
+            location,
+            size,
+            &mut bulk_outbox,
+        )?;
         self.write_batch_with_durability_off_runtime(
             batch,
             "manifest batch",
             ApplyDurability::Sync,
         )
         .await?;
-        outbox_reservation.commit();
+        outbox_reservation.commit(bulk_outbox);
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
@@ -1563,6 +1602,7 @@ impl Store {
     /// `location` are durable before the write may reach the WAL: on the
     /// `Sync` path the append fsynced them; on the `DeferredBatch` path phase
     /// 2 of [`BackfillApplyBatch`] fsynced them before any phase-3 commit.
+    #[allow(clippy::too_many_arguments)]
     fn stage_segment_manifest(
         &self,
         batch: &mut WriteBatch,
@@ -1571,6 +1611,7 @@ impl Store {
         existing: Option<&ArtifactManifest>,
         location: &SegmentLocation,
         size: u64,
+        bulk_outbox: &mut usize,
     ) -> Result<ArtifactManifest, String> {
         let artifact_id = artifact_id.to_owned();
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -1661,7 +1702,7 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
-        self.append_artifact_replication_messages(
+        *bulk_outbox += self.append_artifact_replication_messages(
             batch,
             &manifest,
             spec.replication_targets,
@@ -2345,6 +2386,7 @@ impl Store {
         let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let mut batch = WriteBatch::default();
+        let mut bulk_outbox = 0;
         let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
             &mut batch,
             &spec,
@@ -2352,6 +2394,7 @@ impl Store {
             existing.as_ref(),
             branch,
             bytes,
+            &mut bulk_outbox,
         )?;
 
         self.write_batch_with_durability_off_runtime(
@@ -2360,7 +2403,7 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
-        outbox_reservation.commit();
+        outbox_reservation.commit(bulk_outbox);
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
 
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
@@ -2411,6 +2454,7 @@ impl Store {
     /// action-cache index row was staged (whose generation bump the caller
     /// owes AFTER the batch commits — see
     /// [`Self::note_inline_manifest_committed`]).
+    #[allow(clippy::too_many_arguments)]
     fn stage_inline_manifest(
         &self,
         batch: &mut WriteBatch,
@@ -2419,6 +2463,7 @@ impl Store {
         existing: Option<&ArtifactManifest>,
         branch: Option<&str>,
         bytes: &[u8],
+        bulk_outbox: &mut usize,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_id.to_owned();
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -2509,7 +2554,7 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
-        self.append_artifact_replication_messages(
+        *bulk_outbox += self.append_artifact_replication_messages(
             batch,
             &manifest,
             spec.replication_targets,
@@ -4135,6 +4180,10 @@ impl Store {
                     {
                         SegmentApplyPrecheck::Ignored { .. } => {}
                         SegmentApplyPrecheck::Proceed { existing, .. } => {
+                            // Backfill specs carry no replication targets, so
+                            // this stages no outbox messages and the tally is
+                            // always zero.
+                            let mut bulk_outbox = 0;
                             let manifest = self.stage_segment_manifest(
                                 &mut batch,
                                 &spec,
@@ -4142,6 +4191,7 @@ impl Store {
                                 existing.as_ref(),
                                 &staged.location,
                                 staged.size,
+                                &mut bulk_outbox,
                             )?;
                             committed.push(CommittedGroupRecord::Segmented {
                                 manifest,
@@ -4163,6 +4213,7 @@ impl Store {
                             // re-read (backfill never forwards a trunk).
                             let branch =
                                 sticky_branch(existing.as_ref(), staged.branch.as_deref(), None);
+                            let mut bulk_outbox = 0;
                             let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
                                 &mut batch,
                                 &spec,
@@ -4170,6 +4221,7 @@ impl Store {
                                 existing.as_ref(),
                                 branch,
                                 &staged.bytes,
+                                &mut bulk_outbox,
                             )?;
                             committed.push(CommittedGroupRecord::Inline {
                                 manifest,
@@ -4396,8 +4448,9 @@ impl Store {
             Self::action_cache_index_marker_key(namespace_id).as_bytes(),
         );
 
+        let mut bulk_outbox = 0;
         if !delete_everything {
-            self.append_namespace_delete_messages(
+            bulk_outbox += self.append_namespace_delete_messages(
                 &mut batch,
                 namespace_id,
                 version_ms,
@@ -4411,7 +4464,7 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
-        outbox_reservation.commit();
+        outbox_reservation.commit(bulk_outbox);
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
@@ -4883,7 +4936,7 @@ impl Store {
         let mut batch = WriteBatch::default();
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
         self.write_batch_sync(batch, "outbox message")?;
-        outbox_reservation.commit();
+        outbox_reservation.commit(usize::from(is_bulk_outbox_key(key.as_bytes())));
         Ok(())
     }
 
@@ -4985,6 +5038,7 @@ impl Store {
 
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
+        let outbox_bulk_messages = self.outbox_bulk_depth();
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
         let promotion_queue_depth = self
             .promotion_queue
@@ -4999,6 +5053,7 @@ impl Store {
         ];
         Ok(StoreSnapshot {
             outbox_messages,
+            outbox_bulk_messages,
             multipart_uploads,
             promotion_queue_depth,
             segment_counts,
@@ -6392,6 +6447,9 @@ impl Store {
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
             .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
         release_atomic_slots(&self.outbox_depth, 1);
+        if is_bulk_outbox_key(key) {
+            release_atomic_slots(&self.outbox_bulk_depth, 1);
+        }
         Ok(())
     }
 
@@ -6451,15 +6509,17 @@ impl Store {
             .expect("missing RocksDB column family")
     }
 
+    /// Returns how many of the appended messages went to the bulk lane.
     fn append_artifact_replication_messages(
         &self,
         batch: &mut WriteBatch,
         manifest: &ArtifactManifest,
         replication_targets: &[String],
         trunk: Option<&str>,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
+        let mut bulk = 0_usize;
         for target in replication_targets {
-            self.append_outbox_message(
+            bulk += usize::from(self.append_outbox_message(
                 batch,
                 OutboxMessage {
                     target: target.clone(),
@@ -6477,20 +6537,24 @@ impl Store {
                         trunk: trunk.map(str::to_owned),
                     },
                 },
-            )?;
+            )?);
         }
-        Ok(())
+        Ok(bulk)
     }
 
+    /// Returns how many of the appended messages went to the bulk lane. Namespace
+    /// deletes are metadata-lane by construction, so this is always zero; it is
+    /// reported anyway so the lane stays derived from the key rather than assumed.
     fn append_namespace_delete_messages(
         &self,
         batch: &mut WriteBatch,
         namespace_id: &str,
         version_ms: u64,
         replication_targets: &[String],
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
+        let mut bulk = 0_usize;
         for target in replication_targets {
-            self.append_outbox_message(
+            bulk += usize::from(self.append_outbox_message(
                 batch,
                 OutboxMessage {
                     target: target.clone(),
@@ -6499,21 +6563,23 @@ impl Store {
                         version_ms,
                     },
                 },
-            )?;
+            )?);
         }
-        Ok(())
+        Ok(bulk)
     }
 
+    /// Returns whether the message went to the bulk lane, so the caller can
+    /// tally it for `OutboxReservation::commit`.
     fn append_outbox_message(
         &self,
         batch: &mut WriteBatch,
         message: OutboxMessage,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        Ok(())
+        Ok(is_bulk_outbox_key(key.as_bytes()))
     }
 
     fn write_batch_sync(&self, batch: WriteBatch, label: &str) -> Result<(), String> {
@@ -6789,6 +6855,27 @@ impl Store {
         self.existence_cache.insert(artifact_id);
     }
 
+    /// Total and bulk-lane outbox depth in one pass, for seeding both counters
+    /// at open. Runs once per process, so it iterates rather than keeping a
+    /// second persisted tally that could disagree with the entries on disk.
+    fn count_outbox_entries_exact(&self) -> Result<(usize, usize), String> {
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_OUTBOX), IteratorMode::Start);
+        let mut total = 0_usize;
+        let mut bulk = 0_usize;
+        for item in iter {
+            let (key, _) =
+                item.map_err(|error| format!("failed to iterate {ROCKSDB_CF_OUTBOX}: {error}"))?;
+            total = total.saturating_add(1);
+            if is_bulk_outbox_key(&key) {
+                bulk = bulk.saturating_add(1);
+            }
+        }
+        Ok((total, bulk))
+    }
+
+    #[cfg(test)]
     fn count_cf_entries_exact(&self, name: &str) -> Result<usize, String> {
         let iter = self.db.iterator_cf(self.cf(name), IteratorMode::Start);
         let mut count = 0_usize;
@@ -7773,6 +7860,12 @@ fn persisted_version_ms(version_ms: u64) -> u64 {
 /// backlog instead of waiting out gigabytes of it — measured as ~30 minutes
 /// of cross-pod snapshot staleness during a cache populate.
 pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
+
+/// Whether an outbox key belongs to the bulk lane. The lane is the key's first
+/// byte, so this reads it without decoding the message.
+pub fn is_bulk_outbox_key(key: &[u8]) -> bool {
+    key.starts_with(OUTBOX_BULK_LANE_PREFIX.as_bytes())
+}
 
 fn outbox_message_key(message: &OutboxMessage) -> String {
     let lane = if message.operation.is_bulk() {
@@ -14747,6 +14840,113 @@ mod tests {
         // lanes across a rolling upgrade.
         let legacy = format!("{:020}-legacy", crate::utils::now_ms());
         assert!(keys[0] < legacy.as_str() && legacy.as_str() < keys[1]);
+    }
+
+    fn bulk_outbox_message(key: &str) -> OutboxMessage {
+        OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::UpsertArtifact {
+                producer: ArtifactProducer::Reapi,
+                namespace_id: "ios".into(),
+                key: key.into(),
+                content_type: "application/octet-stream".into(),
+                artifact_id: format!("{key}-artifact"),
+                inline: false,
+                version_ms: 1,
+                branch: None,
+                trunk: None,
+            },
+        }
+    }
+
+    fn metadata_outbox_message(key: &str) -> OutboxMessage {
+        OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::UpsertArtifact {
+                producer: ArtifactProducer::Reapi,
+                namespace_id: "ios".into(),
+                key: key.into(),
+                content_type: "application/x-protobuf".into(),
+                artifact_id: format!("{key}-artifact"),
+                inline: true,
+                version_ms: 2,
+                branch: None,
+                trunk: None,
+            },
+        }
+    }
+
+    #[test]
+    fn outbox_lane_depth_tracks_enqueue_and_delete() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .enqueue(bulk_outbox_message("blob/aa"))
+            .expect("failed to enqueue bulk message");
+        store
+            .enqueue(bulk_outbox_message("blob/bb"))
+            .expect("failed to enqueue bulk message");
+        store
+            .enqueue(metadata_outbox_message("action_cache/cc"))
+            .expect("failed to enqueue metadata message");
+
+        assert_eq!(store.outbox_depth(), 3);
+        assert_eq!(store.outbox_bulk_depth(), 2);
+
+        // The metadata lane sorts first, so the head is the inline entry.
+        let (metadata_key, _) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        assert!(!is_bulk_outbox_key(&metadata_key));
+        store
+            .delete_outbox_message(&metadata_key)
+            .expect("outbox deletion");
+        assert_eq!(store.outbox_depth(), 2);
+        assert_eq!(store.outbox_bulk_depth(), 2);
+
+        let (bulk_key, _) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        assert!(is_bulk_outbox_key(&bulk_key));
+        store
+            .delete_outbox_message(&bulk_key)
+            .expect("outbox deletion");
+        assert_eq!(store.outbox_depth(), 1);
+        assert_eq!(store.outbox_bulk_depth(), 1);
+    }
+
+    #[test]
+    fn reopening_the_store_rebuilds_outbox_lane_depths() {
+        let (_temp_dir, config, store) = temp_store();
+        store
+            .enqueue(bulk_outbox_message("blob/aa"))
+            .expect("seed bulk lane");
+        store
+            .enqueue(bulk_outbox_message("blob/bb"))
+            .expect("seed bulk lane");
+        store
+            .enqueue(metadata_outbox_message("action_cache/cc"))
+            .expect("seed metadata lane");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to recreate io controller");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
+
+        assert_eq!(reopened.outbox_depth(), 3);
+        assert_eq!(reopened.outbox_bulk_depth(), 2);
     }
 
     #[test]
