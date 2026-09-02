@@ -374,15 +374,10 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: erlang elixir node aube npm:prettier
-          cache: "true"
-          working_directory: server
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install mix dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir node aube npm:prettier
       - name: Install aube dependencies
         run: aube install
       - name: Check Elixir format
