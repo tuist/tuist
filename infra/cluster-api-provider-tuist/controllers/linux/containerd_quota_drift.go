@@ -56,13 +56,18 @@ const (
 // The guards match containerdQuotaScript exactly. Where any of them fail the
 // self-join applied no quota, so there is nothing to lift and the script exits
 // 0, which lets the controller stamp the Node and stop dialling.
+//
+// The script arrives over SSH as the install user, so a per-line sudo prefix
+// does not cover shell redirections: the open happens before sudo runs. Both
+// writes here are redirections, the lock fd on a root-owned file the bootstrap
+// created and the rewrite of /etc/projects, so the privileged half runs as one
+// root shell fed by a heredoc. The read-only guards stay outside it; findmnt
+// needs no privilege and a box with nothing to lift never escalates at all.
 func renderContainerdQuotaLiftScript(opts linuxCloudInitOptions) string {
 	sudo, _ := escalation(opts.BootstrapUser)
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 data=/data
-dir=/data/containerd
-projid=%[2]d
 
 mountpoint -q "$data" || exit 0
 [ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || exit 0
@@ -72,19 +77,26 @@ case ",$(findmnt -no OPTIONS "$data")," in
   *) exit 0 ;;
 esac
 
+%[1]sbash -s <<'TUIST_ROOT'
+set -euxo pipefail
+data=/data
+dir=/data/containerd
+projid=%[2]d
+
 exec 9>/var/lock/tuist-kura-quota.lock
-%[1]sflock 9
+flock 9
 
 # bhard=0 is how xfs_quota removes a limit; the project keeps accounting, which
 # is harmless and leaves usage readable if anyone asks.
-%[1]sxfs_quota -x -c "limit -p bhard=0 $projid" "$data"
+xfs_quota -x -c "limit -p bhard=0 $projid" "$data"
 # Drop the /etc/projects entry so the usage exporter, should it ever run here,
 # does not report a ceiling this box no longer has.
 if [ -f /etc/projects ]; then
-  %[1]sgrep -v ":$dir$" /etc/projects > /tmp/projects.tuist || true
-  %[1]scat /tmp/projects.tuist > /etc/projects
-  %[1]srm -f /tmp/projects.tuist
+  grep -v ":$dir$" /etc/projects > /tmp/projects.tuist || true
+  cat /tmp/projects.tuist > /etc/projects
+  rm -f /tmp/projects.tuist
 fi
+TUIST_ROOT
 `, sudo, containerdProjectID)
 }
 
