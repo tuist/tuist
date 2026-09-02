@@ -85,10 +85,8 @@ pub struct Metrics {
     file_descriptor_available: Gauge,
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
-    http_inflight_requests: Gauge,
-    public_http_inflight_requests: Gauge,
+    inflight: Arc<InflightMetrics>,
     public_request_latency_ewma_ms: Gauge,
-    grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
     segment_handle_cache_lookups: Family<SegmentHandleCacheLookupLabels, Counter>,
@@ -208,6 +206,26 @@ struct RolloutSnapshot {
     outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
     peer_connection_failure_count: AtomicU64,
+}
+
+pub(crate) struct InflightMetrics {
+    http: Gauge,
+    public_http: Gauge,
+    grpc: Gauge,
+}
+
+impl InflightMetrics {
+    pub(crate) fn update_http(&self, count: usize) {
+        self.http.set(count as i64);
+    }
+
+    pub(crate) fn update_public_http(&self, count: usize) {
+        self.public_http.set(count as i64);
+    }
+
+    pub(crate) fn update_grpc(&self, count: usize) {
+        self.grpc.set(count as i64);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1291,6 +1309,11 @@ impl Metrics {
             process_start_time_seconds.clone(),
         );
 
+        let inflight = Arc::new(InflightMetrics {
+            http: http_inflight_requests,
+            public_http: public_http_inflight_requests,
+            grpc: grpc_inflight_requests,
+        });
         let metrics = Self {
             region: region.clone(),
             tenant_id: tenant_id.clone(),
@@ -1340,10 +1363,8 @@ impl Metrics {
             file_descriptor_available,
             file_descriptor_waiting,
             file_descriptor_capacity,
-            http_inflight_requests,
-            public_http_inflight_requests,
+            inflight,
             public_request_latency_ewma_ms,
-            grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
             segment_handle_cache_lookups,
@@ -1854,11 +1875,11 @@ impl Metrics {
     }
 
     pub fn update_http_inflight(&self, count: usize) {
-        self.http_inflight_requests.set(count as i64);
+        self.inflight.update_http(count);
     }
 
     pub fn update_public_http_inflight(&self, count: usize) {
-        self.public_http_inflight_requests.set(count as i64);
+        self.inflight.update_public_http(count);
     }
 
     pub fn update_public_request_latency_ewma(&self, duration: Duration) {
@@ -1867,7 +1888,11 @@ impl Metrics {
     }
 
     pub fn update_grpc_inflight(&self, count: usize) {
-        self.grpc_inflight_requests.set(count as i64);
+        self.inflight.update_grpc(count);
+    }
+
+    pub(crate) fn inflight_metrics(&self) -> Arc<InflightMetrics> {
+        self.inflight.clone()
     }
 
     pub fn update_segment_handles_cached(&self, cached: usize) {

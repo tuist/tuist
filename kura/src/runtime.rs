@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use tokio::sync::{Notify, futures::Notified};
 
-use crate::metrics::Metrics;
+use crate::metrics::{InflightMetrics, Metrics};
 
 const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
@@ -206,7 +206,7 @@ impl RuntimeState {
         }
         InflightGuard::new(
             self.clone(),
-            metrics.clone(),
+            metrics.inflight_metrics(),
             InflightKind::Http {
                 public_load: traffic_class.contributes_to_public_load(),
             },
@@ -216,7 +216,7 @@ impl RuntimeState {
     pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
         let count = self.grpc_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_grpc_inflight(count);
-        InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
+        InflightGuard::new(self.clone(), metrics.inflight_metrics(), InflightKind::Grpc)
     }
 
     /// Records the time to first response byte for a completed public request.
@@ -287,13 +287,13 @@ enum InflightKind {
 
 pub struct InflightGuard {
     runtime: Arc<RuntimeState>,
-    metrics: Metrics,
+    metrics: Arc<InflightMetrics>,
     kind: InflightKind,
     active: bool,
 }
 
 impl InflightGuard {
-    fn new(runtime: Arc<RuntimeState>, metrics: Metrics, kind: InflightKind) -> Self {
+    fn new(runtime: Arc<RuntimeState>, metrics: Arc<InflightMetrics>, kind: InflightKind) -> Self {
         Self {
             runtime,
             metrics,
@@ -312,21 +312,18 @@ impl Drop for InflightGuard {
         match self.kind {
             InflightKind::Http { public_load } => {
                 let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
-                self.metrics
-                    .update_http_inflight(previous.saturating_sub(1));
+                self.metrics.update_http(previous.saturating_sub(1));
                 if public_load {
                     let previous = self
                         .runtime
                         .public_http_inflight
                         .fetch_sub(1, Ordering::SeqCst);
-                    self.metrics
-                        .update_public_http_inflight(previous.saturating_sub(1));
+                    self.metrics.update_public_http(previous.saturating_sub(1));
                 }
             }
             InflightKind::Grpc => {
                 let previous = self.runtime.grpc_inflight.fetch_sub(1, Ordering::SeqCst);
-                self.metrics
-                    .update_grpc_inflight(previous.saturating_sub(1));
+                self.metrics.update_grpc(previous.saturating_sub(1));
             }
         }
         if self.runtime.is_draining() {

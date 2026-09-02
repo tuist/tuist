@@ -55,6 +55,7 @@ Increase Kura's concurrent request throughput and reduce tail latency by removin
 
 - Baseline request accounting, with every arrival and completion notifying the shutdown waiter, sustained 279,259.648 requests per second across eight concurrent workers.
 - Removed arrival notifications and limited completion notifications to the draining state. Two candidate runs sustained 349,744.257 and 360,105.299 requests per second, improving the confirmed result by 28.954 percent while focused in-flight and shutdown-drain checks passed.
+- In-flight guards cloned the complete `Metrics` value even though their drop path updates only three gauges. Replaced that broad clone, which touched every shared metric family's reference count, with one shared in-flight metrics handle. Two candidate runs sustained 3,929,250.582 and 4,643,989.770 requests per second. The confirmed result is 12.896 times the notification-only result and 16.629 times the original baseline, with identical gauge updates.
 - Added a release-mode, in-memory ByteStream chunk-materialization benchmark and a correctness test.
 - Baseline: the unchanged `ReaderStream` plus `Bytes::to_vec` path reached 17,599.189 mebibytes per second. The cold optimized Bazel build took 1,142 seconds; subsequent experiments reuse its dependency cache, and build duration is not part of the throughput metric.
 - Experiment: fill the generated response's final `Vec<u8>` directly through Tokio's `read_buf`, removing the intermediate `BytesMut` allocation and full-chunk copy while retaining the same chunk cap.
