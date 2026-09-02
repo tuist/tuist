@@ -2755,6 +2755,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn artifact_reader_inline_bytes_stream_reuses_the_source_allocation() {
+        let bytes = Bytes::from(vec![0x5a; 2_048]);
+        let source = bytes.as_ptr();
+        let stream = ArtifactReader::Inline { bytes, offset: 0 }.into_bytes_stream(1_024);
+        tokio::pin!(stream);
+
+        let chunk = stream
+            .next()
+            .await
+            .expect("one inline chunk")
+            .expect("successful inline chunk");
+
+        assert_eq!(chunk.as_ptr(), source);
+        assert_eq!(chunk.len(), 1_024);
+    }
+
+    #[tokio::test]
     async fn bytestream_read_response_owns_the_buffer_filled_by_the_reader() {
         use std::sync::{
             Arc,
@@ -2951,6 +2968,94 @@ mod tests {
         candidate_throughputs.sort_by(f64::total_cmp);
         println!(
             "METRIC segment_reader_owned_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn artifact_reader_inline_bytes_stream_benchmark() {
+        const ARTIFACT_BYTES: usize = 4 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const REPETITIONS: usize = 256;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure_copying(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let mut reader = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                };
+                loop {
+                    let chunk = reader
+                        .read_chunk_owned(CHUNK_BYTES)
+                        .await
+                        .expect("benchmark copied inline chunk");
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        async fn measure_owned(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let stream = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                }
+                .into_bytes_stream(CHUNK_BYTES);
+                tokio::pin!(stream);
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.expect("benchmark owned inline chunk");
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        let bytes = Bytes::from(vec![0x5a; ARTIFACT_BYTES]);
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure_copying(&bytes).await, measure_owned(&bytes).await)
+            } else {
+                let candidate_elapsed = measure_owned(&bytes).await;
+                let baseline_elapsed = measure_copying(&bytes).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = (ARTIFACT_BYTES * REPETITIONS) as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC inline_bytes_stream_speedup_ratio={:.6}",
             speedups[speedups.len() / 2]
         );
         println!(

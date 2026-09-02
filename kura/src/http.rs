@@ -67,10 +67,11 @@ use crate::{
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
-const ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
+const FILE_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
+const INLINE_RESPONSE_LIVE_BUFFER_COUNT: usize = 2;
 #[cfg(test)]
 const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
-    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT;
+    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * FILE_RESPONSE_LIVE_BUFFER_COUNT;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -2538,7 +2539,19 @@ async fn internal_backfill_artifact(
     };
 
     let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
-    let requested_bytes = stream_chunk_bytes.saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT);
+    let live_buffer_count = if manifest.inline {
+        INLINE_RESPONSE_LIVE_BUFFER_COUNT
+    } else {
+        FILE_RESPONSE_LIVE_BUFFER_COUNT
+    };
+    let inline_bytes = if manifest.inline {
+        usize::try_from(manifest.size).unwrap_or(usize::MAX)
+    } else {
+        0
+    };
+    let requested_bytes = stream_chunk_bytes
+        .saturating_mul(live_buffer_count)
+        .saturating_add(inline_bytes);
     let permit = match state
         .memory
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
@@ -2742,8 +2755,8 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
 
     // Stream the spooled file under the same background admission and
     // bandwidth shaping as the per-artifact backfill endpoint.
-    let requested_bytes = response_stream_chunk_bytes(spool.file_len)
-        .saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT);
+    let requested_bytes =
+        response_stream_chunk_bytes(spool.file_len).saturating_mul(FILE_RESPONSE_LIVE_BUFFER_COUNT);
     let permit = match state
         .memory
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
@@ -3029,7 +3042,7 @@ where
 {
     let mut copied = 0_u64;
     loop {
-        let chunk = reader.read_chunk_owned(chunk_bytes).await?;
+        let chunk = reader.read_bytes_chunk(chunk_bytes).await?;
         if chunk.is_empty() {
             return Ok(copied);
         }
@@ -3798,9 +3811,14 @@ async fn serve_file_reader(
     // whole body. That is what keeps a large artifact's resume admissible
     // under a budget its from-scratch re-send would be shed under.
     let inline_bytes = if manifest.inline { range.length } else { 0 };
+    let live_buffer_count = if manifest.inline {
+        INLINE_RESPONSE_LIVE_BUFFER_COUNT
+    } else {
+        FILE_RESPONSE_LIVE_BUFFER_COUNT
+    };
     let stream_chunk_bytes = response_stream_chunk_bytes(range.length);
     let requested_bytes = usize::try_from(
-        u64::try_from(stream_chunk_bytes.saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT))
+        u64::try_from(stream_chunk_bytes.saturating_mul(live_buffer_count))
             .unwrap_or(u64::MAX)
             .saturating_add(inline_bytes),
     )
@@ -3820,12 +3838,9 @@ async fn serve_file_reader(
         Ok(permit) => (permit, stream_chunk_bytes),
         Err(_) => {
             let degraded_bytes = usize::try_from(
-                u64::try_from(
-                    RESPONSE_STREAM_MIN_CHUNK_BYTES
-                        .saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT),
-                )
-                .unwrap_or(u64::MAX)
-                .saturating_add(inline_bytes),
+                u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(live_buffer_count))
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(inline_bytes),
             )
             .unwrap_or(usize::MAX);
             match state

@@ -6,7 +6,7 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: interleaved backfill spool-response speedup from streaming owned positional-read chunks (ratio, higher is better)
+- Primary: interleaved inline-artifact stream speedup from slicing the existing bytes instead of copying each chunk (ratio, higher is better)
 - Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
@@ -68,9 +68,10 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Replication upload bodies now consume the same owned chunks while preserving bandwidth reservations and forward-progress marks. The paired full body-adapter benchmark measured a 1.200 times median speedup over the copied asynchronous-reader path.
 - Batched backfill spooling now writes each owned segment chunk directly into the temporary file while retaining exact-length validation. The paired reader-to-sink benchmark measured a 1.216 times median speedup over Tokio's generic copy path.
 - Backfill spool responses now use the same owned positional-read stream and reserve three live chunks instead of four. The paired spool-reader benchmark measured a 1.233 times median speedup over Tokio's file stream adapter.
+- Inline byte-stream consumers now yield slices of the existing reference-counted value. Pointer identity proves no byte allocation or copy; the synthetic materialization benchmark measured 372.308 times the copied path because the candidate moves no payload bytes.
 
 ## Next Segment
 
-- Replace Tokio's generic temporary-file response reader with the owned positional-read stream.
-- Retain spool cleanup and peer-slot guards through the complete response body.
-- Reduce the spool response reservation only after proving the fourth buffer is gone.
+- Yield reference-counted slices from inline artifacts instead of allocating and copying each chunk.
+- Keep ByteStream on vectors because its generated response field requires one.
+- Charge ordinary inline responses for the retained value plus two transport chunks rather than a redundant body allocation.

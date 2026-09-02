@@ -405,16 +405,37 @@ impl ArtifactReader {
         }
     }
 
+    pub async fn read_bytes_chunk(&mut self, max_bytes: usize) -> std::io::Result<Bytes> {
+        if max_bytes == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "artifact read chunk size must be non-zero",
+            ));
+        }
+        match self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Ok(Bytes::new());
+                }
+                let end = offset.saturating_add(max_bytes).min(bytes.len());
+                let chunk = bytes.slice(*offset..end);
+                *offset = end;
+                Ok(chunk)
+            }
+            Self::FileRange(reader) => reader.read_chunk_owned(max_bytes).await.map(Bytes::from),
+        }
+    }
+
     pub fn into_bytes_stream(
         self,
         chunk_bytes: usize,
     ) -> impl futures_util::Stream<Item = std::io::Result<Bytes>> + Send + 'static {
         futures_util::stream::try_unfold(self, move |mut reader| async move {
-            let bytes = reader.read_chunk_owned(chunk_bytes).await?;
+            let bytes = reader.read_bytes_chunk(chunk_bytes).await?;
             if bytes.is_empty() {
                 Ok(None)
             } else {
-                Ok(Some((Bytes::from(bytes), reader)))
+                Ok(Some((bytes, reader)))
             }
         })
     }
@@ -1967,7 +1988,11 @@ impl Store {
         {
             let start = read_offset as usize;
             let end = start.saturating_add(limit as usize).min(bytes.len());
-            let chunk = Bytes::from(bytes).slice(start..end);
+            let chunk = if start == 0 && end == bytes.len() {
+                Bytes::from(bytes)
+            } else {
+                Bytes::copy_from_slice(&bytes[start..end])
+            };
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::Inline {
                 bytes: chunk,
