@@ -3,77 +3,43 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   Gives an account with no Kura instance one when it creates a project, so an
   instance exists by the time anything asks the cache for an endpoint.
 
-  Provisioning is otherwise triggered by the first cache-endpoint resolution:
-  `Tuist.Kura.Demand.record/2` buffers the account, the flush writes a
-  lifecycle row, and the next `Tuist.Kura.Lifecycle.reconcile/0` tick
-  provisions from it. Until that completes the account has no instance, so the
-  answer carries `provisioning: true` with a short cache and the client is
-  served from whatever lane is still up. Creating a project is a strong, early
-  signal that builds are coming, and it happens well before the first cache
-  request, so the wait can be spent before anyone is waiting on it.
+  Provisioning is otherwise triggered by the first cache-endpoint resolution,
+  and the account has no instance until that completes. Creating a project is
+  an earlier signal that builds are coming, so the wait is spent before anyone
+  is waiting on it. This removes the provisioning wait, not the cold cache: a
+  new instance starts empty either way, because Kura is terminal storage with
+  no object store behind it.
 
-  What this removes is the *provisioning wait*, not the cold cache. A new
-  instance starts empty either way: Kura is terminal storage with no object
-  store behind it, and a first instance has no peer to sync from. The first
-  build still misses everything and uploads what it builds. What it no longer
-  does is miss because there was nowhere to look.
+  Seeding a lifecycle row is the whole mechanism, the same one
+  `Tuist.Kura.Workers.BackfillCacheDemandWorker` uses; the reconciler
+  provisions from it. Creating the instance here would be a second path into
+  provisioning that re-derives the plan, claim size, image tag and region.
 
-  ## Seeding demand rather than provisioning directly
-
-  Writing a lifecycle row with recent demand is the whole mechanism; the
-  reconciler does the rest, exactly as it does for a cache request.
-  `Tuist.Kura.Workers.BackfillCacheDemandWorker` seeds the same way. Creating
-  the instance here instead would mean a second path into provisioning that
-  has to re-derive the plan, the claim size, the image tag and the region, and
-  would diverge from the demand path the first time any of them changed.
-
-  ## Triggered by the account having no instance, not by a project count
-
-  An account creating its second project while its first instance is live
-  needs nothing. An account that predates Kura and still has none has exactly
-  the problem this exists to fix, whether the project is its first or its
-  twentieth, so the condition is the instance rather than the project.
-
-  A live instance in a private runner-cache region does not count, for the
-  same reason `Tuist.Kura.AccountPolicies` does not resolve into one: it is
-  never CLI-facing and the lifecycle never iterates its region, so an account
-  holding only that one has no developer-facing cache at all.
-
-  An account whose instance was archived is seeded like any other, and returns
-  from archive on the next tick. Somebody creating a project is at least as
-  strong a request for a cache as the login-time endpoint resolution that
-  un-archives accounts today.
+  The condition is the account having no live instance rather than a project
+  count, so it also covers an account that predates Kura. A private
+  runner-cache instance does not count, for the same reason
+  `Tuist.Kura.AccountPolicies` never resolves into one.
 
   ## What this must not disturb
 
-  **Archival.** The only archival clock is `last_cache_demand_at`, and a row
-  written here is an ordinary demand timestamp on it: an account that never
-  builds is archived after a full inactivity window
-  (`Tuist.Environment.kura_inactive_days/0`), like any other account that
-  stopped. The version of this that would bite is a probation rule keyed on
-  bytes moved since an instance entered service, which would archive a seeded
-  instance in a fortnight and then hold the account-region out of provisioning
-  for an inactivity window — locking out exactly the account this is trying to
-  help. No such rule is in the tree (#12609, which proposed one, was closed
-  unmerged). If one lands, it needs to start its clock at the account's first
-  endpoint resolution rather than at the instance entering service, because an
-  instance seeded here has by construction moved no bytes yet.
+  **Archival.** A row written here is an ordinary `last_cache_demand_at`
+  timestamp, so an account that never builds is archived after a full
+  inactivity window like any other. A probation rule keyed on bytes moved
+  since an instance entered service would instead archive a seeded instance in
+  a fortnight and hold the account-region out of provisioning. None is in the
+  tree (#12609, which proposed one, was closed unmerged); if one lands it has
+  to start its clock at the account's first endpoint resolution, because an
+  instance seeded here has moved no bytes by construction.
 
-  **Placement.** No placer decision is recorded. A seed is a guess by
-  construction — the origin of a project-creation request is where somebody
-  clicked in a dashboard, not where CI will run — and `Tuist.Kura.Placement`'s
-  `correct_initial` rung only fires while the primary region was never
-  decided. Writing a decision here would spend the one correction the account
-  gets on the weakest evidence it will ever produce.
+  **Placement.** No placer decision is recorded. A seed is a guess — the
+  origin of a project-creation request is where somebody clicked in a
+  dashboard, not where CI will run — and `Tuist.Kura.Placement`'s
+  `correct_initial` rung only fires while the primary was never decided.
 
-  **Capacity.** A seed is speculative: nobody has built yet. Spending a
-  region's last room on one while the lifecycle is shortening Air's window to
-  claw space back is the wrong trade, so a region over its pressure line
-  declines and the refusal is counted. Nothing retries; the account is
-  provisioned the ordinary way the moment it actually asks for the cache,
-  which is where admission belongs — every cache pod requests its claim's
-  worth of ephemeral storage, so the scheduler is what decides whether a real
-  instance fits.
+  **Capacity.** A seed is speculative, so a region over its pressure line
+  declines and the refusal is counted rather than retried. The account is
+  still provisioned the ordinary way once it asks for the cache, where the
+  scheduler decides admission from each pod's ephemeral-storage request.
   """
   use Oban.Worker,
     queue: :default,
