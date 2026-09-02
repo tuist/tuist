@@ -1101,7 +1101,7 @@ was noticed by a person looking at the queue.
 
 ```promql
 max by (cluster, env, fleet) (
-  tuist_runners_queue_oldest_age_seconds
+  tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
 ) > 1800
 ```
 
@@ -1109,9 +1109,78 @@ max by (cluster, env, fleet) (
 - Severity: critical
 - `affected_service`: the runners component (customer-visible — a job
   that never starts is indistinguishable from CI being down)
-- Summary: `Workflow jobs on {{ $labels.fleet }} have been queued for
-  over 30 minutes in {{ $labels.cluster }}: the fleet is not draining
-  its queue`
+- Summary: `Runner fleet {{ $labels.fleet }} in {{ $labels.cluster }}:
+  oldest dispatchable queued job waiting {{ $values.A.Value |
+  humanizeDuration }}`
+
+Aggregate by `cluster, env, fleet`, not by `fleet` alone. Fleet names are
+identical across canary, staging and production, so collapsing to `fleet`
+takes the max across environments; the `env` selector makes that
+harmless today, but the labels also have to survive the aggregation for
+the summary to interpolate `{{ $labels.cluster }}` at all.
+
+**Dispatchable** age, not raw age. `tuist_runners_queue_oldest_age_seconds`
+counts every queued row, including work the server deliberately withholds
+because its account is at its concurrency limit
+(`tuist_runners_queue_withheld`). That withholding is admission control
+working: dispatch declines those jobs on purpose, and the autoscaler
+declines to grow the fleet for them for the same reason. A rule on the
+raw age therefore pages on a design decision, and hands whoever answers
+it no lever but a commercial one — raising the account's limit.
+
+On 2026-09-02 this rule fired on `linux-16vcpu-32gb` for exactly that.
+The fleet is single-tenant, the account sat pinned on its 128 GB Linux
+budget from 05:00 to 08:00 UTC, and `queue_withheld` equalled the full
+queue depth throughout while `autoscaler_queued_jobs` read 0. Hardware
+was not short: node memory ran 34-50%. Nothing in the fleet was faulty,
+and there was no infrastructure action to take.
+
+The predicate has to be "nothing dispatchable", not "anything withheld".
+Suppressing whenever `queue_withheld > 0` would silence a genuine stall
+that happens while some other account is capped, and the two co-occur
+easily on a shared fleet. `oldest_dispatchable_age_seconds` is computed
+per account inside the same Postgres scan that produces depth and raw
+age (`Tuist.Runners.WorkflowJobs.queue_stats_by_fleet/1`), so it excludes
+only the accounts with no headroom and still reports an uncapped
+account's wait in full. Doing it in the metric rather than as a compound
+PromQL condition also avoids subtracting two gauges written by different
+code paths at different cadences — `queue_withheld` is emitted from the
+autoscaler's signal path, not this poll.
+
+**A missing limit row is not a cap, and is deliberately still counted.**
+`Claims.attempt/5` fails an account with no `runner_concurrency_limits`
+row for the platform as `:concurrency_limit_missing`, so *none* of its
+jobs can ever be claimed — a broken invariant, not admission control.
+`Concurrency.headroom_from_snapshot/3` returns `{:error, :missing_limit}`
+rather than a headroom of 0 so the gauge can tell the two apart and keep
+that account's wait visible; excluding it would report a healthy zero for
+a queue that is completely stuck, which is the exact failure this rule
+exists to catch. The autoscaler still flattens it to 0 and fails closed,
+because there under-provisioning is the safe direction.
+
+Keep `tuist_runners_queue_length` and `tuist_runners_queue_oldest_age_seconds`
+on the dashboard: they still report the truth about what customers are
+waiting on.
+
+The deployed rule currently carries a transitional fallback:
+
+```promql
+max by (cluster, env, fleet) (
+  tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
+) or max by (cluster, env, fleet) (
+  tuist_runners_queue_oldest_age_seconds{env="production"}
+)
+```
+
+The rule lives in the Grafana console, not in this repo, so it changes
+ahead of the server that emits the new metric. `no_data_state` is `OK`,
+so swapping the expression outright would have silently taken the alert
+off duty until the deploy landed. `or` yields the new metric wherever it
+exists and the old one everywhere else, which keeps coverage identical
+across the rollout and needs no coordination. **Drop the fallback once
+the new metric reports on every fleet** — while it is there, a fleet
+whose server pod somehow stops emitting the new gauge silently reverts
+to the old behaviour.
 
 Age, not depth, for the same reason the remote-processing rule uses it,
 and the reason is already written into the metric's definition in
@@ -1160,6 +1229,44 @@ them:
 ```bash
 kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
 ```
+
+### Why there is no alert on withheld runner queue depth
+
+`tuist_runners_queue_withheld` is deliberately **not** alerted on, and the
+rule that did (`bfx14w4bwawowa`) was created and retired the same day.
+
+An account using the concurrency it bought is steady state, not an event.
+It is not actionable by anyone reading an ops channel — the only response
+is a commercial conversation on a business timescale — and because it is
+normal behaviour rather than an exception, a rule on it fires routinely
+by construction. Within an hour of being enabled it was firing on two
+fleets, both legitimately. Lowering the severity and picking a quieter
+channel does not fix that; it is the wrong instrument, not the wrong
+threshold.
+
+This is the same argument that moved "Runner queue not draining" onto
+`tuist_runners_queue_oldest_dispatchable_age_seconds` above. Applying it
+consistently means the withheld series is **reporting, not alerting**.
+
+It now lives on `/d/tuist-runners` as "Queue withheld at account
+concurrency limit by fleet", directly under the queue-age panel, which
+itself plots dispatchable against all-queued so the divergence is
+visible at a glance: queue age high with withheld at zero is a fleet
+problem worth chasing, queue age high with withheld tracking the depth
+is an account at its cap. The commercial half of the signal — an account
+repeatedly pinned at its cap is an upsell or a misconfigured limit —
+belongs where account decisions are actually made, not in Grafana.
+
+Keep the metric. It is what makes the queue-age rule correct, and it is
+the first thing to check when that rule *does* fire.
+
+One genuine fault could hide behind a high withheld count: an account
+pinned at its cap by **leaked claims** rather than real work, which would
+throttle them indefinitely while the queue-age rule stays correctly
+silent. `Tuist.Runners.Workers.StaleClaimsWorker` reaps those, and
+nothing alerts if it stops. If that is worth covering, the detector is
+claims held against work actually running — not withheld depth, which
+cannot tell a leak from a busy customer.
 
 ### Node leaking cgroups
 
