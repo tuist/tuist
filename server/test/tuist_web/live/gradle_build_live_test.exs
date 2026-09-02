@@ -79,7 +79,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     operations = Gradle.list_configuration_operations(build_id)
 
     assert length(operations) == 100
-    assert Enum.map(operations, & &1.duration_ms) == Enum.to_list(101..2)
+    assert Enum.map(operations, & &1.duration_ms) == Enum.to_list(101..2//-1)
   end
 
   test "shows build details", %{
