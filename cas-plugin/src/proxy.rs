@@ -103,6 +103,15 @@ const SNAPSHOT_SERVE_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
 // left un-gated for hours is exactly the one whose `yes` should not be taken
 // on trust.
 const SNAPSHOT_BACKING_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
+// How long the per-key leg of a BACKED check may wait on the remote: one
+// attempt, no retry. The check runs on the build engine's serial task-setup
+// thread and its whole value is a few microseconds per hit, so a slow backend
+// gets to say so and the check reads as `Unknown` (serve the hit) instead of
+// every warm local hit on the machine queueing behind it. Under the client's
+// `BACKED_READ_TIMEOUT` on purpose: in the slow case it is the proxy that gives
+// up, with an error the client reads as `Unknown`, and not the client walking
+// away from a handler still working on its behalf.
+const BACKED_REMOTE_DEADLINE: Duration = Duration::from_millis(1500);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
 // hostile length prefix cannot drive an unbounded allocation. Comfortably
@@ -586,6 +595,16 @@ pub struct PathState {
     // that would have failed and now does not.
     pub stats_withheld_roots_refused: AtomicU64,
     pub stats_withheld_roots_repaired: AtomicU64,
+    // The BACKED check's own accounting, apart from the resolve counters because
+    // it is not a resolve: it fetches nothing and its answer is never
+    // self-checking. `per_key` is the number to watch — it is the round trip on
+    // the serial task-setup path, paid while the snapshot is still fetching or
+    // too old to trust, and a warm cache volume on CI is exactly where many hits
+    // land in that window.
+    pub stats_backing_checks: AtomicU64,
+    pub stats_backing_snapshot: AtomicU64,
+    pub stats_backing_per_key: AtomicU64,
+    pub stats_backing_unbacked: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -665,6 +684,19 @@ enum SnapshotState {
         /// treating them as permanent.
         retry_after: Duration,
     },
+}
+
+/// Where a BACKED check may take its answer from, decided from one read of the
+/// instance's snapshot state. `Snapshot` is a copy gated within
+/// `SNAPSHOT_BACKING_MAX_AGE`, so it may answer a key it holds and the remote
+/// answers the rest; `PerKey` is the remote alone, for the transient window
+/// while a snapshot is still fetching and for a snapshot too old to trust;
+/// `Decline` is the durably snapshotless state, where a round trip per served
+/// hit would cost more than the check is worth.
+enum BackingSource {
+    Snapshot(Arc<Snapshot>),
+    PerKey,
+    Decline,
 }
 
 impl Snapshot {
@@ -1573,6 +1605,10 @@ impl Proxy {
             stats_incomplete_closures: AtomicU64::new(0),
             stats_withheld_roots_refused: AtomicU64::new(0),
             stats_withheld_roots_repaired: AtomicU64::new(0),
+            stats_backing_checks: AtomicU64::new(0),
+            stats_backing_snapshot: AtomicU64::new(0),
+            stats_backing_per_key: AtomicU64::new(0),
+            stats_backing_unbacked: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -3739,6 +3775,108 @@ impl Proxy {
         full_fetch_age.is_some_and(|age| age <= SNAPSHOT_BACKING_MAX_AGE)
     }
 
+    /// Classifies the instance's snapshot state for a BACKED check, under ONE
+    /// lock, so the snapshot, its lifecycle state and its age describe the same
+    /// instant. Read separately they did not: a `Fetching -> Ready` transition
+    /// landing between two reads answered "no snapshot" and served the unverified
+    /// hit, and a full refresh landing between the snapshot read and the age read
+    /// blessed the OLD snapshot with the NEW timestamp.
+    ///
+    /// `Fetching` is the window the check exists for. The proxy and the build
+    /// start together on CI, so the first build's gets land mid-fetch, on the cold
+    /// freshly promoted cache volume where an inherited association is most
+    /// likely to be hollow; declining there would leave the original failure
+    /// fully reachable, so it goes per key. Anything else without a snapshot is
+    /// durable — an hour for a server without snapshot support, forever under
+    /// `TUIST_CAS_PREFETCH=0` — and a round trip per served hit for that long
+    /// would undo the reason a local hit is worth having.
+    fn backing_source(&self, instance: &str) -> BackingSource {
+        let mut snapshots = self.snapshots.lock().unwrap();
+        match snapshots.get_mut(instance) {
+            Some(SnapshotState::Ready {
+                snapshot,
+                full_at,
+                last_used,
+                ..
+            }) => {
+                *last_used = Instant::now();
+                if Self::snapshot_may_answer_backing(Some(full_at.elapsed())) {
+                    BackingSource::Snapshot(snapshot.clone())
+                } else {
+                    BackingSource::PerKey
+                }
+            }
+            Some(SnapshotState::Fetching) => BackingSource::PerKey,
+            _ => BackingSource::Decline,
+        }
+    }
+
+    /// The lookup behind a BACKED check. Deliberately NOT `resolve`.
+    ///
+    /// `resolve` serves `resolved` first, and `resolved` holds every hit this
+    /// proxy has ever answered — remote-sourced ones included — for as long as it
+    /// runs. A resolve may trust that, because it goes on to FETCH the blobs: a
+    /// key the remote has since dropped fails materialization and is withheld,
+    /// so the answer checks itself. A BACKED check authorises serving a graph
+    /// that is ALREADY local, fetches nothing, and would never discover the entry
+    /// was gone. Its `yes` may therefore only come from the two sources that
+    /// describe the remote NOW: a snapshot gated within
+    /// `SNAPSHOT_BACKING_MAX_AGE`, or the remote itself. Nor may a miss fall
+    /// back to `resolved` the way `resolve_uncached` does for a just-published
+    /// key: the remote has just said no, and an older yes does not outrank it.
+    ///
+    /// The per-key leg is one attempt under `BACKED_REMOTE_DEADLINE`, and there
+    /// is no single-flight: two frontends asking about one key in the same
+    /// moment pay two round trips, which is rare and cheaper than the lock they
+    /// would otherwise share with every resolve.
+    fn backing_lookup(
+        &self,
+        remote: &Arc<Remote>,
+        state: &'static PathState,
+        key: &[u8],
+        source: BackingSource,
+    ) -> Result<Option<Vec<u8>>, String> {
+        state.stats_backing_checks.fetch_add(1, Ordering::Relaxed);
+        self.check_generation(state);
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+        let manifest = match source {
+            BackingSource::Decline => return Err("no snapshot".into()),
+            BackingSource::Snapshot(snapshot) => {
+                use sha2::{Digest, Sha256};
+                let key_hash: [u8; 32] = Sha256::digest(key).into();
+                match snapshot.manifest(&key_hash) {
+                    Some(manifest) => {
+                        state.stats_backing_snapshot.fetch_add(1, Ordering::Relaxed);
+                        Some(manifest)
+                    }
+                    None => self.backing_per_key(remote, state, key)?,
+                }
+            }
+            BackingSource::PerKey => self.backing_per_key(remote, state, key)?,
+        };
+        let Some(manifest) = manifest.filter(|manifest| !manifest.is_empty()) else {
+            state.stats_backing_unbacked.fetch_add(1, Ordering::Relaxed);
+            return Ok(None);
+        };
+        match self.commit_and_materialize(remote, state, key, manifest, observed)? {
+            Some(value) => Ok(Some(value)),
+            // The store's generation moved while the remote was being asked (a
+            // wipe or a prune), so the answer describes a store that is gone.
+            // That says nothing about the remote and must not read as a miss.
+            None => Err("store generation changed during the check".into()),
+        }
+    }
+
+    fn backing_per_key(
+        &self,
+        remote: &Arc<Remote>,
+        state: &PathState,
+        key: &[u8],
+    ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        state.stats_backing_per_key.fetch_add(1, Ordering::Relaxed);
+        remote.get_action_within(key, BACKED_REMOTE_DEADLINE)
+    }
+
     /// How long ago this instance's snapshot last had a FULL fetch, which is the
     /// only refresh that re-applies the server's eviction gate. `None` when
     /// there is no Ready snapshot to age.
@@ -3803,7 +3941,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} backing checks={} snapshot={} per_key={} unbacked={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3817,6 +3955,10 @@ impl Proxy {
                 state.stats_incomplete_closures.load(Ordering::Relaxed),
                 state.stats_withheld_roots_refused.load(Ordering::Relaxed),
                 state.stats_withheld_roots_repaired.load(Ordering::Relaxed),
+                state.stats_backing_checks.load(Ordering::Relaxed),
+                state.stats_backing_snapshot.load(Ordering::Relaxed),
+                state.stats_backing_per_key.load(Ordering::Relaxed),
+                state.stats_backing_unbacked.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -3891,11 +4033,10 @@ impl Proxy {
             }
             OP_BACKED => {
                 // The plugin holds a local association and wants to know whether
-                // its closure is producible before serving it. A resolve IS that
-                // question: it answers from `resolved` (so a key this machine
-                // just published is backed without a round trip), then from the
-                // snapshot, then per key — and on every hit it registers the
-                // closure's fetch instructions, which is also the repair.
+                // its closure is producible before serving it. NOT a resolve:
+                // the answer must describe the remote now, and `resolve` serves
+                // `resolved` first, which describes whatever this proxy answered
+                // at any point in its life. See `backing_lookup`.
                 let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance)
                 else {
                     self.note_unprimed(&request.cas_path);
@@ -3918,59 +4059,17 @@ impl Proxy {
                 }
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                // A per-key `GetActionResult` is authoritative with or without a
-                // snapshot — the snapshot only makes the answer free — but this
-                // runs on the build engine's serial task-setup path, so paying
-                // one per served hit is only affordable while it is TRANSIENT.
-                // The two no-snapshot states are not the same length:
-                //
-                // `Fetching` lasts seconds and is exactly the window that must
-                // be covered. The proxy and the build start together on CI, so
-                // the first build's gets land mid-fetch, on the cold freshly
-                // promoted cache volume where an inherited association is most
-                // likely to be hollow. Declining there would leave the original
-                // failure fully reachable.
-                //
-                // Anything else is durable: an hour for a server with no
-                // snapshot support, and forever under `TUIST_CAS_PREFETCH=0`,
-                // where `ensure_snapshot` returns without even registering the
-                // instance. A round trip per served hit for that long would undo
-                // the reason a local hit is worth having. Decline instead — the
-                // hole that leaves is bounded to deployments with no snapshot
-                // support, while the poisoning this guards against arrives on
-                // the account cache volume, a runner feature backed by a kura
-                // that serves snapshots.
-                let snapshot = self.snapshot_ready(&instance);
-                if snapshot.is_none()
-                    && !matches!(
-                        self.snapshots.lock().unwrap().get(&instance),
-                        Some(SnapshotState::Fetching)
-                    )
-                {
-                    return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
-                }
-                // A snapshot answers this check from a copy of the remote's
-                // keyspace, so its `yes` is a claim about whenever that copy was
-                // last gated. Past `SNAPSHOT_BACKING_MAX_AGE` stop taking it:
-                // drop to the per-key lookup, which asks the remote now.
-                //
-                // Only the BACKED path needs this. A RESOLVE served from a stale
-                // snapshot goes on to FETCH the blobs, so a key the remote has
-                // dropped fails materialization, withholds its root and is
-                // counted — the answer checks itself. BACKED authorises serving
-                // a graph that is ALREADY local, so nothing is fetched and
-                // nothing would ever discover the entry was gone.
-                let snapshot = snapshot.filter(|_| {
-                    Self::snapshot_may_answer_backing(self.snapshot_full_fetch_age(&instance))
-                });
+                // One read of the snapshot state decides where the answer may
+                // come from: `backing_source` is where `Fetching` goes per key
+                // and a durable absence declines, and why.
+                let source = match self.backing_source(&instance) {
+                    BackingSource::Decline => {
+                        return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
+                    }
+                    source => source,
+                };
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(
-                        &remote,
-                        &instance,
-                        state,
-                        &request.payload,
-                        snapshot.as_deref(),
-                    )
+                    self.backing_lookup(&remote, state, &request.payload, source)
                 });
                 match outcome {
                     // The value digest goes back with the verdict: the
@@ -5479,6 +5578,10 @@ mod tests {
             stats_incomplete_closures: AtomicU64::new(0),
             stats_withheld_roots_refused: AtomicU64::new(0),
             stats_withheld_roots_repaired: AtomicU64::new(0),
+            stats_backing_checks: AtomicU64::new(0),
+            stats_backing_snapshot: AtomicU64::new(0),
+            stats_backing_per_key: AtomicU64::new(0),
+            stats_backing_unbacked: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -5843,6 +5946,197 @@ mod tests {
         assert_eq!(body, b"uploads disabled");
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `resolve`'s fast path serves `resolved` first, and `resolved` keeps every
+    /// hit this proxy has ever answered, remote-sourced ones included, for as
+    /// long as it runs. A check routed through it vouched for a key from that
+    /// cache after the remote had dropped it, and `fetchable` made the value read
+    /// as present without a byte on disk. That is the long-lived proxy — a
+    /// developer's LaunchAgent, a long runner — serving a locally hollow graph
+    /// hours after the remote stopped backing it.
+    ///
+    /// Here: a fresh snapshot that lacks the key, a `resolved` Hit for it with a
+    /// registered instruction, and a remote that cannot be reached. The cache is
+    /// the only thing that says yes, and it must not be consulted. The honest
+    /// answer is `Unknown`.
+    #[test]
+    fn a_backing_check_never_vouches_from_the_resolved_cache() {
+        use crate::proxy_proto::{read_response, write_request, PROTOCOL_VERSION};
+
+        if !std::path::Path::new(&crate::upstream_path()).exists() {
+            eprintln!("skipping: Apple's libToolchainCASPlugin is unavailable");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("tuist-backed-resolved-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+        let cas_dir = dir.join("cas");
+        std::fs::create_dir_all(&cas_dir).expect("cas dir");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(registry),
+            None,
+        );
+        // Fresh, and silent about the key.
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Ready {
+                snapshot: Arc::new(Snapshot {
+                    nodes: Vec::new(),
+                    node_index: HashMap::new(),
+                    keys: HashMap::new(),
+                    key_order: Vec::new(),
+                    watermark: 0,
+                }),
+                full_at: Instant::now(),
+                refreshed_at: Instant::now(),
+                last_used: Instant::now(),
+            },
+        );
+        // What a long-lived proxy holds: the hit it answered earlier, and the
+        // instruction that makes its value read as present with nothing on disk.
+        let key = b"a-key-the-remote-has-since-dropped".to_vec();
+        let value = vec![0xAB; 32];
+        let cas_path = cas_dir.to_string_lossy().into_owned();
+        let state = proxy.path_state(&cas_path).expect("path state");
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(value.clone()));
+        state.pending_objects.lock().unwrap().insert(
+            value,
+            PendingFetch {
+                blob: reapi::Digest {
+                    hash: "cd".repeat(32),
+                    size_bytes: 1,
+                },
+                contents: None,
+            },
+        );
+
+        let (mut client, server) = UnixStream::pair().expect("socketpair");
+        write_request(
+            &mut client,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_BACKED,
+                cas_path: cas_path.clone(),
+                instance: "tuist/writer".into(),
+                payload: key,
+            },
+        )
+        .expect("send");
+        proxy.handle(server).expect("handle");
+        let (status, _) = read_response(&mut client).expect("recv");
+
+        assert_ne!(
+            status, STATUS_HIT,
+            "a stale `resolved` entry must never vouch for a local hit"
+        );
+        assert_eq!(
+            status, STATUS_ERROR,
+            "with the snapshot silent and the remote unreachable, the only honest verdict is Unknown"
+        );
+        assert_eq!(
+            state.stats_backing_per_key.load(Ordering::Relaxed),
+            1,
+            "and the remote was actually asked, once"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// One read, one lock, one classification. The three states the handler used
+    /// to read separately, plus the age, come back together so a transition
+    /// cannot land between them.
+    #[test]
+    fn a_backing_source_is_classified_from_one_read_of_the_snapshot_state() {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            None,
+            None,
+        );
+        let empty = || {
+            Arc::new(Snapshot {
+                nodes: Vec::new(),
+                node_index: HashMap::new(),
+                keys: HashMap::new(),
+                key_order: Vec::new(),
+                watermark: 0,
+            })
+        };
+        let ready = |full_at: Instant| SnapshotState::Ready {
+            snapshot: empty(),
+            full_at,
+            refreshed_at: Instant::now(),
+            last_used: Instant::now(),
+        };
+        let stale = Instant::now()
+            .checked_sub(SNAPSHOT_BACKING_MAX_AGE + Duration::from_secs(60))
+            .expect("clock has enough history");
+
+        assert!(
+            matches!(proxy.backing_source("never-registered"), BackingSource::Decline),
+            "an instance the proxy has never heard of is durably snapshotless"
+        );
+
+        proxy.snapshots.lock().unwrap().insert("i".into(), ready(Instant::now()));
+        let fresh = proxy.snapshots.lock().unwrap().get("i").map(|s| match s {
+            SnapshotState::Ready { snapshot, .. } => snapshot.clone(),
+            _ => unreachable!(),
+        });
+        match proxy.backing_source("i") {
+            BackingSource::Snapshot(snapshot) => assert!(
+                Arc::ptr_eq(&snapshot, fresh.as_ref().unwrap()),
+                "a fresh snapshot answers, and it is THIS one"
+            ),
+            _ => panic!("a fresh Ready snapshot must answer the check"),
+        }
+
+        proxy.snapshots.lock().unwrap().insert("i".into(), ready(stale));
+        assert!(
+            matches!(proxy.backing_source("i"), BackingSource::PerKey),
+            "a snapshot past the backing age is not trusted; the remote is asked"
+        );
+
+        proxy.snapshots.lock().unwrap().insert("i".into(), SnapshotState::Fetching);
+        assert!(
+            matches!(proxy.backing_source("i"), BackingSource::PerKey),
+            "mid-fetch is the window the check exists for; it goes per key"
+        );
+
+        proxy.snapshots.lock().unwrap().insert(
+            "i".into(),
+            SnapshotState::Absent {
+                checked: Instant::now(),
+                retry_after: SNAPSHOT_RETRY_INTERVAL,
+            },
+        );
+        assert!(
+            matches!(proxy.backing_source("i"), BackingSource::Decline),
+            "durably absent declines rather than paying a round trip per hit"
+        );
+    }
+
+    /// Two deadlines, one ordering: the proxy must give up on its remote before
+    /// the plugin gives up on the proxy, or the slow case ends with a client that
+    /// has stopped listening and a handler thread still working for it.
+    #[test]
+    fn the_proxy_abandons_its_remote_before_the_client_abandons_the_proxy() {
+        assert!(BACKED_REMOTE_DEADLINE < crate::proxy_proto::BACKED_READ_TIMEOUT);
     }
 
     /// A snapshot's `yes` is a claim about the last time its copy of the remote's

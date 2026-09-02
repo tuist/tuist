@@ -262,6 +262,35 @@ fn a_proxy_that_cannot_tell_leaves_the_hit_alone() {
     assert_eq!(env.cas.digest_of(served), env.cas.digest_of(value));
 }
 
+/// A proxy that accepts the question and never answers must not hold the build.
+/// The caller is swift-build's serial task-setup thread, the check is optional,
+/// and the verdict a timeout produces -- `Unknown`, serve the hit -- is the one a
+/// slow backend would eventually produce anyway. Before the bound, the generic
+/// 120s socket read applied, so a backend outage stalled every warm local hit on
+/// the machine for two minutes each and turned the guard into a hang.
+#[test]
+fn a_proxy_that_never_answers_the_backing_check_is_abandoned_within_the_deadline() {
+    let Some(env) = Fixture::uploading("backing-hang") else { return };
+    let key = env.cas.key_digest(b"backing-hang");
+    let value = env.cas.store_object(b"a value whose check will never be answered");
+    env.cas.actioncache_put(&key, value).expect("seeding put");
+    env.proxy.hang_backed();
+
+    let started = std::time::Instant::now();
+    let (result, served) = env.cas.actioncache_get(&key);
+    let elapsed = started.elapsed();
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "no answer is `Unknown`, and `Unknown` serves the hit"
+    );
+    assert_eq!(env.cas.digest_of(served), env.cas.digest_of(value));
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "the check must be abandoned within its deadline, not the fake's {BACKED_HANG:?} hang; took {elapsed:?}"
+    );
+}
+
 /// The upload policy is not the client's to apply. This process's `upload` flag
 /// comes from a compiler option that reaches Swift, while swift-build's Clang
 /// caching runs against a CAS created with a plugin path and no options -- so
@@ -1087,8 +1116,17 @@ struct FakeProxy {
     seen: Arc<Mutex<Vec<(u8, Vec<u8>)>>>,
     resolve_answer: Arc<Mutex<Option<Vec<u8>>>>,
     backed_answer: Arc<Mutex<(u8, Vec<u8>)>>,
+    /// Accept the backing check, then sit on it: what a proxy stuck behind an
+    /// unreachable backend looks like from the plugin's side.
+    hang_backed: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
 }
+
+/// How long the hanging fake holds a backing check before dropping it. Longer
+/// than the plugin's deadline, so a bounded client returns first, and short
+/// enough that an unbounded one fails its assertion in seconds rather than the
+/// generic socket timeout's minutes.
+const BACKED_HANG: std::time::Duration = std::time::Duration::from_secs(8);
 
 impl FakeProxy {
     fn listening(socket: &Path) -> Self {
@@ -1099,12 +1137,18 @@ impl FakeProxy {
         // proxy older than the op answers `bad op` with the same status. Both
         // mean "cannot tell", so that is the default a test opts out of.
         let backed_answer = Arc::new(Mutex::new((STATUS_ERROR, Vec::new())));
+        let hang_backed = Arc::new(AtomicBool::new(false));
         let stopping = Arc::new(AtomicBool::new(false));
 
-        let worker =
-            (seen.clone(), resolve_answer.clone(), backed_answer.clone(), stopping.clone());
+        let worker = (
+            seen.clone(),
+            resolve_answer.clone(),
+            backed_answer.clone(),
+            hang_backed.clone(),
+            stopping.clone(),
+        );
         std::thread::spawn(move || {
-            let (seen, resolve_answer, backed_answer, stopping) = worker;
+            let (seen, resolve_answer, backed_answer, hang_backed, stopping) = worker;
             for stream in listener.incoming() {
                 if stopping.load(Ordering::SeqCst) {
                     return;
@@ -1117,6 +1161,12 @@ impl FakeProxy {
                         Some(value) => (STATUS_HIT, value),
                         None => (STATUS_MISS, Vec::new()),
                     },
+                    OP_BACKED if hang_backed.load(Ordering::SeqCst) => {
+                        std::thread::sleep(BACKED_HANG);
+                        // Dropped unanswered: the stream closes and the client
+                        // reads EOF, which is the same `Unknown` a timeout is.
+                        continue;
+                    }
                     OP_BACKED => backed_answer.lock().unwrap().clone(),
                     // This proxy materialises nothing, so it can never produce an
                     // object on demand -- the truthful answer, and the one a real
@@ -1129,7 +1179,14 @@ impl FakeProxy {
             }
         });
 
-        Self { socket: socket.to_path_buf(), seen, resolve_answer, backed_answer, stopping }
+        Self {
+            socket: socket.to_path_buf(),
+            seen,
+            resolve_answer,
+            backed_answer,
+            hang_backed,
+            stopping,
+        }
     }
 
     fn socket(&self) -> &Path {
@@ -1154,6 +1211,11 @@ impl FakeProxy {
     /// a local hit outright.
     fn answer_backed_with_no(&self) {
         *self.backed_answer.lock().unwrap() = (STATUS_MISS, Vec::new());
+    }
+
+    /// Accept the next backing checks and never answer them.
+    fn hang_backed(&self) {
+        self.hang_backed.store(true, Ordering::SeqCst);
     }
 
     fn resolves_for(&self, key: &[u8]) -> usize {

@@ -182,6 +182,17 @@ pub struct ProxyClient {
 /// read timing out on a drain that IS running.
 const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
 
+/// How long a backing check may hold the caller. The caller is the build
+/// engine's serial task-setup thread, the check is optional, and its fail-open
+/// answer (`Unknown`, serve the hit) is exactly what a timeout produces, so
+/// waiting longer buys nothing: a backend that cannot answer in this window is
+/// not going to answer in the generic 120s either, and every warm local hit
+/// would have queued behind it. The proxy bounds its own remote lookup below
+/// this (`BACKED_REMOTE_DEADLINE`), so in the ordinary slow case it is the proxy
+/// that gives up, with a clean error the client reads as `Unknown`, and not the
+/// client abandoning a proxy still working on its behalf.
+pub const BACKED_READ_TIMEOUT: Duration = Duration::from_secs(2);
+
 impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
         self.connect_with_read_timeout(Duration::from_secs(120))
@@ -221,7 +232,7 @@ impl ProxyClient {
     /// whether a cache hit is served and a proxy hiccup must never cost a
     /// recompile.
     pub fn backed(&self, cas_path: &str, instance: &str, key: &[u8]) -> Backing {
-        let Ok(mut stream) = self.connect() else {
+        let Ok(mut stream) = self.connect_with_read_timeout(BACKED_READ_TIMEOUT) else {
             return Backing::Unknown;
         };
         let sent = write_request(
