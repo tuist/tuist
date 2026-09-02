@@ -29,6 +29,15 @@
 //! status 0 = records remain (body = how many), status 2 = the proxy could not
 //! run it. Asked by a runner's teardown before the CAS store it covers is
 //! promoted as an account's cache master; see `Proxy::drain_publications`.
+//!
+//! BACKED (op 6): payload = action key digest bytes. Asks whether the proxy
+//! can produce the key's whole closure, for a hit the plugin already has
+//! locally. status 1 = yes (fetch instructions are now registered), status 0 =
+//! the remote definitively does not hold this key, status 2 = cannot tell.
+//! Only 0 is actionable; the plugin serves the local hit on 1 and on 2, so a
+//! proxy that predates this op (its dispatch answers `bad op` with status 2)
+//! leaves behaviour unchanged. That is why adding it needs no version bump:
+//! the frame layout is untouched and the new op degrades to the old answer.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -62,6 +71,13 @@ pub const OP_FETCH_OBJECT: u8 = 4;
 /// instead would make a stale launchd proxy reject every request, from every
 /// build on the machine, until it restarts.
 pub const OP_DRAIN: u8 = 5;
+/// Backing check for an action-cache hit the plugin found in the local store.
+/// Runs on the build engine's serial task-setup path, so the proxy answers it
+/// from the instance snapshot wherever it can and only pays a per-key lookup
+/// for keys the snapshot lacks. 6 and not 5: DRAIN took 5 first and is already
+/// called from deployed runner teardown, so renumbering it would break every
+/// promote gate in the fleet, while this op has never shipped.
+pub const OP_BACKED: u8 = 6;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -135,6 +151,25 @@ pub enum Resolution {
     Miss,
 }
 
+/// Whether the proxy can produce the closure behind a local action-cache hit.
+///
+/// `Unknown` is the safe answer and covers every case where the proxy has not
+/// actually looked: no routable instance, no snapshot to make an absence mean
+/// anything, a transport failure, or a proxy too old to know the op. Only
+/// `Unbacked` — the remote answering a definitive miss for the key — is
+/// evidence, and it is the only variant that changes what the plugin serves.
+///
+/// `Backed` carries the value digest the remote holds, because the instructions
+/// the check registered describe THAT graph. A remote value that differs from
+/// the local association's (a recompile that was not byte-reproducible) backs a
+/// different closure than the one about to be served, so the caller compares
+/// rather than trusting the verdict alone.
+pub enum Backing {
+    Backed(Vec<u8>),
+    Unbacked,
+    Unknown,
+}
+
 /// Blocking client used inside compiler processes. One connection per
 /// request keeps it stateless and robust; unix-socket connects are tens of
 /// microseconds.
@@ -146,6 +181,17 @@ pub struct ProxyClient {
 /// a proxy that spends its whole budget still gets to answer instead of the
 /// read timing out on a drain that IS running.
 const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
+
+/// How long a backing check may hold the caller. The caller is the build
+/// engine's serial task-setup thread, the check is optional, and its fail-open
+/// answer (`Unknown`, serve the hit) is exactly what a timeout produces, so
+/// waiting longer buys nothing: a backend that cannot answer in this window is
+/// not going to answer in the generic 120s either, and every warm local hit
+/// would have queued behind it. The proxy bounds its own remote lookup below
+/// this (`BACKED_REMOTE_DEADLINE`), so in the ordinary slow case it is the proxy
+/// that gives up, with a clean error the client reads as `Unknown`, and not the
+/// client abandoning a proxy still working on its behalf.
+pub const BACKED_READ_TIMEOUT: Duration = Duration::from_secs(2);
 
 impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
@@ -177,6 +223,35 @@ impl ProxyClient {
             STATUS_HIT => Ok(Resolution::Hit(body)),
             STATUS_MISS => Ok(Resolution::Miss),
             _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
+    /// Asks whether the proxy can produce the closure named by `key`, for an
+    /// association the local store already holds. Never fails: anything short
+    /// of a definitive remote miss reads as `Unknown`, because this decides
+    /// whether a cache hit is served and a proxy hiccup must never cost a
+    /// recompile.
+    pub fn backed(&self, cas_path: &str, instance: &str, key: &[u8]) -> Backing {
+        let Ok(mut stream) = self.connect_with_read_timeout(BACKED_READ_TIMEOUT) else {
+            return Backing::Unknown;
+        };
+        let sent = write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_BACKED,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: key.to_vec(),
+            },
+        );
+        if sent.is_err() {
+            return Backing::Unknown;
+        }
+        match read_response(&mut stream) {
+            Ok((STATUS_HIT, value)) => Backing::Backed(value),
+            Ok((STATUS_MISS, _)) => Backing::Unbacked,
+            _ => Backing::Unknown,
         }
     }
 

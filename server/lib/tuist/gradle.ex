@@ -11,8 +11,10 @@ defmodule Tuist.Gradle do
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
 
@@ -56,12 +58,16 @@ defmodule Tuist.Gradle do
       machine_metrics = Map.get(attrs, :machine_metrics, [])
 
       create_machine_metrics(build_id, machine_metrics, now)
+      create_configuration_operations(build_id, attrs.project_id, Map.get(attrs, :configuration_operations, []), now)
+      create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
 
       {:ok, build_id}
     end
   end
 
   defp build_entry(attrs, build_id, task_counts, now) do
+    configuration_cache = Map.get(attrs, :configuration_cache) || %{}
+
     %{
       id: build_id,
       project_id: attrs.project_id,
@@ -86,6 +92,10 @@ defmodule Tuist.Gradle do
       requested_tasks: Map.get(attrs, :requested_tasks, []),
       custom_tags: Map.get(attrs, :custom_tags, []),
       custom_values: Map.get(attrs, :custom_values, %{}),
+      configuration_cache_status: Map.get(configuration_cache, :status) || "",
+      configuration_cache_entry_size: Map.get(configuration_cache, :entry_size),
+      configuration_cache_load_duration_ms: Map.get(configuration_cache, :load_duration_ms),
+      configuration_cache_invalidation_reasons: Map.get(configuration_cache, :invalidation_reasons, []),
       inserted_at: now
     }
   end
@@ -140,6 +150,8 @@ defmodule Tuist.Gradle do
           duration_ms: Map.get(task, :duration_ms, 0),
           cache_key: Map.get(task, :cache_key) || "",
           cache_artifact_size: Map.get(task, :cache_artifact_size),
+          remote_cache_miss: Map.get(task, :remote_cache_miss, false),
+          remote_cache_stored: Map.get(task, :remote_cache_stored),
           started_at: to_naive_datetime(Map.get(task, :started_at)),
           project_id: project_id,
           inserted_at: now
@@ -147,6 +159,46 @@ defmodule Tuist.Gradle do
       end)
 
     Enum.each(task_entries, &Task.Buffer.insert/1)
+  end
+
+  defp create_configuration_operations(build_id, project_id, operations, now) do
+    entries =
+      Enum.map(operations, fn operation ->
+        %{
+          id: UUIDv7.generate(),
+          gradle_build_id: build_id,
+          project_id: project_id,
+          phase: operation.phase,
+          build_path: operation.build_path,
+          project_path: Map.get(operation, :project_path) || "",
+          duration_ms: operation.duration_ms,
+          started_at: to_naive_datetime(operation.started_at),
+          inserted_at: now
+        }
+      end)
+
+    Enum.each(entries, &ConfigurationOperation.Buffer.insert/1)
+  end
+
+  defp create_artifact_transforms(build_id, project_id, transforms, now) do
+    entries =
+      Enum.map(transforms, fn transform ->
+        %{
+          id: UUIDv7.generate(),
+          gradle_build_id: build_id,
+          project_id: project_id,
+          transformer_name: transform.transformer_name,
+          transform_action_class: transform.transform_action_class,
+          subject_name: transform.subject_name,
+          artifact_name: transform.artifact_name,
+          consumer_project_path: transform.consumer_project_path,
+          duration_ms: transform.duration_ms,
+          started_at: to_naive_datetime(transform.started_at),
+          inserted_at: now
+        }
+      end)
+
+    Enum.each(entries, &ArtifactTransform.Buffer.insert/1)
   end
 
   @doc """
@@ -256,6 +308,46 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
+  Lists the slowest configuration operations for a Gradle build.
+  """
+  def list_configuration_operations(build_id, limit \\ 100) do
+    ClickHouseRepo.all(
+      from(operation in ConfigurationOperation,
+        where: operation.gradle_build_id == ^build_id,
+        order_by: [desc: operation.duration_ms],
+        limit: ^limit
+      )
+    )
+  end
+
+  @doc """
+  Returns whether a Gradle build has configuration operations.
+  """
+  def has_configuration_operations?(build_id) do
+    ClickHouseRepo.exists?(from(operation in ConfigurationOperation, where: operation.gradle_build_id == ^build_id))
+  end
+
+  @doc """
+  Lists the slowest artifact transforms for a Gradle build.
+  """
+  def list_artifact_transforms(build_id, limit \\ 100) do
+    ClickHouseRepo.all(
+      from(transform in ArtifactTransform,
+        where: transform.gradle_build_id == ^build_id,
+        order_by: [desc: transform.duration_ms],
+        limit: ^limit
+      )
+    )
+  end
+
+  @doc """
+  Returns whether a Gradle build has artifact transforms.
+  """
+  def has_artifact_transforms?(build_id) do
+    ClickHouseRepo.exists?(from(transform in ArtifactTransform, where: transform.gradle_build_id == ^build_id))
+  end
+
+  @doc """
   Returns the earliest task started_at time for a build.
 
   Used as the reference point for computing "started after" offsets.
@@ -313,7 +405,11 @@ defmodule Tuist.Gradle do
                 )
               ),
               0
-            )
+            ),
+          confirmed_remote_cache_miss_count: coalesce(sum(fragment("if(? = true, 1, 0)", t.remote_cache_miss)), 0),
+          confirmed_remote_cache_miss_duration_ms:
+            coalesce(sum(fragment("if(? = true, ?, 0)", t.remote_cache_miss, t.duration_ms)), 0),
+          remote_cache_entries_stored_count: coalesce(sum(fragment("if(? = true, 1, 0)", t.remote_cache_stored)), 0)
         }
       )
 

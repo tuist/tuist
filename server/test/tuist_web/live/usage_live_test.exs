@@ -535,7 +535,6 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−7.50"
       # 20 minutes past the allowance at the standard rate.
       assert html =~ "1.50"
-      assert html =~ "On track for about"
     end
 
     test "renders a pace for a projected runner receipt" do

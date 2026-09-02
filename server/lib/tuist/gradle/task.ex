@@ -26,6 +26,8 @@ defmodule Tuist.Gradle.Task do
     field :duration_ms, Ch, type: "UInt64"
     field :cache_key, Ch, type: "String"
     field :cache_artifact_size, Ch, type: "Nullable(Int64)"
+    field :remote_cache_miss, Ch, type: "Bool"
+    field :remote_cache_stored, Ch, type: "Nullable(Bool)"
     field :started_at, Ch, type: "Nullable(DateTime64(6))"
     field :project_id, Ch, type: "Int64"
     field :inserted_at, Ch, type: "DateTime"

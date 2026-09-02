@@ -842,7 +842,12 @@ ovhFleets:
     # --atomic rollback; too low leaves an ordered box billing with nothing
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
-    replicas: 1
+    #
+    # Four boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 128 in total. Slots and threads are 1:1
+    # on this shape, so there is no oversubscription headroom to absorb a burst;
+    # capacity grows by box count rather than by packing slots tighter.
+    replicas: 4
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
