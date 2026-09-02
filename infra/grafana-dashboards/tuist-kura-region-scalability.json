@@ -158,7 +158,7 @@
         "spec": {
           "id": 1,
           "title": "RAM by region",
-          "description": "One row per Kura region. **Fit (ceiling)** and **Fit (memory)** count how many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor, set in the variables above) the scheduler can still place; `floor()` is taken per node before the sum, so free memory fragmented across boxes reads as zero. The next provisioning is declined when either reaches 0 — the **Kura region cannot place another instance** alert. The ceiling binds first wherever `memory_ceiling_bin_packed` is on; a region with no ceiling advertised has an empty ceiling cell.\n\n**Ceiling reserved** / **Memory requested** are the scheduler's view (reservations, not usage); **Host memory used** is the kernel's (`1 - MemAvailable/MemTotal`, reclaimable cache counts as available) and is what **Kura region host memory low** watches. Reservations full while host memory is low means a node or a smaller ceiling profile; host memory high while reservations have room means pods living above their floors.\n\nRegion comes from joining each node to the Kura pods it hosts (`kura_node_geo_info`): a freshly added, still empty node is invisible here until its first placement lands on it.",
+          "description": "One row per Kura region. **Fit (ceiling)** and **Fit (memory)** count how many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor, set in the variables above) the scheduler can still place; `floor()` is taken per node before the sum, so free memory fragmented across boxes reads as zero. The next provisioning is declined when either reaches 0 — the **Kura region cannot place another instance** alert. The ceiling binds first wherever `memory_ceiling_bin_packed` is on; a region whose boxes advertise no ceiling (the private runner-cache pool on Elastic Metal, which the CAPI provider does not patch) reads **no ceiling** and is bound by memory alone.\n\n**Ceiling reserved** / **Memory requested** are the scheduler's view (reservations, not usage); **Host memory used** is the kernel's (`1 - MemAvailable/MemTotal`, reclaimable cache counts as available) and is what **Kura region host memory low** watches. Reservations full while host memory is low means a node or a smaller ceiling profile; host memory high while reservations have room means pods living above their floors.\n\nRegion comes from joining each node to the Kura pods it hosts (`kura_node_geo_info`): a freshly added, still empty node is invisible here until its first placement lands on it.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -471,6 +471,21 @@
                         "value": "Fit (ceiling)"
                       },
                       {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no ceiling",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
                         "id": "custom.cellOptions",
                         "value": {
                           "type": "color-background",
@@ -571,6 +586,21 @@
                       {
                         "id": "displayName",
                         "value": "Ceiling reserved"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no ceiling",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
                       },
                       {
                         "id": "custom.cellOptions",
@@ -997,6 +1027,21 @@
                         "value": "Fit (ceiling)"
                       },
                       {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no ceiling",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
                         "id": "custom.cellOptions",
                         "value": {
                           "type": "color-background",
@@ -1097,6 +1142,21 @@
                       {
                         "id": "displayName",
                         "value": "Ceiling reserved"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no ceiling",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
                       },
                       {
                         "id": "custom.cellOptions",
