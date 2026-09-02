@@ -942,63 +942,38 @@ them:
 kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
 ```
 
-### Runner queue parked at an account concurrency limit
+### Why there is no alert on withheld runner queue depth
 
-```promql
-avg_over_time(
-  max by (fleet) (tuist_runners_queue_withheld{env="production"})[2h:1m]
-) > 1
-```
+`tuist_runners_queue_withheld` is deliberately **not** alerted on, and the
+rule that did (`bfx14w4bwawowa`) was created and retired the same day.
 
-- Pending period: 5 minutes (the 2 hours is the averaging window)
-- `keep_firing_for`: 15 minutes
-- Severity: warning
-- Receiver: `Slack #notifications 2`
-- Summary: `Runner fleet {{ $labels.fleet }}: an account has had work
-  queued for hours that its concurrency limit will not let it run`
+An account using the concurrency it bought is steady state, not an event.
+It is not actionable by anyone reading an ops channel — the only response
+is a commercial conversation on a business timescale — and because it is
+normal behaviour rather than an exception, a rule on it fires routinely
+by construction. Within an hour of being enabled it was firing on two
+fleets, both legitimately. Lowering the severity and picking a quieter
+channel does not fix that; it is the wrong instrument, not the wrong
+threshold.
 
-The information "Runner queue not draining" used to surface by accident,
-kept deliberately and at the right urgency. An account parked at its cap
-for hours is real — their jobs are waiting — but it is an entitlement
-question, not an incident: either they should buy more concurrency, or
-their limit is misconfigured relative to what they already bought.
+This is the same argument that moved "Runner queue not draining" onto
+`tuist_runners_queue_oldest_dispatchable_age_seconds` above. Applying it
+consistently means the withheld series is **reporting, not alerting**:
+put it on `/d/tuist-runners` next to queue depth so it is there when
+someone looks, and surface the commercial signal — an account repeatedly
+pinned at its cap is an upsell or a misconfigured limit — where account
+decisions are actually made, not in Grafana.
 
-**An average, not a level, and this is the part that matters.**
-`tuist_runners_queue_withheld` oscillates back to 0 as withheld jobs land
-and re-queue, so the obvious rule — `> 0` with a 2-hour pending period —
-has its pending timer reset by a single zero sample and would essentially
-never fire. Averaging across the window and asking for `> 1` means
-roughly one job withheld continuously, which a short burst at the cap
-cannot reach. Measured on 2026-09-02: the two genuinely parked fleets
-reached 3.3 and 4.7 while every fleet that merely brushed its cap peaked
-at 0.6.
+Keep the metric. It is what makes the queue-age rule correct, and it is
+the first thing to check when that rule *does* fire.
 
-**The subquery is required, not stylistic.** Adaptive Metrics aggregates
-`instance` and `pod` away from this series, and Grafana Cloud then
-rejects any expression that does not aggregate the metric selector
-directly — `avg_over_time(tuist_runners_queue_withheld[2h])` errors.
-Aggregating first and ranging over the result (`[2h:1m]`) is the form
-that works.
-
-Fleet-scoped rather than account-scoped because the metric has no account
-label; identify the account from `runner_concurrency_limits` against
-`Tuist.Runners.Concurrency.usage_by_platform/1`, or from the fleet's
-queued rows in `runner_workflow_jobs`.
-
-On routing: there is no commercial or account-ownership contact point in
-Grafana today, so this lands on `Slack #notifications 2` — the same
-channel "Runner queue not draining" uses. Note that neither rule is
-routed to the `Incidents` (on-call) contact point, so the separation that
-matters is already there; the two are distinguished by severity and
-wording. A genuinely separate destination needs a new contact point.
-
-Note the limit is a **resource** budget per account and platform
-(vCPU and memory), shared across every shape on that platform — so an
-account's smaller Linux jobs consume the same budget its large-shape
-jobs need, and a trickle of them can leave no contiguous room for a
-large shape. That is the account-budget analogue of the node-level
-starvation `infra/runners-controller/controllers/reservation.go` solves,
-and nothing guards it today.
+One genuine fault could hide behind a high withheld count: an account
+pinned at its cap by **leaked claims** rather than real work, which would
+throttle them indefinitely while the queue-age rule stays correctly
+silent. `Tuist.Runners.Workers.StaleClaimsWorker` reaps those, and
+nothing alerts if it stops. If that is worth covering, the detector is
+claims held against work actually running — not withheld depth, which
+cannot tell a leak from a busy customer.
 
 ### Node leaking cgroups
 
