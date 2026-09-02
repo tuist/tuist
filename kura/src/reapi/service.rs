@@ -27,7 +27,6 @@ use bazel_remote_apis::{
 use futures_util::{FutureExt, StreamExt};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio_util::io::ReaderStream;
 use tonic::{Request, Response, Status};
 use tracing::Instrument;
 
@@ -1860,15 +1859,17 @@ fn bytestream_read_response_stream<R>(
     chunk_bytes: usize,
 ) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
 where
-    R: tokio::io::AsyncRead + Send,
+    R: tokio::io::AsyncRead + Unpin + Send,
 {
-    ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
-        Ok(bytes) => Ok(bytestream::ReadResponse {
-            data: bytes.to_vec(),
-        }),
-        Err(error) => Err(Status::internal(format!(
-            "failed to stream blob chunk: {error}"
-        ))),
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let mut data = Vec::with_capacity(chunk_bytes);
+        match tokio::io::AsyncReadExt::read_buf(&mut reader, &mut data).await {
+            Ok(0) => Ok(None),
+            Ok(_) => Ok(Some((bytestream::ReadResponse { data }, reader))),
+            Err(error) => Err(Status::internal(format!(
+                "failed to stream blob chunk: {error}"
+            ))),
+        }
     })
 }
 
@@ -1880,7 +1881,7 @@ fn copying_bytestream_read_response_stream<R>(
 where
     R: tokio::io::AsyncRead + Send,
 {
-    ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
+    tokio_util::io::ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
         Ok(bytes) => Ok(bytestream::ReadResponse {
             data: bytes.to_vec(),
         }),
@@ -2672,6 +2673,58 @@ mod tests {
             .flat_map(|response| response.expect("stream response").data)
             .collect::<Vec<_>>();
         assert_eq!(data, vec![0x5a; 10_001]);
+    }
+
+    #[tokio::test]
+    async fn bytestream_read_response_owns_the_buffer_filled_by_the_reader() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        use std::task::Poll;
+
+        struct PointerRecordingReader {
+            destination: Arc<AtomicUsize>,
+            remaining: usize,
+        }
+
+        impl tokio::io::AsyncRead for PointerRecordingReader {
+            fn poll_read(
+                mut self: std::pin::Pin<&mut Self>,
+                _context: &mut std::task::Context<'_>,
+                buffer: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                if self.remaining == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+                let length = self.remaining.min(buffer.remaining());
+                let destination = buffer.initialize_unfilled_to(length);
+                self.destination
+                    .store(destination.as_ptr() as usize, Ordering::Relaxed);
+                destination.fill(0x5a);
+                buffer.advance(length);
+                self.remaining -= length;
+                Poll::Ready(Ok(()))
+            }
+        }
+
+        let destination = Arc::new(AtomicUsize::new(0));
+        let reader = PointerRecordingReader {
+            destination: destination.clone(),
+            remaining: 1_024,
+        };
+        let stream = bytestream_read_response_stream(reader, 1_024);
+        tokio::pin!(stream);
+        let response = stream
+            .next()
+            .await
+            .expect("one response")
+            .expect("successful response");
+
+        assert_eq!(
+            response.data.as_ptr() as usize,
+            destination.load(Ordering::Relaxed)
+        );
     }
 
     #[tokio::test]
