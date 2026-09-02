@@ -84,6 +84,11 @@ concurrency:
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
+#
+# ~/.cache/swifterpm is a separate cache: SwifterPM's global content-addressed
+# store, which is what `tuist install` restores .build/checkouts from. Caching
+# .build alone leaves that store cold and every install re-downloads it, so both
+# are cached. cli-lint is the only job that writes the swifterpm cache.
 jobs:
   cli-lint:
     name: Lint
@@ -106,6 +111,18 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
+      - name: Inspect swifterpm store (after restore)
+        run: |
+          du -sh ~/.cache/swifterpm 2>/dev/null || echo "(store absent)"
+          du -sh ~/.cache/swifterpm/* 2>/dev/null || true
+          ls -la ~/.cache/swifterpm/manifests 2>/dev/null || echo "(no manifests dir)"
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -119,7 +136,20 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          env -u GITHUB_RUN_ID -u GITHUB_RUN_NUMBER -u GITHUB_RUN_ATTEMPT \
+              -u GITHUB_SHA -u GITHUB_WORKFLOW_SHA -u GITHUB_ACTION \
+              -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_OUTPUT -u GITHUB_STATE \
+              -u GITHUB_STEP_SUMMARY -u RUNNER_NAME -u RUNNER_TRACKING_ID \
+              tuist install --force-resolved-versions
+      - name: Inspect swifterpm store (after install)
+        run: |
+          du -sh ~/.cache/swifterpm 2>/dev/null || true
+          du -sh ~/.cache/swifterpm/* 2>/dev/null || true
+          ls -la ~/.cache/swifterpm/manifests 2>/dev/null || true
+          du -sh .build 2>/dev/null || true
+          echo "symlinks: $(find .build/registry/downloads -maxdepth 3 -type l 2>/dev/null | wc -l | tr -d ' ')"
+          echo "dirs: $(find .build/registry/downloads -maxdepth 3 -type d 2>/dev/null | wc -l | tr -d ' ')"
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -144,6 +174,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -186,6 +223,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -230,6 +274,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -271,6 +322,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -321,6 +379,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -373,6 +438,13 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
+            ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
