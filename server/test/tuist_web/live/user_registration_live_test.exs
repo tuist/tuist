@@ -7,6 +7,8 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias TuistWeb.RateLimit.Registration
+  alias TuistWeb.Turnstile
 
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
@@ -62,6 +64,32 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
+    test "does not create a user when the security check is rejected", %{conn: conn} do
+      email = "rejected-security-check@example.com"
+
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
+      stub(Turnstile, :verify, fn "invalid-token", [expected_action: "email_signup"] -> {:error, :rejected} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      html =
+        lv
+        |> form("#login_form", %{
+          "cf-turnstile-response" => "invalid-token",
+          "user" => %{
+            "email" => email,
+            "password" => "StrongP@ssword!2028",
+            "username" => "rejectedsecuritycheck"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "Please complete the security check and try again."
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(email)
+    end
+
     test "completes registration when confirmation email delivery fails", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)

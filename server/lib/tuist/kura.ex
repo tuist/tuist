@@ -25,6 +25,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.Demand
@@ -488,29 +489,36 @@ defmodule Tuist.Kura do
         # two appliers (an operator click racing the automatic sweep) serialize
         # here, and the loser sees a proposal that is no longer open.
         lock_account(account.id)
-        proposal = Repo.get!(ClaimProposal, proposal.id)
 
-        cond do
-          proposal.status != :open ->
-            {:stale, proposal}
+        case Admission.lock_regions(storage_claim_region_ids(account.id)) do
+          :ok ->
+            proposal = Repo.get!(ClaimProposal, proposal.id)
 
-          ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
-            {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
+            cond do
+              proposal.status != :open ->
+                {:stale, proposal}
 
-          true ->
-            :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
-            claim_size = PlacerClaims.effective_claim_size(account)
+              ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
+                {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
 
-            proposal
-            |> ClaimProposal.resolve_changeset(:applied, resolved_by)
-            |> Repo.update!()
+              true ->
+                :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
+                claim_size = PlacerClaims.effective_claim_size(account)
 
-            outcome =
-              account
-              |> repin_storage_claims(proposal.current_claim_size, claim_size)
-              |> Map.put(:claim_size, claim_size)
+                proposal
+                |> ClaimProposal.resolve_changeset(:applied, resolved_by)
+                |> Repo.update!()
 
-            {:applied, outcome}
+                outcome =
+                  account
+                  |> repin_storage_claims(proposal.current_claim_size, claim_size)
+                  |> Map.put(:claim_size, claim_size)
+
+                {:applied, outcome}
+            end
+
+          {:error, reason} ->
+            Repo.rollback(reason)
         end
       end)
 
@@ -649,7 +657,7 @@ defmodule Tuist.Kura do
   # produce no manifest change, and reporting it as rebuilt would tell an
   # operator a cache was dropped that never was.
   defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
-    {raised, lowered} =
+    changes =
       Server
       |> where([server], server.account_id == ^account_id)
       |> where([server], server.status not in ^@volumeless_statuses)
@@ -657,12 +665,43 @@ defmodule Tuist.Kura do
       |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
       |> Enum.map(fn server ->
         raised? = claim_grows?(instance_storage_claim(server, previous), claim_size)
+        candidate = %{server | storage_claim_size: claim_size}
 
-        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
+        {server, candidate, raised?}
       end)
-      |> Enum.split_with(fn {_server, raised?} -> raised? end)
 
-    %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
+    case admit_claim_growths(changes) do
+      :ok ->
+        {raised, lowered} =
+          changes
+          |> Enum.map(fn {server, _candidate, raised?} ->
+            {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
+          end)
+          |> Enum.split_with(fn {_server, raised?} -> raised? end)
+
+        %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
+
+      {:error, reason} ->
+        Repo.rollback(reason)
+    end
+  end
+
+  defp admit_claim_growths(changes) do
+    changes
+    |> Enum.filter(fn {_server, _candidate, raised?} -> raised? end)
+    |> Enum.group_by(fn {server, _candidate, _raised?} -> server.region end)
+    |> Enum.reduce_while(:ok, fn {region_id, changes}, :ok ->
+      with {:ok, region} <- Regions.fetch(region_id),
+           :ok <-
+             Admission.admit_replacements?(
+               region,
+               Enum.map(changes, fn {server, candidate, _raised?} -> {server, candidate} end)
+             ) do
+        {:cont, :ok}
+      else
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
   end
 
   # Which way this row's claim moved, which bounds what the cluster does with it.
@@ -696,6 +735,21 @@ defmodule Tuist.Kura do
       {:error, _reason} ->
         false
     end
+  end
+
+  defp storage_claim_region_ids(account_id) do
+    Server
+    |> where([server], server.account_id == ^account_id)
+    |> where([server], server.status not in ^@volumeless_statuses)
+    |> select([server], server.region)
+    |> distinct(true)
+    |> Repo.all()
+    |> Enum.filter(fn region_id ->
+      case Regions.fetch(region_id) do
+        {:ok, region} -> Regions.storage_governed?(region)
+        {:error, _reason} -> false
+      end
+    end)
   end
 
   @doc """
@@ -790,13 +844,8 @@ defmodule Tuist.Kura do
       |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
-         {:ok, account} <- sizing_account(attrs),
-         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
-         :ok <- validate_provisioner_node_ref(account, ref) do
-      attrs
-      |> Map.delete(:account)
-      |> Map.put(:provisioner_node_ref, ref)
-      |> insert_server(region, account)
+         {:ok, account} <- sizing_account(attrs) do
+      create_server_transaction(attrs, region, account)
     end
   end
 
@@ -862,13 +911,17 @@ defmodule Tuist.Kura do
     |> Ecto.Changeset.add_error(:account_handle, message)
   end
 
-  defp insert_server(attrs, region, account) do
+  defp create_server_transaction(attrs, region, account) do
     case Repo.transaction(fn ->
            attrs = Map.merge(attrs, locked_storage_claim(account, region))
 
-           with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
-                {:ok, _deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]) do
-             Repo.preload(server, :deployments)
+           with :ok <- Admission.lock(region),
+                :ok <- Admission.admit?(region, server_candidate(attrs, account)),
+                {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
+                :ok <- validate_provisioner_node_ref(account, ref),
+                attrs = attrs |> Map.delete(:account) |> Map.put(:provisioner_node_ref, ref),
+                {:ok, server} <- insert_server_record(attrs, region) do
+             server
            else
              {:error, reason} -> Repo.rollback(reason)
            end
@@ -879,6 +932,13 @@ defmodule Tuist.Kura do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp insert_server_record(attrs, region) do
+    with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
+         {:ok, _deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]) do
+      {:ok, Repo.preload(server, :deployments)}
     end
   end
 
@@ -929,6 +989,17 @@ defmodule Tuist.Kura do
   end
 
   defp server_stub(_attrs), do: %Server{}
+
+  defp server_candidate(attrs, account) do
+    %Server{
+      account: account,
+      account_id: attrs[:account_id],
+      move_phase: Map.get(attrs, :move_phase, :none),
+      region: attrs[:region],
+      status: :provisioning,
+      storage_claim_size: attrs[:storage_claim_size]
+    }
+  end
 
   # The deployment row stored in `kura_deployments` carries `cluster_id`
   # as an audit field — which backing cluster an install or update
@@ -1685,14 +1756,10 @@ defmodule Tuist.Kura do
     Repo.transaction(fn ->
       claim = locked_storage_claim(account, region)
 
-      locked_server =
-        case lock_server(server.id, server.account_id) do
-          %Server{status: :archived} = locked_server -> locked_server
-          %Server{} -> Repo.rollback(:not_archived)
-          nil -> Repo.rollback(:not_found)
-        end
-
-      with :ok <- ensure_no_open_deployment(locked_server.id),
+      with :ok <- Admission.lock(region),
+           %Server{status: :archived} = locked_server <- lock_server(server.id, server.account_id),
+           :ok <- Admission.admit?(region, archived_server_candidate(locked_server, account, claim)),
+           :ok <- ensure_no_open_deployment(locked_server.id),
            {:ok, locked_server} <-
              locked_server
              |> Server.lifecycle_changeset(Map.merge(claim, %{status: :provisioning, current_image_tag: nil, url: nil}))
@@ -1700,9 +1767,20 @@ defmodule Tuist.Kura do
            {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
         locked_server
       else
+        %Server{} -> Repo.rollback(:not_archived)
+        nil -> Repo.rollback(:not_found)
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp archived_server_candidate(server, account, claim) do
+    %{
+      server
+      | account: account,
+        status: :provisioning,
+        storage_claim_size: Map.get(claim, :storage_claim_size, server.storage_claim_size)
+    }
   end
 
   @doc """
@@ -1868,7 +1946,9 @@ defmodule Tuist.Kura do
     case Repo.transaction(fn ->
            attrs = Map.merge(attrs, locked_storage_claim(account, region))
 
-           with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
+           with :ok <- Admission.lock(region),
+                :ok <- Admission.admit?(region, server_candidate(attrs, account)),
+                {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
              Repo.preload(target, :deployments)
            else

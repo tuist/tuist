@@ -41,6 +41,9 @@ registry:
 server:
   replicaCount: 1
 
+  kuraCapacityAdmission:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the

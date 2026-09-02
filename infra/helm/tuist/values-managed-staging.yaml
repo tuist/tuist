@@ -56,6 +56,9 @@ registry:
     tlsSecretName: registry-staging-tls
 
 server:
+  kuraCapacityAdmission:
+    enabled: true
+
   replicaCount: 1
 
   # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
