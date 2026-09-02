@@ -945,16 +945,17 @@ kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector sp
 ### Runner queue parked at an account concurrency limit
 
 ```promql
-max by (cluster, env, fleet) (
-  tuist_runners_queue_withheld
-) > 0
+avg_over_time(
+  max by (fleet) (tuist_runners_queue_withheld{env="production"})[2h:1m]
+) > 1
 ```
 
-- Pending period: 2 hours
+- Pending period: 5 minutes (the 2 hours is the averaging window)
+- `keep_firing_for`: 15 minutes
 - Severity: warning
-- Route: commercial/account ownership, **not** on-call
-- Summary: `An account has had work queued on {{ $labels.fleet }} for
-  over 2 hours that its concurrency limit will not let it run`
+- Receiver: `Slack #notifications 2`
+- Summary: `Runner fleet {{ $labels.fleet }}: an account has had work
+  queued for hours that its concurrency limit will not let it run`
 
 The information "Runner queue not draining" used to surface by accident,
 kept deliberately and at the right urgency. An account parked at its cap
@@ -962,12 +963,34 @@ for hours is real — their jobs are waiting — but it is an entitlement
 question, not an incident: either they should buy more concurrency, or
 their limit is misconfigured relative to what they already bought.
 
-Two hours rather than minutes because short excursions are the limit
-doing its job on a burst and self-resolve. Fleet-scoped rather than
-account-scoped because the metric has no account label; identify the
-account from `runner_concurrency_limits` against
+**An average, not a level, and this is the part that matters.**
+`tuist_runners_queue_withheld` oscillates back to 0 as withheld jobs land
+and re-queue, so the obvious rule — `> 0` with a 2-hour pending period —
+has its pending timer reset by a single zero sample and would essentially
+never fire. Averaging across the window and asking for `> 1` means
+roughly one job withheld continuously, which a short burst at the cap
+cannot reach. Measured on 2026-09-02: the two genuinely parked fleets
+reached 3.3 and 4.7 while every fleet that merely brushed its cap peaked
+at 0.6.
+
+**The subquery is required, not stylistic.** Adaptive Metrics aggregates
+`instance` and `pod` away from this series, and Grafana Cloud then
+rejects any expression that does not aggregate the metric selector
+directly — `avg_over_time(tuist_runners_queue_withheld[2h])` errors.
+Aggregating first and ranging over the result (`[2h:1m]`) is the form
+that works.
+
+Fleet-scoped rather than account-scoped because the metric has no account
+label; identify the account from `runner_concurrency_limits` against
 `Tuist.Runners.Concurrency.usage_by_platform/1`, or from the fleet's
 queued rows in `runner_workflow_jobs`.
+
+On routing: there is no commercial or account-ownership contact point in
+Grafana today, so this lands on `Slack #notifications 2` — the same
+channel "Runner queue not draining" uses. Note that neither rule is
+routed to the `Incidents` (on-call) contact point, so the separation that
+matters is already there; the two are distinguished by severity and
+wording. A genuinely separate destination needs a new contact point.
 
 Note the limit is a **resource** budget per account and platform
 (vCPU and memory), shared across every shape on that platform — so an
