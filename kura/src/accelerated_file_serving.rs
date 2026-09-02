@@ -1738,6 +1738,21 @@ mod tests {
         system_page_bytes,
     };
 
+    fn test_request_context(request_id: &str, route: &str) -> Arc<RequestContext> {
+        RequestContext::new(
+            Instant::now(),
+            request_id.into(),
+            "GET".into(),
+            route.into(),
+            RequestLogPolicy {
+                sample_rate: 0.0,
+                slow_request_threshold: Duration::from_secs(30),
+                warning_log_interval: Duration::from_secs(60),
+            },
+            tracing::Span::none(),
+        )
+    }
+
     #[test]
     fn client_hangups_are_not_server_errors() {
         for kind in [
@@ -1838,7 +1853,7 @@ mod tests {
             &context.state,
             &context.state.config.accelerated_file_serving,
             candidate,
-            Instant::now(),
+            test_request_context("client-aborted-test", "/api/cache/module/{id}"),
             false,
         )
         .await;
@@ -2038,18 +2053,7 @@ mod tests {
             &context.state,
             &context.state.config.accelerated_file_serving,
             candidate,
-            RequestContext::new(
-                Instant::now(),
-                "accelerated-test".into(),
-                "GET".into(),
-                "/api/cache/cas/{id}".into(),
-                RequestLogPolicy {
-                    sample_rate: 0.0,
-                    slow_request_threshold: Duration::from_secs(30),
-                    warning_log_interval: Duration::from_secs(60),
-                },
-                tracing::Span::none(),
-            ),
+            test_request_context("accelerated-test", "/api/cache/cas/{id}"),
             false,
         )
         .await
@@ -2153,7 +2157,7 @@ mod tests {
             &context.state,
             &context.state.config.accelerated_file_serving,
             candidate,
-            Instant::now(),
+            test_request_context("ranged-transfer-test", "/api/cache/module/{id}"),
             false,
         )
         .await
@@ -2237,7 +2241,7 @@ mod tests {
             &context.state,
             &context.state.config.accelerated_file_serving,
             candidate,
-            Instant::now(),
+            test_request_context("full-transfer-test", "/api/cache/module/{id}"),
             false,
         )
         .await
