@@ -275,6 +275,21 @@ independent workqueues:
   never re-added, so a Pod that turns out to be unschedulable after
   ungating is back to holding a slot with no way to reclaim it.
 
+  The ceiling is shared, so it is also divided. A pool's own share
+  (`poolCap`) is the fleet ceiling minus one for every sibling pool that
+  has a replica gap and nothing provisioning; it never drops below one.
+  A pool at its share is refused with `reason="pool_share"` even when
+  the fleet count is under the ceiling. Without this, the first pool to
+  fill the budget kept it: on 2026-09-02 `linux-4vcpu-16gb`, targeted
+  far above what the fleet seats, held all four slots with Pods
+  Pending on `Insufficient memory`, recreated each one the instant the
+  unschedulable reap released it, and `linux-2vcpu-8gb` was refused
+  creation for over an hour with 143 jobs queued. The fleet count is
+  still what bounds the burst; the share only decides who may top it
+  back up after a reap, so the reap that already existed becomes the
+  moment a starved sibling gets its slot, within one
+  `startTimeoutSeconds`.
+
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
   successful create and counts it until the cache observes the Pod. This

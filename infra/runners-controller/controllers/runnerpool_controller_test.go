@@ -1325,12 +1325,15 @@ func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
 		t.Fatalf("first pool requeue = %s, want %s while gap remains", result.RequeueAfter, provisioningRequeueAfter)
 	}
 
+	// The sibling has a gap and nothing provisioning, so the first pool's
+	// share of the ceiling is 3 of 4: one slot is left for the sibling rather
+	// than the first pool to reconcile taking the whole budget.
 	var pods corev1.PodList
 	if err := c.List(context.Background(), &pods); err != nil {
 		t.Fatalf("list first pool pods: %v", err)
 	}
-	if len(pods.Items) != 4 {
-		t.Fatalf("first reconcile created %d Pods, want shared cap 4", len(pods.Items))
+	if len(pods.Items) != 3 {
+		t.Fatalf("first reconcile created %d Pods, want its share of 3 under the shared cap 4", len(pods.Items))
 	}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolB.Namespace, poolB.Name)}); err != nil {
@@ -1341,15 +1344,24 @@ func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
 		t.Fatalf("list sibling pool pods: %v", err)
 	}
 	if len(pods.Items) != 4 {
-		t.Fatalf("sibling reconcile exceeded shared cap: got %d Pods, want 4", len(pods.Items))
+		t.Fatalf("sibling reconcile should take the reserved slot up to the shared cap: got %d Pods, want 4", len(pods.Items))
+	}
+	siblingPods := 0
+	for i := range pods.Items {
+		if pods.Items[i].Labels["tuist.dev/runner-pool"] == poolB.Name {
+			siblingPods++
+		}
+	}
+	if siblingPods != 1 {
+		t.Fatalf("sibling created %d Pods, want exactly the 1 slot reserved for it", siblingPods)
 	}
 
 	gotPool := &tuistv1.RunnerPool{}
 	if err := c.Get(context.Background(), nn(poolA.Namespace, poolA.Name), gotPool); err != nil {
 		t.Fatalf("get first pool: %v", err)
 	}
-	if gotPool.Status.ObservedReplicas != 4 {
-		t.Fatalf("ObservedReplicas = %d, want only the 4 Pods actually created", gotPool.Status.ObservedReplicas)
+	if gotPool.Status.ObservedReplicas != 3 {
+		t.Fatalf("ObservedReplicas = %d, want only the 3 Pods actually created", gotPool.Status.ObservedReplicas)
 	}
 }
 

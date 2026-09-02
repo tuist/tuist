@@ -1419,11 +1419,40 @@ runnersFleetLinux:
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
+    # Fallback only. Every shape below carries its own `maxReplicas`, bounded
+    # to what this fleet can actually seat, so this value applies to nothing
+    # in production and stays as the documented default for the override.
     maxReplicas: 120
     scaleDownCooldownSeconds: 300
+  # Per-shape `maxReplicas` is bounded to the seats the fleet can hold, not
+  # to demand. The autoscaler sizes a pool from its queue and, left unbounded,
+  # drove `4vcpu-16gb` to a target of 67 on a fleet that seats 24 of them; the
+  # excess sat Pending on `Insufficient memory` forever, and because the
+  # provisioning admission budgets Pending Pods fleet-wide, those dead Pods
+  # blocked every sibling shape from creating any Pod at all. The default
+  # shape stayed at zero for an hour with 143 `tuist-linux` jobs queued, one
+  # of them the production cascade's own first job (2026-09-02).
+  #
+  # Seats per RISE-L (117 GiB / 31 vCPU allocatable, kata podFixed overhead
+  # 2.5 GiB / 0.25 vCPU) = min(floor(117 / (memoryGb + 2.5)),
+  # floor(31 / (vcpus + 0.25))). Non-default shapes get 3 of the 4 boxes:
+  # the default shape's warm floor (12 x 10.5 GiB) is about one box, and a
+  # shape that could take the whole fleet is exactly what starved it.
+  # Recompute when `ovhFleets.runners-linux.replicas` or the box SKU changes.
+  #
+  #   shape        seats/box   3 boxes   4 boxes
+  #   1vcpu-2gb    24 (cpu)    72        96
+  #   2vcpu-4gb    13 (cpu)    39        52
+  #   2vcpu-8gb    11 (mem)    33        44   <- default, whole fleet
+  #   4vcpu-8gb     7 (cpu)    21        28
+  #   4vcpu-16gb    6 (mem)    18        24
+  #   8vcpu-16gb    3 (cpu)     9        12
+  #   8vcpu-32gb    3 (mem)     9        12
+  #   16vcpu-32gb   1 (cpu)     3         4
+  #   16vcpu-64gb   1 (mem)     3         4
   shapes:
-    - { vcpus: 1, memoryGb: 2 }
-    - { vcpus: 2, memoryGb: 4 }
+    - { vcpus: 1, memoryGb: 2, autoscaling: { maxReplicas: 72 } }
+    - { vcpus: 2, memoryGb: 4, autoscaling: { maxReplicas: 39 } }
     # Default shape: all `tuist-default` + `linux` default-profile
     # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
     # floor. Sized against RAM, not slots: request == limit == the
@@ -1440,11 +1469,12 @@ runnersFleetLinux:
       default: true
       autoscaling:
         minWarmPoolFloor: 12
-    - { vcpus: 4, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 32 }
-    - { vcpus: 16, memoryGb: 32 }
+        maxReplicas: 44
+    - { vcpus: 4, memoryGb: 8, autoscaling: { maxReplicas: 21 } }
+    - { vcpus: 4, memoryGb: 16, autoscaling: { maxReplicas: 18 } }
+    - { vcpus: 8, memoryGb: 16, autoscaling: { maxReplicas: 9 } }
+    - { vcpus: 8, memoryGb: 32, autoscaling: { maxReplicas: 9 } }
+    - { vcpus: 16, memoryGb: 32, autoscaling: { maxReplicas: 3 } }
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
@@ -1470,7 +1500,7 @@ runnersFleetLinux:
     # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
     # shape), so memory reservation is what runs out on this fleet while
     # CPU does not. This rung is bought for memory and priced for it.
-    - { vcpus: 16, memoryGb: 64 }
+    - { vcpus: 16, memoryGb: 64, autoscaling: { maxReplicas: 3 } }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

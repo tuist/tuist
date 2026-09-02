@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -57,8 +58,11 @@ func TestProvisioningAdmissionUsesLowestSiblingCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("provisioningAdmission: %v", err)
 	}
-	if admission.cap != 2 || admission.available != 2 {
-		t.Fatalf("admission = %+v, want sibling minimum cap and availability 2", admission)
+	// The sibling also has a gap and nothing provisioning, so one of the two
+	// slots is reserved for it: the ceiling is the sibling minimum, the share
+	// is what this pool may take of it.
+	if admission.cap != 2 || admission.poolCap != 1 || admission.available != 1 {
+		t.Fatalf("admission = %+v, want sibling minimum cap 2 and a share of 1", admission)
 	}
 }
 
@@ -150,6 +154,91 @@ func TestProvisioningAdmissionHoldsCapAsUnschedulablePodsBecomeSchedulable(t *te
 	}
 	if admission.blockedReason != "fleet_cap" || admission.available != 0 {
 		t.Fatalf("admission = %+v, want the ceiling held across the transition", admission)
+	}
+}
+
+// The starvation seen on 2026-09-02: one shape holds the entire fleet ceiling
+// with Pods no node can seat, and every sibling with a replica gap is refused
+// creation for as long as the shortfall lasts. The fleet ceiling still holds
+// (burst guarantee), but the hog's own share shrinks by one per sibling that
+// has a gap and nothing provisioning, so it may not top the count back up
+// after unschedulableTimedOut reaps one of its Pods.
+func TestProvisioningAdmissionHogCannotRecreateAfterReapWhileSiblingStarves(t *testing.T) {
+	scheme := mustScheme(t)
+	hog := newLinuxKataPool("linux-big", 8, 4)
+	starved := newLinuxKataPool("linux-small", 8, 4)
+	node := readyLinuxRunnerNode("runner-node", hog.Spec.FleetSelector)
+	// After the reap: three of the hog's four parked Pods remain, so the fleet
+	// count (3) is under the ceiling (4) and the freed slot is up for grabs.
+	stuck := []*corev1.Pod{
+		unschedulableRunnerPod("linux-big-runner-1", hog.Name, time.Unix(1000, 0)),
+		unschedulableRunnerPod("linux-big-runner-2", hog.Name, time.Unix(1000, 0)),
+		unschedulableRunnerPod("linux-big-runner-3", hog.Name, time.Unix(1000, 0)),
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(hog, starved, node, stuck[0], stuck[1], stuck[2]).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	hogAdmission, err := r.provisioningAdmission(context.Background(), hog)
+	if err != nil {
+		t.Fatalf("provisioningAdmission(hog): %v", err)
+	}
+	if hogAdmission.poolCap != 3 || hogAdmission.blockedReason != "pool_share" || hogAdmission.available != 0 {
+		t.Fatalf("hog admission = %+v, want share 3 (cap 4 minus one starved sibling) and no availability", hogAdmission)
+	}
+
+	starvedAdmission, err := r.provisioningAdmission(context.Background(), starved)
+	if err != nil {
+		t.Fatalf("provisioningAdmission(starved): %v", err)
+	}
+	if starvedAdmission.blockedReason != "" || starvedAdmission.available != 1 {
+		t.Fatalf("starved admission = %+v, want the freed slot", starvedAdmission)
+	}
+}
+
+// A pool's share only shrinks for siblings that actually need a slot: one with
+// no replica gap, or one already provisioning something, takes nothing away.
+func TestProvisioningAdmissionShareIgnoresSiblingsWithoutAGap(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 8, 4)
+	satisfied := newLinuxKataPool("linux-b", 0, 4)
+	provisioning := newLinuxKataPool("linux-c", 8, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	cPending := unschedulableRunnerPod("linux-c-runner-1", provisioning.Name, time.Unix(1000, 0))
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(pool, satisfied, provisioning, node, cPending).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.poolCap != 4 {
+		t.Fatalf("poolCap = %d, want the full cap: no sibling both has a gap and holds nothing", admission.poolCap)
+	}
+	if admission.available != 3 {
+		t.Fatalf("available = %d, want cap 4 minus the one sibling Pod already provisioning", admission.available)
+	}
+}
+
+// The share never drops below one, so a pool surrounded by starving siblings
+// can still make progress rather than deadlocking the fleet.
+func TestProvisioningAdmissionShareFloorsAtOne(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 8, 2)
+	objs := []client.Object{pool, readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)}
+	for _, name := range []string{"linux-b", "linux-c", "linux-d"} {
+		objs = append(objs, newLinuxKataPool(name, 8, 2))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.poolCap != 1 || admission.available != 1 {
+		t.Fatalf("admission = %+v, want a share floored at one", admission)
 	}
 }
 
