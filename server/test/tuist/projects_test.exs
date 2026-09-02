@@ -8,6 +8,7 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Automations
   alias Tuist.Base64
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
   alias Tuist.VCS
@@ -235,6 +236,47 @@ defmodule Tuist.ProjectsTest do
 
       # Then: no new project was persisted
       assert Projects.get_projects_count() == count_before
+    end
+
+    test "enqueues a Kura cache-demand seed for the account" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, _project} = Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      assert_enqueued(worker: SeedProjectCacheDemandWorker, args: %{"account_id" => account.id})
+    end
+
+    test "does not enqueue a cache-demand seed when the project is not created" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      Mimic.stub(Automations, :default_alert_attrs, fn project_id ->
+        %{project_id: project_id, name: "Bad", monitor_type: "nope", trigger_actions: []}
+      end)
+
+      # When
+      assert {:error, _changeset} =
+               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      refute_enqueued(worker: SeedProjectCacheDemandWorker)
+    end
+
+    test "creates the project even when the cache-demand seed cannot be enqueued" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      Mimic.stub(Oban, :insert, fn _changeset -> raise "oban is down" end)
+
+      # When / Then
+      assert {:ok, %{name: "flaky-demo"}} =
+               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
     end
   end
 
