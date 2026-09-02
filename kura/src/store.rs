@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use arc_swap::ArcSwapOption;
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
@@ -223,6 +224,7 @@ pub struct Store {
     // boot so a restart mid-segment does not under-report the eventual seal.
     active_segment_max_versions: StdMutex<HashMap<String, u64>>,
     segment_handles: Mutex<SegmentHandleCache>,
+    segment_handle_hot: ArcSwapOption<SegmentHandleFastPath>,
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
@@ -1134,6 +1136,7 @@ impl Store {
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             active_segment_max_versions: StdMutex::new(HashMap::new()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
+            segment_handle_hot: ArcSwapOption::const_empty(),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
@@ -3644,10 +3647,16 @@ impl Store {
                 })?,
         );
         let mut cache = self.segment_handles.lock().await;
-        if let Some(existing) = cache.touch(&cache_key) {
+        if let Some((retained_key, existing)) = cache.touch(&cache_key) {
+            self.set_segment_handle_fast_path(retained_key, existing.clone());
             return Ok(existing);
         }
-        let evicted = cache.insert(cache_key, handle.clone());
+        let (retained_key, evicted) = cache.insert(cache_key, handle.clone());
+        if let Some(retained_key) = retained_key {
+            self.set_segment_handle_fast_path(retained_key, handle.clone());
+        } else {
+            self.segment_handle_hot.store(None);
+        }
         let cached = cache.len();
         drop(cache);
         self.io.metrics().update_segment_handles_cached(cached);
@@ -3669,6 +3678,7 @@ impl Store {
 
     async fn remove_cached_file_handle(&self, cache_key: &str, reason: &str) {
         let mut cache = self.segment_handles.lock().await;
+        self.segment_handle_hot.store(None);
         let removed = cache.remove(cache_key);
         let cached = cache.len();
         drop(cache);
@@ -3679,12 +3689,23 @@ impl Store {
     }
 
     async fn segment_handle_cache_get(&self, cache_key: &str) -> Option<Arc<PersistentFile>> {
+        let hot = self.segment_handle_hot.load();
+        if let Some(hot) = hot.as_ref()
+            && hot.cache_key.as_ref() == cache_key
+        {
+            return Some(hot.handle.clone());
+        }
+        drop(hot);
+
         let mut cache = self.segment_handles.lock().await;
-        cache.touch(cache_key)
+        let (retained_key, handle) = cache.touch(cache_key)?;
+        self.set_segment_handle_fast_path(retained_key, handle.clone());
+        Some(handle)
     }
 
     pub async fn trim_segment_handle_cache_to(&self, target_entries: usize, reason: &str) -> usize {
         let mut cache = self.segment_handles.lock().await;
+        self.segment_handle_hot.store(None);
         let evicted = cache.trim_to(target_entries);
         let cached = cache.len();
         drop(cache);
@@ -3695,6 +3716,11 @@ impl Store {
                 .record_segment_handle_evictions(reason, evicted as u64);
         }
         evicted
+    }
+
+    fn set_segment_handle_fast_path(&self, cache_key: Arc<str>, handle: Arc<PersistentFile>) {
+        self.segment_handle_hot
+            .store(Some(Arc::new(SegmentHandleFastPath { cache_key, handle })));
     }
 
     #[cfg(test)]
@@ -7667,6 +7693,11 @@ struct SegmentHandleCache {
     capacity: usize,
 }
 
+struct SegmentHandleFastPath {
+    cache_key: Arc<str>,
+    handle: Arc<PersistentFile>,
+}
+
 struct CachedSegmentHandle {
     handle: Arc<PersistentFile>,
     access_order: u64,
@@ -7685,18 +7716,22 @@ impl SegmentHandleCache {
         self.entries.len()
     }
 
-    fn touch(&mut self, cache_key: &str) -> Option<Arc<PersistentFile>> {
+    fn touch(&mut self, cache_key: &str) -> Option<(Arc<str>, Arc<PersistentFile>)> {
         let (key, previous_order) = self
             .entries
             .get_key_value(cache_key)
             .map(|(key, entry)| (key.clone(), entry.access_order))?;
-        let access_order = self.access.touch(key, Some(previous_order));
+        let access_order = self.access.touch(key.clone(), Some(previous_order));
         let entry = self.entries.get_mut(cache_key)?;
         entry.access_order = access_order;
-        Some(entry.handle.clone())
+        Some((key, entry.handle.clone()))
     }
 
-    fn insert(&mut self, cache_key: String, handle: Arc<PersistentFile>) -> usize {
+    fn insert(
+        &mut self,
+        cache_key: String,
+        handle: Arc<PersistentFile>,
+    ) -> (Option<Arc<str>>, usize) {
         let cache_key: Arc<str> = Arc::from(cache_key);
         let previous_order = self
             .entries
@@ -7704,13 +7739,18 @@ impl SegmentHandleCache {
             .map(|entry| entry.access_order);
         let access_order = self.access.touch(cache_key.clone(), previous_order);
         self.entries.insert(
-            cache_key,
+            cache_key.clone(),
             CachedSegmentHandle {
                 handle,
                 access_order,
             },
         );
-        self.evict_over_capacity()
+        let evicted = self.evict_over_capacity();
+        let retained_key = self
+            .entries
+            .contains_key(cache_key.as_ref())
+            .then_some(cache_key);
+        (retained_key, evicted)
     }
 
     fn remove(&mut self, cache_key: &str) -> bool {
@@ -10780,6 +10820,73 @@ mod tests {
             "METRIC segment_handle_cache_lookups_per_second={:.3}",
             rates[rates.len() / 2]
         );
+    }
+
+    #[tokio::test]
+    async fn segment_handle_cache_fast_path_preserves_recency_and_bounds() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 2;
+        });
+        let paths = ["handle-a", "handle-b", "handle-c"].map(|name| config.data_dir.join(name));
+        for path in &paths {
+            std::fs::write(path, b"segment").expect("write test segment");
+        }
+
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("open first handle");
+        store
+            .persistent_file_handle("b".into(), &paths[1], "test")
+            .await
+            .expect("open second handle");
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("refresh first handle");
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("reuse fast-path handle");
+        store
+            .persistent_file_handle("c".into(), &paths[2], "test")
+            .await
+            .expect("open third handle");
+
+        {
+            let cache = store.segment_handles.lock().await;
+            assert_eq!(cache.len(), 2);
+            assert!(cache.entries.contains_key("a"));
+            assert!(!cache.entries.contains_key("b"));
+            assert!(cache.entries.contains_key("c"));
+        }
+
+        assert_eq!(store.trim_segment_handle_cache_to(1, "test").await, 1);
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("c").await.is_some());
+        assert!(store.segment_handle_hot.load().is_some());
+
+        store.remove_cached_file_handle("c", "test").await;
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("c").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn segment_handle_cache_fast_path_respects_zero_capacity() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 0;
+        });
+        let path = config.data_dir.join("uncached-handle");
+        std::fs::write(&path, b"segment").expect("write test segment");
+
+        store
+            .persistent_file_handle("uncached".into(), &path, "test")
+            .await
+            .expect("open uncached handle");
+
+        assert!(store.segment_handles.lock().await.entries.is_empty());
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("uncached").await.is_none());
     }
 
     #[tokio::test]
