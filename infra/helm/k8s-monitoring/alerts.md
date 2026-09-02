@@ -785,7 +785,8 @@ absent_over_time(up{cluster="tuist-canary", job="kura"}[15m])
 The paired telemetry rule for every Kura rule that reads a metric off the
 `kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
 `kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
-`kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_container_memory_*` and the
+`kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_segment_shed_age_*`,
+`kura_backfill_ring_fullness_percent`, `kura_container_memory_*` and the
 `kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
 configuration that stopped discovering the `kura` namespace altogether. The
@@ -838,6 +839,12 @@ label_replace(sum by (cluster, region) (
          - sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})) / 1048576 / (2 * 1024))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "memory", "", "")
+or
+label_replace(sum by (cluster, region) (
+  floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
+         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})) / (2 * 50 * 1073741824))
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+), "constraint", "disk", "", "")
 ```
 
 - Threshold: `< 1`, as a separate threshold expression on `A`, so the alert
@@ -855,10 +862,13 @@ label_replace(sum by (cluster, region) (
 - Description: `Counts how many more two-replica enterprise instances the
   region can place, per placement constraint: "ceiling" is the
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
-  "memory" is the native memory request against allocatable. Zero means the
-  scheduler will decline the next provisioning in this region. Add a node to
-  the region, or lower the ceiling profile. If "Kura region host memory low" is
-  quiet, the region is full of reservations, not of usage.`
+  "memory" is the native memory request against allocatable, "disk" is the
+  ephemeral-storage request (the storage claim, 50 GiB per replica today)
+  against allocatable disk. Zero means the scheduler will decline the next
+  provisioning in this region. Add a node to the region; for memory a smaller
+  ceiling profile also works, for disk so does shrinking claims
+  (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
+  region is full of reservations, not of usage.`
 
 The "add a node" alert. It counts how many more instances of the largest
 profile the region can place, per placement constraint, and fires when that
@@ -866,8 +876,8 @@ count reaches zero: the next provisioning in the region is declined by the
 scheduler, and the only signal today would be **Pod cannot be scheduled**,
 thirty minutes later and in production only.
 
-Two constraints decide placement, and a pod places only if the node satisfies
-every request it carries, so either one running out is enough. The native
+Three constraints decide placement, and a pod places only if the node
+satisfies every request it carries, so any one running out is enough. The native
 `memory` request is the instance's floor (`Tuist.Kura.Regions.memory_profile/1`:
 1024 MiB for the enterprise profile). In regions with
 `memory_ceiling_bin_packed` the kura-controller also requests the
@@ -882,9 +892,21 @@ box out of memory** below is the rule for the second case; this one firing
 while that one is quiet means the region is full of reservations, not of
 usage, and the answer is a node or a smaller ceiling profile, not a bigger box.
 
-The two constants are one instance's worth: two replicas per region today,
-times the enterprise ceiling (8192 MiB) and the enterprise floor (2048 MiB).
-Size from the largest plan on purpose: a region that can still place a
+The third constraint is disk. Each replica requests its storage claim as
+`ephemeral-storage` (a request with no limit, see the `defaultResources`
+comment: the cache is a local-path directory, so the request is the only
+admission control the claim has), and the scheduler bin-packs that against
+allocatable ephemeral-storage, which is the disk minus kubelet's eviction
+reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
+`Tuist.Kura.ClaimSizing`), 50 GiB per replica on nearly every live instance,
+so the disk row counts in units of two replicas at 50 GiB. This is the same
+question `Tuist.Kura.Capacity` answers with its 85% pressure line to shorten
+Air's archival window; the count is the form whose summary is true at every
+threshold. Shrinking claims is a lever here as well as a node.
+
+The constants are one instance's worth: two replicas per region today, times
+the enterprise ceiling (8192 MiB), the enterprise floor (2048 MiB) and the
+live claim (100 GiB). Size from the largest plan on purpose: a region that can still place a
 standard instance but not an enterprise one is exactly the case to know about
 before an enterprise sign-up. Change both constants together when the replica
 count or the profile changes.
@@ -899,7 +921,10 @@ Measured on 2026-09-02: one production region already cannot place another
 enterprise instance by ceiling and would fire on creation, which is a real
 finding rather than noise; the other regions have room for two or more. By
 native memory every region has room for many, so the ceiling is the binding
-constraint everywhere it is advertised.
+constraint everywhere it is advertised. By disk the tightest production
+regions fit two more instances and the widest five, so the disk row is quiet
+on creation; the staging runner region fits one, which is why the scope is
+production.
 
 ### Kura cache box out of memory
 
@@ -1033,6 +1058,45 @@ alongside the restart-loop window; nothing else changes.
 
 Over the 30 days to 2026-09-02 the only termination reason recorded for a Kura
 container in production is `Error`. Never `OOMKilled`.
+
+### Kura instance retention horizon under a day
+
+```promql
+histogram_quantile(0.5,
+  sum by (cluster, region, tenant_id, pod, le) (
+    increase(kura_segment_shed_age_seconds_bucket{cluster="tuist-production"}[1d])
+    * on (cluster, pod) group_left(region, tenant_id)
+      max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster="tuist-production"})
+  )
+)
+and on (cluster, pod) (
+  max by (cluster, pod) (kura_backfill_ring_fullness_percent{cluster="tuist-production"}) >= 100
+)
+```
+
+- Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
+  the alert value is the median age in seconds
+- Pending period: 60 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: this is customer-visible.
+- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
+  {{ $labels.region }} evicts artifacts after a median of
+  {{ $values.A.Value | humanizeDuration }}; its cache is too small for its
+  write rate`
+- Description: `The instance's ring is full and it is evicting artifacts
+  younger than a day (median age of the youngest artifact in each segment the
+  ring rotated out over the last day). Overnight and weekend builds will miss.
+  Rings run full by design; what this measures is whether the claim is enough
+  for the account's write rate, so the lever is the account's storage claim
+  (Tuist.Kura.ClaimSizing proposes the size), not the region. If several
+  accounts in one region fire together, the region is the problem, see "Kura
+  region cannot place another instance" for disk.`
+
+The critical tier of **Kura instance retention horizon short** below, which
+carries the reasoning.
 
 ### Runner host PN VLAN missing
 
@@ -2269,10 +2333,12 @@ Same query as **Kura region cannot place another instance**.
 - Description: `Counts how many more two-replica enterprise instances the
   region can place, per placement constraint (ceiling = the
   tuist.dev/memory-ceiling-mib extended resource, memory = native requests
-  against allocatable). One means the next enterprise sign-up is the last that
-  fits; zero is paged separately. Plan a node for the region before it lands.`
+  against allocatable, disk = ephemeral-storage claims against allocatable
+  disk). One means the next enterprise sign-up is the last that fits; zero is
+  paged separately. Plan a node for the region before it lands.`
 
-The lead-time tier: the next enterprise instance is the last one that fits.
+The lead-time tier, on all three constraints: the next enterprise instance is
+the last one that fits.
 It also holds at zero, alongside the critical rule; that is intended, the
 critical one pages and this one keeps the Slack thread.
 
@@ -2365,6 +2431,68 @@ Measured on 2026-09-02, every production pod's one-hour average sits well
 under half its request; over the previous 7 days a few pods peaked above their
 request at a single 10-minute sample, which is the allowed behaviour and which
 the hour average filters out.
+
+### Kura instance retention horizon short
+
+Same query as **Kura instance retention horizon under a day**.
+
+- Threshold: `< 172800` seconds (two days), as a separate threshold expression
+  on `A`
+- Pending period: 60 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component.
+- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
+  {{ $labels.region }} evicts artifacts after a median of
+  {{ $values.A.Value | humanizeDuration }}; grow its storage claim`
+- Description: `The instance's ring is full and the median age of the
+  artifacts it evicts has dropped under two days. Rings run full by design;
+  this measures whether the account's claim is enough for its write rate, so
+  the lever is the account's storage claim (Tuist.Kura.ClaimSizing proposes
+  the size). Under a day is paged separately.`
+
+Kura instances are expected to use all the disk they are given: every
+production ring runs at 100% of its desired segment count, and a full ring is
+not a signal of anything. What the customer feels is how long an artifact
+survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
+records, for every segment the ring rotates out, the age of the youngest
+content in it, which is exactly "how soon after being written can an artifact
+disappear". A median under two days means a build that reuses yesterday's
+artifacts is starting to miss; under a day, overnight and weekend builds miss.
+
+**Per instance, not per region.** The write rate that empties a ring is one
+account's, and so is the lever: the storage claim, which
+`Tuist.Kura.ClaimSizing` already proposes growing or shrinking per account.
+The region only enters when the claim cannot grow because the box is full,
+which is the disk row of **Kura region cannot place another instance**. A
+region-level median would also hide the case that matters: on 2026-09-02 one
+account's instances sat at about three days in both US regions while every
+other instance in the fleet sat above ten, and the region medians read as
+"about three days" purely because of it.
+
+**Only a full ring counts.** A new or recently restarted instance starts with
+an empty ring and fills over days; it has not shed anything, so it has no
+samples here and cannot fire, but the `and` on
+`kura_backfill_ring_fullness_percent >= 100` makes the intent explicit and
+keeps a ring that is still filling (after a bootstrap, or while the segment
+count is converging) out of the rule even if it rotates a segment early.
+Fullness is the segment count against the ring's desired total, so it reads
+100 in steady state on every instance and is the right gate, not an alarm.
+
+**Bucket edges are coarse but sit where the thresholds are.** The histogram's
+edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
+interpolated inside a bucket, but both thresholds coincide with an edge. The
+`[1d]` window is one day of rotations: long enough that a single early
+rotation does not set the median, short enough to react within the day the
+claim became too small.
+
+Measured on 2026-09-02 across production with the rule's own one-day window,
+every full ring's median is five days or more (one account's four instances
+at about five, the rest between ten and thirty); over a seven-day window that
+same account reads about three days. Nothing is under two days, so both rules
+are quiet on creation; that account is the one to watch as its usage grows.
 
 ### Swift registry release work repeatedly deferred
 
