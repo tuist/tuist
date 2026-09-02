@@ -1,9 +1,11 @@
 /*
  * Community grid — the Tuist burst as pre-dithered particles.
  *
- * The artwork is a Figma bayer-dither export (~24k run-merged particles in
- * four mono shades, 570×570), baked at build time into a packed data module
- * (see tuist-dither-data.js) — no runtime fetch or SVG parsing. The hook
+ * The artwork is the brand mark's outline bayer-dithered into four mono
+ * shades on a 2px grid (~5k single-cell particles, 568×568 — a filled mark
+ * was ~47k and made the hover physics crawl) and baked into a packed
+ * data module by assets/marketing/scripts/bake_tuist_dither.py (see
+ * tuist-dither-data.js) — no runtime fetch or SVG parsing. The hook
  * decodes the runs into per-shade typed arrays and reconstructs the exact
  * image on the canvas, with the shades mapped onto the noora purple ramp so
  * it matches the section's other dither treatments.
@@ -49,15 +51,16 @@ const REVEAL_TICK_HZ = 24; // quantized appends — dithery cadence without chun
 const REVEAL_JITTER = 0.45;
 
 // Hover physics (artwork px where relevant). Particles chase their target
-// with a lightly under-damped spring: stiffness sets the tempo (settle time
-// is roughly 2π/√stiffness), damping sets the bounce — critical damping is
-// 2·√stiffness (≈26 here), lower rings longer. The current pair sits just
-// under critical (damping ratio ≈0.77): a whisper of overshoot and a
-// trailing lag, close to the original dither-tool tightness.
-const PHYS_RADIUS = 100; // cursor influence radius
-const PHYS_PUSH = 50; // max radial displacement at the cursor core
-const PHYS_STIFFNESS = 170; // spring stiffness toward the target, 1/s²
-const PHYS_DAMPING = 20; // velocity decay, 1/s
+// with an under-damped spring: stiffness sets the tempo (settle time is
+// roughly 2π/√stiffness), damping sets the bounce — critical damping is
+// 2·√stiffness (≈19 here), lower rings longer. The current pair is soft
+// and clearly under critical (damping ratio ≈0.63): particles lag well
+// behind a sweeping cursor and overshoot on the way back, so a pass leaves
+// a visible trail instead of a tight halo.
+const PHYS_RADIUS = 64; // cursor influence radius
+const PHYS_PUSH = 36; // max radial displacement at the cursor core
+const PHYS_STIFFNESS = 90; // spring stiffness toward the target, 1/s²
+const PHYS_DAMPING = 12; // velocity decay, 1/s
 const PHYS_SETTLE = 0.05; // movement AND spring tension below this = settled
 
 // Stable per-particle hash (0..1) jittering a particle's reveal order.
@@ -86,19 +89,25 @@ function colorBytes(cssColor) {
   return ctx.getImageData(0, 0, 1, 1).data;
 }
 
-// Decode the packed runs into one flat [x, y, w] array per shade (px units;
-// runs are `cell` px tall).
-function decodeRuns() {
-  const bin = atob(TUIST_DITHER.data);
-  const cell = TUIST_DITHER.cell;
-  const counts = [0, 0, 0, 0];
-  const words = new Uint32Array(TUIST_DITHER.runs);
+// Unpack a base64 string of little-endian 32-bit words.
+function decodeWords(b64, count) {
+  const bin = atob(b64);
+  const words = new Uint32Array(count);
   for (let i = 0; i < words.length; i++) {
     const o = i * 4;
     words[i] =
       bin.charCodeAt(o) | (bin.charCodeAt(o + 1) << 8) | (bin.charCodeAt(o + 2) << 16) | (bin.charCodeAt(o + 3) << 24);
-    counts[(words[i] >>> 27) & 3]++;
   }
+  return words;
+}
+
+// Decode the packed runs into one flat [x, y, w] array per shade (px units;
+// runs are `cell` px tall).
+function decodeRuns() {
+  const cell = TUIST_DITHER.cell;
+  const counts = [0, 0, 0, 0];
+  const words = decodeWords(TUIST_DITHER.data, TUIST_DITHER.runs);
+  for (let i = 0; i < words.length; i++) counts[(words[i] >>> 27) & 3]++;
   const groups = counts.map((count) => new Float32Array(count * 3));
   const cursors = [0, 0, 0, 0];
   for (let i = 0; i < words.length; i++) {
@@ -114,6 +123,20 @@ function decodeRuns() {
   return groups;
 }
 
+// The filled silhouette's per-row spans as a flat [x, y, w] array (px).
+function decodeFill() {
+  const cell = TUIST_DITHER.cell;
+  const words = decodeWords(TUIST_DITHER.fill, TUIST_DITHER.fillRuns);
+  const spans = new Float32Array(words.length * 3);
+  for (let i = 0; i < words.length; i++) {
+    const v = words[i];
+    spans[i * 3] = (v & 511) * cell;
+    spans[i * 3 + 1] = ((v >>> 9) & 511) * cell;
+    spans[i * 3 + 2] = ((v >>> 18) & 511) * cell;
+  }
+  return spans;
+}
+
 export const TuistDitherParticles = {
   mounted() {
     // A bfcache restore re-mounts hooks without ever calling destroyed() on
@@ -126,6 +149,7 @@ export const TuistDitherParticles = {
     this.ctx = this.canvas.getContext("2d");
     this.host = this.canvas.parentElement;
     this.groups = decodeRuns();
+    this.fill = decodeFill();
     this.buildRevealOrder();
     this.colors = SHADE_TOKENS.map((token) => resolveTokenColor(this.host, token));
     // data-opacity: particle opacity, 0..1 (default 1).
@@ -435,9 +459,10 @@ export const TuistDitherParticles = {
     this.raf = requestAnimationFrame(tick);
   },
 
-  // Opaque background-colored silhouette derived from the particles (drawn,
-  // blurred to close the inter-dot gaps, thresholded). Painted under the
-  // translucent dither so the grid lines don't show through the logo.
+  // Opaque background-colored silhouette from the baked fill spans (drawn,
+  // blurred to soften the cell steps, thresholded). Painted under the
+  // translucent dither so the grid lines don't show through the logo — the
+  // particles only trace its outline, so they can't stand in for it.
   buildBackdrop() {
     const w = TUIST_DITHER.width;
     const h = TUIST_DITHER.height;
@@ -447,10 +472,9 @@ export const TuistDitherParticles = {
     solid.height = h;
     const sctx = solid.getContext("2d");
     sctx.fillStyle = "#000";
-    for (const d of this.groups) {
-      for (let i = 0; i < d.length; i += 3) {
-        sctx.fillRect(d[i], d[i + 1], d[i + 2], cell);
-      }
+    const fill = this.fill;
+    for (let i = 0; i < fill.length; i += 3) {
+      sctx.fillRect(fill[i], fill[i + 1], fill[i + 2], cell);
     }
     const blurred = document.createElement("canvas");
     blurred.width = w;
