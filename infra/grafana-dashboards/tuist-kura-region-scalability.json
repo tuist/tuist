@@ -2056,7 +2056,7 @@
             "kind": "RowsLayoutRow",
             "spec": {
               "title": "RAM",
-              "collapse": false,
+              "collapse": true,
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -2096,7 +2096,7 @@
             "kind": "RowsLayoutRow",
             "spec": {
               "title": "RAM trends",
-              "collapse": false,
+              "collapse": true,
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
