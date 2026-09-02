@@ -378,7 +378,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (ceiling)"
+                        "value": "Fit (memory ceiling)"
                       },
                       {
                         "id": "mappings",
@@ -444,7 +444,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (memory)"
+                        "value": "Fit (memory floor)"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -611,7 +611,7 @@
                 "cellHeight": "md",
                 "sortBy": [
                   {
-                    "displayName": "Fit (ceiling)",
+                    "displayName": "Fit (memory ceiling)",
                     "desc": false
                   }
                 ]
@@ -625,7 +625,7 @@
         "spec": {
           "id": 1,
           "title": "RAM by region",
-          "description": "One row per Kura region. **Fit (ceiling)** and **Fit (memory)** count how many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor, set in the variables above) the scheduler can still place; `floor()` is taken per node before the sum, so free memory fragmented across boxes reads as zero. The next provisioning is declined when either reaches 0 — the **Kura region cannot place another instance** alert. The ceiling binds first wherever `memory_ceiling_bin_packed` is on; a region whose boxes advertise no ceiling (the private runner-cache pool on Elastic Metal, which the CAPI provider does not patch) reads **no ceiling** and is bound by memory alone.\n\n**Ceiling reserved** / **Memory requested** are the scheduler's view (reservations, not usage); **Host memory used** is the kernel's (`1 - MemAvailable/MemTotal`, reclaimable cache counts as available) and is what **Kura region host memory low** watches. Reservations full while host memory is low means a node or a smaller ceiling profile; host memory high while reservations have room means pods living above their floors.\n\nRegion comes from joining each node to the Kura pods it hosts (`kura_node_geo_info`): a freshly added, still empty node is invisible here until its first placement lands on it.",
+          "description": "One row per Kura region. **Fit (memory ceiling)** and **Fit (memory floor)** count how many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor, set in the variables above) the scheduler can still place; `floor()` is taken per node before the sum, so free memory fragmented across boxes reads as zero. The next provisioning is declined when either reaches 0 — the **Kura region cannot place another instance** alert. The ceiling binds first wherever `memory_ceiling_bin_packed` is on; a region whose boxes advertise no ceiling (the private runner-cache pool on Elastic Metal, which the CAPI provider does not patch) reads **no ceiling** and is bound by memory alone.\n\n**Ceiling reserved** / **Memory requested** are the scheduler's view (reservations, not usage); **Host memory used** is the kernel's (`1 - MemAvailable/MemTotal`, reclaimable cache counts as available) and is what **Kura region host memory low** watches. Reservations full while host memory is low means a node or a smaller ceiling profile; host memory high while reservations have room means pods living above their floors.\n\nRegion comes from joining each node to the Kura pods it hosts (`kura_node_geo_info`): a freshly added, still empty node is invisible here until its first placement lands on it.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -935,7 +935,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (ceiling)"
+                        "value": "Fit (memory ceiling)"
                       },
                       {
                         "id": "mappings",
@@ -1001,7 +1001,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (memory)"
+                        "value": "Fit (memory floor)"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -1246,7 +1246,7 @@
                 "cellHeight": "md",
                 "sortBy": [
                   {
-                    "displayName": "Fit (ceiling)",
+                    "displayName": "Fit (memory ceiling)",
                     "desc": false
                   }
                 ]
@@ -1491,7 +1491,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (ceiling)"
+                        "value": "Fit (memory ceiling)"
                       },
                       {
                         "id": "mappings",
@@ -1557,7 +1557,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Fit (memory)"
+                        "value": "Fit (memory floor)"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -1802,7 +1802,7 @@
                 "cellHeight": "md",
                 "sortBy": [
                   {
-                    "displayName": "Fit (ceiling)",
+                    "displayName": "Fit (memory ceiling)",
                     "desc": false
                   }
                 ]
@@ -1816,7 +1816,7 @@
         "spec": {
           "id": 3,
           "title": "Instances that still fit by ceiling",
-          "description": "Same count as the table's **Fit (ceiling)** column over time. Each provisioning steps it down by one; a new node steps it up. Dashed lines at 2 (warning) and 1 (critical).",
+          "description": "Same count as the table's **Fit (memory ceiling)** column over time. Each provisioning steps it down by one; a new node steps it up. Dashed lines at 2 (warning) and 1 (critical).",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1919,7 +1919,7 @@
         "spec": {
           "id": 4,
           "title": "Instances that still fit by memory",
-          "description": "Same count as the table's **Fit (memory)** column over time: placements the native memory request (the floor) still allows. The ceiling binds long before this one wherever it is advertised.",
+          "description": "Same count as the table's **Fit (memory floor)** column over time: placements the native memory request (the floor) still allows. The ceiling binds long before this one wherever it is advertised.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
