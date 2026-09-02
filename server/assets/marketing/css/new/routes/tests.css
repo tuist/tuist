@@ -226,16 +226,39 @@
           height: 450px;
           overflow: hidden;
 
-          @media (max-width: 1023px) {
-            justify-content: flex-start;
-            padding-left: var(--noora-spacing-5);
+          & > [data-part="scene"] {
+            position: relative;
+            flex: none;
+            width: 926px;
+            height: 401px;
           }
 
           /* Narrow frames keep the fixed geometry but show fewer bars and
-             ticks per lane, so nothing is cut mid-bar: three bars up to
-             720px (longest lane 665px), two below 480px (379px, with the
-             left inset tightened to fit a 390px frame). */
-          @media (max-width: 720px) {
+             ticks per lane, so nothing is cut mid-bar, and the scene
+             shrinks to its longest visible lane so it stays centered with
+             equal side margins. The full 926px scene needs ~950px of
+             viewport; below that four bars (longest lane 828px), below
+             ~860px three (665px), and below 480px two (379px). */
+          @media (max-width: 959px) {
+            & > [data-part="scene"] {
+              width: 828px;
+            }
+
+            [data-part="grid"] {
+              width: 721px;
+            }
+
+            [data-part="bar"]:nth-child(n + 6),
+            [data-part="tick"]:nth-child(n + 12) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 859px) {
+            & > [data-part="scene"] {
+              width: 665px;
+            }
+
             [data-part="grid"] {
               width: 577px;
             }
@@ -247,7 +270,9 @@
           }
 
           @media (max-width: 480px) {
-            padding-left: var(--noora-spacing-4);
+            & > [data-part="scene"] {
+              width: 379px;
+            }
 
             [data-part="grid"] {
               width: 289px;
@@ -257,13 +282,6 @@
             [data-part="tick"]:nth-child(n + 6) {
               display: none;
             }
-          }
-
-          & > [data-part="scene"] {
-            position: relative;
-            flex: none;
-            width: 926px;
-            height: 401px;
           }
 
           /* 12 hairlines from x=75 at a 72px pitch. They end 12px above
@@ -419,6 +437,190 @@
               color: var(--marketing-illustration-neutral-4);
               font: var(--noora-font-weight-regular) var(--noora-font-code-small);
               white-space: nowrap;
+            }
+          }
+        }
+
+        /* Flaky quarantine (Figma: 1200x400): the FlakyQuarantine canvas
+           fills the slot; cell colours are resolved from these tokens.
+           Empty cells are neutral outlines, passed cells purple, flakes a
+           yellow-washed cell with a solid yellow core, quarantined cells a
+           pale yellow wash. */
+        & > [data-illustration="flaky"] {
+          --flaky-empty: var(--marketing-illustration-neutral-3);
+          --flaky-pass-stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+          --flaky-pass-fill: var(--marketing-tint-purple);
+          --flaky-flaky-stroke: light-dark(var(--noora-yellow-500), var(--noora-yellow-400));
+          --flaky-flaky-fill: light-dark(
+            var(--noora-yellow-50),
+            color-mix(in oklab, var(--noora-yellow-500) 30%, transparent)
+          );
+          --flaky-flaky-core: light-dark(var(--noora-yellow-500), var(--noora-yellow-400));
+          --flaky-quarantine-stroke: light-dark(var(--noora-yellow-400), var(--noora-yellow-500));
+          --flaky-quarantine-fill: light-dark(
+            var(--noora-yellow-50),
+            color-mix(in oklab, var(--noora-yellow-500) 30%, transparent)
+          );
+          --flaky-crosshair: light-dark(var(--noora-yellow-400), var(--noora-yellow-500));
+
+          height: 400px;
+          overflow: hidden;
+
+          & > [data-part="scene"] {
+            position: relative;
+            width: 100%;
+            height: 100%;
+          }
+
+          [data-part="grid"] {
+            display: block;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+          }
+
+          /* Sits just above the quarantine grid; the hook sets left/width
+             to the grid's and top to 12px above it. */
+          [data-part="label"] {
+            position: absolute;
+            transform: translateY(-100%);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+            text-align: center;
+            white-space: nowrap;
+          }
+        }
+
+        /* Test insights (Figma: 1200x400): four floating stat cards over
+           step-line series that scroll behind them (InsightsChart hook:
+           stroke only — no fill, no dither). Card positions are the comp's
+           pixels in the 1200x400 frame, expressed as percentages so they
+           track the frame. */
+        & > [data-illustration="insights"] {
+          /* Series colours the hook resolves through a probe, one per
+             stat-card metric: a pale shade on light ground, a deep one on
+             dark, so the lines stay a backdrop behind the cards; the
+             highlight is one step stronger, shown while its card is
+             hovered. */
+          --insights-blue-stroke: light-dark(var(--noora-blue-200), var(--noora-blue-800));
+          --insights-blue-highlight: light-dark(var(--noora-blue-300), var(--noora-blue-700));
+          --insights-purple-stroke: light-dark(var(--noora-purple-200), var(--noora-purple-800));
+          --insights-purple-highlight: light-dark(var(--noora-purple-300), var(--noora-purple-700));
+          --insights-yellow-stroke: light-dark(var(--noora-yellow-200), var(--noora-yellow-800));
+          --insights-yellow-highlight: light-dark(var(--noora-yellow-300), var(--noora-yellow-700));
+          --insights-red-stroke: light-dark(var(--noora-red-200), var(--noora-red-800));
+          --insights-red-highlight: light-dark(var(--noora-red-300), var(--noora-red-700));
+
+          height: 400px;
+          overflow: hidden;
+
+          & > [data-part="scene"] {
+            position: relative;
+            width: 100%;
+            height: 100%;
+          }
+
+          [data-part="chart"] {
+            display: block;
+            position: absolute;
+            inset: 0;
+            /* Fade the chart out toward the sides and the bottom (never the
+               top) so the lines don't hit the frame's hairlines head-on. */
+            mask-image:
+              linear-gradient(to right, transparent, #000 12%, #000 88%, transparent),
+              linear-gradient(to bottom, #000 82%, transparent);
+            mask-composite: intersect;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+          }
+
+          /* Stat card: 240px wide, hugging its height (~130px in the comp)
+             — 24px padding, label row with a 4x12 colour swatch, value
+             below. */
+          [data-part="card"] {
+            display: flex;
+            position: absolute;
+            top: calc(var(--y) / 400 * 100%);
+            /* Tab-width frames squeeze the stagger: cards may overlap, but
+               never run past the frame's right edge (24px inset). */
+            left: min(calc(var(--x) / 1200 * 100%), calc(100% - 240px - var(--noora-spacing-8)));
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--noora-spacing-5);
+            box-sizing: border-box;
+            box-shadow: var(--noora-light-border-default);
+            border-radius: var(--noora-radius-4);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-8);
+            width: 240px;
+
+            & > [data-part="label"] {
+              display: flex;
+              align-items: center;
+              gap: var(--noora-spacing-4);
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              white-space: nowrap;
+
+              & > [data-part="swatch"] {
+                flex: none;
+                border-radius: var(--noora-radius-1);
+                width: 4px;
+                height: 12px;
+              }
+
+              & > [data-part="chevron"] {
+                flex: none;
+                width: 16px;
+                height: 16px;
+                color: var(--noora-surface-label-secondary);
+              }
+            }
+
+            /* Fixed 38px (the display tokens grow on wide viewports; the
+               comp's value stays put). */
+            & > [data-part="value"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) 2.375rem/2.875rem var(--noora-font-heading);
+              letter-spacing: -0.02em;
+            }
+
+            &[data-color="purple"] [data-part="swatch"] {
+              background: var(--noora-purple-500);
+            }
+
+            &[data-color="yellow"] [data-part="swatch"] {
+              background: var(--noora-yellow-500);
+            }
+
+            &[data-color="red"] [data-part="swatch"] {
+              background: var(--noora-red-500);
+            }
+
+            &[data-color="blue"] [data-part="swatch"] {
+              background: var(--noora-blue-500);
+            }
+          }
+
+          /* Narrow frames keep two cards, pinned to the corners. */
+          @media (max-width: 720px) {
+            [data-part="card"][data-color="yellow"],
+            [data-part="card"][data-color="blue"] {
+              display: none;
+            }
+
+            [data-part="card"][data-color="purple"] {
+              top: 64px;
+              left: var(--noora-spacing-7);
+            }
+
+            [data-part="card"][data-color="red"] {
+              top: auto;
+              right: var(--noora-spacing-7);
+              bottom: 64px;
+              left: auto;
             }
           }
         }
