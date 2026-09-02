@@ -65,14 +65,14 @@ pub struct ReapiService {
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct GrpcRequestSpec<'a> {
     route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
     producer: Option<&'a str>,
-    artifact_key: Option<String>,
-    artifact_hash: Option<String>,
+    artifact_key: Option<&'a str>,
+    artifact_hash: Option<&'a str>,
 }
 
 pub(super) const REAPI_MAX_DECODING_MESSAGE_SIZE: usize = 64 << 20;
@@ -278,11 +278,9 @@ impl ReapiService {
         // the metadata now and authorize below, once the namespace is known, so
         // project-scoped tokens authorize against the real project (not the
         // account) — matching the namespace the blob is ultimately stored under.
-        let metadata = request.metadata().clone();
-        let memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
+        let (metadata, mut extensions, mut stream) = request.into_parts();
+        let memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
         let mut temp_file = self
             .state
@@ -290,7 +288,6 @@ impl ReapiService {
             .create_file(temp_path)
             .await
             .map_err(Status::internal)?;
-        let mut stream = request.into_inner();
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
         let mut file_cache_policy = FileCachePolicy::Adaptive;
@@ -322,19 +319,17 @@ impl ReapiService {
                     )));
                 }
             };
-            let chunk_resource_name = if chunk.resource_name.is_empty() {
-                resource_name.clone().ok_or_else(|| {
-                    Status::invalid_argument("first write request must include resource_name")
-                })?
-            } else {
-                chunk.resource_name.clone()
-            };
             if let Some(existing) = &resource_name {
-                if existing != &chunk_resource_name {
+                if !chunk.resource_name.is_empty() && existing != &chunk.resource_name {
                     return Err(Status::invalid_argument("resource_name changed mid-stream"));
                 }
             } else {
-                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
+                if chunk.resource_name.is_empty() {
+                    return Err(Status::invalid_argument(
+                        "first write request must include resource_name",
+                    ));
+                }
+                let parsed_resource = parse_write_resource_name(&chunk.resource_name)?;
                 let write_spec = GrpcRequestSpec {
                     route: "reapi.bytestream.write",
                     operation: "artifact.write",
@@ -357,7 +352,7 @@ impl ReapiService {
                     })?;
                 cleanup.set_reservation(disk_reservation);
                 resource = Some(parsed_resource);
-                resource_name = Some(chunk_resource_name);
+                resource_name = Some(chunk.resource_name);
             }
             if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
                 return Err(Status::invalid_argument("unexpected write_offset"));
@@ -995,7 +990,7 @@ impl Capabilities for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
@@ -1051,10 +1046,10 @@ impl ActionCache for ReapiService {
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
             producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
+            artifact_key: Some(&key),
+            artifact_hash: Some(&digest.hash),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
         // node table + per-key node lists), inlined into a single output
@@ -1321,35 +1316,42 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
             .get_ref()
             .action_digest
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
-        let action_result = request
-            .get_ref()
-            .action_result
-            .clone()
-            .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
+        if request.get_ref().action_result.is_none() {
+            return Err(Status::invalid_argument("missing action_result"));
+        }
         let key = action_cache_key(&digest_key(digest)?);
         let auth = GrpcRequestSpec {
             route: "reapi.action_cache.update",
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
+            namespace_id: Some(authorization_namespace_id),
             producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
+            artifact_key: Some(&key),
+            artifact_hash: Some(&digest.hash),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
+        let (metadata, mut extensions, mut message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let action_result = message
+            .action_result
+            .take()
+            .expect("action result was checked before authorization");
         let bytes = action_result.encode_to_vec();
         // Reject an action result we could never replicate. Entries are stored
         // inline and pushed to peers inline, and the inline replication path
@@ -1401,7 +1403,7 @@ impl ActionCache for ReapiService {
         // A damped refresh (identical bytes, fresh version) applies nothing
         // and bills nothing.
         if applied {
-            self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+            self.record_reapi_upload(&metadata, namespace_id, manifest.size);
         }
         Ok(response)
     }
@@ -1426,7 +1428,9 @@ impl ContentAddressableStorage for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let message = request.into_inner();
+        let namespace_id = namespace_from_instance(&message.instance_name);
         let mut missing = Vec::new();
         // "Servers SHOULD increase the lifetimes of the referenced blobs if
         // necessary and applicable": a client told a blob is present skips
@@ -1439,14 +1443,14 @@ impl ContentAddressableStorage for ReapiService {
         // segment has aged there is nothing to promote, so the plain existence
         // check keeps its existence-cache short-circuit.
         let aging = self.state.store.segment_ring_is_aging();
-        for digest in &request.get_ref().blob_digests {
+        for digest in message.blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
             // a zero-byte blob they otherwise synthesize.
-            if is_empty_blob(digest) {
+            if is_empty_blob(&digest) {
                 continue;
             }
-            let key = blob_key(&digest_key(digest)?);
+            let key = blob_key(&digest_key(&digest)?);
             let exists = if aging {
                 self.state
                     .store
@@ -1465,7 +1469,7 @@ impl ContentAddressableStorage for ReapiService {
             }
             .map_err(|error| Status::internal(format!("failed to inspect CAS blob: {error}")))?;
             if !exists {
-                missing.push(digest.clone());
+                missing.push(digest);
             }
         }
 
@@ -1480,23 +1484,28 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_update",
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
+            namespace_id: Some(authorization_namespace_id),
             producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
-        let mut responses = Vec::with_capacity(request.get_ref().requests.len());
+        self.authorize_request(&request, auth).await?;
+        let (metadata, mut extensions, message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let mut responses = Vec::with_capacity(message.requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
         // request per call), and so already-present blobs are not billed —
@@ -1505,9 +1514,9 @@ impl ContentAddressableStorage for ReapiService {
         let mut stored_bytes = 0_u64;
         let mut stored_any = false;
 
-        for item in &request.get_ref().requests {
-            let digest = match &item.digest {
-                Some(digest) => digest.clone(),
+        for item in message.requests {
+            let digest = match item.digest {
+                Some(digest) => digest,
                 None => {
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: None,
@@ -1547,7 +1556,7 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
         self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
-            self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
+            self.record_reapi_upload(&metadata, namespace_id, stored_bytes);
         }
         Ok(response)
     }
@@ -1557,16 +1566,18 @@ impl ContentAddressableStorage for ReapiService {
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_read",
             operation: "artifact.read",
-            namespace_id: Some(namespace_id),
+            namespace_id: Some(authorization_namespace_id),
             producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let (metadata, _extensions, message) = request.into_parts();
+        let namespace_id = namespace_from_instance(&message.instance_name);
         // Blobs are read concurrently: a sequential await per blob caps the
         // whole batch at per-read latency times batch size, which dominates
         // large read-heavy clients (measured ~4ms per blob serialized). The
@@ -1574,26 +1585,26 @@ impl ContentAddressableStorage for ReapiService {
         // never held across an await; per-blob failure semantics are
         // unchanged and response order matches request order.
         let budget = std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let digests: Vec<reapi::Digest> = request.get_ref().digests.clone();
+        let digests = message.digests;
         let responses: Vec<reapi::batch_read_blobs_response::Response> =
             futures_util::stream::iter(digests.into_iter().map(|digest| {
                 let budget = &budget;
                 async move {
                     match batch_read_one(&self.state, namespace_id, &digest, budget).await {
                         Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
+                            digest: Some(digest),
                             data,
                             compressor: 0,
                             status: Some(rpc_status(0, "")),
                         },
                         Ok(None) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
+                            digest: Some(digest),
                             data: Vec::new(),
                             compressor: 0,
                             status: Some(rpc_status(5, "blob not found")),
                         },
                         Err(status) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
+                            digest: Some(digest),
                             data: Vec::new(),
                             compressor: 0,
                             status: Some(rpc_status_from_grpc_status(&status)),
@@ -1633,7 +1644,7 @@ impl ContentAddressableStorage for ReapiService {
             response.extensions_mut().insert(response_memory);
         }
         if served_any {
-            self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+            self.record_reapi_download(&metadata, namespace_id, served_bytes);
         }
         Ok(response)
     }
@@ -1675,10 +1686,10 @@ impl ByteStream for ReapiService {
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
             producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
+            artifact_key: Some(&resource.key),
+            artifact_hash: Some(&resource.hash),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         if request.get_ref().read_offset < 0 {
             return Err(Status::invalid_argument("read_offset must be non-negative"));
         }
@@ -1826,10 +1837,10 @@ impl ByteStream for ReapiService {
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
             producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
+            artifact_key: Some(&resource.key),
+            artifact_hash: Some(&resource.hash),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let manifest = self
             .state
             .store
@@ -2497,8 +2508,8 @@ fn grpc_request_context(
         tenant_id,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
         producer: spec.producer.map(ToOwned::to_owned),
-        artifact_key: spec.artifact_key.clone(),
-        artifact_hash: spec.artifact_hash.clone(),
+        artifact_key: spec.artifact_key.map(ToOwned::to_owned),
+        artifact_hash: spec.artifact_hash.map(ToOwned::to_owned),
         headers,
         query: BTreeMap::new(),
         status_code,
