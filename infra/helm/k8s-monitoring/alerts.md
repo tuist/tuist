@@ -958,11 +958,16 @@ threshold.
 
 This is the same argument that moved "Runner queue not draining" onto
 `tuist_runners_queue_oldest_dispatchable_age_seconds` above. Applying it
-consistently means the withheld series is **reporting, not alerting**:
-put it on `/d/tuist-runners` next to queue depth so it is there when
-someone looks, and surface the commercial signal — an account repeatedly
-pinned at its cap is an upsell or a misconfigured limit — where account
-decisions are actually made, not in Grafana.
+consistently means the withheld series is **reporting, not alerting**.
+
+It now lives on `/d/tuist-runners` as "Queue withheld at account
+concurrency limit by fleet", directly under the queue-age panel, which
+itself plots dispatchable against all-queued so the divergence is
+visible at a glance: queue age high with withheld at zero is a fleet
+problem worth chasing, queue age high with withheld tracking the depth
+is an account at its cap. The commercial half of the signal — an account
+repeatedly pinned at its cap is an upsell or a misconfigured limit —
+belongs where account decisions are actually made, not in Grafana.
 
 Keep the metric. It is what makes the queue-age rule correct, and it is
 the first thing to check when that rule *does* fire.
