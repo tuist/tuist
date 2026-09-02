@@ -127,7 +127,3 @@ spec:
               # OOM the egress gateway.
               - name: workerNodeTaints
                 value: tuist.dev/stable-egress=true:NoSchedule
-        # The Linux runner fleet moved to an OVH RISE-S in Gravelines,
-        # provisioned as the `runners-linux` fleet in the tuist chart (ovhFleets).
-        # The Robot host that served it is gone from this topology so caph
-        # releases it and the contract can be cancelled.

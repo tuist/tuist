@@ -175,10 +175,3 @@ spec:
         # kura-us-west fleets in the tuist chart (ovhFleets) and self-joined via
         # the CAPI provider — they are no longer Hetzner worker pools here, so the
         # region catalog reports no Hetzner location for them.
-        # The Linux runner fleet moved to OVH RISE-L bare metal in Gravelines,
-        # provisioned as the `runners-linux` fleet in the tuist chart (ovhFleets)
-        # and self-joined via the CAPI provider. The two AX162-R Robot hosts that
-        # served it are gone from this topology, so caph releases them and the
-        # contracts can be cancelled; the `bare-metal-worker` class and its
-        # templates stay in place so re-adding a Robot pool is a topology entry
-        # rather than a rebuild.
