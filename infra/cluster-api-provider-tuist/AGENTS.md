@@ -702,15 +702,27 @@ Every install these kinds start lays down a redundant root plus a **separate XFS
 join a box where it cannot (`dataProjectQuotaScript` in
 `controllers/linux/linux_cloudinit.go`).
 
-The image store gets a reserved project of its own (`containerdQuotaScript`,
-project 100). It is the only consumer of `/data` that is not a tenant, and a
-per-volume quota is a ceiling rather than a reservation, so a tenant inside its
-own ceiling can still be denied space something else took first. Nothing else
-bounds it: the kubelet's image GC triggers on the FILESYSTEM being nearly full,
-so it only reclaims once the box is already squeezing tenants. The ceiling is
-deliberately generous, because containerd hitting it means failed pulls that
-image GC cannot resolve, and unlike the `/data` mount setup a failure to apply
-it does not fail the join.
+On a **cache box** the image store gets a reserved project of its own
+(`containerdQuotaScript`, project 100). It is the only consumer of `/data` that
+is not a tenant, and a per-volume quota is a ceiling rather than a reservation,
+so a tenant inside its own ceiling can still be denied space something else took
+first. Nothing else bounds it: the kubelet's image GC triggers on the FILESYSTEM
+being nearly full, so it only reclaims once the box is already squeezing
+tenants. The ceiling is deliberately generous, because containerd hitting it
+means failed pulls that image GC cannot resolve, and unlike the `/data` mount
+setup a failure to apply it does not fail the join.
+
+**Only cache boxes get it** (`hostsKuraCacheVolumes`, keyed off the
+`tuist.dev/kura-cache` taint). A runner box has no tenant volumes on `/data`, so
+the quota protects nothing there while still being reachable: under `kata-qemu`
+the runner container's writable layer is a host overlayfs snapshot inside the
+image store, so ordinary CI writes land against project 100. XFS reports a blown
+project quota as ENOSPC, and image GC keys on the filesystem's free space, which
+on an 828 GiB `/data` never trips. A runner box that hit the ceiling therefore
+failed every job it accepted, permanently, on a disk that was 94% free. Absence
+of the taint means no quota: quota-ing a box with no tenants buys nothing and
+costs an unclearable ceiling, while skipping one that has tenants only returns
+it to the defence-in-depth it had before the quota existed.
 
 The chain it exists to close: a Kura cache PV is a local-path *directory* on
 `/data`, a directory has no size, so the pod's `ephemeral-storage` request is
