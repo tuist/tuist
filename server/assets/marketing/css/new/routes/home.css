@@ -1829,9 +1829,15 @@
             bottom: calc(75% + 1px);
           }
 
+          /* Mobile stacks all three labels down the first column; desktop
+             steps the middle one out to the centre line. */
           &[data-pos="committers"] {
-            right: calc(50% + 1px);
+            right: calc(75% + 1px);
             bottom: calc(50% + 1px);
+
+            @media (min-width: 1024px) {
+              right: calc(50% + 1px);
+            }
           }
 
           &[data-pos="teams"] {
