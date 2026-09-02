@@ -168,12 +168,16 @@ public class CachedManifestLoader: ManifestLoading {
 
         let loadedManifest = try await loader()
 
-        try await cacheManifest(
-            manifest: manifest,
-            loadedManifest: loadedManifest,
-            hashes: hashes,
-            to: cachedManifestPath
-        )
+        do {
+            try await cacheManifest(
+                manifest: manifest,
+                loadedManifest: loadedManifest,
+                hashes: hashes,
+                to: cachedManifestPath
+            )
+        } catch {
+            Logger.current.warning("Unable to cache the manifest at path: \(manifestPath.pathString). \(error)")
+        }
 
         return loadedManifest
     }

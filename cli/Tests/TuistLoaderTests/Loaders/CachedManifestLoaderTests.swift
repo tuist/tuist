@@ -306,12 +306,11 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_writeErrors() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_whenCachingTheManifestFails() async throws {
         // Given
-        let expectedError = TestError.writeFailed
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
-            throw expectedError
+            throw TestError.writeFailed
         }
 
         subject = try createSubject(fileSystem: fileSystem)
@@ -320,10 +319,36 @@ class CachedManifestLoaderTests {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
 
-        // When/Then
-        await #expect(throws: expectedError, performing: {
-            try await self.subject.loadProject(at: path, disableSandbox: false)
-        })
+        // When
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then
+        #expect(result == project)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_whenTheCacheVolumeIsFull() async throws {
+        // Given
+        let volume = try TinyVolume.attached()
+        defer { volume.detach() }
+
+        let manifestsDirectory = volume.mountPoint.appending(component: "Manifests")
+        try await fileSystem.makeDirectory(at: manifestsDirectory)
+        cacheDirectoriesProvider = .init()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.manifests))
+            .willReturn(manifestsDirectory)
+        subject = try createSubject()
+        volume.fill()
+
+        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
+        let project = Project.test(name: "App")
+        try await stubProject(project, at: path)
+
+        // When
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then
+        #expect(result == project)
     }
 
     // MARK: - Helpers
