@@ -39,10 +39,10 @@
     ],
     "links": [
       {
-        "title": "Tuist Kura",
+        "title": "Tuist Kura / Customer Overview",
         "type": "link",
         "icon": "dashboard",
-        "url": "/d/tuist-kura/tuist-kura",
+        "url": "/d/dbfwllgyul4o3kf/tuist-kura-customer-overview",
         "tags": [],
         "asDropdown": false,
         "includeVars": false,
