@@ -786,7 +786,8 @@ The paired telemetry rule for every Kura rule that reads a metric off the
 `kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
 `kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
 `kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_segment_shed_age_*`,
-`kura_backfill_ring_fullness_percent`, `kura_container_memory_*` and the
+`kura_backfill_ring_fullness_percent`, `kura_public_request_latency_*`, and the
+`egress-tree-agent` job behind `kura_egress_tree_*`, `kura_container_memory_*` and the
 `kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
 configuration that stopped discovering the `kura` namespace altogether. The
@@ -845,6 +846,12 @@ label_replace(sum by (cluster, region) (
          - sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})) / (2 * 50 * 1073741824))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "disk", "", "")
+or
+label_replace(sum by (cluster, region) (
+  floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_egress_mbps"})) / (2 * 25))
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+), "constraint", "egress", "", "")
 ```
 
 - Threshold: `< 1`, as a separate threshold expression on `A`, so the alert
@@ -864,10 +871,11 @@ label_replace(sum by (cluster, region) (
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
   ephemeral-storage request (the storage claim, 50 GiB per replica today)
-  against allocatable disk. Zero means the scheduler will decline the next
-  provisioning in this region. Add a node to the region; for memory a smaller
-  ceiling profile also works, for disk so does shrinking claims
-  (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
+  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25
+  Mbps per replica) against the box's advertised budget. Zero means the
+  scheduler will decline the next provisioning in this region. Add a node to
+  the region; for memory a smaller ceiling profile also works, for disk so
+  does shrinking claims (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
   region is full of reservations, not of usage.`
 
 The "add a node" alert. It counts how many more instances of the largest
@@ -876,7 +884,7 @@ count reaches zero: the next provisioning in the region is declined by the
 scheduler, and the only signal today would be **Pod cannot be scheduled**,
 thirty minutes later and in production only.
 
-Three constraints decide placement, and a pod places only if the node
+Four constraints decide placement, and a pod places only if the node
 satisfies every request it carries, so any one running out is enough. The native
 `memory` request is the instance's floor (`Tuist.Kura.Regions.memory_profile/1`:
 1024 MiB for the enterprise profile). In regions with
@@ -904,9 +912,19 @@ question `Tuist.Kura.Capacity` answers with its 85% pressure line to shorten
 Air's archival window; the count is the form whose summary is true at every
 threshold. Shrinking claims is a lever here as well as a node.
 
+The fourth constraint is egress. On a governed region every replica requests
+the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the
+`tuist.dev/egress-mbps` extended resource, request equal to limit, against the
+budget the CAPI provider advertises on the box. The egress-tree agent's notes
+call these floors informational until a per-replica double count in the
+bin-packing is fixed, and that double count is exactly what this row counts:
+it is the scheduler's arithmetic, so it is the right number for "will the next
+instance place", whatever the tree enforces. A box that advertises no budget
+(the runner-cache pool) has no `egress` row.
+
 The constants are one instance's worth: two replicas per region today, times
-the enterprise ceiling (8192 MiB), the enterprise floor (2048 MiB) and the
-live claim (100 GiB). Size from the largest plan on purpose: a region that can still place a
+the enterprise ceiling (8192 MiB), the enterprise floor (2048 MiB), the live
+claim (100 GiB) and the egress floor (50 Mbps). Size from the largest plan on purpose: a region that can still place a
 standard instance but not an enterprise one is exactly the case to know about
 before an enterprise sign-up. Change both constants together when the replica
 count or the profile changes.
@@ -924,7 +942,7 @@ native memory every region has room for many, so the ceiling is the binding
 constraint everywhere it is advertised. By disk the tightest production
 regions fit two more instances and the widest five, so the disk row is quiet
 on creation; the staging runner region fits one, which is why the scope is
-production.
+production. By egress every governed region fits at least a dozen more.
 
 ### Kura cache box out of memory
 
@@ -1097,6 +1115,64 @@ and on (cluster, pod) (
 
 The critical tier of **Kura instance retention horizon short** below, which
 carries the reasoning.
+
+### Kura egress budget almost entirely consumed
+
+```promql
+# region rows
+label_replace(label_replace(
+  sum by (cluster, region) (
+    sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
+    * on (cluster, instance) group_left(region)
+      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  )
+  /
+  sum by (cluster, region) (
+    max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  ),
+"scope", "region", "", ""), "target", "$1", "region", "(.*)")
+or
+# node rows
+label_replace(label_replace(
+  sum by (cluster, region, instance) (
+    sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
+    * on (cluster, instance) group_left(region)
+      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  )
+  / on (cluster, instance) group_left()
+  label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
+"scope", "node", "", ""), "target", "$1", "instance", "(.*)")
+```
+
+- Threshold: `> 0.85`, as a separate threshold expression on `A`, so the alert
+  value is the share of the advertised budget in use
+- Pending period: 30 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: every tenant in the region is
+  being shaped.
+- Summary: `Kura {{ $labels.scope }} {{ $labels.target }} has been using
+  {{ $values.A.Value | humanizePercentage }} of its egress budget for 30
+  minutes ({{ $labels.cluster }}); every tenant on it is being shaped`
+- Description: `Transmit rate on the cache boxes' NICs against the
+  tuist.dev/egress-mbps budget the CAPI provider advertises (the provider's
+  public cap and the root of the egress-tree HTB tree), as a region total and
+  per box. Above the budget the tree squeezes every tenant toward its floor at
+  once. A tenant above its own floor is fine; this is the box or region being
+  nearly full for a sustained period. Which accounts are driving it:
+  topk(5, sum by (account) (rate(kura_egress_tree_class_sent_bytes{...}[5m]))
+  * 8 / 1e6) on the node. The levers are the account ceilings
+  (egress_burst_mbps, or the per-account override), a bigger budget from the
+  provider, or a node.`
+
+The critical tier of **Kura egress budget heavily used** below, which carries
+the reasoning. The same query serves both, with the region rows and the node
+rows in one result: a region is the sum of its boxes, and a single box past
+the line is a problem for the tenants on it whether or not the region total
+says so, which matters once a region has boxes with different budgets.
 
 ### Runner host PN VLAN missing
 
@@ -2358,7 +2434,7 @@ Same query as **Kura region cannot place another instance**.
   region can place, per placement constraint (ceiling = the
   tuist.dev/memory-ceiling-mib extended resource, memory = native requests
   against allocatable, disk = ephemeral-storage claims against allocatable
-  disk). One means the next enterprise sign-up is the last that fits; zero is
+  disk, egress = 25 Mbps floors against the advertised budget). One means the next enterprise sign-up is the last that fits; zero is
   paged separately. Plan a node for the region before it lands.`
 
 The lead-time tier, on all three constraints: the next enterprise instance is
@@ -2517,6 +2593,344 @@ every full ring's median is five days or more (one account's four instances
 at about five, the rest between ten and thirty); over a seven-day window that
 same account reads about three days. Nothing is under two days, so both rules
 are quiet on creation; that account is the one to watch as its usage grows.
+
+### Kura egress budget heavily used
+
+```promql
+# region rows
+label_replace(label_replace(
+  sum by (cluster, region) (
+    sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
+    * on (cluster, instance) group_left(region)
+      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  )
+  /
+  sum by (cluster, region) (
+    max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  ),
+"scope", "region", "", ""), "target", "$1", "region", "(.*)")
+or
+# node rows
+label_replace(label_replace(
+  sum by (cluster, region, instance) (
+    sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
+    * on (cluster, instance) group_left(region)
+      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  )
+  / on (cluster, instance) group_left()
+  label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
+"scope", "node", "", ""), "target", "$1", "instance", "(.*)")
+```
+
+- Threshold: `> 0.75`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura {{ $labels.scope }} {{ $labels.target }} has been using
+  {{ $values.A.Value | humanizePercentage }} of its egress budget for 30
+  minutes ({{ $labels.cluster }})`
+- Description: `Transmit rate on the cache boxes' NICs against the
+  tuist.dev/egress-mbps budget the CAPI provider advertises, as a region total
+  and per box, sustained for 30 minutes. Above 85% it pages. A tenant above
+  its own floor is fine; this is the box or region filling up. Which accounts
+  are driving it: topk(5, sum by (account)
+  (rate(kura_egress_tree_class_sent_bytes{...}[5m])) * 8 / 1e6). Levers:
+  account ceilings (egress_burst_mbps or the per-account override), a bigger
+  budget from the provider, or a node.`
+
+The stated rule for egress is that a tenant using more than its floor is fine
+(that is what the HTB tree's ceiling is for) and a region consuming almost all
+of its bandwidth for a non-short period is not. The budget is the provider's
+public cap for the box and the root class of the egress tree, so above it
+every tenant is squeezed toward its floor at once, and below it a single
+tenant can burst up to its ceiling without anyone else noticing. The 30
+minute pending period is what turns "almost all" into "for a non-short
+period" and lets a build wave's burst pass.
+
+**Region rows and node rows in one query.** Every production region runs on
+one box today, so the two read the same; once a region has several boxes with
+different budgets the region total can sit under the line while one box is
+saturated, and that box's tenants are shaped regardless. The `scope` and
+`target` labels are what let one summary cover both.
+
+**Boxes without an advertised budget are out of scope by construction.** The
+join on `kube_node_status_capacity{resource="tuist_dev_egress_mbps"}` drops
+them, which today means the runner-cache box (scw-fr-par-runners): its
+traffic stays on the Scaleway private network, no budget is advertised for it
+and the egress-tree agent does not run there, and it is deliberately excluded.
+A box that should be governed and is not shows up in **Kura egress shaping
+integrity** below, not here.
+
+**Which accounts are driving it.** The agent's per-class series carry
+`account`, so the annotation is one query on the box:
+
+```promql
+topk(5, sum by (cluster, account) (rate(kura_egress_tree_class_sent_bytes{cluster="tuist-production"}[5m])) * 8 / 1e6)
+```
+
+Measured over the 7 days to 2026-09-02 with a 30 minute rate, the highest
+sustained share of budget on any production box was about 0.15 (us-east) and
+about 0.07 (eu-central); the others sat near zero. Both tiers are quiet on
+creation by a wide margin.
+
+### Kura account at its egress ceiling
+
+```promql
+(
+  sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{cluster="tuist-production"}[10m]))
+  /
+  sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{cluster="tuist-production"})
+)
+* on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"})
+* on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+```
+
+- Threshold: `> 0.9`, as a separate threshold expression on `A`
+- Pending period: 60 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura account {{ $labels.account }} on {{ $labels.node }}
+  ({{ $labels.region }}) has been sending at
+  {{ $values.A.Value | humanizePercentage }} of its egress ceiling for an hour
+  ({{ $labels.cluster }})`
+- Description: `The account's HTB class on this box has been within 10% of its
+  ceiling (egress_burst_mbps, or the per-account override) for an hour, so its
+  builds are pulling at reduced speed for that whole time. A burst to the
+  ceiling is expected and is what the ceiling is for; an hour at it means the
+  ceiling is the account's bottleneck. Lever: the account's egress override
+  for the region, as long as "Kura egress budget heavily used" is quiet on the
+  box; if it is not, the box is the bottleneck, not the ceiling.`
+
+A tenant may burst above its floor up to its ceiling by design, so touching
+the ceiling is not a fault and this rule does not fire on it. Sitting within
+10% of the ceiling for an hour is a tenant whose sustained demand is above
+what its ceiling allows, which is an account sizing question (the per-account,
+per-region egress override) rather than a capacity one, unless the box is
+full too, in which case the budget rules above fire first.
+
+**The grain is the account's class on a box, not a pod.** The egress tree
+shapes one HTB class per account per node, covering every replica the account
+has on that box, and both sides of the ratio are read back from the kernel in
+bytes per second (`..._ceil_bytes_per_second` is what HTB is enforcing, clamps
+included). The `pod` label on the agent's series is the agent pod, which the
+`kube_pod_info` join turns into the node and then into the region.
+
+**Rate windows several times the reconcile interval.** Every class gauge is
+refreshed once per reconcile (default 2 minutes), not per scrape, so a scrape
+can repeat the previous value; `[10m]` keeps the rate honest. `sent_bytes` is a
+kernel counter exported as a gauge and resets when the tree is rebuilt (a
+controller rollout does that), which reads as a brief dip, never a spike.
+
+Measured over the 7 days to 2026-09-02, no account's class on any production
+box got above about 0.13 of its ceiling at a 10 minute rate. Quiet on
+creation.
+
+### Kura egress shaping integrity
+
+```promql
+label_replace(sum by (cluster, pod) (increase(kura_egress_tree_direct_packets{cluster="tuist-production"}[30m])) > 0, "signal", "unshaped_packets", "", "")
+or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_return_dropped_packets{cluster="tuist-production"}[30m])) > 0, "signal", "return_drops", "", "")
+or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_return_attach_failures_total{cluster="tuist-production"}[30m])) > 0, "signal", "return_attach_failures", "", "")
+or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_reconcile_errors_total{cluster="tuist-production"}[30m])) > 0, "signal", "reconcile_errors", "", "")
+or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_sibling_overflow_total{cluster="tuist-production"}[30m])) > 0, "signal", "sibling_overflow", "", "")
+or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_link_reattach_total{cluster="tuist-production"}[1h])) > 5, "signal", "reattach_churn", "", "")
+or label_replace(max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster="tuist-production"}), "signal", "skipped_pods", "", "")
+or label_replace(
+  (max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster="tuist-production"})
+   * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"}))
+  != on (cluster, node) group_left() max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}),
+  "signal", "budget_mismatch", "", "")
+or label_replace(
+  sum by (cluster, node) (label_replace(increase(node_softnet_dropped_total{cluster="tuist-production"}[30m]), "node", "$1", "instance", "(.*)"))
+  and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"} > 0,
+  "signal", "softnet_drops", "", "")
+or label_replace(
+  (kura:node_region{cluster="tuist-production"} and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+  unless on (cluster, node) max by (cluster, node) (
+    kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"} * on (cluster, pod) group_left() (up{job="egress-tree-agent"} == 1)
+  ),
+  "signal", "no_agent", "", "")
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 15 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting** (see below: this rule always
+  returns a row per governed box, so an empty result means the agent is
+  gone), **Error: Alerting**.
+- Summary: `Kura egress shaping on {{ $labels.node }}{{ $labels.pod }} is not
+  enforcing what it should: {{ $labels.signal }} ({{ $labels.cluster }})`
+- Description: `One of the egress-tree agent's tripwires fired on a governed
+  box. unshaped_packets: traffic reached the tree unclassified (a hand-cleared
+  root qdisc runs unshaped until the backstop rebuild). return_drops: shaped
+  packets dropped for missing metadata, pods blackholed. return_attach_failures:
+  the return program failed to attach, shaped pods blackholed until the detach
+  threshold. reconcile_errors: the loop is failing. sibling_overflow: an
+  account outgrew the 16-entry sibling map, extra replicas run shaped with no
+  log. reattach_churn: links re-attaching after steady state. skipped_pods:
+  annotated pods not attached (unresolvable device or malformed annotation).
+  budget_mismatch: the tree's root ceiling disagrees with the node's advertised
+  tuist.dev/egress-mbps. softnet_drops: per-CPU backlog overflow on a shaped
+  box, a silent kernel drop no agent counter sees. no_agent: a box with a
+  budget hosts Kura pods but has no healthy agent, so nothing enforces floors
+  or ceilings and one tenant can take the box. While any of these holds, the
+  budget rules above measure a number the tree may not be enforcing.`
+
+Every arm is one of the alarms the agent's own notes ask for
+(`infra/egress-tree-agent/AGENTS.md`, *Metrics / alerts*), collected into one
+rule with a `signal` label so a single summary names the tripwire. Without
+them **Kura egress budget heavily used** measures a number the tree may not
+be enforcing, and **Kura account at its egress ceiling** reads a ceiling that
+may not be applied.
+
+**This rule always returns something, on purpose.** Every other arm is a
+filter and drops out while healthy, so the union alone would read as an empty
+result on a healthy fleet, indistinguishable from the agent having
+disappeared. The `skipped_pods` arm therefore carries no comparison:
+`kura_egress_tree_skipped_pods` is a gauge every agent always exports, so the
+query returns one row per governed box with value 0 while healthy, and the
+threshold expression `> 0` is what keeps that row from firing. That is why
+**No Data** is **Alerting** on this rule, the reverse of the document's
+default: a blank result here is the whole DaemonSet gone from the cluster,
+which no other arm can see (`no_agent` covers a single box, and only while the
+other boxes' agents still answer).
+
+Windows and bars: the tc/BPF counters are kernel counters exported as gauges,
+so every counting arm uses `increase()` over 30 minutes (a rebuild of the tree
+resets them, which reads as nothing, not as a spike), with the 15 minute
+pending period on top so a controller rollout, which re-attaches every pod
+once and briefly reports skipped pods, passes. `reattach_churn` is the one arm
+with a bar above zero: a rollout re-attaches each pod once, so more than five
+re-attaches on a box in an hour is churn. `no_agent` and `softnet_drops` are
+scoped to boxes that advertise a budget, which keeps the deliberately
+unshaped runner-cache box out. The agent's pod name is joined to its node
+through `kube_pod_info`; the agent's series carry no `node` label.
+
+Measured on 2026-09-02, every arm is zero across production over the last 7
+days (no unshaped or dropped packets, no attach failures, no softnet drops,
+every governed box has a healthy agent and its budget matches the advertised
+capacity). Quiet on creation.
+
+### Kura response streams waiting or degraded
+
+```promql
+sum by (cluster, region, protocol) (
+  sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{
+    outcome=~"waited|degraded|degraded_timeout|degraded_memory_unavailable|queue_full|timeout"}[5m]))
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+)
+/
+sum by (cluster, region, protocol) (
+  sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+)
+and
+sum by (cluster, region, protocol) (
+  sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+) > 1
+```
+
+- Threshold: `> 0.05`, as a separate threshold expression on `A`; the volume
+  floor of one admission attempt per second stays inside the PromQL, since
+  `and` filters the series rather than reducing it to a boolean
+- Pending period: 10 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `{{ $values.A.Value | humanizePercentage }} of
+  {{ $labels.protocol }} response streams in {{ $labels.region }} had to wait
+  or degrade for pool bytes ({{ $labels.cluster }})`
+- Description: `Share of response-stream admission attempts on this protocol
+  in the region that were not served immediately: waited, degraded (smaller
+  per-stream buffer), queue_full or timeout. The pool is sized from each pod's
+  memory ceiling at startup, so a rising share is the pod's egress pool
+  nearing its byte capacity while requests still succeed; it precedes "Kura
+  shedding cache reads under capacity pressure" and, on the ByteStream
+  (REAPI) path, is the only capacity view at all, since gRPC never answers
+  429. Lever: the account's memory profile (a bigger ceiling sizes a bigger
+  pool), unless "Kura egress budget heavily used" fires too, in which case the
+  NIC is the bottleneck.`
+
+The leading indicator in front of **Kura shedding cache reads under capacity
+pressure**. That rule fires once HTTP reads are refused; before that,
+admissions go through `waited`, then `degraded`, then `queue_full` and
+`timeout`, and a rising share of non-immediate attempts is the pool nearing
+its byte capacity while every request still succeeds.
+
+**It is also the only capacity view of the ByteStream path.** gRPC never
+answers 429 and the read-shed rule excludes `producer="reapi"` from its
+denominator, so a Bazel-heavy region can be queueing every read while that
+rule stays at zero. Over the 7 days to 2026-09-02 every non-immediate
+admission in production was on the ByteStream protocol (`queue_full`
+dominant, some `waited`); the HTTP protocol had none.
+
+**Grouping by protocol is load-bearing.** HTTP attempts outnumber ByteStream
+by two orders of magnitude, so a combined ratio dilutes a saturated ByteStream
+pool to nothing.
+
+**Attempts, not requests.** One read can record `queue_full` on its full-size
+attempt and then `degraded` when it succeeds on the degraded pool, which is
+why the read-shed rule refuses to be built on this counter. That is fine for
+a leading indicator and wrong for a shed rule; never promote this one.
+
+Measured on 2026-09-02: the ByteStream share of non-immediate attempts in one
+production region sits above 10% over the last day, so this rule fires there
+on creation. That is a finding about the transient budget on that region's
+REAPI-heavy instance, not noise; if it proves to be steady-state
+backpressure, raise the ByteStream bar (a separate threshold per protocol)
+rather than dropping the protocol split.
+
+### Kura public request latency high
+
+```promql
+histogram_quantile(0.95, sum by (cluster, region, le) (
+  sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket[5m]))
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+))
+```
+
+- Threshold: `> 1` second, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: this is customer-visible.
+- Summary: `Kura region {{ $labels.region }} p95 time to first byte has been
+  {{ $values.A.Value | humanizeDuration }} for 30 minutes
+  ({{ $labels.cluster }})`
+- Description: `p95 of time to first response byte for public cache requests
+  (HTTP and gRPC, probes and internal routes excluded) across the region's
+  instances, sustained for 30 minutes. The catch-all customer-facing capacity
+  symptom: it rises whether the bottleneck is the NIC ("Kura egress budget
+  heavily used"), the response-stream pool ("Kura response streams waiting or
+  degraded"), memory pressure, or a wedged store. Read those rules first;
+  this one only says the customer is feeling it. The node also uses this
+  latency to throttle peer replication (kura_replication_bandwidth_*), so a
+  region sitting high here lets its outbox grow.`
+
+The customer-facing symptom across all three capacity limits. It is not a
+diagnosis: the rules above say why, this one says the customer feels it. It
+also matters for the outbox: the node adapts peer replication bandwidth to
+this latency (`kura_public_request_latency_ewma_ms` against
+`kura_replication_bandwidth_public_latency_target_ms`), so a region sitting
+high is protecting public traffic by letting its outbox grow, which is where
+**Kura replication outbox approaching its cap** begins.
+
+**Why one second.** Measured over the 7 days to 2026-09-02 in 30 minute
+windows: p95 above 0.5 s held in about a third of all windows in one
+production region (its REAPI-heavy workload sits there normally), above 1 s in
+three windows fleet-wide, above 2 s in two. The typical 6 hour p95 is tens of
+milliseconds. One second for 30 minutes is the bar that separates that
+workload's normal from the two episodes.
 
 ### Swift registry release work repeatedly deferred
 
