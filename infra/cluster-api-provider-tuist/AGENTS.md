@@ -724,6 +724,18 @@ of the taint means no quota: quota-ing a box with no tenants buys nothing and
 costs an unclearable ceiling, while skipping one that has tenants only returns
 it to the defence-in-depth it had before the quota existed.
 
+Gating the self-join alone reaches no live box (see "strategy: OnDelete"
+above), so `reconcileLinuxContainerdQuotaDrift` (`containerd_quota_drift.go`)
+lifts the limit in place from any Ready non-cache box and stamps
+`tuist.dev/containerd-quota-lifted` on the Node. The quota is XFS metadata with
+no Kubernetes-visible observable, so like the kubelet-config hash the stamp IS
+the observable, written only on the lift script's exit status. The lift is one
+`xfs_quota limit -p bhard=0` plus dropping the `/etc/projects` line: no restart
+of anything, effective in the kernel immediately, so a box mid-ENOSPC recovers
+without a drain. `ContainerdQuotaLifted=False/ContainerdQuotaPresent` on the
+Machine is the loud state before the lift, `ContainerdQuotaLiftFailed` after a
+failed one.
+
 The chain it exists to close: a Kura cache PV is a local-path *directory* on
 `/data`, a directory has no size, so the pod's `ephemeral-storage` request is
 scheduler admission at placement time and nothing bounds what one account
