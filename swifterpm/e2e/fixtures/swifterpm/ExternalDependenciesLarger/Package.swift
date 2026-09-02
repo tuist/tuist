@@ -302,7 +302,7 @@ let package = Package(
         .package(url: "https://github.com/statsig-io/statsig-kit", exact: "1.62.5"),
         .package(url: "https://github.com/amplitude/Amplitude-iOS", .upToNextMinor(from: "8.14.0")),
         .package(url: "https://github.com/getsentry/sentry-cocoa", exact: "9.13.0"),
-        .package(url: "https://github.com/amplitude/Amplitude-Swift", .upToNextMajor(from: "1.18.2")),
+        .package(url: "https://github.com/amplitude/Amplitude-Swift", .upToNextMajor(from: "1.18.8")),
 
         // Firebase
         .package(url: "https://github.com/firebase/firebase-ios-sdk.git", .upToNextMinor(from: "12.6.0")),
