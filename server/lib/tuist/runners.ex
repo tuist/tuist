@@ -1039,6 +1039,11 @@ defmodule Tuist.Runners do
       affinity_outcome: affinity_outcome
     } = context
 
+    # Already resolved upstream for cache-volume affinity, so recording it on
+    # the session costs nothing and is the only chance to capture it: the Pod
+    # carrying this mapping is reaped when the job ends.
+    node_name = Map.get(context, :node_name)
+
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -1085,6 +1090,7 @@ defmodule Tuist.Runners do
             vcpus: resources.vcpus,
             memory_gb: resources.memory_gb,
             pod_name: pod_name,
+            node_name: node_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),
             workflow_name: Map.get(candidate, :workflow_name, ""),

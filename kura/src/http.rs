@@ -36,8 +36,8 @@ use crate::{
         BACKFILL_BODIES_BATCH_BYTES, MAX_BACKFILL_BODIES_ENTRIES,
         MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
         MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
-        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
-        response_stream_chunk_bytes,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, REPLICATION_BATCH_MAX_BYTES,
+        REPLICATION_BATCH_MAX_ITEMS, RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
     io::is_fd_pool_exhausted_error,
     memory::{
@@ -88,10 +88,11 @@ const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
 // The oversized-entry path of the backfill protocol.
 const ROUTE_INTERNAL_BACKFILL_ARTIFACT: &str = "/_internal/backfill/artifacts/{artifact_id}";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
+const ROUTE_INTERNAL_REPLICATE_ARTIFACTS: &str = "/_internal/replicate/artifacts";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -106,6 +107,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_INTERNAL_BACKFILL_ENTRIES,
     ROUTE_INTERNAL_BACKFILL_BODIES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
+    ROUTE_INTERNAL_REPLICATE_ARTIFACTS,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
 ];
 
@@ -290,6 +292,10 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_REPLICATE_ARTIFACT,
             put(internal_replicate_artifact),
+        )
+        .route(
+            ROUTE_INTERNAL_REPLICATE_ARTIFACTS,
+            put(internal_replicate_artifacts),
         )
         .route(
             ROUTE_INTERNAL_REPLICATE_NAMESPACE,
@@ -651,6 +657,87 @@ impl BackfillBodyManifestMeta {
         serde_json::to_vec(self)
             .map_err(|error| format!("failed to encode backfill manifest meta: {error}"))
     }
+}
+
+/// One item of a batched replication request. The batch carries only inline
+/// artifacts (the metadata lane), so there is no `inline` flag and no segment
+/// path: every body is present in the frame.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplicateBatchItemMeta {
+    pub producer: String,
+    pub namespace_id: String,
+    pub key: String,
+    pub content_type: String,
+    pub version_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trunk: Option<String>,
+}
+
+/// Per-item result of a batched replication request, in request order. An
+/// entry that is not `error` means the peer is done with that item (it applied
+/// it, or ignored it as not newer), so the sender may clear its outbox
+/// message; `error` leaves the message queued for retry. Reporting per item is
+/// what keeps one poison item from stranding everything batched with it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplicateBatchOutcomes {
+    pub outcomes: Vec<String>,
+}
+
+/// Fixed header of one batched replication frame: `meta_len` then `body_len`,
+/// both big-endian. Bodies are inline artifacts, bounded by
+/// `MAX_INLINE_REPLICATION_BODY_BYTES`, so a u32 length is sufficient.
+pub const REPLICATE_BATCH_FRAME_HEADER_BYTES: usize = 4 + 4;
+
+pub fn encode_replicate_batch_frame(meta: &[u8], body: &[u8]) -> Result<Vec<u8>, String> {
+    let meta_len = u32::try_from(meta.len()).map_err(|_| {
+        format!(
+            "replication batch meta of {} bytes is too large",
+            meta.len()
+        )
+    })?;
+    let body_len = u32::try_from(body.len()).map_err(|_| {
+        format!(
+            "replication batch body of {} bytes is too large",
+            body.len()
+        )
+    })?;
+    let mut frame =
+        Vec::with_capacity(REPLICATE_BATCH_FRAME_HEADER_BYTES + meta.len() + body.len());
+    frame.extend_from_slice(&meta_len.to_be_bytes());
+    frame.extend_from_slice(&body_len.to_be_bytes());
+    frame.extend_from_slice(meta);
+    frame.extend_from_slice(body);
+    Ok(frame)
+}
+
+/// Splits a batched replication body into its frames. Returns an error rather
+/// than a partial list when the buffer is truncated or a length overruns it, so
+/// a malformed request is rejected whole instead of silently applying a prefix.
+pub fn decode_replicate_batch_frames(
+    mut buffer: &[u8],
+) -> Result<Vec<(ReplicateBatchItemMeta, Vec<u8>)>, String> {
+    let mut items = Vec::new();
+    while !buffer.is_empty() {
+        if buffer.len() < REPLICATE_BATCH_FRAME_HEADER_BYTES {
+            return Err("replication batch frame header is truncated".to_owned());
+        }
+        let meta_len = u32::from_be_bytes(buffer[0..4].try_into().expect("fixed slice")) as usize;
+        let body_len = u32::from_be_bytes(buffer[4..8].try_into().expect("fixed slice")) as usize;
+        let rest = &buffer[REPLICATE_BATCH_FRAME_HEADER_BYTES..];
+        let payload_len = meta_len
+            .checked_add(body_len)
+            .ok_or_else(|| "replication batch frame lengths overflow".to_owned())?;
+        if rest.len() < payload_len {
+            return Err("replication batch frame payload is truncated".to_owned());
+        }
+        let meta: ReplicateBatchItemMeta = serde_json::from_slice(&rest[..meta_len])
+            .map_err(|error| format!("failed to decode replication batch meta: {error}"))?;
+        items.push((meta, rest[meta_len..payload_len].to_vec()));
+        buffer = &rest[payload_len..];
+    }
+    Ok(items)
 }
 
 /// Encodes one frame header of the bodies response stream. This function and
@@ -2833,6 +2920,110 @@ async fn spool_backfill_bodies_inner(
         _cleanup: cleanup,
         _reservations: reservations,
     })
+}
+
+/// Batched sibling of `internal_replicate_artifact`, for the metadata lane.
+/// Applies every framed inline artifact and answers one outcome per item in
+/// request order, so the sender can clear exactly the messages the peer is done
+/// with. A peer that predates this route answers 404 and the sender falls back
+/// to the per-artifact endpoint, which is what keeps a mixed-version mesh
+/// working during a rollout.
+async fn internal_replicate_artifacts(
+    State(state): State<SharedState>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), REPLICATION_BATCH_MAX_BYTES as usize).await {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!("Failed to read replication batch: {error}"),
+            );
+        }
+    };
+
+    let items = match decode_replicate_batch_frames(&bytes) {
+        Ok(items) => items,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
+    if items.len() > REPLICATION_BATCH_MAX_ITEMS {
+        return error_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "replication batch carries {} items, above the {REPLICATION_BATCH_MAX_ITEMS} limit",
+                items.len()
+            ),
+        );
+    }
+
+    let mut outcomes = Vec::with_capacity(items.len());
+    for (meta, body) in items {
+        let Some(producer) = ArtifactProducer::from_str(&meta.producer) else {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            outcomes.push("error".to_owned());
+            continue;
+        };
+
+        // Same version gate the per-artifact route applies, so a batched item
+        // that lost the last-writer-wins race costs no write.
+        match state.store.artifact_apply_outcome(
+            producer,
+            &meta.namespace_id,
+            &meta.key,
+            meta.version_ms,
+        ) {
+            Ok(outcome) if !outcome.applied() => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", outcome.as_str());
+                outcomes.push(outcome.as_str().to_owned());
+                continue;
+            }
+            Ok(_) => {}
+            Err(_) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", "error");
+                outcomes.push("error".to_owned());
+                continue;
+            }
+        }
+
+        match state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                producer,
+                &meta.namespace_id,
+                &meta.key,
+                &meta.content_type,
+                &body,
+                meta.version_ms,
+                meta.branch.as_deref(),
+                meta.trunk.as_deref(),
+            )
+            .await
+        {
+            Ok(outcome) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", outcome.as_str());
+                outcomes.push(outcome.as_str().to_owned());
+            }
+            Err(_) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", "error");
+                outcomes.push("error".to_owned());
+            }
+        }
+    }
+
+    (StatusCode::OK, Json(ReplicateBatchOutcomes { outcomes })).into_response()
 }
 
 async fn internal_replicate_artifact(
@@ -7817,5 +8008,72 @@ mod tests {
                 body: body.to_vec(),
             });
         StatusCode::ACCEPTED
+    }
+
+    #[test]
+    fn replicate_batch_frames_round_trip() {
+        let first = ReplicateBatchItemMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "entry-1".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            version_ms: 200,
+            branch: Some("main".to_owned()),
+            trunk: None,
+        };
+        let second = ReplicateBatchItemMeta {
+            key: "entry-2".to_owned(),
+            version_ms: 300,
+            branch: None,
+            ..first.clone()
+        };
+
+        let mut body = Vec::new();
+        for (meta, payload) in [(&first, b"one".as_slice()), (&second, b"".as_slice())] {
+            let meta_bytes = serde_json::to_vec(meta).expect("meta should encode");
+            body.extend_from_slice(
+                &encode_replicate_batch_frame(&meta_bytes, payload).expect("frame should encode"),
+            );
+        }
+
+        let decoded = decode_replicate_batch_frames(&body).expect("frames should decode");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].0, first);
+        assert_eq!(decoded[0].1, b"one".to_vec());
+        // An empty body is a legitimate frame, not a terminator.
+        assert_eq!(decoded[1].0, second);
+        assert!(decoded[1].1.is_empty());
+    }
+
+    #[test]
+    fn a_truncated_replicate_batch_is_rejected_whole() {
+        // Applying a prefix would silently drop the tail while the sender
+        // clears every message it sent, so a short read must fail the request.
+        let meta = ReplicateBatchItemMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "entry".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            version_ms: 1,
+            branch: None,
+            trunk: None,
+        };
+        let meta_bytes = serde_json::to_vec(&meta).expect("meta should encode");
+        let frame =
+            encode_replicate_batch_frame(&meta_bytes, b"payload").expect("frame should encode");
+
+        let error = decode_replicate_batch_frames(&frame[..frame.len() - 2])
+            .expect_err("a truncated payload must be rejected");
+        assert!(
+            error.contains("truncated"),
+            "expected a truncation error, got: {error}"
+        );
+
+        let error = decode_replicate_batch_frames(&frame[..4])
+            .expect_err("a truncated header must be rejected");
+        assert!(
+            error.contains("truncated"),
+            "expected a truncation error, got: {error}"
+        );
     }
 }

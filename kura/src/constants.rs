@@ -49,6 +49,20 @@ pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
+// Outbox deliveries dispatched before the drain waits for one to finish. This
+// is what separates the queue's throughput from the round trip to a peer:
+// throughput is roughly this many messages per RTT, so at one the drain is
+// serial and delivers `1 / RTT` messages per second no matter how much
+// bandwidth it has been given, which leaves a write-primary whose peers sit on
+// another continent capped in the single digits. Every artifact enqueues one
+// message per peer, so the artifact rate is this divided again by the peer
+// count.
+//
+// The cost is per-delivery body residency — one `RESPONSE_STREAM_CHUNK_BYTES`
+// chunk for a segment-backed artifact, or up to
+// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one — so 8 buys an order
+// of magnitude of headroom for a few MiB.
+pub const OUTBOX_MAX_INFLIGHT: usize = 8;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;
@@ -95,6 +109,26 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+
+// Ceilings on one batched replication request. The metadata lane carries
+// inline artifacts (action-cache entries, small CAS objects) whose bodies run
+// to a few KiB, so a per-message request spends a whole round trip shipping
+// less than one MTU of payload: the drain is bound by messages per second
+// rather than bytes per second, orders of magnitude below the link. Batching
+// moves the bound back onto bytes. The item cap is what does that; the byte cap
+// only stops a run of unusually large inline bodies (up to
+// MAX_INLINE_REPLICATION_BODY_BYTES each) from assembling a request that has to
+// be buffered whole on both sides.
+pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
+// Batch rounds one pass may take before it hands control back to the
+// per-message drain. The batch pre-pass restarts its scan at the outbox head
+// after every round, so without a bound a target under sustained inflow keeps
+// producing batchable pairs and the pass never reaches the messages batching
+// declines — namespace deletes, and everything bound for a peer that predates
+// the batch route. Four rounds still moves thousands of messages before
+// yielding.
+pub const REPLICATION_BATCH_MAX_ROUNDS: usize = 4;
+pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;

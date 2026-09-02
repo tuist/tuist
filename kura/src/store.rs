@@ -18,7 +18,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
-    sync::{Mutex, Notify},
+    sync::{Mutex, Notify, RwLock},
 };
 use uuid::Uuid;
 
@@ -81,6 +81,20 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
+// Coordinates a namespace delete against everything that writes into that
+// namespace. The delete resolves its tombstone with a read-compare-write that
+// spans the namespace scan, and its scan is a snapshot: an artifact applied
+// after the iterator was created is invisible to the delete batch, while the
+// apply's own tombstone check ran before the tombstone was committed. Neither
+// side sees the other and the row survives its own tombstone, which is what
+// `namespace_tombstone_blocks` then stops rejecting.
+//
+// So deletes take the write side (which also serializes delete against delete,
+// keeping the newest tombstone) and artifact applies take the read side across
+// their precheck and commit. Applies stay concurrent with each other; only a
+// delete excludes them, and only for its own namespace. Striped so different
+// namespaces never wait on each other's scan.
+const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
@@ -217,6 +231,7 @@ pub struct Store {
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
+    namespace_locks: [RwLock<()>; NAMESPACE_LOCK_STRIPES],
     // Artifacts served from an Old-generation segment queue here for background
     // promotion into the current segment instead of refreshing inline on the
     // read path: one value-graph read can touch thousands of tiny old
@@ -507,6 +522,13 @@ impl StagedBackfillApply {
         match self {
             Self::Segmented(staged) => &staged.artifact_id,
             Self::Inline(staged) => &staged.artifact_id,
+        }
+    }
+
+    fn namespace_id(&self) -> &str {
+        match self {
+            Self::Segmented(staged) => &staged.namespace_id,
+            Self::Inline(staged) => &staged.namespace_id,
         }
     }
 }
@@ -1061,6 +1083,7 @@ impl Store {
             ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
+            namespace_locks: std::array::from_fn(|_| RwLock::new(())),
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
@@ -1215,6 +1238,16 @@ impl Store {
 
     fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
         &self.artifact_write_locks[self.artifact_write_lock_index(artifact_id)]
+    }
+
+    fn namespace_lock_index(&self, namespace_id: &str) -> usize {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(namespace_id, &mut hasher);
+        (std::hash::Hasher::finish(&hasher) as usize) % NAMESPACE_LOCK_STRIPES
+    }
+
+    fn namespace_lock_for(&self, namespace_id: &str) -> &RwLock<()> {
+        &self.namespace_locks[self.namespace_lock_index(namespace_id)]
     }
 
     pub async fn artifact_exists(
@@ -1400,6 +1433,11 @@ impl Store {
         source_path: &Path,
         file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        // Read side of the namespace lock, held across this apply's tombstone
+        // precheck and its commit. A delete taking the write side therefore
+        // cannot commit its snapshot-scanned batch in between and leave this
+        // row alive under a newer tombstone.
+        let _namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         // Hold the per-artifact write lock across the read-check, segment append,
@@ -2278,6 +2316,11 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<PersistArtifactOutcome, String> {
+        // Read side of the namespace lock, held across this apply's tombstone
+        // precheck and its commit. A delete taking the write side therefore
+        // cannot commit its snapshot-scanned batch in between and leave this
+        // row alive under a newer tombstone.
+        let _namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
@@ -2496,7 +2539,7 @@ impl Store {
         self.note_artifact_exists(&manifest.artifact_id);
     }
 
-    fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
+    pub(crate) fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read inline artifact bytes: {error}"))
@@ -4052,6 +4095,23 @@ impl Store {
         // the same ascending order and therefore cannot deadlock each other.
         // Stripe dedup also means two group records that share a stripe (or
         // an artifact) are covered by one guard rather than self-deadlocking.
+        // Namespace read guards first, in the same ascending-stripe order and
+        // for the same reason: this group's prechecks and its commit have to
+        // span a concurrent namespace delete rather than interleave with it.
+        // Taking them ahead of the artifact locks cannot invert, because the
+        // delete path holds a namespace lock and never acquires an artifact
+        // one.
+        let mut namespace_stripes: Vec<usize> = group
+            .iter()
+            .map(|record| self.namespace_lock_index(record.namespace_id()))
+            .collect();
+        namespace_stripes.sort_unstable();
+        namespace_stripes.dedup();
+        let mut namespace_guards = Vec::with_capacity(namespace_stripes.len());
+        for stripe in namespace_stripes {
+            namespace_guards.push(self.namespace_locks[stripe].read().await);
+        }
+
         let mut stripes: Vec<usize> = group
             .iter()
             .map(|record| self.artifact_write_lock_index(record.artifact_id()))
@@ -4209,6 +4269,16 @@ impl Store {
 
         self.hit_failpoint(FailpointName::BeforeApplyReplicatedTombstone)
             .await?;
+        // Held until the batch commits below. The tombstone decision is a
+        // read, a compare, and a write separated by the namespace scan, so
+        // without this two deletes for one namespace can both read the same
+        // previous version, both decide they are newer, and commit in the
+        // wrong order — leaving the older version as the tombstone and
+        // un-blocking every artifact the newer delete removed. Peer deliveries
+        // for one namespace arrive concurrently now that the outbox drain is
+        // pipelined, and a re-delete of the same namespace is the ordinary way
+        // to produce two of them.
+        let _delete_guard = self.namespace_lock_for(namespace_id).write().await;
         let previous_tombstone = self.namespace_tombstone_version(namespace_id)?;
         if !delete_everything
             && let Some(current_tombstone) = previous_tombstone
@@ -12699,6 +12769,101 @@ mod tests {
                 .inline_bytes(&manifest.artifact_id)
                 .expect("failed to read inline bytes")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stale_apply_cannot_outlive_a_concurrent_namespace_delete() {
+        // The delete's artifact scan is a snapshot: a row applied after its
+        // iterator was created is invisible to the delete batch, while that
+        // apply's own tombstone check ran before the tombstone was committed.
+        // Neither side sees the other, and the row survives its own tombstone
+        // — after which namespace_tombstone_blocks stops rejecting it, because
+        // the tombstone reads newer than the row. Serializing delete against
+        // delete does not cover this; the apply has to take the read side.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let delete = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 200).await }
+        });
+        let apply = tokio::spawn({
+            let store = store.clone();
+            async move {
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ios",
+                        "entry",
+                        "application/octet-stream",
+                        b"stale",
+                        150,
+                        None,
+                        None,
+                    )
+                    .await
+            }
+        });
+
+        delete
+            .await
+            .expect("delete task should join")
+            .expect("delete should apply");
+        // The apply may be rejected by the tombstone or may land first and be
+        // swept; either is correct, so only its absence afterwards is asserted.
+        let _ = apply.await.expect("apply task should join");
+
+        assert!(
+            store
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "entry")
+                .await
+                .expect("fetch should succeed")
+                .is_none(),
+            "an artifact older than the namespace tombstone survived the delete"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_namespace_deletes_keep_the_newest_tombstone() {
+        // The tombstone decision reads the previous version, compares, and only
+        // then writes, with the namespace scan in between. Deliveries for one
+        // namespace arrive concurrently now that the outbox drain is pipelined,
+        // so without a lock across that span both can read the same previous
+        // version, both conclude they are newer, and the older one can commit
+        // last. The tombstone would then read 100 with artifacts up to 200
+        // removed, and `namespace_tombstone_blocks` would stop rejecting the
+        // stale upserts that tombstone exists to reject.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let newer = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 200).await }
+        });
+        let older = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 100).await }
+        });
+        newer
+            .await
+            .expect("newer delete task should join")
+            .expect("newer delete should apply");
+        older
+            .await
+            .expect("older delete task should join")
+            .expect("older delete should resolve");
+
+        let tombstones = store
+            .namespace_tombstones()
+            .expect("tombstones should load");
+        let (_namespace, version_ms) = tombstones
+            .iter()
+            .find(|(namespace, _)| namespace == "ios")
+            .expect("the namespace should carry a tombstone");
+        assert_eq!(
+            *version_ms, 200,
+            "the older delete regressed the tombstone, so artifacts it should block are live again"
         );
     }
 
