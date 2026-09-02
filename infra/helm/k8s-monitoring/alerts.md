@@ -845,13 +845,20 @@ label_replace(sum by (cluster, region) (
 - Pending period: 15 minutes
 - Severity: critical
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting** (the
   region join can be aggregated away, see **Recording rules for Kura
   regions**).
 - Summary: `Kura region {{ $labels.region }} can place
   {{ $values.A.Value | printf "%.0f" }} more enterprise instances by
   {{ $labels.constraint }} in {{ $labels.cluster }}; add a node`
+- Description: `Counts how many more two-replica enterprise instances the
+  region can place, per placement constraint: "ceiling" is the
+  tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
+  "memory" is the native memory request against allocatable. Zero means the
+  scheduler will decline the next provisioning in this region. Add a node to
+  the region, or lower the ceiling profile. If "Kura region host memory low" is
+  quiet, the region is full of reservations, not of usage.`
 
 The "add a node" alert. It counts how many more instances of the largest
 profile the region can place, per placement constraint, and fires when that
@@ -908,11 +915,16 @@ min by (cluster, region, instance) (
 - Pending period: 15 minutes
 - Severity: critical
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura box {{ $labels.instance }} in {{ $labels.region }} has
   {{ $values.A.Value | humanizePercentage }} of its memory available
   ({{ $labels.cluster }})`
+- Description: `The kernel's MemAvailable on this Kura box (reclaimable page
+  cache counts as available) has been below 8% for 15 minutes: the box is about
+  to reclaim from every pod on it or OOM-kill one. Look for the pod living
+  above its floor ("Kura pod living above its memory request"), then for a
+  host-side leak (slab, cgroups); if neither, the region needs a node.`
 
 The single-box tier of **Kura region host memory low** below: the box that is
 about to start reclaiming from every pod on it, or OOM-killing them. Kura pods
@@ -936,11 +948,18 @@ max by (cluster, region, pod) (
 - Pending period: 10 minutes
 - Severity: critical
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has been under
   memory pressure (state {{ $values.A.Value | printf "%.0f" }}) for 10 minutes
   ({{ $labels.cluster }})`
+- Description: `The pod's own memory controller has been out of Normal for 10
+  minutes (1 = constrained: outbox, backfill, segment refresh and snapshot
+  build paused; 2 = critical: transient budget zeroed, every read refused,
+  manifest index may be zeroed while the pod stays Ready). A short trip during
+  a burst is expected; sustained means the pod is not working within its
+  ceiling. The lever is the account's memory profile, not the box. Check
+  kura_background_work_paused and kura_memory_transient_reserved_bytes.`
 
 The pod's own controller has left Normal and stayed there. At Constrained the
 node pauses background work (`kura_background_work_paused` by worker: outbox,
@@ -972,10 +991,17 @@ sum by (cluster, region, pod) (
 - Pending period: 0 minutes
 - Severity: critical
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} was OOM-killed
   in the last hour ({{ $labels.cluster }})`
+- Description: `The kernel OOM-killed this pod within the last hour: it
+  exceeded its ceiling (the memory limit), which the pod's own pressure
+  controller exists to prevent. Peaks above the request are allowed; the limit
+  is not. Read the last termination reason and exit code, compare
+  kura_jemalloc_resident_bytes against the cgroup charge for allocator growth
+  the controller cannot see, and raise the ceiling profile only once the cause
+  is understood.`
 
 Every restart seen so far was a liveness kill (**Kura cache pod restart
 loop**: exit 137, reason `Error`), never `OOMKilled`; the pressure controller
@@ -1914,7 +1940,7 @@ sum by (cluster, region, pod, kind) (
 - Pending period: 10 minutes
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
   **Kura shedding cache writes from the replication outbox** (see **Retired
   rules**); preview it against the last 7 days for `kind="outbox"` and confirm
@@ -1922,6 +1948,15 @@ sum by (cluster, region, pod, kind) (
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} is shedding
   {{ $values.A.Value | printf "%.1f" }} writes/s at the {{ $labels.kind }}
   limit ({{ $labels.cluster }})`
+- Description: `The pod is refusing uploads at the named limit at more than one
+  per second for 10 minutes. Uploads are never retried by the client, so every
+  shed is an artifact lost and a future cache miss. outbox: the replication
+  outbox is at its cap, read kura_outbox_messages. upload_memory,
+  memory_pressure_write, reapi_write_decode, reapi_materialization: the
+  transient memory budget derived from the pod's ceiling is exhausted, the
+  lever is the account's memory profile. tmp_staging, multipart_storage,
+  multipart_uploads: staging disk or the fixed 128-upload cap; an orphaned
+  backlog can survive a restart for up to a day.`
 
 Sibling to the read shed above, in a deliberately different shape: an absolute
 rate rather than a ratio, and one rule keyed on `kind` for every write-shed
@@ -2010,11 +2045,15 @@ sum by (cluster, region, pod, kind) (
 - Pending period: 10 minutes
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} shed
   {{ $values.A.Value | printf "%.0f" }} writes at the {{ $labels.kind }} limit
   in the last hour ({{ $labels.cluster }})`
+- Description: `The pod refused more than a thousand uploads at the named limit
+  in the last hour, below the per-second bar of "Kura shedding cache writes by
+  kind" but a thousand artifacts lost all the same, since uploads are never
+  retried. Same kinds and levers as that rule.`
 
 The slow arm of the rule above. A thousand sheds in an hour is about 0.28/s
 sustained, an order of magnitude above the trickles the 7-day backtest found
@@ -2079,12 +2118,17 @@ Same query as **Kura region cannot place another instance**.
 - Pending period: 30 minutes
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura region {{ $labels.region }} can place
   {{ $values.A.Value | printf "%.0f" }} more enterprise instances by
   {{ $labels.constraint }} in {{ $labels.cluster }}; add a node before the next
   sign-up`
+- Description: `Counts how many more two-replica enterprise instances the
+  region can place, per placement constraint (ceiling = the
+  tuist.dev/memory-ceiling-mib extended resource, memory = native requests
+  against allocatable). One means the next enterprise sign-up is the last that
+  fits; zero is paged separately. Plan a node for the region before it lands.`
 
 The lead-time tier: the next enterprise instance is the last one that fits.
 It also holds at zero, alongside the critical rule; that is intended, the
@@ -2108,11 +2152,17 @@ sum by (cluster, region) (
 - Pending period: 30 minutes
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura region {{ $labels.region }} has
   {{ $values.A.Value | humanizePercentage }} of its host memory available and
   has for 30 minutes ({{ $labels.cluster }})`
+- Description: `MemAvailable summed across the region's Kura boxes
+  (reclaimable page cache counts as available) has been below 15% for 30
+  minutes, so this is sustained usage, not a build-wave peak. If "Kura region
+  cannot place another instance" also fires, add a node; if it is quiet, a pod
+  is living above its floor ("Kura pod living above its memory request") or a
+  box is leaking ("Node leaking cgroups").`
 
 The "really out of memory" alert, as opposed to **Kura region cannot place
 another instance**, which is "out of reservations". Kura pods may peak above
@@ -2144,11 +2194,18 @@ max by (cluster, region, pod) (
 - Pending period: 60 minutes
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has averaged
   {{ $values.A.Value | printf "%.1f" }}x its memory request for an hour
   ({{ $labels.cluster }}); raise its floor or find the leak`
+- Description: `The pod's one-hour average of non-cache memory
+  (kura_container_memory_pressure_bytes, which excludes clean file-backed
+  cache) is above its memory request, its floor. Peaks above the request are
+  allowed and are filtered by the hour average; this pod lives above it. Raise
+  the account's memory profile, or find the leak if the growth is unbounded
+  (jemalloc resident vs allocated). It also explains a region that is out of
+  memory while it still has room to place.`
 
 The expectation is that a Kura pod works well within its requested memory (its
 floor) and may peak above it. This rule checks exactly that, with a one-hour
