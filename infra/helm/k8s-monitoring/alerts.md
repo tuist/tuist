@@ -874,6 +874,26 @@ Keep `tuist_runners_queue_length` and `tuist_runners_queue_oldest_age_seconds`
 on the dashboard: they still report the truth about what customers are
 waiting on, which is what the companion rule below watches.
 
+The deployed rule currently carries a transitional fallback:
+
+```promql
+max by (fleet) (
+  tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
+) or max by (fleet) (
+  tuist_runners_queue_oldest_age_seconds{env="production"}
+)
+```
+
+The rule lives in the Grafana console, not in this repo, so it changes
+ahead of the server that emits the new metric. `no_data_state` is `OK`,
+so swapping the expression outright would have silently taken the alert
+off duty until the deploy landed. `or` yields the new metric wherever it
+exists and the old one everywhere else, which keeps coverage identical
+across the rollout and needs no coordination. **Drop the fallback once
+the new metric reports on every fleet** — while it is there, a fleet
+whose server pod somehow stops emitting the new gauge silently reverts
+to the old behaviour.
+
 Age, not depth, for the same reason the remote-processing rule uses it,
 and the reason is already written into the metric's definition in
 `Tuist.Runners.PromExPlugin`: a busy fleet serving arrivals promptly and
