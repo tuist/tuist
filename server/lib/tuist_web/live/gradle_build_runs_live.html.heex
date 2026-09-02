@@ -6,7 +6,12 @@
   >
     <.card_section data-part="build-runs-card-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-build-runs" phx-debounce="200">
+        <.form
+          id="gradle-build-runs-search-form"
+          for={%{}}
+          phx-change="search-build-runs"
+          phx-debounce="200"
+        >
           <.text_input
             type="search"
             id="search-build-runs"

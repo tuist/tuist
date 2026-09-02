@@ -204,7 +204,12 @@
     >
       <.card_section data-part="tasks-table-section">
         <div data-part="filters">
-          <.form for={%{}} phx-change="search-tasks" phx-debounce="200">
+          <.form
+            id="gradle-build-tasks-search-form"
+            for={%{}}
+            phx-change="search-tasks"
+            phx-debounce="200"
+          >
             <.text_input
               type="search"
               id="search-tasks"
@@ -454,7 +459,12 @@
           data-part="configuration-operations-table-section"
         >
           <div data-part="filters">
-            <.form for={%{}} phx-change="search-configuration-operations" phx-debounce="200">
+            <.form
+              id="gradle-configuration-operations-search-form"
+              for={%{}}
+              phx-change="search-configuration-operations"
+              phx-debounce="200"
+            >
               <.text_input
                 type="search"
                 id="search-configuration-operations"
@@ -649,7 +659,12 @@
         </.card_section>
         <.card_section data-part="artifact-transforms-table-section">
           <div data-part="filters">
-            <.form for={%{}} phx-change="search-artifact-transforms" phx-debounce="200">
+            <.form
+              id="gradle-artifact-transforms-search-form"
+              for={%{}}
+              phx-change="search-artifact-transforms"
+              phx-debounce="200"
+            >
               <.text_input
                 type="search"
                 id="search-artifact-transforms"
@@ -1063,7 +1078,12 @@
             />
           </div>
           <div data-part="filters">
-            <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+            <.form
+              id="gradle-cacheable-tasks-search-form"
+              for={%{}}
+              phx-change="search-cacheable-tasks"
+              phx-debounce="200"
+            >
               <.text_input
                 type="search"
                 id="search-cacheable-tasks"
