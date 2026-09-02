@@ -334,7 +334,7 @@
                   "spec": {
                     "options": {
                       "include": {
-                        "pattern": "^(region|cluster|Value #[ABCDEFG])$"
+                        "pattern": "^(region|Value #[ABCDEFG])$"
                       }
                     }
                   }
@@ -355,14 +355,13 @@
                       "renameByName": {},
                       "indexByName": {
                         "region": 0,
-                        "cluster": 1,
-                        "Value #A": 2,
-                        "Value #B": 3,
-                        "Value #C": 4,
-                        "Value #D": 5,
-                        "Value #E": 6,
-                        "Value #F": 7,
-                        "Value #G": 8
+                        "Value #A": 1,
+                        "Value #B": 2,
+                        "Value #C": 3,
+                        "Value #D": 4,
+                        "Value #E": 5,
+                        "Value #F": 6,
+                        "Value #G": 7
                       }
                     }
                   }
@@ -410,22 +409,6 @@
                       {
                         "id": "custom.width",
                         "value": 180
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "cluster"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Cluster"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 150
                       }
                     ]
                   },
@@ -910,7 +893,7 @@
                   "spec": {
                     "options": {
                       "include": {
-                        "pattern": "^(region|node|cluster|Value #[ABCDE])$"
+                        "pattern": "^(region|node|Value #[ABCDE])$"
                       }
                     }
                   }
@@ -932,12 +915,11 @@
                       "indexByName": {
                         "region": 0,
                         "node": 1,
-                        "cluster": 2,
-                        "Value #A": 3,
-                        "Value #B": 4,
-                        "Value #C": 5,
-                        "Value #D": 6,
-                        "Value #E": 7
+                        "Value #A": 2,
+                        "Value #B": 3,
+                        "Value #C": 4,
+                        "Value #D": 5,
+                        "Value #E": 6
                       }
                     }
                   }
@@ -1001,22 +983,6 @@
                       {
                         "id": "custom.width",
                         "value": 360
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "cluster"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Cluster"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 150
                       }
                     ]
                   },
