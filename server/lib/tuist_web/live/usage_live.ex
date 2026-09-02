@@ -37,20 +37,29 @@ defmodule TuistWeb.UsageLive do
     # nothing.
     periods = Billing.recent_billing_periods(account, 12)
 
+    # Read once and kept, because `handle_params/3` runs on every period
+    # change and `Prepaid.balance/2` does not cache a nil: an account
+    # with no credit would otherwise pay a Stripe round trip each time.
+    prepaid_balance = Prepaid.balance(account)
+
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
-     |> assign(:prepaid_balance, Prepaid.balance(account))
+     |> assign(:prepaid_balance, prepaid_balance)
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
   @widgets ["egress", "ingress", "requests"]
 
   @impl true
-  def handle_params(params, uri, %{assigns: %{selected_account: account, periods: periods}} = socket) do
+  def handle_params(
+        params,
+        uri,
+        %{assigns: %{selected_account: account, periods: periods, prepaid_balance: prepaid_balance}} = socket
+      ) do
     {start_dt, end_dt} = period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
 
@@ -65,6 +74,8 @@ defmodule TuistWeb.UsageLive do
 
     usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
 
+    runner_breakdown = Allowance.period_breakdown(account, period)
+
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
@@ -73,7 +84,8 @@ defmodule TuistWeb.UsageLive do
      |> assign(:bucket, :day)
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
-     |> assign(:runner_breakdown, Allowance.period_breakdown(account, period))
+     |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
@@ -88,6 +100,14 @@ defmodule TuistWeb.UsageLive do
        end
      )}
   end
+
+  # A prepaid balance is what the account holds today, so it describes
+  # only the period still being accrued. The grants that covered a closed
+  # period were drawn down when it was invoiced, and today's balance says
+  # nothing about what that invoice came to, so a closed period reports
+  # its usage charge and no credit at all.
+  defp period_coverage(_balance, _breakdown, false), do: nil
+  defp period_coverage(balance, breakdown, true), do: prepaid_coverage(balance, breakdown)
 
   @doc """
   The period whose start matches the `period` param, or the current one.
@@ -358,17 +378,32 @@ defmodule TuistWeb.UsageLive do
   """
   def prepaid_coverage(nil, _breakdown), do: nil
 
-  def prepaid_coverage(%{available: available}, %{platforms: platforms}) do
-    billed =
-      platforms
-      |> Enum.map(& &1.billed)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.reduce(Money.new(0, :USD), &Money.add(&2, &1))
-
+  def prepaid_coverage(%{available: available}, %{billed: billed}) do
     covered = if Money.compare(available, billed) == -1, do: available, else: billed
 
     %{available: available, covered: covered, due: Money.subtract(billed, covered)}
   end
+
+  @doc """
+  What the account owes for the period: the usage charge less whatever
+  its prepaid balance would cover today.
+
+  This is the figure a customer reads first, so it has to be the money
+  rather than the line item the money lands on. The receipt below the
+  widget breaks the same number down into balance, drawdown and
+  remainder.
+  """
+  def amount_due(%{billed: billed}, nil), do: billed
+  def amount_due(_breakdown, %{due: due}), do: due
+
+  @doc """
+  The money a runner trial took off this row, or `nil` when it took
+  none. A zero credit is a line that explains nothing, and an account
+  that was never on a trial has no business being told about one.
+  """
+  def trial_credit(%{trial_covered: nil}), do: nil
+  def trial_credit(%{trial_covered: %Money{amount: 0}}), do: nil
+  def trial_credit(%{trial_covered: covered}), do: covered
 
   @doc """
   A credit, signed only when there is something to subtract. A bare
@@ -387,8 +422,14 @@ defmodule TuistWeb.UsageLive do
   """
   def included_credit_label(%{included_minutes: nil}), do: "—"
 
-  def included_credit_label(%{gross: gross, billed: billed}) when not is_nil(gross) do
-    "−" <> CldrHelpers.format_money(Money.subtract(gross, billed))
+  def included_credit_label(%{gross: gross, trial_covered: trial_covered, billed: billed}) when not is_nil(gross) do
+    # What a trial covered has a credit line of its own, so the allowance
+    # only ever takes money off what was left billable after it. Reading
+    # this off gross would subtract the trial twice.
+    gross
+    |> Money.subtract(trial_covered)
+    |> Money.subtract(billed)
+    |> credit_label()
   end
 
   def included_credit_label(_row), do: "—"

@@ -148,12 +148,28 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   ## Cost
 
-  One GitHub API call per orphaned candidate per tick. Steady-
-  state candidates are zero (real running builds are filtered out
-  by the GH status check, but only after one call per row). With
-  5 concurrent builds and a 1-min cadence that's 5 calls/min ≈
-  300/hr per installation, well under the 5,000/hr app-token
-  limit.
+  One GitHub API call per orphaned candidate per tick, plus a second
+  one only for candidates GitHub reports as `queued`, which is the
+  branch that resolves the parent run. A real in-flight build reports
+  `in_progress` and never pays the second call, so in steady state the
+  run lookups are a handful per hour: they track the orphan rate, not
+  the build rate.
+
+  The bound that matters is the pathological one, where every candidate
+  reports `queued` (mass dispatch failure, or GitHub degraded) and the
+  rate doubles. Candidates are capped by concurrent `running` rows, and
+  the observed peak across all fleets is ~30, so the ceiling is ~60
+  calls/min ≈ 3,600/hr. That fits inside the 5,000/hr app-token limit,
+  which is per installation and therefore per account: `recover_one/2`
+  resolves each orphan's own installation, so no account's fleet can
+  spend another's budget.
+
+  Headroom is not unlimited. `Tuist.GitHub.Retry` retries `429` up to
+  three times, so sustained secondary-limit pressure multiplies calls
+  rather than shedding them. If concurrency per account grows well past
+  the current peak, gate the run lookup on the row's age: a genuine
+  strand clears in one re-queue, so only a job that keeps coming back
+  needs its run resolved.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -335,7 +351,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
-        {:ok, %{status: gh_status, conclusion: conclusion}} ->
+        {:ok, job} ->
+          {gh_status, conclusion} = effective_gh_status(installation, orphan, job)
           handle_gh_status(gh_status, conclusion, orphan, account, evidence)
 
         {:error, :not_found} ->
@@ -359,6 +376,39 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
         false
     end
   end
+
+  # `queued` on the per-job endpoint does not mean the job is still
+  # dispatchable. A run that has already reached `completed`, most often
+  # via `startup_failure`, which skips every sibling job and leaves one
+  # behind, never assigns its remaining jobs, yet GitHub keeps reporting
+  # them as `queued` indefinitely. Re-queueing on the job's status alone puts such
+  # a job back at the head of the fleet queue (dispatch orders by oldest
+  # `enqueued_at`), where the next Pod claims it, strands, and lands here
+  # again every tick. Resolving the run turns that loop into one
+  # completion.
+  #
+  # Only the queued branch pays the extra call, and only the run's terminal
+  # state can redirect it: a lookup that fails, or a run still live, leaves
+  # the existing recovery untouched.
+  defp effective_gh_status(installation, orphan, %{status: "queued", conclusion: conclusion}) do
+    case run_status(installation, orphan) do
+      {:ok, %{status: "completed", conclusion: run_conclusion}} -> {"completed", run_conclusion || ""}
+      _ -> {"queued", conclusion}
+    end
+  end
+
+  defp effective_gh_status(_installation, _orphan, %{status: status, conclusion: conclusion}) do
+    {status, conclusion}
+  end
+
+  # Rows enqueued before the run id was recorded carry the column's `0`
+  # default, which addresses no run.
+  defp run_status(installation, %{repository: repository, workflow_run_id: workflow_run_id})
+       when is_binary(repository) and repository != "" and is_integer(workflow_run_id) and workflow_run_id > 0 do
+    GitHubClient.workflow_run_status(installation, repository, workflow_run_id)
+  end
+
+  defp run_status(_installation, _orphan), do: {:error, :unaddressable}
 
   defp handle_gh_status(
          "queued",

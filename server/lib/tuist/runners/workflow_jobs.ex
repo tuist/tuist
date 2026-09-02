@@ -386,19 +386,34 @@ defmodule Tuist.Runners.WorkflowJobs do
   count. Both values come from one scan so the depth and the age the
   gauges report are always the same queue.
 
-  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`. A fleet
-  with nothing queued is absent, not zero — the caller unions this
-  against the live RunnerPool set to decide what to drain.
+  Returns
+  `%{fleet_name => %{count: n, oldest_enqueued_at: dt, by_account: %{account_id => dt}}}`.
+  A fleet with nothing queued is absent, not zero — the caller unions
+  this against the live RunnerPool set to decide what to drain.
+
+  `by_account` carries each account's own oldest arrival because
+  concurrency headroom is per account: the gauge for the oldest
+  *dispatchable* arrival has to skip the accounts that have none, and
+  computing that from a second scan would let it describe a different
+  queue than the depth and age beside it.
   """
   def queue_stats_by_fleet(%DateTime{} = enqueued_floor) do
     from(j in WorkflowJob,
       where: j.status == "queued" and j.enqueued_at > ^enqueued_floor,
-      group_by: j.fleet_name,
-      select: {j.fleet_name, count(j.workflow_job_id), min(j.enqueued_at)}
+      group_by: [j.fleet_name, j.account_id],
+      select: {j.fleet_name, j.account_id, count(j.workflow_job_id), min(j.enqueued_at)}
     )
     |> Repo.all()
-    |> Map.new(fn {fleet_name, count, oldest_enqueued_at} ->
-      {fleet_name || "", %{count: count, oldest_enqueued_at: oldest_enqueued_at}}
+    |> Enum.group_by(fn {fleet_name, _account_id, _count, _oldest} -> fleet_name || "" end)
+    |> Map.new(fn {fleet_name, rows} ->
+      by_account = Map.new(rows, fn {_fleet, account_id, _count, oldest} -> {account_id, oldest} end)
+
+      {fleet_name,
+       %{
+         count: Enum.sum_by(rows, fn {_fleet, _account_id, count, _oldest} -> count end),
+         oldest_enqueued_at: by_account |> Map.values() |> Enum.min(DateTime),
+         by_account: by_account
+       }}
     end)
   end
 
@@ -487,7 +502,16 @@ defmodule Tuist.Runners.WorkflowJobs do
     )
   end
 
-  @orphan_fields [:workflow_job_id, :account_id, :repository, :claimed_at, :started_at, :pod_name, :fleet_name]
+  @orphan_fields [
+    :workflow_job_id,
+    :account_id,
+    :repository,
+    :workflow_run_id,
+    :claimed_at,
+    :started_at,
+    :pod_name,
+    :fleet_name
+  ]
 
   defp orphan_fields, do: @orphan_fields
 
@@ -505,6 +529,7 @@ defmodule Tuist.Runners.WorkflowJobs do
           workflow_job_id: j.workflow_job_id,
           account_id: j.account_id,
           repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
           enqueued_at: j.enqueued_at
         }
       )

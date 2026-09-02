@@ -56,7 +56,22 @@ runs:
         key: ${{ inputs.mix-cache-key }}-${{ hashFiles('server/mix.lock') }}
         restore-keys: |
           ${{ inputs.mix-cache-restore-key }}
+    - uses: ./.github/actions/github-deps-auth
+      with:
+        github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Install dependencies
       shell: bash
       working-directory: server
-      run: mix deps.get
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token || env.GITHUB_TOKEN }}
+      run: |
+        if [ -z "${GITHUB_TOKEN:-}" ]; then
+          mix deps.get
+          exit 0
+        fi
+
+        auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+        GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth_header" \
+          mix deps.get

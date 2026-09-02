@@ -45,6 +45,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
+    {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
+    {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},

@@ -37,12 +37,15 @@ packer {
 # ~30 min.
 #
 # Active Xcode versions baked per release are listed in
+# `infra/runner-image/profiles.json`. `check-releases` reads that list
+# into `server-production-deployment.yml`'s `runner-image-build`
+# matrix, which fans out one build per profile, publishing one
+# `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
+# that the managed envs' charts reference via
+# `runnersFleet.runnerImageSemver`. Keep the list aligned with
 # `runnersFleet.xcodeVersions` in
-# `infra/helm/tuist/values-managed-common.yaml`. `release.yml`'s
-# `runner-image-build` job fans out across those versions, publishing
-# one `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag
-# per profile that each managed env's chart references via
-# `runnersFleet.runnerImageSemver`.
+# `infra/helm/tuist/values-managed-common.yaml` — every Xcode that
+# ships a pool needs an image published for it.
 #
 # Image layout (mirrors GitHub-hosted macOS paths so on-disk
 # artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,

@@ -91,7 +91,11 @@ pub enum Authentication {
 
 impl Authentication {
     fn unavailable(reason: &str) -> Self {
-        warn!("authentication backend unavailable: {reason}");
+        warn!(
+            event.name = "kura.auth.backend_unavailable",
+            error.reason = reason,
+            "authentication backend unavailable"
+        );
         Self::Unavailable(DenyDecision {
             status: 503,
             message: "Authentication backend unavailable".into(),

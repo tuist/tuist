@@ -101,6 +101,9 @@ where
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
+        request_log_sample_rate: 0.0,
+        slow_request_threshold_ms: 30_000,
+        warning_log_interval_ms: 60_000,
         node_country_override: None,
         node_subdivision_override: None,
     };
@@ -190,6 +193,7 @@ where
         tmp_staging_budget,
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });

@@ -7,7 +7,9 @@ defmodule Tuist.MCP.ServerTest do
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
   alias Tuist.MCP.Components.Tools.GetGradleIntegrationGuide
+  alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.MCP.Server
+  alias Tuist.MCP.Tool
 
   describe "server/0" do
     test "returns a server with all tools" do
@@ -17,9 +19,23 @@ defmodule Tuist.MCP.ServerTest do
 
       assert "get_gradle_integration_guide" in tool_names
       assert "list_accounts" in tool_names
+      assert "get_organization" in tool_names
+      assert "list_account_tokens" in tool_names
+      assert "get_account_token" in tool_names
       assert "create_organization" in tool_names
       assert "create_project" in tool_names
       assert "add_organization_member" in tool_names
+      assert "list_runner_jobs" in tool_names
+      assert "get_runner_job" in tool_names
+      assert "list_runner_job_steps" in tool_names
+      assert "list_runner_job_metrics" in tool_names
+      assert "list_runner_job_logs" in tool_names
+      assert "list_runner_workflows" in tool_names
+      assert "list_runner_profiles" in tool_names
+      assert "list_webhook_endpoints" in tool_names
+      assert "get_webhook_endpoint" in tool_names
+      assert "list_webhook_delivery_attempts" in tool_names
+      assert "get_webhook_delivery_attempt" in tool_names
       assert "list_xcode_builds" in tool_names
       assert "get_xcode_build" in tool_names
       assert "list_xcode_build_targets" in tool_names
@@ -42,15 +58,26 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_generation" in tool_names
       assert "list_cache_runs" in tool_names
       assert "get_cache_run" in tool_names
+      assert "list_automation_alerts" in tool_names
+      assert "get_automation_alert" in tool_names
+      assert "list_automation_alert_revisions" in tool_names
+      assert "list_project_notification_alerts" in tool_names
       assert "list_xcode_module_cache_targets" in tool_names
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
-      assert server.version == "1.15.0"
+      assert "get_project" in tool_names
+      assert "list_project_tokens" in tool_names
+      assert "list_previews" in tool_names
+      assert "get_preview" in tool_names
+      assert "get_latest_preview" in tool_names
+      assert server.version == "1.23.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"
       assert server.instructions =~ "explicitly ask the user to confirm the email address"
-      assert server.instructions =~ "call get_gradle_integration_guide before editing"
+
+      assert server.instructions =~
+               "get_gradle_integration_guide` tool provides the Gradle and Android integration workflow"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -87,8 +114,8 @@ defmodule Tuist.MCP.ServerTest do
       server = Server.server()
 
       for {name, module} <- server.tools do
-        descriptor = Tuist.MCP.Tool.descriptor(module)
-        annotations = module.annotations()
+        descriptor = Tool.descriptor(module)
+        annotations = descriptor["annotations"]
 
         assert is_binary(descriptor["description"]) and descriptor["description"] != "",
                "tool #{name} is missing a non-empty description"
@@ -104,13 +131,13 @@ defmodule Tuist.MCP.ServerTest do
         ExJsonSchema.Schema.resolve(descriptor["outputSchema"])
 
         assert is_binary(annotations[:title]) and annotations[:title] != "",
-               "tool #{name} is missing a non-empty :title annotation"
+               "tool #{name} is missing a non-empty title annotation"
 
         assert is_boolean(annotations[:readOnlyHint]),
                "tool #{name} must declare readOnlyHint"
 
-        assert annotations[:openWorldHint] == false,
-               "tool #{name} must declare openWorldHint: false"
+        assert is_boolean(annotations[:openWorldHint]),
+               "tool #{name} must declare openWorldHint"
 
         assert is_boolean(annotations[:destructiveHint]),
                "tool #{name} must declare destructiveHint"
@@ -154,15 +181,61 @@ defmodule Tuist.MCP.ServerTest do
 
       instructions = Server.server().instructions
 
-      assert instructions =~ "Answer Tuist questions with the Tuist tools"
+      assert instructions =~ "Use the relevant Tuist tool"
       assert instructions =~ "search_tuist_code"
       assert instructions =~ "treat truncated results as partial"
       assert instructions =~ "source revision"
 
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       instructions = Server.server().instructions
-      refute instructions =~ "Answer Tuist questions with the Tuist tools"
+      refute instructions =~ "Use the relevant Tuist tool"
       assert instructions =~ "agent_auth.skill"
+    end
+
+    test "tool descriptions state their capability without steering tool selection" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+
+      for {_name, module} <- Server.server().tools do
+        description = Tool.descriptor(module)["description"]
+
+        refute description =~ "Call this first"
+        refute description =~ "instead of"
+        refute description =~ "general web search"
+        refute description =~ "Use this after"
+      end
+    end
+
+    test "mutating tools advertise annotations that match their effects" do
+      assert CreateOrganization.annotations() == %{
+               title: "Create Organization",
+               readOnlyHint: false,
+               openWorldHint: false,
+               destructiveHint: false
+             }
+
+      assert CreateProject.annotations() == %{
+               title: "Create Project",
+               readOnlyHint: false,
+               openWorldHint: false,
+               destructiveHint: false
+             }
+
+      assert AddOrganizationMember.annotations() == %{
+               title: "Add Organization Member",
+               readOnlyHint: false,
+               openWorldHint: false,
+               destructiveHint: true
+             }
+
+      assert UpdateTestCase.annotations() == %{
+               title: "Update Test Case",
+               readOnlyHint: false,
+               openWorldHint: true,
+               destructiveHint: true
+             }
+
+      assert Tool.descriptor(UpdateTestCase)["description"] =~ "webhook endpoints"
     end
   end
 end

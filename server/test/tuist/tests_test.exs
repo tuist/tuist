@@ -8,6 +8,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
   alias Tuist.Tests.Test
@@ -17,6 +18,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByTestRun
+  alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
@@ -1675,7 +1677,7 @@ defmodule Tuist.TestsTest do
       assert {:ok, _test} = Tests.create_test(test_attrs)
 
       # Then — one Oban job per (subscribed endpoint, new test case).
-      jobs = Tuist.Repo.all(Oban.Job)
+      jobs = Repo.all(Oban.Job)
       assert length(jobs) == 2
       assert Enum.all?(jobs, &(&1.args["webhook_endpoint_id"] == subscribed.id))
       assert Enum.all?(jobs, &(&1.args["event_type"] == "test_case.created"))
@@ -5273,6 +5275,186 @@ defmodule Tuist.TestsTest do
       assert length(test_cases) == 1
       assert hd(test_cases).name == "flakyTest"
       assert hd(test_cases).is_flaky == true
+    end
+  end
+
+  describe "default branch classification" do
+    test "records whether each run happened on the project's default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, on_default} = run_on_branch(project, project.default_branch)
+      {:ok, on_feature} = run_on_branch(project, "omarb/fix-collisions")
+
+      # Then
+      assert classification_for(on_default) == true
+      assert classification_for(on_feature) == false
+    end
+
+    test "follows the project's own default branch rather than assuming main" do
+      # Given
+      {:ok, project} = Tuist.Projects.update_project(ProjectsFixtures.project_fixture(), %{default_branch: "master"})
+
+      # When
+      {:ok, on_master} = run_on_branch(project, "master")
+      {:ok, on_main} = run_on_branch(project, "main")
+
+      # Then
+      assert classification_for(on_master) == true
+      assert classification_for(on_main) == false
+    end
+
+    test "keeps the classification when a run is corrected as flaky" do
+      # Given - the correction reinserts the whole row, so a column it forgot to
+      # carry would come back as the `false` default and move the run off the
+      # default branch after the fact.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "flaky_default_branch_#{System.unique_integer([:positive])}"
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, failed_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          git_branch: project.default_branch,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: test_modules.("failure")
+        )
+
+      assert classification_for(failed_test) == true
+
+      {:ok, _successful_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          git_branch: project.default_branch,
+          scheme: "App",
+          is_ci: true,
+          status: "success",
+          test_modules: test_modules.("success")
+        )
+
+      assert [correction_job] = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+
+      # When
+      assert :ok = perform_job(CorrectTestCaseRunFlakyStateWorker, correction_job.args)
+      RunsFixtures.optimize_test_case_runs()
+
+      # Then
+      {[corrected_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      assert corrected_run.is_flaky
+      assert corrected_run.is_default_branch == true
+    end
+
+    test "a correction reclassifies a run the column predates instead of copying its stale value" do
+      # A run written before `is_default_branch` existed carries the column's
+      # `false` default even though its branch is the default one. The aggregates
+      # seeded such rows by comparing `git_branch`, so if a correction copied the
+      # stale column forward the branch-filtered views would discard it and the
+      # run would never be seen to become flaky.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "#{System.unique_integer([:positive])}"
+      test_case_id = UUIDv7.generate()
+      run_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "legacy")
+
+      RunsFixtures.test_case_run_fixture(
+        id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: project.default_branch,
+        git_commit_sha: commit_sha,
+        is_ci: true,
+        status: "failure",
+        is_flaky: false,
+        is_default_branch: false
+      )
+
+      Repo.insert!(%TestCaseRunFlakyCorrection{
+        test_case_run_id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_commit_sha: commit_sha,
+        state: "pending",
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      # When
+      assert :ok = Tests.apply_test_case_run_flaky_corrections([run_id])
+      RunsFixtures.optimize_test_case_runs()
+
+      # Then
+      # The correction is a second physical row for the same logical run, which is
+      # what `report_test_case_run_multiplicity/3` bounds at two; the later one is
+      # the correction.
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_case_id, op: :==, value: test_case_id}]})
+
+      corrected_run = Enum.max_by(runs, & &1.inserted_at, NaiveDateTime)
+
+      assert corrected_run.is_flaky
+      assert corrected_run.is_default_branch == true
+
+      # The row being reclassified is only half of it: the point is that the
+      # branch-filtered aggregate now sees the correction rather than sitting on
+      # its pre-correction state.
+      %{rows: [[flaky_run_count]]} =
+        IngestRepo.query!(
+          """
+          SELECT sumMerge(flaky_run_count)
+          FROM test_case_run_daily_stats_per_case_default_branch
+          WHERE project_id = {project_id:Int64} AND test_case_id = {test_case_id:UUID}
+          """,
+          %{project_id: project.id, test_case_id: test_case_id}
+        )
+
+      assert flaky_run_count >= 1
+    end
+
+    defp run_on_branch(project, git_branch) do
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        git_branch: git_branch,
+        test_modules: [
+          %{
+            name: "TestModule",
+            status: "success",
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+          }
+        ]
+      )
+    end
+
+    defp classification_for(test_run) do
+      {[run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}]
+        })
+
+      run.is_default_branch
     end
   end
 

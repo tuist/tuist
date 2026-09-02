@@ -91,6 +91,41 @@ report_runner_exit() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-rc" 2>/dev/null || true
 }
 
+# report_heartbeat stamps this script's liveness into the status share for
+# tart-kubelet to publish on the Pod.
+#
+# tart-kubelet implements no container probes, so a macOS Pod reads
+# Running/Ready for as long as its VM process is up — whether or not
+# anything inside the guest is still polling for work. The
+# runners-controller has no other signal on this platform and keeps
+# counting such a Pod as warm capacity it can never actually use. Linux
+# gets the equivalent for free: its dispatch poller is an init container,
+# so the container runtime reports whether it is still running.
+#
+# The value is the state this script is in, and the file's mtime is the
+# beat. Two states, because "alive" and "available" are different
+# questions and the host has to answer both:
+#
+#   polling  - in the warm-standby loop, able to take a job.
+#   claimed  - dispatched; running a job. Written once, then left alone:
+#              from here the script blocks in `wait` on run.sh and cannot
+#              beat again, so the state is what marks the Pod busy rather
+#              than freshness. It also says so independently of the
+#              server's best-effort owner label.
+#
+# Best-effort and guarded on the share exactly like report_runner_exit:
+# hosts with the cache-volume feature off have no share, and there no
+# heartbeat is published at all. That absence reads as "no signal" on the
+# controller side, never as "dead" — a runner image or host that does not
+# produce this must keep counting as capacity.
+HEARTBEAT_POLLING=polling
+HEARTBEAT_CLAIMED=claimed
+
+report_heartbeat() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -750,18 +785,36 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
+# The post-job fill % at or above which an image is refused promotion. A master
+# is cloned into every later job of the account, and the CLI writes to the volume
+# before it does anything else (the manifest cache is on the load path of every
+# command), so a master with no headroom fails those jobs at their first cache
+# write rather than merely running them cold. Promotion is the only channel that
+# can carry the fill fleet-wide, and nothing on the job path can undo it: the
+# account is then wedged from the inside, because a failing job never promotes a
+# replacement. Refusing costs the account one job's warmth and keeps the last
+# master that still had room.
+CACHE_FILL_PROMOTE_CEILING=98
+
 # sample_cache_fill records the image's post-job fill % (binary cache + CAS +
 # overhead) for the host's fill histogram — the signal for whether the reserve is
 # holding or the volume is running near ENOSPC. Must run while the image is still
 # MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
 # format; column 5 is Use%.
+#
+# Returns non-zero once the fill reaches CACHE_FILL_PROMOTE_CEILING so teardown
+# can withdraw the branch. An unreadable fill returns 0: the gauge is the only
+# evidence here, and refusing to promote every image whose `df` did not parse
+# would freeze the account's cache on a reporting failure.
 sample_cache_fill() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   local fill
   fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
-  [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ -n "${fill}" ] || return 0
+  printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ "${fill}" -lt "${CACHE_FILL_PROMOTE_CEILING}" ]
 }
 
 # Where the detached image is re-attached to be measured. Deliberately not
@@ -1099,6 +1152,11 @@ attempt=0
 
 while true; do
   attempt=$((attempt + 1))
+  # Beat before the request, not after: this says the loop is running,
+  # and a curl that hangs to its --max-time is exactly the stall the
+  # beat needs to expose. One iteration is bounded by that timeout, so
+  # a healthy warm runner never goes more than ~12s without a beat.
+  report_heartbeat "${HEARTBEAT_POLLING}"
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as
@@ -1131,6 +1189,10 @@ while true; do
         continue
       fi
       printf '%s\n' "$(date -u +%FT%TZ)" >"${SHELL_CLAIM_MARKER}" 2>/dev/null || true
+      # Last beat of the warm-standby life. Everything below runs the job,
+      # so the loop stops beating here by design and the state — not the
+      # age — is what tells the host this Pod is no longer warm.
+      report_heartbeat "${HEARTBEAT_CLAIMED}"
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —
@@ -1219,6 +1281,29 @@ HOOK
       export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
       idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
 
+      # RUNNER_PERFLOG makes the Listener append a `MessageReceived_<type>`
+      # line to `<dir>/Runner.perf` the instant a message arrives from
+      # GitHub, before it acknowledges the assignment and before it fetches
+      # the job body. That is seconds ahead of Runner.Worker, and it is the
+      # earliest local evidence that this runner has been given work.
+      #
+      # The Listener's poll loop returns nothing on an idle timeout, so the
+      # file stays empty until GitHub actually routes something here. Only
+      # the two job-request message types count; a refresh or cancel message
+      # is not an assignment.
+      RUNNER_PERF_DIR=/Users/runner/actions-runner/_perf
+      RUNNER_PERF_FILE="${RUNNER_PERF_DIR}/Runner.perf"
+      rm -rf "${RUNNER_PERF_DIR}"
+      export RUNNER_PERFLOG="${RUNNER_PERF_DIR}"
+      # 404/409/422 on the job fetch make the Listener skip the message and
+      # go back to waiting, so a received message does not always become a
+      # Worker. Bound how long the watchdog defers on one.
+      WORKER_GRACE_SECONDS=60
+      job_message_received() {
+        grep -q 'MessageReceived_PipelineAgentJobRequest\|MessageReceived_RunnerJobRequest' \
+          "${RUNNER_PERF_FILE}" 2>/dev/null
+      }
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -1247,17 +1332,30 @@ HOOK
             sleep 1
             waited=$((waited + 1))
           done
-          # The marker alone leaves a narrow race: the hook fires when the
-          # Worker STARTS the job, a second or more after the Listener has
-          # acknowledged the assignment, and an ephemeral runner killed
-          # post-acknowledgment marks the job failed rather than re-queuing
-          # it. The Runner.Worker process exists from the moment the
-          # Listener dispatches, before the hook runs.
-          if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
-            kill -0 "${runner_pid}" 2>/dev/null; then
-            echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
-            kill -TERM "${runner_pid}" 2>/dev/null || true
-          fi
+          # Both process-level latches trail the assignment. The Listener
+          # acknowledges the job, fetches its body over HTTP and only then
+          # forks Runner.Worker, with the job-started hook later still, so a
+          # check at the deadline reads "idle" for a runner GitHub has
+          # already, irrevocably, given work to. Killing it there marks that
+          # job failed rather than re-queuing it, and GitHub then spends ten
+          # minutes waiting out the job's lock before anyone learns it died.
+          #
+          # Deferring on the Listener's own record of the inbound message
+          # covers that gap, because that record predates the acknowledgment
+          # rather than trailing it. What stays exposed is the interval
+          # between the last read and the signal below, not the fetch.
+          worker_wait=0
+          while :; do
+            [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+            pgrep -f "Runner.Worker" >/dev/null 2>&1 && exit 0
+            kill -0 "${runner_pid}" 2>/dev/null || exit 0
+            job_message_received || break
+            [ "${worker_wait}" -ge "${WORKER_GRACE_SECONDS}" ] && break
+            sleep 1
+            worker_wait=$((worker_wait + 1))
+          done
+          echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+          kill -TERM "${runner_pid}" 2>/dev/null || true
         ) &
         watchdog_pid=$!
         printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
@@ -1294,12 +1392,21 @@ HOOK
       if ! drain_cas_publications "${rc}"; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
-      sample_cache_fill
+      # A full image is withheld from BOTH channels, so the detach still runs
+      # (the host must be handed a settled file either way) but the reporting
+      # that would authorize a promote is skipped. report_cache_dirty writes the
+      # marker unconditionally, so the ceiling has to be carried past it here
+      # rather than left to mark_cache_not_promotable's provisional "0".
+      cache_within_fill_ceiling=1
+      if ! sample_cache_fill; then
+        mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
+        cache_within_fill_ceiling=0
+      fi
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
         mark_cache_not_promotable "settled image could not be measured"
-      else
+      elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         report_cache_dirty "${rc}"
         report_volume_head "${rc}"
       fi

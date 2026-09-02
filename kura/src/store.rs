@@ -18,7 +18,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
-    sync::{Mutex, Notify},
+    sync::{Mutex, Notify, RwLock},
 };
 use uuid::Uuid;
 
@@ -81,6 +81,20 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
+// Coordinates a namespace delete against everything that writes into that
+// namespace. The delete resolves its tombstone with a read-compare-write that
+// spans the namespace scan, and its scan is a snapshot: an artifact applied
+// after the iterator was created is invisible to the delete batch, while the
+// apply's own tombstone check ran before the tombstone was committed. Neither
+// side sees the other and the row survives its own tombstone, which is what
+// `namespace_tombstone_blocks` then stops rejecting.
+//
+// So deletes take the write side (which also serializes delete against delete,
+// keeping the newest tombstone) and artifact applies take the read side across
+// their precheck and commit. Applies stay concurrent with each other; only a
+// delete excludes them, and only for its own namespace. Striped so different
+// namespaces never wait on each other's scan.
+const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
@@ -109,6 +123,37 @@ pub fn is_multipart_capacity_error(error: &str) -> bool {
     error.starts_with(MULTIPART_CAPACITY_ERROR)
 }
 
+// Ring-rotation evictions queued for the usage reporter, capped so a stalled
+// or unconfigured reporter cannot grow the queue without bound. Oldest entries
+// drop first: the newest evictions describe the ring's current fit.
+const MAX_PENDING_CAPACITY_EVICTIONS: usize = 4_096;
+
+/// One segment evicted by ring rotation, i.e. shed under size pressure. The
+/// startup orphan sweep never lands here: it removes files the ring no longer
+/// references and says nothing about ring fit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CapacityEviction {
+    pub segment_id: String,
+    pub segment_created_at_ms: u64,
+    pub newest_content_at_ms: u64,
+    pub evicted_at_ms: u64,
+    pub artifact_count: u64,
+    pub bytes: u64,
+}
+
+/// Point-in-time view of the segment ring against its budget, reported to the
+/// control plane so claim sizing can tell an oversized ring (occupancy stays
+/// low, nothing evicts) from an undersized one (full and churning).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StorageSnapshotData {
+    pub ring_budget_bytes: u64,
+    pub desired_segment_count: u64,
+    pub live_segment_count: u64,
+    pub live_segment_bytes: u64,
+    pub oldest_segment_created_at_ms: Option<u64>,
+    pub newest_content_at_ms: Option<u64>,
+}
+
 pub struct Store {
     db: Arc<DB>,
     io: IoController,
@@ -128,6 +173,7 @@ pub struct Store {
     multipart_max_active_uploads: usize,
     multipart_max_stored_bytes: u64,
     segment_write_lock: Mutex<()>,
+    pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
     /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
     /// constant read inline so tests can drive the chunk boundary without
@@ -185,6 +231,7 @@ pub struct Store {
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
+    namespace_locks: [RwLock<()>; NAMESPACE_LOCK_STRIPES],
     // Artifacts served from an Old-generation segment queue here for background
     // promotion into the current segment instead of refreshing inline on the
     // read path: one value-graph read can touch thousands of tiny old
@@ -475,6 +522,13 @@ impl StagedBackfillApply {
         match self {
             Self::Segmented(staged) => &staged.artifact_id,
             Self::Inline(staged) => &staged.artifact_id,
+        }
+    }
+
+    fn namespace_id(&self) -> &str {
+        match self {
+            Self::Segmented(staged) => &staged.namespace_id,
+            Self::Inline(staged) => &staged.namespace_id,
         }
     }
 }
@@ -1006,6 +1060,7 @@ impl Store {
             multipart_max_active_uploads: config.multipart_max_active_uploads,
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
+            pending_capacity_evictions: StdMutex::new(VecDeque::new()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
             eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
@@ -1028,6 +1083,7 @@ impl Store {
             ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
+            namespace_locks: std::array::from_fn(|_| RwLock::new(())),
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
@@ -1182,6 +1238,16 @@ impl Store {
 
     fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
         &self.artifact_write_locks[self.artifact_write_lock_index(artifact_id)]
+    }
+
+    fn namespace_lock_index(&self, namespace_id: &str) -> usize {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(namespace_id, &mut hasher);
+        (std::hash::Hasher::finish(&hasher) as usize) % NAMESPACE_LOCK_STRIPES
+    }
+
+    fn namespace_lock_for(&self, namespace_id: &str) -> &RwLock<()> {
+        &self.namespace_locks[self.namespace_lock_index(namespace_id)]
     }
 
     pub async fn artifact_exists(
@@ -1367,6 +1433,11 @@ impl Store {
         source_path: &Path,
         file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        // Read side of the namespace lock, held across this apply's tombstone
+        // precheck and its commit. A delete taking the write side therefore
+        // cannot commit its snapshot-scanned batch in between and leave this
+        // row alive under a newer tombstone.
+        let _namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         // Hold the per-artifact write lock across the read-check, segment append,
@@ -2245,6 +2316,11 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<PersistArtifactOutcome, String> {
+        // Read side of the namespace lock, held across this apply's tombstone
+        // precheck and its commit. A delete taking the write side therefore
+        // cannot commit its snapshot-scanned batch in between and leave this
+        // row alive under a newer tombstone.
+        let _namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
@@ -2463,7 +2539,7 @@ impl Store {
         self.note_artifact_exists(&manifest.artifact_id);
     }
 
-    fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
+    pub(crate) fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read inline artifact bytes: {error}"))
@@ -2993,12 +3069,88 @@ impl Store {
 
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
         for segment in evicted_segments {
-            self.evict_segment(&segment.segment_id).await?;
+            let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
+            let artifact_count = self.evict_segment(&segment.segment_id).await?;
+            self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
     }
 
-    async fn evict_segment(&self, segment_id: &str) -> Result<(), String> {
+    fn record_capacity_eviction(
+        &self,
+        segment: &SegmentReference,
+        artifact_count: u64,
+        bytes: u64,
+    ) {
+        let evicted_at_ms = now_ms();
+        let newest_content_at_ms = segment.effective_max_version_ms();
+        self.io.metrics().record_segment_shed_age(
+            evicted_at_ms.saturating_sub(newest_content_at_ms) as f64 / 1_000.0,
+        );
+
+        let mut pending = self
+            .pending_capacity_evictions
+            .lock()
+            .expect("pending capacity evictions poisoned");
+        while pending.len() >= MAX_PENDING_CAPACITY_EVICTIONS {
+            pending.pop_front();
+            self.io.metrics().record_capacity_eviction_report_dropped();
+        }
+        pending.push_back(CapacityEviction {
+            segment_id: segment.segment_id.clone(),
+            segment_created_at_ms: segment.created_at_ms,
+            newest_content_at_ms,
+            evicted_at_ms,
+            artifact_count,
+            bytes,
+        });
+    }
+
+    pub fn take_pending_capacity_evictions(&self) -> Vec<CapacityEviction> {
+        let mut pending = self
+            .pending_capacity_evictions
+            .lock()
+            .expect("pending capacity evictions poisoned");
+        pending.drain(..).collect()
+    }
+
+    /// Ring occupancy against the resolved budget. The per-segment stat walks
+    /// the live segment files; a file that disappears mid-walk (a concurrent
+    /// rotation) counts as zero, which the next snapshot corrects.
+    pub fn storage_snapshot(&self) -> StorageSnapshotData {
+        let snapshot = self.segment_state_snapshot();
+        let references: Vec<&SegmentReference> = snapshot
+            .state
+            .old
+            .iter()
+            .chain(snapshot.state.current.iter())
+            .chain(snapshot.state.new.iter())
+            .collect();
+
+        let live_segment_bytes = references
+            .iter()
+            .map(|reference| {
+                try_path_size_bytes(&self.segment_path(&reference.segment_id)).unwrap_or(0)
+            })
+            .sum();
+
+        StorageSnapshotData {
+            ring_budget_bytes: self.segment_ring_limits.capacity_bytes(),
+            desired_segment_count: self.segment_ring_limits.total_segments() as u64,
+            live_segment_count: references.len() as u64,
+            live_segment_bytes,
+            oldest_segment_created_at_ms: references
+                .iter()
+                .map(|reference| reference.created_at_ms)
+                .min(),
+            newest_content_at_ms: references
+                .iter()
+                .map(|reference| reference.effective_max_version_ms())
+                .max(),
+        }
+    }
+
+    async fn evict_segment(&self, segment_id: &str) -> Result<u64, String> {
         let prefix = segment_artifact_index_prefix(segment_id);
         let mut batch = WriteBatch::default();
         let mut saw_entries = false;
@@ -3106,13 +3258,15 @@ impl Store {
             .await;
         self.mutate_segment_state(|state| state.remove_segment(segment_id))
             .await?;
+        let mut total_artifacts = 0;
         for (producer, artifacts) in removed_artifacts {
+            total_artifacts += artifacts;
             self.io
                 .metrics()
                 .record_segment_eviction(producer, "ok", artifacts);
         }
 
-        Ok(())
+        Ok(total_artifacts)
     }
 
     /// Commits one chunk of a segment eviction and then invalidates exactly the
@@ -3941,6 +4095,23 @@ impl Store {
         // the same ascending order and therefore cannot deadlock each other.
         // Stripe dedup also means two group records that share a stripe (or
         // an artifact) are covered by one guard rather than self-deadlocking.
+        // Namespace read guards first, in the same ascending-stripe order and
+        // for the same reason: this group's prechecks and its commit have to
+        // span a concurrent namespace delete rather than interleave with it.
+        // Taking them ahead of the artifact locks cannot invert, because the
+        // delete path holds a namespace lock and never acquires an artifact
+        // one.
+        let mut namespace_stripes: Vec<usize> = group
+            .iter()
+            .map(|record| self.namespace_lock_index(record.namespace_id()))
+            .collect();
+        namespace_stripes.sort_unstable();
+        namespace_stripes.dedup();
+        let mut namespace_guards = Vec::with_capacity(namespace_stripes.len());
+        for stripe in namespace_stripes {
+            namespace_guards.push(self.namespace_locks[stripe].read().await);
+        }
+
         let mut stripes: Vec<usize> = group
             .iter()
             .map(|record| self.artifact_write_lock_index(record.artifact_id()))
@@ -4098,6 +4269,16 @@ impl Store {
 
         self.hit_failpoint(FailpointName::BeforeApplyReplicatedTombstone)
             .await?;
+        // Held until the batch commits below. The tombstone decision is a
+        // read, a compare, and a write separated by the namespace scan, so
+        // without this two deletes for one namespace can both read the same
+        // previous version, both decide they are newer, and commit in the
+        // wrong order — leaving the older version as the tombstone and
+        // un-blocking every artifact the newer delete removed. Peer deliveries
+        // for one namespace arrive concurrently now that the outbox drain is
+        // pipelined, and a re-delete of the same namespace is the ordinary way
+        // to produce two of them.
+        let _delete_guard = self.namespace_lock_for(namespace_id).write().await;
         let previous_tombstone = self.namespace_tombstone_version(namespace_id)?;
         if !delete_everything
             && let Some(current_tombstone) = previous_tombstone
@@ -7846,6 +8027,9 @@ mod tests {
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
             sentry_dsn: None,
+            request_log_sample_rate: 0.0,
+            slow_request_threshold_ms: 30_000,
+            warning_log_interval_ms: 60_000,
             node_country_override: None,
             node_subdivision_override: None,
         };
@@ -10496,6 +10680,147 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn evict_segments_queues_capacity_eviction_reports() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        let mut reference = SegmentReference::new(segment_id.clone(), 1_000);
+        reference.max_version_ms = Some(2_000);
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![reference.clone()],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 3_000)],
+            })
+            .expect("failed to seed segment state");
+
+        store
+            .evict_segments(vec![reference])
+            .await
+            .expect("eviction should succeed");
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.segment_id, segment_id);
+        assert_eq!(report.segment_created_at_ms, 1_000);
+        assert_eq!(report.newest_content_at_ms, 2_000);
+        assert!(report.evicted_at_ms >= 2_000);
+        assert_eq!(report.artifact_count, 1);
+        assert!(
+            report.bytes > 0,
+            "should stat the segment file before unlinking it"
+        );
+
+        assert!(store.take_pending_capacity_evictions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn capacity_eviction_report_falls_back_to_created_at_without_a_seal_stat() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .evict_segments(vec![SegmentReference::new("segment-1".into(), 5_000)])
+            .await
+            .expect("eviction of an absent segment should still succeed");
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].newest_content_at_ms, 5_000);
+        assert_eq!(reports[0].artifact_count, 0);
+        assert_eq!(reports[0].bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn orphan_sweep_does_not_queue_capacity_eviction_reports() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        // A ring state that no longer references the persisted segment makes
+        // its file an orphan: the sweep removes it as crash debris, which says
+        // nothing about ring fit and must not read as churn.
+        store
+            .save_segment_state(&SegmentState {
+                old: Vec::new(),
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert!(swept >= 1);
+        assert!(store.take_pending_capacity_evictions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn capacity_eviction_reports_cap_drops_oldest() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        for index in 0..(MAX_PENDING_CAPACITY_EVICTIONS + 5) {
+            store.record_capacity_eviction(
+                &SegmentReference::new(format!("segment-{index}"), index as u64),
+                0,
+                0,
+            );
+        }
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), MAX_PENDING_CAPACITY_EVICTIONS);
+        assert_eq!(reports[0].segment_id, "segment-5");
+    }
+
+    #[tokio::test]
+    async fn storage_snapshot_reports_ring_occupancy() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        assert!(manifest.segment_id.is_some());
+
+        let snapshot = store.storage_snapshot();
+        assert!(snapshot.ring_budget_bytes > 0);
+        assert!(snapshot.desired_segment_count > 0);
+        assert!(snapshot.live_segment_count >= 1);
+        assert!(snapshot.live_segment_bytes > 0);
+        assert!(snapshot.oldest_segment_created_at_ms.is_some());
+        assert!(snapshot.newest_content_at_ms.is_some());
+    }
+
     async fn drain_reader(mut reader: ArtifactReader) -> Vec<u8> {
         use tokio::io::AsyncReadExt;
         let mut bytes = Vec::new();
@@ -12447,6 +12772,101 @@ mod tests {
                 .inline_bytes(&manifest.artifact_id)
                 .expect("failed to read inline bytes")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stale_apply_cannot_outlive_a_concurrent_namespace_delete() {
+        // The delete's artifact scan is a snapshot: a row applied after its
+        // iterator was created is invisible to the delete batch, while that
+        // apply's own tombstone check ran before the tombstone was committed.
+        // Neither side sees the other, and the row survives its own tombstone
+        // — after which namespace_tombstone_blocks stops rejecting it, because
+        // the tombstone reads newer than the row. Serializing delete against
+        // delete does not cover this; the apply has to take the read side.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let delete = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 200).await }
+        });
+        let apply = tokio::spawn({
+            let store = store.clone();
+            async move {
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ios",
+                        "entry",
+                        "application/octet-stream",
+                        b"stale",
+                        150,
+                        None,
+                        None,
+                    )
+                    .await
+            }
+        });
+
+        delete
+            .await
+            .expect("delete task should join")
+            .expect("delete should apply");
+        // The apply may be rejected by the tombstone or may land first and be
+        // swept; either is correct, so only its absence afterwards is asserted.
+        let _ = apply.await.expect("apply task should join");
+
+        assert!(
+            store
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "entry")
+                .await
+                .expect("fetch should succeed")
+                .is_none(),
+            "an artifact older than the namespace tombstone survived the delete"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_namespace_deletes_keep_the_newest_tombstone() {
+        // The tombstone decision reads the previous version, compares, and only
+        // then writes, with the namespace scan in between. Deliveries for one
+        // namespace arrive concurrently now that the outbox drain is pipelined,
+        // so without a lock across that span both can read the same previous
+        // version, both conclude they are newer, and the older one can commit
+        // last. The tombstone would then read 100 with artifacts up to 200
+        // removed, and `namespace_tombstone_blocks` would stop rejecting the
+        // stale upserts that tombstone exists to reject.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let newer = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 200).await }
+        });
+        let older = tokio::spawn({
+            let store = store.clone();
+            async move { store.apply_replicated_namespace_delete("ios", 100).await }
+        });
+        newer
+            .await
+            .expect("newer delete task should join")
+            .expect("newer delete should apply");
+        older
+            .await
+            .expect("older delete task should join")
+            .expect("older delete should resolve");
+
+        let tombstones = store
+            .namespace_tombstones()
+            .expect("tombstones should load");
+        let (_namespace, version_ms) = tombstones
+            .iter()
+            .find(|(namespace, _)| namespace == "ios")
+            .expect("the namespace should carry a tombstone");
+        assert_eq!(
+            *version_ms, 200,
+            "the older delete regressed the tombstone, so artifacts it should block are live again"
         );
     }
 

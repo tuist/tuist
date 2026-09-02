@@ -8,9 +8,10 @@ defmodule Tuist.KuraTest do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
-  alias Tuist.Kura.StorageClaims
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -569,7 +570,7 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
 
-      assert returned.storage_claim_size == "30Gi"
+      assert returned.storage_claim_size == "8Gi"
     end
 
     test "leaves a serving instance on the footprint it was built with", %{account: account} do
@@ -607,12 +608,12 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, target} = Kura.move_server(source, "box-2")
 
-      assert target.storage_claim_size == "50Gi"
+      assert target.storage_claim_size == "16Gi"
     end
 
-    test "takes the account's override ahead of the claim its plan buys", %{account: account} do
+    test "takes the sized claim ahead of the claim its plan buys", %{account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      assert :ok = StorageClaims.put_override(account, "18Gi")
+      assert :ok = PlacerClaims.put(account, "18Gi")
 
       assert {:ok, server} =
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
@@ -620,8 +621,8 @@ defmodule Tuist.KuraTest do
       assert server.storage_claim_size == "18Gi"
     end
 
-    test "keeps the override across a cold return, where the plan would be read again", %{account: account} do
-      assert :ok = StorageClaims.put_override(account, "24Gi")
+    test "keeps the sized claim across a cold return, where the plan would be read again", %{account: account} do
+      assert :ok = PlacerClaims.put(account, "24Gi")
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
@@ -649,128 +650,84 @@ defmodule Tuist.KuraTest do
     end
   end
 
-  describe "update_storage_claim_override/2" do
+  describe "update_egress_limits_override/3" do
     setup do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
       stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east"] end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      # The us-east boxes advertise ~3 Gbit/s. A floor is a scheduler request, so
+      # the form refuses one it cannot check against a budget.
+      stub(Tuist.Kura.Capacity, :egress_budget_mbps, fn _region_id -> 3000 end)
 
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
-      %{account: account}
-    end
-
-    # The pinned claim on the row is what renders into the manifest, so writing
-    # the override without re-pinning would leave every running instance serving
-    # the size it was built at and the new number describing nothing.
-    test "re-pins the instances the account already has running", %{account: account} do
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "8Gi"
-
-      assert {:ok, %{claim_size: "40Gi", raised: [raised], lowered: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
-
-      assert raised.id == server.id
-      assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
-    end
-
-    # The volume already holds more than the smaller ring budget, so nothing is
-    # thrown away: the ring evicts down into it and the disk comes back when the
-    # volumes are next built. This is also the shape a plan downgrade takes, and
-    # a downgrade must not cost an account its cache.
-    test "keeps the cache when the claim is lowered", %{account: account} do
+      # The region's own floor is Enterprise-only; without the plan the default
+      # half of the pair is zero and the region's 25 never appears.
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "50Gi"
-
-      assert {:ok, %{claim_size: "20Gi", raised: [], lowered: [lowered]}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "20Gi"})
-
-      assert lowered.id == server.id
-
-      # Still re-pinned: the claim is desired state either way, and it is what
-      # the manifest carries to the cluster.
-      assert Repo.get!(Server, server.id).storage_claim_size == "20Gi"
+      %{account: account, region: Kura.region("us-east")}
     end
 
-    # The controller rebuilds a volume only when the claim exceeds what that
-    # volume was built at, and this only knows what the row was pinned to. After
-    # a decrease has left a volume oversized, raising back under its real size
-    # still counts as raised here while the cluster keeps the cache. Recorded
-    # because it is the one place the two disagree, and it disagrees in the
-    # direction that over-warns rather than under-warns.
-    test "counts a claim raised back under an oversized volume as raised", %{account: account} do
-      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+    test "writes the pair and reports the instances it reaches", %{account: account, region: region} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "50Gi"
 
-      {:ok, %{raised: [], lowered: [_]}} =
-        Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "20Gi"})
+      assert {:ok, %{floor_mbps: 100, burst_mbps: 400, servers: [reached], region: ^region}} =
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "100",
+                 "kura_egress_burst_mbps" => "400"
+               })
 
-      assert {:ok, %{raised: [_], lowered: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
-
-      assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
+      assert reached.id == server.id
+      assert Kura.egress_limits_override(account, region) == %{floor_mbps: 100, burst_mbps: 400}
+      assert Kura.effective_egress_limits(account, region) == %{floor_mbps: 100, burst_mbps: 400}
     end
 
-    test "reports nothing moved when the claim it renders does not move", %{account: account} do
+    # Nothing is pinned on the row: the manifest resolves the pair from the
+    # account, so the instance keeps serving exactly as it was and only its
+    # desired manifest revision moves.
+    test "leaves the instance row untouched", %{account: account, region: region} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      before = Repo.get!(Server, server.id)
+
+      {:ok, _} = Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
+
+      assert Repo.get!(Server, server.id).updated_at == before.updated_at
+    end
+
+    test "hands the region back to its defaults when the override is cleared", %{account: account, region: region} do
       {:ok, _server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
-      # Same claim the account's plan already gave it, so no manifest changes and
-      # no cache is dropped. An operator must not be told one was.
-      assert {:ok, %{claim_size: "8Gi", raised: [], lowered: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "8Gi"})
+      {:ok, _} = Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
+
+      assert {:ok, %{floor_mbps: nil, burst_mbps: nil, servers: [_reached]}} =
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "",
+                 "kura_egress_burst_mbps" => ""
+               })
+
+      assert Kura.egress_limits_override(account, region) == nil
+      assert Kura.effective_egress_limits(account, region) == %{floor_mbps: 25, burst_mbps: 1500}
     end
 
-    test "hands the account back to its plan when the override is cleared", %{account: account} do
+    # An archived row has no pod to annotate, so it is not something the change
+    # reaches; it picks the current pair up on its cold return.
+    test "leaves a row that holds no pods out of the report", %{account: account, region: region} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      _archived = archive_server(server)
 
-      {:ok, _} = Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
-
-      assert {:ok, %{claim_size: "8Gi", raised: [], lowered: [_lowered]}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => ""})
-
-      assert Kura.storage_claim_override(account) == nil
-      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+      assert {:ok, %{servers: []}} =
+               Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
     end
 
-    # An archived row holds no volumes: teardown took the StatefulSet and every
-    # claim with it, so there is nothing to rebuild and nothing to report. It
-    # picks the current claim up on its cold return.
-    test "leaves a row that holds no volumes alone", %{account: account} do
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      archived = archive_server(server)
-
-      assert {:ok, %{raised: [], lowered: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
-
-      assert Repo.get!(Server, archived.id).storage_claim_size == "8Gi"
-    end
-
-    # The region sizes every instance alike on capacity ordered for the runner
-    # fleet, so it pins nothing and an account-level claim has no say there.
-    test "leaves a region that sizes every instance alike alone", %{account: account} do
-      stub(Tuist.Environment, :dev?, fn -> true end)
-
-      {:ok, server} =
-        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
-
-      assert {:ok, %{raised: [], lowered: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
-
-      assert Repo.get!(Server, server.id).storage_claim_size == nil
-    end
-
-    test "refuses a claim under the floor without touching a running instance", %{account: account} do
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-
+    test "returns the changeset when the pair does not validate", %{account: account, region: region} do
       assert {:error, changeset} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "4Gi"})
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "900",
+                 "kura_egress_burst_mbps" => "100"
+               })
 
-      assert "must be at least 8Gi" in errors_on(changeset).kura_storage_claim_size
-      assert Kura.storage_claim_override(account) == nil
-      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+      assert changeset.errors[:kura_egress_floor_mbps]
+      assert Kura.egress_limits_override(account, region) == nil
     end
 
     defp archive_server(%Server{} = server) do
@@ -1659,5 +1616,43 @@ defmodule Tuist.KuraTest do
       |> Repo.insert()
 
     server
+  end
+
+  describe "order_endpoints_by_origin/3" do
+    test "puts the region nearest the caller first for a multi-region account" do
+      account = placed_account()
+      primary = placed_instance(account, "eu-central", :active)
+      secondary = placed_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      endpoints = [%{url: secondary.url}, %{url: primary.url}]
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "FR")
+      assert first == primary.url
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "US-VA")
+      assert first == secondary.url
+    end
+
+    test "leaves an empty list alone" do
+      assert Kura.order_endpoints_by_origin([], placed_account(), "FR") == []
+    end
+  end
+
+  defp placed_account do
+    user = AccountsFixtures.user_fixture()
+    Accounts.get_account_from_user(user)
+  end
+
+  defp placed_instance(account, region, status) do
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: region,
+      status: status,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{account.id}-#{region}"
+    })
   end
 end

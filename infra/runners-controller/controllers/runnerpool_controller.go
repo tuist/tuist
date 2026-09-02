@@ -47,6 +47,34 @@ const drainEligibleLabel = "tuist.dev/drain-eligible"
 // spec.rollout.maxConcurrentPercent.
 const defaultRollMaxConcurrentPercent = 5
 
+// Guest heartbeat, published on macOS Pods by tart-kubelet from the
+// per-VM status share (see publishRunnerHeartbeat in
+// infra/tart-kubelet/internal/podagent). This controller never sees the
+// beat itself — the file lives on the Mac host — so these keys are the
+// whole interface, and the writer keeps a matching pair of constants.
+const (
+	guestHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	guestHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
+
+	// guestHeartbeatStatePolling is the state a guest reports while it is
+	// in its warm-standby loop. The other state a guest publishes,
+	// `claimed`, needs no constant here: everything that is not polling
+	// is not warm capacity.
+	guestHeartbeatStatePolling = "polling"
+)
+
+// guestHeartbeatStaleAfter is how long a `polling` beat stays good.
+//
+// It has to clear the whole publish chain, not just the guest's own
+// cadence: the guest beats every couple of seconds, but tart-kubelet
+// observes it on a 30s reconcile and throttles republishing an advancing
+// timestamp to once a minute. A healthy Pod's published beat can
+// therefore trail reality by ~90s, and this leaves better than 3x that
+// as headroom. Detection is correspondingly unhurried — a wedged guest
+// leaves warm capacity within about five minutes — which is the right
+// trade for a signal whose false positives cost a reaped healthy runner.
+const guestHeartbeatStaleAfter = 5 * time.Minute
+
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
 // RunnerAssignment intermediate). When a Pod hits a terminal
@@ -54,7 +82,13 @@ const defaultRollMaxConcurrentPercent = 5
 // the previous Pod freed.
 type RunnerPoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+
+	// APIReader is an uncached reader. The reservation path confirms the
+	// fleet-wide reservation limit through it, because the informer
+	// cache can lag a taint written moments earlier by another pool's
+	// reconcile. Optional: falls back to the cached client when unset.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
@@ -117,7 +151,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -143,6 +177,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// finish their single-shot job. Only then is the finalizer
 	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
 	if !pool.DeletionTimestamp.IsZero() {
+		// Before the drain, hand back any host this pool was holding.
+		// reconcileDelete returns without reaching reconcileReservation,
+		// and once the CR is gone nothing can match the taint's value,
+		// so the host would be tainted out of the fleet permanently.
+		if err := r.ReleaseReservationsForPool(ctx, pool); err != nil {
+			logger.Error(err, "release node reservation for a deleting pool; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 		return r.reconcileDelete(ctx, pool)
 	}
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
@@ -187,6 +229,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pods.Items = survivors
 	if cordonReaped > 0 {
 		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
+	}
+
+	// Node reservation. Runs after the drain reap so a Pod already
+	// retired above is not counted as an occupant a reservation must
+	// wait on, and before the accounting below because retiring another
+	// pool's idle Pod here changes what this fleet has free. Failures are
+	// logged and skipped rather than returned: a reservation is an
+	// optimization for a starved shape, and a fleet that cannot take one
+	// must still converge its Pods.
+	if err := r.reconcileReservation(ctx, pool, pods.Items); err != nil {
+		logger.Error(err, "reconcile node reservation; will retry next tick")
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
@@ -807,11 +860,63 @@ func isIdle(pod *corev1.Pod) bool {
 //
 // So Linux asks whether the poller is *actively running*, which is only
 // true once the Pod has a node and kubelet has started the container.
+//
+// Running is necessary on darwin but not sufficient, which is why the
+// guest heartbeat is consulted on top of it. A macOS Pod's phase and
+// Ready condition are synthesized by tart-kubelet from "the VM process
+// is alive and has an IP" — it runs no container probes — so a guest
+// whose dispatch poller died reads 1/1 Running for the rest of the VM's
+// life. Nothing bounds that life either: warm standby is deliberately
+// unbounded, and in practice a macOS runner is recycled only when its
+// SA token expires around the 8h mark. Without the heartbeat such a Pod
+// is indistinguishable from a healthy warm one and is counted as
+// capacity for hours, which is the same inversion the paragraph above
+// describes — a pool reporting idle Pods sitting on queued work.
 func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 	if pool.Spec.OS == "darwin" {
-		return pod.Status.Phase == corev1.PodRunning
+		return pod.Status.Phase == corev1.PodRunning && guestPolling(pod, time.Now())
 	}
 	return pollerRunning(pod)
+}
+
+// guestPolling reads the beat tart-kubelet publishes from the macOS
+// guest's status share (see publishRunnerHeartbeat there) and reports
+// whether the guest is still in its warm-standby loop.
+//
+// A Pod carrying no beat at all is *not* treated as dead. The host only
+// publishes one when it can see the guest — a pool with the cache-volume
+// feature off has no status share to read, and a runner image from
+// before the guest wrote a beat produces none either. Reading absence as
+// dead would drop every such Pod out of warm capacity at once, which
+// besides being wrong is the shape that stalls rolls fleet-wide:
+// isWarmCapacity also decides what counts against the roll's
+// availability budget. So absence means "no signal" and the Pod keeps
+// its former benefit of the doubt; only a beat that exists and has gone
+// stale withdraws it.
+//
+// `claimed` is not stale-checked. The guest beats it once as it takes a
+// job and then blocks running that job, so its age says nothing about
+// health — the state itself says the Pod is no longer warm, and it says
+// so without depending on the server's best-effort owner label landing.
+func guestPolling(pod *corev1.Pod, now time.Time) bool {
+	// Empty counts as absent, not as a state: the writer only ever
+	// publishes a state it validated, so a blank one reached the Pod some
+	// other way and is not evidence about the guest.
+	state := pod.Annotations[guestHeartbeatStateAnnotation]
+	if state == "" {
+		return true
+	}
+	if state != guestHeartbeatStatePolling {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, pod.Annotations[guestHeartbeatAtAnnotation])
+	if err != nil {
+		// State published without a readable timestamp. Nothing to age
+		// the beat against, so this falls back to the no-signal reading
+		// rather than condemning the Pod on a malformed annotation.
+		return true
+	}
+	return now.Sub(at) < guestHeartbeatStaleAfter
 }
 
 // pollerRunning reports whether the Linux `poller` init container is

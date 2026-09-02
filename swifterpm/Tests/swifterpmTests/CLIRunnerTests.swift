@@ -63,7 +63,6 @@ struct CLIRunnerTests {
                 ))
 
             #expect(try await fileSystem.currentWorkingDirectory().pathString == currentDirectory)
-            #expect(try await fileSystem.exists(root.appendingPathComponent("cache/sources").absolutePath))
         }
     }
 

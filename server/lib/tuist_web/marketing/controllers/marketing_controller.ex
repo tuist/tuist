@@ -44,7 +44,10 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     conn =
       conn
-      |> assign(:head_title, "Tuist")
+      |> assign_structured_data(get_organization_structured_data())
+      |> assign_structured_data(get_website_structured_data())
+      |> assign_structured_data(get_software_application_structured_data())
+      |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
       |> assign(
         :head_description,
         dgettext(
@@ -671,49 +674,107 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:changelog_atom, layout: false)
   end
 
+  # Localized marketing pages that live in the router rather than in content
+  # files. Everything else in the sitemap is derived from the content modules.
+  @sitemap_base_paths [
+    "/",
+    "/pricing",
+    "/blog",
+    "/changelog",
+    "/customers",
+    "/cache",
+    "/build-insights",
+    "/selective-testing",
+    "/flaky-tests",
+    "/test-insights",
+    "/previews",
+    "/about",
+    "/support",
+    "/newsletter"
+  ]
+
   def sitemap(conn, _params) do
-    page_urls = Enum.map(Pages.get_pages(), &Tuist.Environment.app_url(path: &1.slug))
+    page_entries =
+      Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
 
-    post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
+    post_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
 
-    case_study_urls =
+    case_study_entries =
       for locale <- Localization.all_locales(),
           case_study <- Customers.get_case_studies(),
           Customers.local_case_study?(case_study) do
-        localized_path = Localization.localized_href(case_study.slug, locale)
-        Tuist.Environment.app_url(path: localized_path)
+        case_study.slug
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(case_study.date)
       end
 
-    newsletter_issue_urls =
+    newsletter_issue_entries =
       Enum.map(
         Newsletter.issues(),
-        &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
+        &sitemap_entry(~p"/newsletter/issues/#{&1.number}", &1.date)
       )
 
-    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/customers"]
+    # Section indexes get the date of their newest entry. The rest have no
+    # trustworthy modification signal, and Google discards a sitemap's lastmod
+    # entirely once it catches one that is wrong, so we leave those out.
+    section_last_modified = %{
+      "/blog" => latest_date(Blog.get_posts(), & &1.date),
+      "/changelog" => latest_date(Changelog.get_entries(), & &1.date),
+      "/customers" => latest_date(Customers.get_case_studies(), & &1.date)
+    }
 
-    # Generate URLs for all locales
     localized_entries =
       for locale <- Localization.all_locales(),
-          path <- base_paths do
-        localized_path = Localization.localized_href(path, locale)
-        Tuist.Environment.app_url(path: localized_path)
+          path <- @sitemap_base_paths do
+        path
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(Map.get(section_last_modified, path))
       end
 
-    docs_urls =
+    docs_entries =
       Enum.map(
         Tuist.Docs.slugs(),
-        &Tuist.Environment.app_url(path: Tuist.Docs.Paths.public_path_from_slug(&1))
+        &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
     entries =
       localized_entries ++
-        case_study_urls ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
+        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
-    |> assign(:entries, entries)
+    |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
     |> render(:sitemap, layout: false)
   end
+
+  defp sitemap_entry(path, last_modified) do
+    lastmod =
+      case to_sitemap_date(last_modified) do
+        nil -> nil
+        date -> Date.to_iso8601(date)
+      end
+
+    %{loc: Tuist.Environment.app_url(path: path), lastmod: lastmod}
+  end
+
+  defp latest_date(entries, getter) do
+    entries
+    |> Enum.map(&(&1 |> getter.() |> to_sitemap_date()))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max_by(&Date.to_erl/1, fn -> nil end)
+  end
+
+  defp to_sitemap_date(%Date{} = date), do: date
+  defp to_sitemap_date(%DateTime{} = date_time), do: DateTime.to_date(date_time)
+  defp to_sitemap_date(%NaiveDateTime{} = naive), do: NaiveDateTime.to_date(naive)
+
+  defp to_sitemap_date(date) when is_binary(date) do
+    case Date.from_iso8601(date) do
+      {:ok, date} -> date
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp to_sitemap_date(_date), do: nil
 
   defp blog_entries do
     Content.get_entries()
@@ -741,6 +802,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         post_image_url
       )
       |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_article_head_meta(published_at: post.date, author_url: Blog.get_post_author_url(post))
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
@@ -787,6 +849,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           Tuist.Environment.app_url(path: case_study.og_image_path)
         )
         |> assign(:head_twitter_card, "summary_large_image")
+        |> assign_article_head_meta(published_at: case_study.date, author_url: case_study.url)
         |> assign_structured_data(
           get_breadcrumbs_structured_data([
             {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},

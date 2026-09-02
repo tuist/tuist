@@ -9,6 +9,7 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
       - .trivyignore
   pull_request:
@@ -18,6 +19,7 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
       - .trivyignore
@@ -149,54 +151,43 @@ jobs:
             fi
           }
 
-          # Extract only (without --merge) to check if marketing.pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
+          # Extract only (without --merge) to check whether any .pot template
+          # is out of date. DO NOT use --merge here as it would modify the .po
+          # translation files. Every domain under priv/gettext is discovered by
+          # a glob so a newly added domain is guarded without editing this job.
+          POT_LIST=/tmp/gettext-pot-files.txt
+          printf '%s\n' priv/gettext/*.pot | sort > "$POT_LIST"
 
-          # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
-
-          # Backup all dashboard .pot files
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot" ]; then
-              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
-            fi
-          done
+          while read -r pot; do
+            cp "$pot" "${pot}.backup"
+          done < "$POT_LIST"
 
           run_gettext_extract /tmp/gettext-extract.log
 
-          exit_code=0
-
-          if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
-            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit_code=1
-          else
-            echo "✅ Marketing gettext template is up-to-date"
-          fi
-          rm priv/gettext/marketing.pot.backup
-
-          # Check each dashboard domain for changes
           CHANGED_DOMAINS=""
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
-              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
-                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-              fi
-              rm "priv/gettext/${domain}.pot.backup"
-            elif [ -f "priv/gettext/${domain}.pot" ]; then
-              # New domain file was created
-              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+
+          while read -r pot; do
+            if ! diff -q "${pot}.backup" "$pot" > /dev/null 2>&1; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
+            fi
+            rm -f "${pot}.backup"
+          done < "$POT_LIST"
+
+          # A domain created by the extraction has no backup to diff against.
+          for pot in priv/gettext/*.pot; do
+            if ! grep -qxF "$pot" "$POT_LIST"; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
             fi
           done
 
+          rm -f "$POT_LIST"
+
           if [ -n "$CHANGED_DOMAINS" ]; then
-            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit_code=1
-          else
-            echo "✅ All dashboard gettext templates are up-to-date"
+            echo "::error title=Gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit 1
           fi
 
-          exit "$exit_code"
+          echo "✅ All gettext templates are up-to-date"
       - name: Check marketing translations exist
         run: |
           # Check if marketing.pot exists
@@ -390,6 +381,9 @@ jobs:
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/github-deps-auth
+        with:
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install mix dependencies
         run: mix deps.get
       - name: Install aube dependencies

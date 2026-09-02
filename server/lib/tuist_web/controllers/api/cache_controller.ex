@@ -9,15 +9,19 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.Kura
   alias Tuist.Storage
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
+  alias TuistWeb.RemoteIp
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -89,7 +93,10 @@ defmodule TuistWeb.API.CacheController do
   # for is exactly what `Cache-Control` is for, and putting it on the server
   # means the interval is set by the side that knows whether an instance is
   # minutes away or already serving.
-  @serving_cache_max_age 3600
+  # An instance placement is leaving keeps serving for at least this long after
+  # its endpoint is unpublished, so an answer held for its full life is never
+  # pointing at something already gone. `Tuist.Kura.placement_drain_seconds/0`
+  # is what guarantees it.
   @provisioning_cache_max_age 30
 
   # Answers where the cache is, not whether the caller may use it. Clients hold
@@ -100,9 +107,9 @@ defmodule TuistWeb.API.CacheController do
     %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn))
+      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
 
-    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
     conn
     |> put_resp_header("cache-control", "private, max-age=#{max_age}")
@@ -287,6 +294,7 @@ defmodule TuistWeb.API.CacheController do
       not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -363,6 +371,7 @@ defmodule TuistWeb.API.CacheController do
          "application/json", CacheArtifactDownloadURL},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -452,6 +461,7 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
@@ -544,6 +554,7 @@ defmodule TuistWeb.API.CacheController do
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -599,6 +610,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -616,21 +628,21 @@ defmodule TuistWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    json(conn, %{
-      status: "success",
-      data: %{
-        upload_id:
-          Storage.multipart_start(
-            get_object_key(%{
-              hash: hash,
-              name: name,
-              project_slug: project_slug,
-              cache_category: cache_category
-            }),
-            selected_project.account
-          )
-      }
-    })
+    object_key =
+      get_object_key(%{
+        hash: hash,
+        name: name,
+        project_slug: project_slug,
+        cache_category: cache_category
+      })
+
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, upload_id} ->
+        json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 
   def multipart_start(conn, _params) do
@@ -685,6 +697,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -797,6 +810,7 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       conflict: {"The multipart upload is no longer active", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
@@ -839,6 +853,9 @@ defmodule TuistWeb.API.CacheController do
         conn
         |> put_status(:conflict)
         |> json(%{message: "The multipart upload is no longer active. Start a new upload and retry."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -867,6 +884,7 @@ defmodule TuistWeb.API.CacheController do
       no_content: "The cache has been successfully cleaned",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project was not found", "application/json", Error}
     }
   )

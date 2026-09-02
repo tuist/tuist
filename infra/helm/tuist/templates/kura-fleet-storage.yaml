@@ -191,6 +191,57 @@ want_kb=$(( bytes / 1024 ))
 log "project $projid bounds $dir at $want_kb KiB / $inodes inodes"
 {{- end }}
 
+{{- /*
+tuist.kuraHelperPodTemplate is the helper Pod the provisioner runs on the target
+node. It is defined here rather than inline in the ConfigMap so the Deployment
+can checksum it: the provisioner reads this template ONCE at startup and holds
+it in memory, so a change to it does nothing until the Deployment rolls.
+*/ -}}
+{{- define "tuist.kuraHelperPodTemplate" -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: helper-pod
+spec:
+  # The helper Pod runs on the target cache node to create/remove the PV
+  # directory, so it has to tolerate whatever taint that node carries:
+  # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
+  # pools, which also provision scw-local-nvme PVCs).
+  tolerations:
+    - key: tuist.dev/runner-cache
+      operator: Exists
+      effect: NoSchedule
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  # The setup/teardown hooks nsenter into PID 1's namespaces to run the
+  # node's xfs_quota against the node's own view of /data. Both are needed:
+  # hostPID to address PID 1 at all, privileged for the CAP_SYS_ADMIN that
+  # quotactl requires. The busybox image supplies only nsenter; every tool
+  # the hooks actually run comes from the host.
+  #
+  # `--root` is deliberately NOT passed, and is not needed. Entering a mount
+  # namespace already moves the process root: setns(CLONE_NEWNS) dispatches
+  # to mntns_install() in fs/namespace.c, which ends with set_fs_pwd() and
+  # set_fs_root() onto the target namespace's root. So `findmnt` and
+  # `xfs_quota` resolve from the host, not from busybox, which has neither.
+  # This is the same mechanism `kubectl node-shell` relies on.
+  #
+  # It reads like a bug and has been raised as one twice, so it is settled
+  # empirically rather than by argument: the rendered hook has been run
+  # verbatim inside a busybox container with --pid=host against a real XFS
+  # filesystem, and applied a working ceiling. Reproduce by running the
+  # ConfigMap's `setup` under `docker run --privileged --pid=host busybox sh`
+  # on a host with an xfs /data mounted with prjquota.
+  hostPID: true
+  containers:
+    - name: helper-pod
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+{{- end }}
+
 {{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
 {{- /*
 local-path-provisioner for the kura runner-cache Elastic Metal pool. Elastic
@@ -281,6 +332,12 @@ spec:
       app: local-path-provisioner
   template:
     metadata:
+      annotations:
+        # The provisioner reads helperPod.yaml once at startup and keeps it in
+        # memory, so a change to it takes effect only when this Deployment rolls.
+        # setup/teardown reach the helper Pod through the ConfigMap volume mount
+        # and stay in sync on their own, so without this the two can drift.
+        checksum/helper-pod: {{ include "tuist.kuraHelperPodTemplate" . | sha256sum }}
       labels:
         app: local-path-provisioner
     spec:
@@ -396,48 +453,7 @@ data:
       || echo "tuist-kura-quota: could not clear the quota for $VOL_DIR; removing it anyway" >&2
     rm -rf "$VOL_DIR"
   helperPod.yaml: |-
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: helper-pod
-    spec:
-      # The helper Pod runs on the target cache node to create/remove the PV
-      # directory, so it has to tolerate whatever taint that node carries:
-      # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
-      # pools, which also provision scw-local-nvme PVCs).
-      tolerations:
-        - key: tuist.dev/runner-cache
-          operator: Exists
-          effect: NoSchedule
-        - key: tuist.dev/kura-cache
-          operator: Exists
-          effect: NoSchedule
-      # The setup/teardown hooks nsenter into PID 1's namespaces to run the
-      # node's xfs_quota against the node's own view of /data. Both are needed:
-      # hostPID to address PID 1 at all, privileged for the CAP_SYS_ADMIN that
-      # quotactl requires. The busybox image supplies only nsenter; every tool
-      # the hooks actually run comes from the host.
-      #
-      # `--root` is deliberately NOT passed, and is not needed. Entering a mount
-      # namespace already moves the process root: setns(CLONE_NEWNS) dispatches
-      # to mntns_install() in fs/namespace.c, which ends with set_fs_pwd() and
-      # set_fs_root() onto the target namespace's root. So `findmnt` and
-      # `xfs_quota` resolve from the host, not from busybox, which has neither.
-      # This is the same mechanism `kubectl node-shell` relies on.
-      #
-      # It reads like a bug and has been raised as one twice, so it is settled
-      # empirically rather than by argument: the rendered hook has been run
-      # verbatim inside a busybox container with --pid=host against a real XFS
-      # filesystem, and applied a working ceiling. Reproduce by running the
-      # ConfigMap's `setup` under `docker run --privileged --pid=host busybox sh`
-      # on a host with an xfs /data mounted with prjquota.
-      hostPID: true
-      containers:
-        - name: helper-pod
-          image: busybox
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
+{{ include "tuist.kuraHelperPodTemplate" . | indent 4 }}
 ---
 {{- /*
 Per-volume quota usage as metrics. The setup hook installs a ceiling; without
@@ -465,9 +481,19 @@ node for a metrics endpoint.
 {{- if .Values.ovhFleet.enabled }}
 {{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") }}
 {{- end }}
+{{- /* An ovhFleets entry is a cache pool exactly when its nodes carry the
+   kura-cache taint, which is also the only OVH taint this DaemonSet tolerates.
+   Fleets in that map that are not cache pools (the OVH Linux runner boxes) set
+   their own taints and stay out of the affinity list, so a privileged hostPID
+   exporter is never pointed at a box with no cache volumes to read. Mirrors the
+   default in ovh-fleets.yaml: taints unset means the kura-cache taint. */ -}}
 {{- range $key, $fleet := .Values.ovhFleets }}
 {{- if $fleet.enabled }}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet }}
+{{- if eq $taint.key "tuist.dev/kura-cache" }}
 {{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 apiVersion: apps/v1

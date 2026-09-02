@@ -54,7 +54,7 @@ defmodule Tuist.Runners do
   arrive:
 
     * `workflow_job.completed` webhook, keyed on the executing
-      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      `runner_name` (`Claims.complete_by_runner_name/3`). Releases
       nothing when GitHub reports no runner, e.g. a job cancelled while
       queued, or one GitHub placed on a sibling runner.
     * The controller's pod-stopped POST
@@ -589,9 +589,11 @@ defmodule Tuist.Runners do
     {dispatchable, withheld} =
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
+          headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+
           dispatchable =
             Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+              acc + min(count, Map.get(headrooms, account_id, 0))
             end)
 
           {dispatchable, raw - dispatchable}
@@ -1039,6 +1041,11 @@ defmodule Tuist.Runners do
       affinity_outcome: affinity_outcome
     } = context
 
+    # Already resolved upstream for cache-volume affinity, so recording it on
+    # the session costs nothing and is the only chance to capture it: the Pod
+    # carrying this mapping is reaped when the job ends.
+    node_name = Map.get(context, :node_name)
+
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -1085,6 +1092,7 @@ defmodule Tuist.Runners do
             vcpus: resources.vcpus,
             memory_gb: resources.memory_gb,
             pod_name: pod_name,
+            node_name: node_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),
             workflow_name: Map.get(candidate, :workflow_name, ""),
@@ -1327,6 +1335,11 @@ defmodule Tuist.Runners do
     # between hosted and self-hosted runs. The runner images
     # create a `runner` user with the corresponding HOME on each
     # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    #
+    # Linux Pods share this directory with the dockerd sidecar so
+    # `jobs.<id>.container` jobs work; the mount path is `workPath`
+    # in `infra/runners-controller/internal/podtemplate`, and the two
+    # have to move together.
     work_folder =
       if "macOS" in runner_labels do
         "/Users/runner/work"

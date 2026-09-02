@@ -9,13 +9,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
+- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps + `patches/`, applied to rules_rs's pinned rules_rust); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
@@ -43,6 +43,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
+- When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
+  `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That
+  dashboard is meant to cover every `kura_*` family the runtime exports, so an unlisted metric is
+  effectively invisible to whoever is debugging next. Add the panel to the row for its subsystem, and
+  put the operational interpretation in the panel description rather than in the Prometheus HELP text.
+  Note that counters scrape with a doubled suffix (a counter registered as `foo_total` is served as
+  `foo_total_total`) — panels must query the scraped name, not the name in the source.
 
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:

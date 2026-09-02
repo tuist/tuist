@@ -64,8 +64,26 @@
     />
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
-    <TuistWeb.LayoutComponents.head_plain_script current_user={assigns[:current_user]} {assigns} />
+    <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <script
+      :for={
+        structured_data <-
+          TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns)
+      }
+      nonce={get_csp_nonce()}
+      type="application/ld+json"
+    >
+      <%= raw structured_data %>
+    </script>
+    <%!-- Points agents at the Markdown source of this page, which is otherwise
+          only reachable by guessing the URL. --%>
+    <link
+      :if={not is_nil(assigns[:head_markdown_path])}
+      rel="alternate"
+      type="text/markdown"
+      href={Tuist.Environment.app_url(path: assigns[:head_markdown_path])}
+    />
     <meta property="og:locale" content={@locale} />
     <link
       :for={lang <- TuistWeb.Marketing.Localization.languages()}

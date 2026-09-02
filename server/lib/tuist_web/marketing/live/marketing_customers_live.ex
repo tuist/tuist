@@ -74,7 +74,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_case_studies_structured_data(all_cases, locale))
+      |> put_structured_data(get_case_studies_structured_data(all_cases, locale))
       |> assign(
         :head_description,
         dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.")

@@ -8,6 +8,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
+  alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -27,6 +29,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     # mount. The balance itself is covered in Tuist.Runners.PrepaidTest.
     stub(Prepaid, :balance, fn _account -> nil end)
     stub(Billing, :sync_runner_subscription_items, fn _account -> {:ok, :unchanged} end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> nil end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
 
     %{conn: conn, user: user}
   end
@@ -125,12 +129,12 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "10Gi"
   end
 
-  test "resolves an unpinned instance in a per-account region against the override", %{conn: conn, user: user} do
+  test "resolves an unpinned instance in a per-account region against the sized claim", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
     # A governed region pins at creation, so this row is the state the resolution
     # exists to cover rather than one the product creates. It holds whatever the
-    # account resolves to, which is the override once there is one.
+    # account resolves to, which is the sized claim once there is one.
     Repo.insert!(%Server{
       account_id: user.account.id,
       region: "us-east",
@@ -143,69 +147,531 @@ defmodule TuistWeb.OpsAccountLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
     assert html =~ "8Gi"
 
-    {:ok, _} = Kura.update_storage_claim_override(user.account, %{"kura_storage_claim_size" => "24Gi"})
+    :ok = Tuist.Kura.PlacerClaims.put(user.account, "24Gi")
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
     assert html =~ "24Gi"
   end
 
-  test "sets a claim override and re-pins the instance it rebuilds", %{conn: conn, user: user} do
+  test "surfaces each pod's reported disk state", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
-    server =
-      Repo.insert!(%Server{
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://acme-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-us-east",
+      storage_claim_size: "25Gi"
+    })
+
+    captured_at = NaiveDateTime.truncate(NaiveDateTime.add(NaiveDateTime.utc_now(), -3_600), :second)
+
+    Tuist.IngestRepo.insert_all(Tuist.Kura.StorageSnapshot, [
+      %{
+        event_id: "ops-snap-#{user.account.id}",
         account_id: user.account.id,
+        node_id: "kura-#{user.account.id}-us-east-0",
         region: "us-east",
-        status: :active,
-        url: "https://acme-us-east-1.kura.tuist.dev",
-        current_image_tag: "0.5.2",
-        provisioner_node_ref: "kura-#{user.account.id}-us-east",
-        storage_claim_size: "8Gi"
+        captured_at: captured_at,
+        ring_budget_bytes: 26_843_545_600,
+        desired_segment_count: 50,
+        live_segment_count: 24,
+        live_segment_bytes: 12_884_901_888,
+        oldest_segment_created_at: captured_at,
+        newest_content_at: captured_at,
+        inserted_at: captured_at
+      }
+    ])
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "kura-#{user.account.id}-us-east-0"
+    assert html =~ "12.9 GB of 26.8 GB"
+  end
+
+  defp kura_server(user, region) do
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: region,
+      status: :active,
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-#{region}"
+    })
+  end
+
+  test "sets a per-region egress override and shows it against that region's numbers", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 3000 end)
+
+    # A region's floor is the Enterprise half of the deal, so that is the plan
+    # whose default pair is the region's own.
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :enterprise)
+    kura_server(user, "us-east")
+
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    # The region's default, and the box's budget, both in front of the operator.
+    assert html =~ "25 / 1500 Mbps"
+    assert html =~ "3000 Mbps"
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
       })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert html =~ "100 / 400 Mbps"
+  end
+
+  # The boxes differ, so each region gets its own form and its own row.
+  test "keeps each region's override to itself", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
+  # Each region is written in its own transaction, against a reading that can
+  # move between the pre-flight cast and the write. Reporting only the rejection
+  # would leave the operator believing the region that did land had not.
+  test "reports what was written when another region's write fails", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    us_east = Kura.region("us-east")
+
+    stub(Kura, :update_egress_limits_override, fn account, region, attrs ->
+      if region.id == "eu-central" do
+        {:error, Kura.change_egress_limits_override(account, region, attrs)}
+      else
+        call_original(Kura, :update_egress_limits_override, [account, region, attrs])
+      end
+    end)
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Egress limits updated in US East"
+    assert html =~ "EU Central was rejected and not saved"
+    refute html =~ "Nothing was saved"
+
+    assert Kura.egress_limits_override(user.account, us_east) == %{floor_mbps: 60, burst_mbps: 400}
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
+  # The reading behind the headroom check can move under a table an operator is
+  # looking at. A row they did not touch must not be the thing that refuses the
+  # save of the one they did.
+  test "does not validate a row the operator left alone", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => "1200"}}
+    })
+    |> render_submit()
+
+    # us-east's stored floor no longer fits the box, but the operator is editing
+    # eu-central.
+    stub(Capacity, :egress_headroom, fn _region, _handle ->
+      %{node: "box-1", allocatable_mbps: 1000, available_mbps: 200, replicas: 2}
+    end)
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => "1200"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Egress limits updated in EU Central"
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: nil, burst_mbps: 200}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 900, burst_mbps: 1200}
+  end
+
+  # A browser posts the whole table, untouched rows included, seeded with what
+  # they already hold. A save aimed at one region that cleared another's override
+  # would roll that region's pods back to the region's numbers unasked.
+  test "leaves an untouched row alone when the whole table is submitted", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    # Now a save aimed at the other region, posting us-east exactly as the page
+    # renders it.
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{
+        "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+        "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+      }
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 60, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: nil, burst_mbps: 200}
+  end
+
+  # One Save can change several regions, so it says so once, naming them and
+  # totalling the instances — a stack of per-region banners at the top of the
+  # page is both further from the table and harder to read.
+  test "reports every region a single save changed, inside the card", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     html =
       lv
-      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
       |> render_submit()
 
-    assert Kura.storage_claim_override(user.account) == "40Gi"
-
-    # Re-pinned, which is what carries the new claim into the manifest and has
-    # the controller rebuild the volumes that no longer match it.
-    assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
-
-    # And the table the operator is looking at reflects it without a reload.
-    assert html =~ "40Gi"
+    assert html =~ "kura-egress-limits-result"
+    assert html =~ "EU Central, US East"
+    assert html =~ "2 instances are recreated to pick them up"
   end
 
-  test "clears the override from the form and returns the account to its plan", %{conn: conn, user: user} do
+  # A Save over an untouched table writes nothing, and saying instances are
+  # being recreated would send the operator looking for a rollout that is not
+  # happening.
+  test "says so when a save changes nothing", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert html =~ "No egress limits changed."
+  end
+
+  # Recreating an account's cache instances is not something to discover after
+  # clicking, so the form asks first.
+  test "confirms before saving", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    # On the button, not the form: phoenix_html implements data-confirm by
+    # walking up from the clicked element, so on the form every click into a
+    # field would ask the question too.
+    button =
+      ~r/<button.*?<\/button>/s
+      |> Regex.scan(html)
+      |> List.flatten()
+      |> Enum.find(&(&1 =~ "Save egress limits"))
+
+    assert button =~ "data-confirm"
+    assert button =~ "Saving recreates this account&#39;s Kura instances"
+
+    refute Regex.run(~r/<form[^>]*id="kura-egress-limits-form"[^>]*data-confirm/, html)
+  end
+
+  # One Save covers the table, and a typo in one row must not half-apply the
+  # others: nothing is written until every row casts.
+  test "writes no region when another region's row is invalid", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    stub(Capacity, :egress_budget_mbps, fn
+      "us-east" -> 3000
+      "eu-central" -> 500
+    end)
 
-    lv
-    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
-    |> render_submit()
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
 
-    lv
-    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: ""})
-    |> render_submit()
-
-    assert Kura.storage_claim_override(user.account) == nil
-  end
-
-  test "refuses a claim below the floor a ring can be derived from", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     html =
       lv
-      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "4Gi"})
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => ""}
+        }
+      })
       |> render_submit()
 
-    assert html =~ "must be at least 8Gi"
-    assert Kura.storage_claim_override(user.account) == nil
+    assert html =~ "must not exceed the box&#39;s 500 Mbps"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
+  test "saves several regions in one submit", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{
+        "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
+        "eu-central" => %{"kura_egress_floor_mbps" => "50", "kura_egress_burst_mbps" => "200"}
+      }
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: 50, burst_mbps: 200}
+  end
+
+  # Emptying both fields is how a region goes back to its own numbers; there is
+  # no separate reset control to get wrong.
+  test "empties both fields to put a region back on its defaults", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :enterprise)
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+    assert html =~ "25 / 1500 Mbps"
+  end
+
+  # What the row says has to be what the instance does. An account with no
+  # Enterprise plan reserves nothing, and a form showing it the region's 25 Mbps
+  # would be describing a reservation it does not have.
+  test "shows an unentitled account the zero floor it actually gets", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "0 / 1500 Mbps"
+    refute html =~ "25 / 1500 Mbps"
+  end
+
+  # The row's numbers all describe one box, so its limit has to be that box's.
+  # Reading the region's smallest sibling — a box the account will never be
+  # placed on, its volumes being where they are — describes nothing, and reads
+  # as "unknown" whenever that sibling is out of the pool.
+  test "shows the limit of the box the account is on, not the region's smallest", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> nil end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "roomy", allocatable_mbps: 1000, available_mbps: 430, replicas: 2, boxes: 1}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "1000 Mbps"
+    assert html =~ "up to 215"
+    refute html =~ "unknown"
+  end
+
+  # A split account is bound by its tightest box, which reads as an unexplained
+  # drop unless the row says the replicas are not all in one place.
+  test "says when an account's replicas are spread across boxes", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 1000 end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "constrained", allocatable_mbps: 1000, available_mbps: 100, replicas: 1, boxes: 2}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "up to 100, across 2 boxes"
+  end
+
+  # The only bound is the box. A number above what its nodes advertise would be
+  # clamped there and silently discarded, so the form says so instead.
+  test "refuses a value above the region's node budget", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 1000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "2000", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert html =~ "must not exceed the box&#39;s 1000 Mbps"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+  end
+
+  # The box's *unreserved* egress is what decides whether a raised floor can be
+  # placed, and the increase is charged once per replica. Saying the number the
+  # operator may raise to is the point: refusing afterwards teaches them the
+  # constraint one failed rollout at a time.
+  test "shows how far the box lets the floor be raised, and refuses past it", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 500 end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2, boxes: 1}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "up to 250"
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "260", "kura_egress_burst_mbps" => "400"}}
+      })
+      |> render_submit()
+
+    assert html =~ "must be at most 250 Mbps on box-1"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "250", "kura_egress_burst_mbps" => "400"}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 250, burst_mbps: 400}
+
+    assert html =~ "250 / 400 Mbps"
+  end
+
+  # A lone floor above the region's *default* ceiling is fine: the region is a
+  # default, and the box has room for it.
+  test "accepts a lone floor above the region default when the box allows it", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "2000", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 2000, burst_mbps: nil}
+
+    # The defaulted ceiling gives way to the stated floor.
+    assert html =~ "2000 / 2000 Mbps"
+  end
+
+  # A region with no shared NIC arbitrates nothing, so there is no pair to set.
+  test "hides the egress card for an account with no shaped instance", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    refute html =~ "kura-egress-limits-form"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
@@ -534,6 +1000,138 @@ defmodule TuistWeb.OpsAccountLiveTest do
       end)
 
       lv |> element("button", "Start runner trial") |> render_click()
+    end
+  end
+
+  describe "claim sizing proposals" do
+    setup %{user: user} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      server =
+        Repo.insert!(%Server{
+          account_id: user.account.id,
+          region: "us-east",
+          status: :active,
+          url: "https://acme-us-east-1.kura.tuist.dev",
+          current_image_tag: "0.5.2",
+          provisioner_node_ref: "kura-#{user.account.id}-us-east",
+          storage_claim_size: "8Gi"
+        })
+
+      proposal =
+        Repo.insert!(%ClaimProposal{
+          account_id: user.account.id,
+          region: "us-east",
+          direction: :grow,
+          current_claim_size: "8Gi",
+          recommended_claim_size: "16Gi",
+          evidence: %{
+            "signal" => "shed_age_below_retention_floor",
+            "region" => "us-east",
+            "window_days" => 14,
+            "retention_floor_seconds" => 86_400,
+            "median_shed_age_seconds" => 43_200,
+            "median_ring_span_seconds" => 129_600,
+            "evicted_bytes" => 10_737_418_240
+          }
+        })
+
+      %{server: server, proposal: proposal}
+    end
+
+    test "renders the open proposal with its evidence", %{conn: conn, user: user} do
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Sizing proposes growing the disk claim from 8Gi to 16Gi."
+      # The evidence reads as what the cache is doing and what it should be
+      # doing instead, with no policy vocabulary an operator would have to
+      # look up.
+      assert html =~ "discarding work a median of 12.0 hours after it was written"
+      assert html =~ "should keep everything for at least 1.0 days"
+      assert html =~ "Seen on 14 consecutive days of measurements"
+      assert html =~ "Apply proposal"
+    end
+
+    test "shows what sizing has decided, whatever became of it", %{conn: conn, user: user} do
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+
+      Repo.insert!(%ClaimProposal{
+        account_id: user.account.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        evidence: %{"median_shed_age_seconds" => 1_800, "retention_floor_seconds" => 259_200},
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: now
+      })
+
+      Repo.insert!(%ClaimProposal{
+        account_id: user.account.id,
+        region: "us-east",
+        direction: :shrink,
+        current_claim_size: "32Gi",
+        recommended_claim_size: "16Gi",
+        evidence: %{"max_occupancy_percent" => 25},
+        status: :dismissed,
+        resolved_by: "ops@tuist.dev",
+        resolved_at: now
+      })
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "8Gi → 16Gi"
+      assert html =~ "32Gi → 16Gi"
+      assert html =~ "peaked at 25% of its disk"
+
+      # The outcome is a status token; who resolved it is its own column, and
+      # sizing acting on its own reads as a name rather than an internal one.
+      assert html =~ "applied"
+      assert html =~ "dismissed"
+      assert html =~ "Sizing"
+      assert html =~ "ops@tuist.dev"
+      refute html =~ "applied automatically"
+    end
+
+    test "links to the full history", %{conn: conn, user: user} do
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "View more"
+      assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/sizing"
+    end
+
+    test "applying the proposal writes the sized claim and re-pins the instance", %{
+      conn: conn,
+      user: user,
+      server: server,
+      proposal: proposal
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = lv |> element("button", "Apply proposal") |> render_click()
+
+      assert html =~ "Kura disk claim raised to 16Gi"
+      assert Kura.sized_storage_claim(user.account) == "16Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
+      assert Repo.get!(ClaimProposal, proposal.id).status == :applied
+      refute has_element?(lv, "button", "Apply proposal")
+    end
+
+    test "dismissing the proposal leaves the claim alone", %{
+      conn: conn,
+      user: user,
+      server: server,
+      proposal: proposal
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv |> element("button", "Dismiss") |> render_click()
+
+      assert Kura.sized_storage_claim(user.account) == nil
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+      assert Repo.get!(ClaimProposal, proposal.id).status == :dismissed
+      refute has_element?(lv, "button", "Dismiss")
     end
   end
 end

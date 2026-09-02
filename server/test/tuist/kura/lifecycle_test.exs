@@ -12,6 +12,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -28,7 +29,10 @@ defmodule Tuist.Kura.LifecycleTest do
   # reserves its plan's claim twice.
   @replicas 2
   @air_resident_gib 8 * @replicas
-  @pro_resident_gib 30 * @replicas
+  # What a Pro instance holds once sizing has grown it. Plans no longer start
+  # apart, so a footprint that differs from Air's is one sizing produced.
+  @grown_pro_gib 32
+  @pro_resident_gib @grown_pro_gib * @replicas
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
   @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
@@ -100,7 +104,12 @@ defmodule Tuist.Kura.LifecycleTest do
   # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
     inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
-    %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+
+    claim_size =
+      Keyword.get_lazy(opts, :claim_size, fn ->
+        %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+        claim_size
+      end)
 
     %Server{
       account_id: account.id,
@@ -376,12 +385,12 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "counts what each unconditional archival actually frees" do
       # A Pro instance past the full window is archived regardless, and it frees
-      # its own 60Gi rather than an Air instance's 48Gi. The region lands exactly
-      # on its line once that room is counted, so no Air instance is pressured.
-      # Counted at a uniform per-instance figure it would land 12Gi over and take
-      # one.
+      # what it actually holds — 64Gi for one sizing has grown — rather than an
+      # Air instance's 16Gi. The region lands exactly on its line once that room
+      # is counted, so no Air instance is pressured. Counted at a uniform
+      # per-instance figure it would land 48Gi over and take three.
       pro = account(plan: :pro, region: :usa)
-      pro_server = active_instance(pro)
+      pro_server = active_instance(pro, claim_size: "#{@grown_pro_gib}Gi")
       with_demand(pro, 200)
 
       air =
@@ -392,9 +401,9 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 730Gi reserved against a 670Gi line: 60Gi over, exactly what the Pro
-      # instance holds across its two replicas.
-      stub_region_pods(List.duplicate(reserved_pod(10), 73))
+      # 734Gi reserved against a 670Gi line: 64Gi over, exactly what the grown
+      # Pro instance holds across its two replicas.
+      stub_region_pods([reserved_pod(4) | List.duplicate(reserved_pod(10), 73)])
 
       assert :ok = Lifecycle.sweep()
 
@@ -575,7 +584,7 @@ defmodule Tuist.Kura.LifecycleTest do
       stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account(plan: :pro, region: :usa)
-      server = active_instance(account)
+      server = active_instance(account, claim_size: "#{@grown_pro_gib}Gi")
       start_drain(account, server)
       elapse_drain(account)
 
@@ -1002,6 +1011,246 @@ defmodule Tuist.Kura.LifecycleTest do
         "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
       }
     }
+  end
+
+  describe "placement retirements" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      :ok
+    end
+
+    test "the reconciler tick drains a region placement is leaving" do
+      # On the reconciler's cadence rather than the archival sweep's: what it
+      # waits for is the destination coming up, which happens on that cadence.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile()
+
+      assert reload(source).status == :drain_pending
+    end
+
+    test "drains a region placement is leaving once somewhere else is serving" do
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :drain_pending
+      assert reload(destination).status == :active
+    end
+
+    test "does not count a private runner cache as somewhere else serving" do
+      # A runner cache is in-cluster and never CLI-facing. Draining against it
+      # would take the account's only developer-facing cache away and leave
+      # every machine on the fallback lane.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _runner_cache = active_instance_in(account, "scw-fr-par-runners")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "carries a retirement through for a region that never had a demand row" do
+      # The drain resolution reaches an instance by joining its lifecycle row,
+      # so one without a row would go into drain-pending and never be looked at
+      # again — holding its volume and its slot forever.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      refute reload_lifecycle(account)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :drain_pending
+      assert reload_lifecycle(account)
+
+      rewind_drain(account, Kura.placement_drain_seconds() + 60)
+      Lifecycle.reconcile()
+
+      assert reload_lifecycle(account).teardown_started_at
+    end
+
+    test "waits while the account is served from nowhere else" do
+      # Taking the only instance would be an outage rather than a move. The
+      # destination is provisioned by the ordinary demand path first.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "waits while the destination is still coming up" do
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      destination = active_instance_in(account, "eu-central")
+      {:ok, _provisioning} = Kura.record_observation(destination, %{status: :replicating, current_image_tag: @image_tag})
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "carries an Enterprise retirement through rather than cancelling it" do
+      # Enterprise is never archived for inactivity, so the drain resolution
+      # cancels any drain it finds on one. A placement retirement is not that
+      # drain: it left this region because its traffic no longer earns a slot
+      # here, which the inactivity rules get no say in.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      assert reload(source).status == :drain_pending
+
+      Lifecycle.reconcile()
+
+      assert reload(source).status == :drain_pending
+      assert reload_lifecycle(account).drain_started_at
+    end
+
+    test "keeps a retired instance serving until every cached endpoint answer has expired" do
+      # Unpublishing stops new resolutions returning it, but a client that
+      # resolved an hour ago still holds it and keeps building against it. A
+      # relocation happens while the account is building, so the ordinary
+      # margin would tear the instance down under live builds.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      # Past the ordinary drain, still inside the endpoint's freshness.
+      rewind_drain(account, Kura.drain_seconds() + 60)
+
+      Lifecycle.reconcile()
+
+      refute reload_lifecycle(account).teardown_started_at
+      assert reload(source).status == :drain_pending
+    end
+
+    test "tears the retired instance down once its drain window has elapsed" do
+      account = account(plan: :enterprise)
+      _source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      rewind_drain(account, Kura.placement_drain_seconds() + 60)
+
+      Lifecycle.reconcile()
+
+      assert reload_lifecycle(account).teardown_started_at
+    end
+
+    test "drops the placement row once the instance is gone, freeing the region" do
+      account = account(plan: :enterprise)
+      _destination = active_instance_in(account, "eu-central")
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert PlacerRegions.claimed_regions(account) == ["eu-central"]
+    end
+  end
+
+  describe "provisioning across the regions placement chose" do
+    test "provisions every region the account is served from, not just the primary" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-central"] end)
+      stub_region_nodes([{@region, [@node_allocatable_bytes]}, {"eu-central", [@node_allocatable_bytes]}])
+
+      account = account(plan: :enterprise)
+      {:ok, _primary} = PlacerRegions.put_primary(account, @region)
+      {:ok, _secondary} = PlacerRegions.put_secondary(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _} = Demand.upsert(account.id, "eu-central", ago(0))
+
+      Lifecycle.reconcile()
+
+      assert account |> servers_for() |> Enum.map(& &1.region) |> Enum.sort() == ["eu-central", @region]
+    end
+
+    test "does not provision a region placement has left" do
+      # A retiring region keeps its lifecycle row until the drain finishes, and
+      # provisioning from it would rebuild exactly what the retirement removes.
+      account = account(plan: :enterprise)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+      with_demand(account, 0)
+
+      Lifecycle.reconcile()
+
+      assert servers_for(account) == []
+    end
+  end
+
+  # Rewinds the drain clock by an arbitrary number of seconds, for the windows
+  # that are not the ordinary one.
+  defp rewind_drain(account, seconds) do
+    started_at =
+      DateTime.utc_now()
+      |> DateTime.add(-seconds, :second)
+      |> DateTime.truncate(:second)
+
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{drain_started_at: started_at})
+    |> Repo.update!()
+  end
+
+  defp active_instance_in(account, region) do
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: region,
+      status: :active,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: @image_tag,
+      provisioner_node_ref: "kura-#{account.id}-#{region}",
+      storage_claim_size: "8Gi"
+    })
   end
 
   defp stub_region_nodes(nodes_by_region) do

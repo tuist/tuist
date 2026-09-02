@@ -305,9 +305,13 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 
 	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
-	// re-applied each reconcile so a kubelet re-register can't strand it.
-	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
-		return ctrl.Result{}, err
+	// re-applied each reconcile so a kubelet re-register can't strand it. A zero
+	// budget leaves the node alone here: the helper would withdraw the capacity,
+	// which only the OVH kind opts into.
+	if machine.Spec.EgressBudgetMbps > 0 {
+		if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Same idea for memory: cache pods run with a ceiling above their floor, so

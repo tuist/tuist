@@ -443,6 +443,42 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `plugin stores a Gradle configuration cache entry`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello")
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--configuration-cache")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":hello")?.outcome)
+        assertTrue(
+            result.output.contains("Configuration cache entry stored"),
+            "Gradle did not store a configuration cache entry:\n${result.output}"
+        )
+
+    }
+
+    @Test
     fun `plugin logs message when build cache is configured`() {
         settingsFile.writeText("""
             plugins {

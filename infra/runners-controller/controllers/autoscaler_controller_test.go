@@ -567,8 +567,8 @@ func macosNodeWithGuests(name, fleetSelector string, guests int64) *corev1.Node 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				macosFleetLabel:  fleetSelector,
-				macosNodeOSLabel: macosNodeOSDarwin,
+				macosFleetLabel: fleetSelector,
+				nodeOSLabel:     macosNodeOSDarwin,
 			},
 		},
 		Status: corev1.NodeStatus{
@@ -920,5 +920,101 @@ func TestAutoscaler_PerPodCostCountsRuntimeClassOverheadOnZeroRequest(t *testing
 	}
 	if want := int64(256 * 1024 * 1024); cost != want {
 		t.Fatalf("perPodCost = %d, want the RuntimeClass overhead %d", cost, want)
+	}
+}
+
+// macosNodeWithResources is a Mac mini advertising both dimensions, as
+// tart-kubelet does (hostCPU / hostMemoryMB verbatim, no reserve). The
+// memory-only helper above predates the shape cap, which needs CPU too.
+func macosNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	node := macosNodeWithGuests(name, fleetSelector, 1)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+	}
+	return node
+}
+
+// The production topology: 9 M2-L (8 CPU / 14336 MB) + 2 M4-XL
+// (12 CPU / 28672 MB). The 6 vCPU shape seats 13, the 12 vCPU shape
+// seats 2 — and the second number is the one no fleet-wide division can
+// produce, since 186368 MB / 28672 reads as 6.
+func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
+	const fleet = "runners-macos"
+
+	objects := []client.Object{}
+	for i := 0; i < 9; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m2-%d", i), fleet, 8, 14336))
+	}
+	for i := 0; i < 2; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m4-%d", i), fleet, 12, 28672))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	small := podShape{cpuMilli: 6000, memoryMB: 14336}
+	large := podShape{cpuMilli: 12000, memoryMB: 28672}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small,
+		large.key(): large,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 13 {
+		t.Fatalf("6 vCPU seats = %d, want 13 (9 M2-L at one + 2 M4-XL at two)", got)
+	}
+	if got := caps[large.key()]; got != 2 {
+		t.Fatalf("12 vCPU seats = %d, want 2 (M4-XL only, one guest each)", got)
+	}
+}
+
+// CPU binds a shape whose memory-per-vCPU is richer than its host's.
+// Dividing advertised memory alone would report four seats on a host
+// whose twelve cores can only run two.
+func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
+	const fleet = "runners-macos"
+	node := macosNodeWithResources("m4", fleet, 12, 57344)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 6000, memoryMB: 14336}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if got := caps[shape.key()]; got != 2 {
+		t.Fatalf("seats = %d, want 2 (12 cores / 6), not the 4 that 57344/14336 would suggest", got)
+	}
+}
+
+// Linux opts out: kata pins memory per sandbox and oversubscribes CPU,
+// so a CPU quotient would cap a fleet that is not CPU-bound.
+func TestAutoscaler_ShapePlacementCapsSkipLinux(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 2000, memoryMB: 8192}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if caps != nil {
+		t.Fatalf("Linux must not be capped, got %v", caps)
 	}
 }

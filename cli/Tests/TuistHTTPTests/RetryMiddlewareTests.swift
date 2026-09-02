@@ -46,6 +46,70 @@ struct RetryMiddlewareTests {
         #expect(callCount == 2)
     }
 
+    @Test func does_not_retry_a_throttled_authorization_denial() async throws {
+        let subject = RetryMiddleware(maxRetries: 3)
+        var callCount = 0
+
+        await #expect(throws: AuthorizationThrottledError(retryAfterSeconds: 30)) {
+            try await subject.intercept(
+                HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+                body: nil,
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "test-op"
+            ) { _, _, _ in
+                callCount += 1
+                var response = HTTPResponse(status: 429)
+                response.headerFields[HTTPField.Name("x-tuist-throttle-reason")!] = "authorization"
+                response.headerFields[HTTPField.Name("Retry-After")!] = "30"
+                return (response, nil)
+            }
+        }
+
+        #expect(callCount == 1)
+    }
+
+    @Test func retries_a_throttled_response_without_an_authorization_reason() async throws {
+        let subject = RetryMiddleware(maxRetries: 2, baseDelayMilliseconds: 0)
+        var callCount = 0
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+            body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "test-op"
+        ) { _, _, _ in
+            callCount += 1
+            if callCount == 1 {
+                return (HTTPResponse(status: 429), nil)
+            }
+            return (HTTPResponse(status: 200), nil)
+        }
+
+        #expect(response.status.code == 200)
+        #expect(callCount == 2)
+    }
+
+    @Test func does_not_retry_a_throttled_authorization_denial_outside_the_method_allowlist() async throws {
+        let subject = RetryMiddleware(maxRetries: 3, retryableRequestMethods: ["GET"])
+        var callCount = 0
+
+        await #expect(throws: AuthorizationThrottledError(retryAfterSeconds: nil)) {
+            try await subject.intercept(
+                HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"),
+                body: HTTPBody(Data("body".utf8)),
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "test-op"
+            ) { _, _, _ in
+                callCount += 1
+                var response = HTTPResponse(status: 429)
+                response.headerFields[HTTPField.Name("x-tuist-throttle-reason")!] = "authorization"
+                return (response, nil)
+            }
+        }
+
+        #expect(callCount == 1)
+    }
+
     @Test(arguments: [400, 401, 403, 404, 422])
     func does_not_retry_on_non_retryable_status_code(statusCode: Int) async throws {
         let subject = RetryMiddleware(maxRetries: 3)

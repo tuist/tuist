@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -64,6 +65,60 @@ defmodule TuistWeb.API.GradleController do
              nullable: true,
              description: "The tasks requested by the user (e.g., assembleRelease)."
            },
+           configuration_cache: %Schema{
+             type: :object,
+             nullable: true,
+             description: "Configuration cache status and invalidation diagnostics.",
+             properties: %{
+               status: %Schema{type: :string},
+               entry_size: %Schema{type: :integer, nullable: true},
+               load_duration_ms: %Schema{type: :integer, nullable: true},
+               invalidation_reasons: %Schema{type: :array, items: %Schema{type: :string}}
+             },
+             required: [:status]
+           },
+           configuration_operations: %Schema{
+             type: :array,
+             nullable: true,
+             description: "Settings, build, and project configuration operations.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 phase: %Schema{type: :string, enum: ["build", "settings", "project"]},
+                 build_path: %Schema{type: :string},
+                 project_path: %Schema{type: :string, nullable: true},
+                 duration_ms: %Schema{type: :integer},
+                 started_at: %Schema{type: :string, format: :"date-time"}
+               },
+               required: [:phase, :build_path, :duration_ms, :started_at]
+             }
+           },
+           artifact_transforms: %Schema{
+             type: :array,
+             nullable: true,
+             description: "Artifact transforms executed while resolving dependencies.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 transformer_name: %Schema{type: :string},
+                 transform_action_class: %Schema{type: :string},
+                 subject_name: %Schema{type: :string},
+                 artifact_name: %Schema{type: :string},
+                 consumer_project_path: %Schema{type: :string},
+                 duration_ms: %Schema{type: :integer},
+                 started_at: %Schema{type: :string, format: :"date-time"}
+               },
+               required: [
+                 :transformer_name,
+                 :transform_action_class,
+                 :subject_name,
+                 :artifact_name,
+                 :consumer_project_path,
+                 :duration_ms,
+                 :started_at
+               ]
+             }
+           },
            tasks: %Schema{
              type: :array,
              items: %Schema{
@@ -83,6 +138,16 @@ defmodule TuistWeb.API.GradleController do
                    type: :integer,
                    nullable: true,
                    description: "Size of cache artifact in bytes."
+                 },
+                 remote_cache_miss: %Schema{
+                   type: :boolean,
+                   nullable: true,
+                   description: "Whether the remote cache was checked and did not contain the task output."
+                 },
+                 remote_cache_stored: %Schema{
+                   type: :boolean,
+                   nullable: true,
+                   description: "Whether this build wrote the task output to the remote cache."
                  },
                  started_at: %Schema{
                    type: :string,
@@ -135,7 +200,8 @@ defmodule TuistWeb.API.GradleController do
            required: [:id]
          }},
       bad_request: {"Invalid request", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -150,6 +216,8 @@ defmodule TuistWeb.API.GradleController do
           duration_ms: task[:duration_ms] || 0,
           cache_key: task[:cache_key],
           cache_artifact_size: task[:cache_artifact_size],
+          remote_cache_miss: task[:remote_cache_miss] || false,
+          remote_cache_stored: task[:remote_cache_stored],
           started_at: task[:started_at]
         }
       end)
@@ -168,6 +236,9 @@ defmodule TuistWeb.API.GradleController do
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
       requested_tasks: body[:requested_tasks] || [],
+      configuration_cache: body[:configuration_cache],
+      configuration_operations: body[:configuration_operations] || [],
+      artifact_transforms: body[:artifact_transforms] || [],
       tasks: tasks,
       machine_metrics: Map.get(body, :machine_metrics, [])
     }
@@ -259,6 +330,10 @@ defmodule TuistWeb.API.GradleController do
                    git_commit_sha: %Schema{type: :string, nullable: true},
                    root_project_name: %Schema{type: :string, nullable: true},
                    requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
+                   configuration_cache_status: %Schema{type: :string, nullable: true},
+                   configuration_cache_entry_size: %Schema{type: :integer, nullable: true},
+                   configuration_cache_load_duration_ms: %Schema{type: :integer, nullable: true},
+                   configuration_cache_invalidation_reasons: %Schema{type: :array, items: %Schema{type: :string}},
                    tasks_local_hit_count: %Schema{type: :integer},
                    tasks_remote_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
@@ -273,7 +348,8 @@ defmodule TuistWeb.API.GradleController do
            },
            required: [:builds, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -320,6 +396,10 @@ defmodule TuistWeb.API.GradleController do
             git_commit_sha: build.git_commit_sha,
             root_project_name: build.root_project_name,
             requested_tasks: build.requested_tasks,
+            configuration_cache_status: build.configuration_cache_status,
+            configuration_cache_entry_size: build.configuration_cache_entry_size,
+            configuration_cache_load_duration_ms: build.configuration_cache_load_duration_ms,
+            configuration_cache_invalidation_reasons: build.configuration_cache_invalidation_reasons,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -380,6 +460,12 @@ defmodule TuistWeb.API.GradleController do
              git_ref: %Schema{type: :string, nullable: true},
              root_project_name: %Schema{type: :string, nullable: true},
              requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
+             configuration_cache_status: %Schema{type: :string, nullable: true},
+             configuration_cache_entry_size: %Schema{type: :integer, nullable: true},
+             configuration_cache_load_duration_ms: %Schema{type: :integer, nullable: true},
+             configuration_cache_invalidation_reasons: %Schema{type: :array, items: %Schema{type: :string}},
+             configuration_operations: %Schema{type: :array, items: %Schema{type: :object}},
+             artifact_transforms: %Schema{type: :array, items: %Schema{type: :object}},
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
@@ -402,6 +488,8 @@ defmodule TuistWeb.API.GradleController do
                    duration_ms: %Schema{type: :integer},
                    cache_key: %Schema{type: :string, nullable: true},
                    cache_artifact_size: %Schema{type: :integer, nullable: true},
+                   remote_cache_miss: %Schema{type: :boolean},
+                   remote_cache_stored: %Schema{type: :boolean, nullable: true},
                    started_at: %Schema{type: :string, format: :"date-time", nullable: true}
                  }
                }
@@ -409,7 +497,8 @@ defmodule TuistWeb.API.GradleController do
            }
          }},
       not_found: {"Build not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -423,6 +512,8 @@ defmodule TuistWeb.API.GradleController do
       {:ok, build} ->
         if build.project_id == project.id do
           tasks = Gradle.list_tasks(build_id)
+          configuration_operations = Gradle.list_configuration_operations(build_id)
+          artifact_transforms = Gradle.list_artifact_transforms(build_id)
 
           json(conn, %{
             id: build.id,
@@ -436,6 +527,32 @@ defmodule TuistWeb.API.GradleController do
             git_ref: build.git_ref,
             root_project_name: build.root_project_name,
             requested_tasks: build.requested_tasks,
+            configuration_cache_status: build.configuration_cache_status,
+            configuration_cache_entry_size: build.configuration_cache_entry_size,
+            configuration_cache_load_duration_ms: build.configuration_cache_load_duration_ms,
+            configuration_cache_invalidation_reasons: build.configuration_cache_invalidation_reasons,
+            configuration_operations:
+              Enum.map(configuration_operations, fn operation ->
+                %{
+                  phase: operation.phase,
+                  build_path: operation.build_path,
+                  project_path: operation.project_path,
+                  duration_ms: operation.duration_ms,
+                  started_at: operation.started_at
+                }
+              end),
+            artifact_transforms:
+              Enum.map(artifact_transforms, fn transform ->
+                %{
+                  transformer_name: transform.transformer_name,
+                  transform_action_class: transform.transform_action_class,
+                  subject_name: transform.subject_name,
+                  artifact_name: transform.artifact_name,
+                  consumer_project_path: transform.consumer_project_path,
+                  duration_ms: transform.duration_ms,
+                  started_at: transform.started_at
+                }
+              end),
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -456,6 +573,8 @@ defmodule TuistWeb.API.GradleController do
                   duration_ms: task.duration_ms,
                   cache_key: task.cache_key,
                   cache_artifact_size: task.cache_artifact_size,
+                  remote_cache_miss: task.remote_cache_miss,
+                  remote_cache_stored: task.remote_cache_stored,
                   started_at: task.started_at
                 }
               end)

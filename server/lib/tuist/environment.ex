@@ -329,6 +329,71 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether this process is the deployment that owns the Kura control
+  plane. Booting in web mode is not proof: an ops eval Job boots the
+  application with the server's envFrom secrets but not its manifest env
+  list, and its reconcile would read the secrets-blob runtime-tag
+  fallback (a stale blob tag superseded a live rollout on staging that
+  way). The helm-injected env var is the discriminator that fails safe:
+  only the server Deployment's manifest carries it.
+  """
+  def kura_control_plane? do
+    case System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") do
+      tag when is_binary(tag) and tag != "" -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Account handles of the Tuist-owned accounts that make up wave 0 (the
+  canary) of a progressive Kura runtime rollout. Comma-separated in
+  `TUIST_KURA_CANARY_ACCOUNT_HANDLES`; matching is case-insensitive.
+  """
+  def kura_canary_account_handles do
+    "TUIST_KURA_CANARY_ACCOUNT_HANDLES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Per-environment override of the rollout pacing default ("progressive"
+  or "expedited"). Unset, production paces progressively and every other
+  environment fans out expedited. Exists for the staging drills that
+  exercise progressive mode through real releases before production
+  enablement (spec #79 rollout plan).
+  """
+  def kura_rollout_pacing do
+    case System.get_env("TUIST_KURA_ROLLOUT_PACING") do
+      value when value in ["progressive", "expedited"] -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Image tag the deploy explicitly asked to expedite (the deployment-input
+  form of the expedite verb, used for rollbacks to a proven tag). Only a
+  rollout created for exactly this tag starts expedited, so the value
+  cannot leak onto a later unrelated rollout.
+  """
+  def kura_rollout_expedite_tag do
+    case System.get_env("TUIST_KURA_ROLLOUT_EXPEDITE_TAG") do
+      nil -> nil
+      value -> with "" <- String.trim(value), do: nil
+    end
+  end
+
+  @doc """
+  Webhook URL for best-effort internal ops notifications (Kura rollout
+  lifecycle). Context only — Grafana owns paging — so an unset value
+  disables the notifications rather than failing anything.
+  """
+  def ops_slack_webhook_url(secrets \\ secrets()) do
+    System.get_env("TUIST_OPS_SLACK_WEBHOOK_URL") || get([:ops, :slack_webhook_url], secrets)
+  end
+
+  @doc """
   The public peer failover IP for a bare-metal region, or `nil` when none is
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from
@@ -377,6 +442,48 @@ defmodule Tuist.Environment do
 
   def kura_air_region(storage_region) when storage_region in [:all, :usa],
     do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
+
+  @doc """
+  Every region with an Air budget, which is the set Air placement chooses
+  from. Air in a region costs a storage slot on a tier that pays for none, so
+  a region serves Air only once someone funds it; an account whose residency
+  admits no funded region is refused, and the refusal is what quantifies the
+  case for funding one.
+
+  `TUIST_KURA_AIR_REGIONS` names the set. Without it the set is whatever the
+  single-region variables name, so a deployment that has configured neither
+  keeps serving Air exactly where it does today.
+  """
+  def kura_air_region_ids do
+    case System.get_env("TUIST_KURA_AIR_REGIONS") do
+      value when value in [nil, ""] ->
+        Enum.reject([kura_air_region(:all), kura_air_region(:europe)], &is_nil/1)
+
+      value ->
+        value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  @doc """
+  How many placement proposals the sweep may apply on its own in a day.
+
+  Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,
+  so placement proposes and an operator applies until someone decides
+  otherwise. A placement transition costs a region's worth of cache refill,
+  which is why this starts stopped where claim sizing does not.
+  """
+  def kura_placement_automatic_applies_per_day do
+    case System.get_env("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY") do
+      value when value in [nil, ""] ->
+        0
+
+      value ->
+        case Integer.parse(value) do
+          {count, _rest} when count >= 0 -> count
+          _ -> 0
+        end
+    end
+  end
 
   defp air_region_env(variable, default) do
     case System.get_env(variable) do
@@ -553,10 +660,6 @@ defmodule Tuist.Environment do
       _ ->
         nil
     end
-  end
-
-  def plain_authentication_secret(secrets \\ secrets()) do
-    get([:plain, :authentication_secret], secrets)
   end
 
   def database_pool_size(secrets \\ secrets()) do
@@ -1436,6 +1539,25 @@ defmodule Tuist.Environment do
     case get([:mcp_rate_limit, :bucket_size], secrets) do
       bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
       _ -> if can?(), do: 600, else: 120
+    end
+  end
+
+  @doc """
+  Returns the bucket size for the API authorization denial rate limiter.
+
+  Only denied requests are counted, so this bounds how many rejections a single
+  subject can draw in a minute. In production, ordinary traffic peaks around 20
+  denials a minute per subject while an unauthorized cache fan-out runs into the
+  thousands.
+
+  This can be overridden via:
+  - Environment variable: TUIST_AUTHORIZATION_DENIAL_RATE_LIMIT_BUCKET_SIZE
+  - Secrets configuration: authorization_denial_rate_limit.bucket_size
+  """
+  def authorization_denial_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:authorization_denial_rate_limit, :bucket_size], secrets, default_value: 300) do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
     end
   end
 

@@ -12,10 +12,14 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   @robots_txt_header [
     "User-agent: *",
-    "Content-Signal: ai-train=no, search=no, ai-input=no",
+    "# Anything a crawler is allowed to reach here is public content we are happy",
+    "# to have trained on, quoted, and indexed.",
+    "Content-Signal: ai-train=yes, search=yes, ai-input=yes",
     "",
-    "# Keep the coarse site-wide signal restrictive, then opt public docs and",
-    "# marketing content back in with path-specific Content-Usage rules.",
+    "# Content-Usage is a separate vocabulary with no equivalent of the Disallow",
+    "# list, so it stays closed by default and names the public paths explicitly.",
+    "# It draws the same public/private line as the Disallow rules below: private",
+    "# dashboard and account data is out regardless of our stance on training.",
     "Content-Usage: train-ai=n, search=n"
   ]
   @wildcard_segment "*"
@@ -26,7 +30,8 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     [
       @robots_txt_header,
       Enum.map(content_usage_entries(route_infos), &content_usage_line/1),
-      disallow_lines(disallow_patterns(route_infos))
+      disallow_lines(disallow_patterns(route_infos)),
+      discovery_lines()
     ]
     |> List.flatten()
     |> Enum.join("\n")
@@ -344,6 +349,10 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   defp disallow_lines(patterns) do
     [""] ++ Enum.map(patterns, &"Disallow: #{&1}")
+  end
+
+  defp discovery_lines do
+    ["", "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"]
   end
 
   defp robots_txt_setting(metadata) do

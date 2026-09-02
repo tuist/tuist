@@ -15,62 +15,59 @@ defmodule TuistWeb.LayoutComponents do
     """
   end
 
-  attr(:current_user, :map, default: nil)
-
-  def head_plain_script(assigns) do
-    current_user = Map.get(assigns, :current_user)
-    plain_authentication_secret = Tuist.Environment.plain_authentication_secret()
-
-    plain_opts =
-      Map.merge(
-        %{appId: "liveChatApp_01JSH0MMH3KHE7PX1781CV2HZG"},
-        if(is_nil(current_user) or is_nil(plain_authentication_secret),
-          do: %{},
-          else: %{
-            customerDetails: %{
-              email: current_user.email,
-              emailHash:
-                :hmac
-                |> :crypto.mac(:sha256, plain_authentication_secret, current_user.email)
-                |> Base.encode16(case: :lower),
-              chatAvatarUrl: Tuist.Accounts.User.gravatar_url(current_user)
-            }
-          }
-        )
-      )
-
-    assigns = assign(assigns, :plain_opts, plain_opts)
-
+  def head_support_chat_script(assigns) do
     ~H"""
     <script
-      :if={Tuist.Environment.analytics_enabled?() and not Map.get(assigns, :plain_disabled?, false)}
+      :if={!Map.get(assigns, :support_chat_disabled?, false)}
+      defer
       nonce={get_csp_nonce()}
+      src={
+        URI.parse("https://atlas.tuist.dev")
+        |> URI.append_path("/support/chat.js")
+        |> URI.to_string()
+      }
     >
-      (function(d, script) {
-        script = d.createElement('script');
-        script.async = false;
-        script.onload = function(){
-          Plain.init(<%= raw JSON.encode!(@plain_opts) %>);
-        };
-        script.src = 'https://chat.cdn-plain.com/index.js';
-        d.getElementsByTagName('head')[0].appendChild(script);
-      }(document));
     </script>
     """
   end
 
+  defp default_description do
+    dgettext(
+      "dashboard",
+      "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
+    )
+  end
+
   def head_meta_meta_tags(assigns) do
     ~H"""
-    <% default_description =
-      dgettext("dashboard", "Tuist extends Apple's tools, helping you ship apps that stand out.") %>
-    <meta name="description" content={assigns[:head_description] || default_description} />
+    <meta name="description" content={assigns[:head_description] || default_description()} />
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
     <meta property="og:url" content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={assigns[:head_og_type] || "website"} />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
-    <meta property="og:description" content={assigns[:head_description] || default_description} />
+    <meta property="og:description" content={assigns[:head_description] || default_description()} />
+    <meta
+      :if={not is_nil(assigns[:head_site_name])}
+      property="og:site_name"
+      content={assigns[:head_site_name]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_published_time])}
+      property="article:published_time"
+      content={assigns[:head_published_time]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_modified_time])}
+      property="article:modified_time"
+      content={assigns[:head_modified_time]}
+    />
+    <meta
+      :if={not is_nil(assigns[:head_article_author])}
+      property="article:author"
+      content={assigns[:head_article_author]}
+    />
     <meta
       :if={not is_nil(assigns[:head_fediverse_creator])}
       name="fediverse:creator"
@@ -111,11 +108,15 @@ defmodule TuistWeb.LayoutComponents do
       <meta name="twitter:image" content={assigns[:head_image]} />
     <% end %>
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
+    <meta name="twitter:description" content={assigns[:head_description] || default_description()} />
     <meta
       property="twitter:domain"
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
     />
-    <meta property="twitter:url" content={Tuist.Environment.app_url()} />
+    <meta
+      property="twitter:url"
+      content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")}
+    />
     """
   end
 

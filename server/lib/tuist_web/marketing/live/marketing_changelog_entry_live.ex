@@ -34,7 +34,15 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)
-     |> assign_structured_data(get_changelog_entry_structured_data(entry))}
+     |> assign_article_head_meta(published_at: entry.date)
+     |> put_structured_data([
+       get_changelog_entry_structured_data(entry),
+       get_breadcrumbs_structured_data([
+         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+         {dgettext("marketing", "Changelog"), Tuist.Environment.app_url(path: ~p"/changelog")},
+         {entry.title, Tuist.Environment.app_url(path: "/changelog/#{entry.id}")}
+       ])
+     ])}
   end
 
   defp changelog_entry_head_image(entry, date) do

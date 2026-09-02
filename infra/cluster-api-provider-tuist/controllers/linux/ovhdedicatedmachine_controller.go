@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,12 @@ type OVHDedicatedMachineReconciler struct {
 	CredentialsManager *credentials.Manager
 	Kubeconfig         *kubeconfig.Builder
 
+	// adoptMu serializes the claim window across the controller's concurrent
+	// workers (see --machine-max-concurrent-reconciles). Leader election means
+	// one manager reconciles at a time, so a process-local lock is the whole
+	// mutual exclusion this needs.
+	adoptMu sync.Mutex
+
 	// KubernetesMinor is the pkgs.k8s.io channel the self-join installs kubelet
 	// from (e.g. "v1.34"); keep in step with the control plane.
 	KubernetesMinor string
@@ -144,10 +151,10 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	return r.reconcileNormal(ctx, machine)
+	return r.reconcileNormal(ctx, machine, patchHelper)
 }
 
-func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine) (ctrl.Result, error) {
+func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, patchHelper *patch.Helper) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	datacenter := firstNonEmpty(machine.Spec.Datacenter, r.DefaultDatacenter)
 
@@ -166,6 +173,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		// Adopt: claim a free pre-ordered box not already held by a sibling CR.
 		if machine.Status.ServiceName == "" {
+			// A claim only becomes visible to siblings once its status patch
+			// lands, so the read-pick-persist window has to be atomic: two
+			// workers that both list before either writes will pick the same
+			// box, bootstrap it twice, and leave two Nodes sharing one
+			// providerID, which wedges the CAPI node lookup for both.
+			r.adoptMu.Lock()
+			defer r.adoptMu.Unlock()
+
 			claimed, claimErr := r.claimedServiceNames(ctx, machine)
 			if claimErr != nil {
 				return ctrl.Result{}, claimErr
@@ -191,12 +206,15 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted OVH server %s in %s", server.Name, datacenter)
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
-			// Persist the claim before the long bootstrap that follows (mint
-			// identity, SSH self-join): a crash or leader failover before the
-			// deferred status patch would drop the in-memory claim and let a sibling
-			// Machine adopt the same box. Requeue so the deferred patch flushes
-			// Status.ServiceName now; the next reconcile resumes from the durable
-			// claim (re-fetching the box via GetServer).
+			// Persist inside the lock: the deferred patch flushes only after the
+			// lock is released, which would reopen the window it exists to close.
+			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.Name, patchErr)
+			}
+			// Requeue rather than bootstrapping inline: the next reconcile
+			// resumes from the now-durable claim (re-fetching the box via
+			// GetServer), so a crash or leader failover during the long
+			// bootstrap that follows never drops the claim.
 			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 
@@ -233,17 +251,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if pwErr != nil {
 			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
 		}
-		script := renderLinuxBootstrapScript(linuxCloudInitOptions{
-			NodeName:       machine.Name,
-			KubeconfigYAML: kubeconfigYAML,
-			ClusterCAPEM:   identity.CA,
-			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
-			Taints:         machine.Spec.NodeTaints,
-			BootstrapUser:  ovhBootstrapUser,
-			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
-			InstanceType:   ovhInstanceType,
-			SudoPassword:   sudoPassword,
-		})
+		opts := r.hostOptions(machine)
+		opts.KubeconfigYAML = kubeconfigYAML
+		opts.ClusterCAPEM = identity.CA
+		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
+		opts.SudoPassword = sudoPassword
+		script := renderLinuxBootstrapScript(opts)
 
 		machine.Status.Phase = "Bootstrapping"
 		// TOFU host-key pinning: persist the fingerprint observed on the first
@@ -312,7 +325,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
 	// re-applied each reconcile so a kubelet re-register can't strand it.
-	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+	if err := r.reconcileNodeEgress(ctx, machine, node); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -336,11 +349,40 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kataErr != nil {
+				logger.Error(kataErr, "kata runtime repair failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
 	machine.Status.Phase = "Bootstrapping"
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+}
+
+// hostOptions is the host shape both the first bootstrap and the in-place repair
+// paths render from. They share one builder deliberately: the repair can only
+// converge a node onto a capability it knows the machine asked for, so a future
+// bootstrap-time field added to the render must land in both — and here it does
+// so by construction rather than by remembering to update two call sites.
+func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
+	return linuxCloudInitOptions{
+		NodeName:      machine.Name,
+		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
+		Taints:        machine.Spec.NodeTaints,
+		KataRuntime:   machine.Spec.KataRuntime,
+		BootstrapUser: ovhBootstrapUser,
+		InstanceType:  ovhInstanceType,
+	}
+}
+
+func (r *OVHDedicatedMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
 }
 
 // claimedServiceNames is the set of OVH service names already held by other
@@ -350,7 +392,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 // claim marker the way Scaleway names do.
 func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context, self *infrav1.OVHDedicatedMachine) (map[string]bool, error) {
 	list := &infrav1.OVHDedicatedMachineList{}
-	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+	// Uncached: the informer cache lags its own writes by long enough that a
+	// sibling that already claimed a box still reads as unclaimed, which is a
+	// double-claim rather than a stale view a later reconcile repairs.
+	if err := r.reader().List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
 		return nil, fmt.Errorf("list OVHDedicatedMachines: %w", err)
 	}
 	claimed := make(map[string]bool, len(list.Items))
@@ -417,6 +462,8 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
 		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
+	shared.ForgetEgressMetrics(machine.Name)
+	forgetKataRuntimeMetric(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }
@@ -441,7 +488,13 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     machine.Name,
-		SSHKey:       string(ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
+		// newline, and OVH reads that trailing byte as a second, empty key:
+		// "only 1 single SSH key can be provided". That 400 is returned on every
+		// retry, so the release wedges the Machine in Deleting forever and the box
+		// is never returned to the pool. The adopt path never hit it because prep
+		// passes the key read straight from 1Password, which carries no newline.
+		SSHKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))),
 	})
 }
 

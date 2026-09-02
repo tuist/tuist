@@ -68,9 +68,16 @@ defmodule Tuist.Runners.Allowance do
   for.
   """
   def exhausted?(%Account{} = account) do
-    case Billing.effective_plan(account) do
-      :air -> minutes_used(account) >= free_monthly_minutes()
-      _plan -> false
+    cond do
+      # A runner trial is precisely "uses runners without being billed for
+      # them", so the free-tier cut-off cannot apply to it. A trial account has
+      # no subscription, so `effective_plan/1` reports `:air` and it would
+      # otherwise be cut off at the baseline — leaving the account on a trial
+      # that does not let it run runners. The trial is what makes the usage
+      # unbillable; nothing else has to hold it back.
+      Trials.on_trial?(account) -> false
+      Billing.effective_plan(account) == :air -> minutes_used(account) >= free_monthly_minutes()
+      true -> false
     end
   end
 
@@ -116,18 +123,21 @@ defmodule Tuist.Runners.Allowance do
   carry a gross figure larger than their billed one and the days before
   it bill nothing. That split is the point: it shows where the free tier
   ran out rather than presenting one blended number.
+
+  Usage a runner trial covered is reported and valued but never priced,
+  and never spends the allowance either. `trial_covered` is what the
+  trial took off, so a period the trial ended part-way through reads as
+  minutes run, less what the trial covered, less what the plan includes,
+  leaving what is billed.
   """
   def period_breakdown(account, period \\ nil)
 
   def period_breakdown(%Account{id: account_id} = account, period) do
-    # An account on a trial is billed nothing for runner usage, so the
-    # breakdown must say so too. Reporting what it would otherwise owe
-    # would contradict the bill it is actually going to get.
-    on_trial = Trials.on_trial?(account)
     now = DateTime.utc_now()
     {period_start, period_end} = period || billing_window(account, now)
     # A closed period is reported whole; the open one only as far as now.
     usage_end = if DateTime.before?(now, period_end), do: now, else: period_end
+    trial_window = trial_window(account, period_start, usage_end)
     free_ms = free_monthly_minutes() * 60_000
 
     # Money is only ever put on usage there is a rate for. Linux runs
@@ -138,10 +148,16 @@ defmodule Tuist.Runners.Allowance do
       |> RunnerBilling.compute_milliseconds_per_bucket(period_start, usage_end, :day, platforms: @priced_platforms)
       |> Enum.sort_by(fn {date, _ms} -> Date.to_erl(date) end)
 
+    covered_per_day = covered_per_day(account_id, trial_window)
+
     {days, _remaining} =
       Enum.map_reduce(per_day, free_ms, fn {date, ms}, remaining_free ->
-        covered = min(ms, remaining_free)
-        billable = ms - covered
+        # The allowance is spent by billable usage only. Letting a day
+        # the trial covered consume it would charge the account for
+        # minutes the trial was supposed to pay for, one day later.
+        priced = ms - Map.get(covered_per_day, date, 0)
+        covered = min(priced, remaining_free)
+        billable = priced - covered
 
         day = %{
           # The table keys rows on `:id`; without one every row shares a
@@ -157,6 +173,7 @@ defmodule Tuist.Runners.Allowance do
       end)
 
     priced_ms = per_day |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    covered_ms = covered_per_day |> Map.values() |> Enum.sum()
 
     # Every minute the account ran, priced or not: it did use them, and
     # the minute count is what it is judged against.
@@ -169,24 +186,64 @@ defmodule Tuist.Runners.Allowance do
       minutes: div(total_ms, 60_000),
       free_minutes: free_monthly_minutes(),
       gross: Prepaid.on_demand_cost_for_milliseconds(priced_ms),
-      billed:
-        if(on_trial,
-          do: Money.new(0, :USD),
-          else: Prepaid.on_demand_cost_for_milliseconds(max(priced_ms - free_ms, 0))
-        ),
+      trial_covered: Prepaid.on_demand_cost_for_milliseconds(covered_ms),
+      billed: Prepaid.on_demand_cost_for_milliseconds(max(priced_ms - covered_ms - free_ms, 0)),
       days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
       by_repository:
         RunnerBilling.compute_milliseconds_per_repository(account_id, period_start, usage_end,
           platforms: @priced_platforms
         ),
       projected_days: projected_days(priced_ms, period_start, period_end, usage_end),
-      on_trial: on_trial,
-      platforms:
-        account_id
-        |> platform_rows(period_start, period_end, usage_end, priced_ms)
-        |> zero_billed_on_trial(on_trial)
+      platforms: platform_rows(account_id, period_start, period_end, usage_end, trial_window)
     }
   end
+
+  # The slice of `[period_start, usage_end]` a runner trial covered, or
+  # `nil` when it covered none of it.
+  #
+  # A trial is the absence of a runner item on the subscription, so the
+  # usage it covered has nothing to be invoiced against, and ending one
+  # adds the item with `proration_behavior: "none"` so Stripe bills from
+  # that instant on. What the trial covers is therefore an interval, and
+  # a period is covered only where it overlaps that interval: usage that
+  # ran before the trial started was billable, and so is usage after it
+  # ended. The page offers a year of history, so a period that closed
+  # before the trial began has to keep reading as fully billable.
+  #
+  # A restarted trial overwrites both timestamps, so a period covered by
+  # an earlier trial reads as billable. Reconstructing that needs a
+  # record of every transition rather than of the latest one. It is only
+  # ever a display inaccuracy: an account carries no runner item while a
+  # trial runs, so it was not invoiced for those minutes either.
+  defp trial_window(%Account{runner_trial_started_at: nil}, _period_start, _usage_end), do: nil
+
+  defp trial_window(%Account{} = account, period_start, usage_end) do
+    from = latest(account.runner_trial_started_at, period_start)
+    to = earliest(account.runner_trial_ended_at || usage_end, usage_end)
+
+    if DateTime.before?(from, to), do: {from, to}
+  end
+
+  # Per-day milliseconds a trial covered. Measured rather than sliced out
+  # of the period's own buckets, because a trial can start or end
+  # part-way through a day and only the query knows how much of that
+  # day's runs fell on each side.
+  defp covered_per_day(_account_id, nil), do: %{}
+
+  defp covered_per_day(account_id, {from, to}) do
+    RunnerBilling.compute_milliseconds_per_bucket(account_id, from, to, :day, platforms: @priced_platforms)
+  end
+
+  # True when a trial covered the period end to end, and so the account
+  # cannot reach its allowance anywhere in it.
+  defp fully_covered?(nil, _period_start, _usage_end), do: false
+
+  defp fully_covered?({from, to}, period_start, usage_end) do
+    not DateTime.after?(from, period_start) and not DateTime.before?(to, usage_end)
+  end
+
+  defp latest(a, b), do: if(DateTime.after?(a, b), do: a, else: b)
+  defp earliest(a, b), do: if(DateTime.before?(a, b), do: a, else: b)
 
   # One row per platform there is a rate for, whether or not it ran.
   # An account has an allowance before it runs anything, and a receipt
@@ -198,7 +255,7 @@ defmodule Tuist.Runners.Allowance do
   # far, where that lands by the end of it, what the plan covers, and
   # what the period before it came
   # to.
-  defp platform_rows(account_id, period_start, period_end, now, total_ms) do
+  defp platform_rows(account_id, period_start, period_end, usage_end, trial_window) do
     # The period immediately before this one, the same length, so
     # "previous period" compares like with like whether the window is a
     # subscription cycle or a calendar month.
@@ -207,23 +264,35 @@ defmodule Tuist.Runners.Allowance do
 
     previous_by_platform = milliseconds_by_platform(account_id, previous_start, previous_end)
 
-    by_platform = milliseconds_by_platform(account_id, period_start, now)
+    by_platform = milliseconds_by_platform(account_id, period_start, usage_end)
 
-    @priced_platforms
-    |> Enum.map(fn platform -> {platform, Map.get(by_platform, platform, 0)} end)
-    |> Enum.map(fn {platform, ms} ->
+    covered_by_platform = covered_by_platform(account_id, trial_window)
+    reachable_allowance? = not fully_covered?(trial_window, period_start, usage_end)
+
+    billable_total_ms =
+      @priced_platforms
+      |> Enum.map(&(Map.get(by_platform, &1, 0) - Map.get(covered_by_platform, &1, 0)))
+      |> Enum.sum()
+
+    Enum.map(@priced_platforms, fn platform ->
+      ms = Map.get(by_platform, platform, 0)
+      billable_ms = ms - Map.get(covered_by_platform, platform, 0)
+
       %{
         id: to_string(platform),
         platform: platform,
         minutes: div(ms, 60_000),
-        projected_minutes: project(ms, period_start, period_end, now),
+        projected_minutes: project(ms, period_start, period_end, usage_end),
         # The allowance is one pot for the account rather than one per
         # platform, so it is only meaningful against a platform that has
-        # a rate to spend it at. macOS is the only one so far.
-        included_minutes: if(platform == :macos, do: free_monthly_minutes()),
+        # a rate to spend it at. macOS is the only one so far. An
+        # account with nothing billable in the period cannot reach it at
+        # all, and a line it can never spend is worse than no line.
+        included_minutes: if(platform == :macos and reachable_allowance?, do: free_monthly_minutes()),
         previous_minutes: previous_by_platform |> Map.get(platform, 0) |> div(60_000),
         gross: platform_cost(platform, ms),
-        billed: platform_cost(platform, billable_milliseconds(platform, ms, total_ms))
+        trial_covered: platform_cost(platform, ms - billable_ms),
+        billed: platform_cost(platform, billable_milliseconds(billable_ms, billable_total_ms))
       }
     end)
   end
@@ -249,13 +318,9 @@ defmodule Tuist.Runners.Allowance do
     end
   end
 
-  defp zero_billed_on_trial(rows, false), do: rows
+  defp covered_by_platform(_account_id, nil), do: %{}
 
-  defp zero_billed_on_trial(rows, true) do
-    Enum.map(rows, fn row ->
-      %{row | billed: if(is_nil(row.gross), do: nil, else: Money.new(0, :USD))}
-    end)
-  end
+  defp covered_by_platform(account_id, {from, to}), do: milliseconds_by_platform(account_id, from, to)
 
   defp milliseconds_by_platform(account_id, period_start, period_end) do
     account_id
@@ -273,8 +338,8 @@ defmodule Tuist.Runners.Allowance do
 
   # The allowance is spent by the account, not by the platform, so a
   # platform's billable share is what is left of it after the account's
-  # free milliseconds are taken off the whole period.
-  defp billable_milliseconds(_platform, ms, total_ms) do
+  # free milliseconds are taken off the period's billable total.
+  defp billable_milliseconds(ms, total_ms) do
     free_ms = free_monthly_minutes() * 60_000
     billable_total = max(total_ms - free_ms, 0)
 

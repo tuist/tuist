@@ -4,6 +4,18 @@ import Testing
 
 struct SupportTests {
     @Test
+    func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
+        let result = try await SystemProcess.run(
+            "/usr/bin/env",
+            [],
+            customEnvironment: ["SWIFTERPM_TEST_RETAINED": "value"]
+        )
+
+        #expect(result.stdoutString.contains("SWIFTERPM_TEST_RETAINED=value"))
+        #expect(!result.stdoutString.contains("HOME="))
+    }
+
+    @Test
     func hashingAndRevisionHelpersAreStable() {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)
@@ -357,6 +369,70 @@ struct SupportTests {
         )
 
         #expect(header == nil)
+    }
+
+    @Test
+    func swifterpmGitHubTokenTakesPrecedenceOverGitHubToken() async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "swifterpm-token",
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer swifterpm-token")
+    }
+
+    @Test
+    func gitHubTokenUsedWhenSwifterpmGitHubTokenAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer github-token")
+    }
+
+    @Test
+    func emptySwifterpmGitHubTokenFallsBackToGitHubToken() async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "",
+            "GITHUB_TOKEN": "github-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer github-token")
+    }
+
+    @Test
+    func ghTokenUsedWhenOtherGitHubTokensAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer gh-token")
     }
 
     @Test

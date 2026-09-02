@@ -415,10 +415,9 @@ The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the
 
 `tuist-pentest` is a separate workload cluster for an authorized security
 assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
-Hetzner project, but does not share Kubernetes resources or Kura credentials
-with any other environment. Its topology is three control-plane nodes, two
-general workers, and one tainted Kura worker. It deliberately contains no
-runner or Mac worker pools.
+Hetzner project, but does not share Kubernetes resources with any other
+environment. Its topology is three control-plane nodes and two general workers.
+It deliberately contains no Kura, runner, or Mac worker pools.
 
 Before applying `cluster-pentest.yaml`, create a `tuist-k8s-pentest`
 1Password vault with the pentest-only `TUIST_LICENSE_KEY` and a service-account
@@ -435,17 +434,12 @@ set to `tuist-pentest`, then put the generated kubeconfig in the `server-k8s-pen
 Environment. That Environment also needs `PENTEST_USER_EMAIL` and
 `PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
 
-After bootstrap, run the **Pentest Platform Reconcile** workflow with an
-immutable Kura controller image tag. It installs the cluster platform and the
-cluster-local Kura controller with the certificate issuer required for
-`kura-pentest.tuist.dev`. The controller's source credentials stay in the
-pentest cluster; the application deployment copies only the two introspection
-keys into `tuist-pentest`.
+After bootstrap, run the **Pentest Platform Reconcile** workflow. It installs
+the cluster platform required by the application.
 
 Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
-scheduled cleanup removes the application namespace and its Kura instance
-after that time. Extending an engagement means re-deploying with a later
-timestamp.
+scheduled cleanup removes the application namespace after that time. Extending
+an engagement means re-deploying with a later timestamp.
 
 When the engagement ends, first remove
 `infra/k8s/clusters/cluster-pentest.yaml` in a reviewed change and merge it.

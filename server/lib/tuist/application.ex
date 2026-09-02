@@ -20,7 +20,9 @@ defmodule Tuist.Application do
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -323,6 +325,8 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+        Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
@@ -345,6 +349,7 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
+        Tuist.Kura.Origins,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++

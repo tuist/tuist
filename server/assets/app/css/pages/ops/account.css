@@ -1,8 +1,10 @@
 /* /ops/accounts/:id — the account detail page (and the linked Kura
-   deployment-log page). Both share the same wrapper styling so the
-   header, card spacing, and action rows match the rest of /ops. */
+   deployment-log and sizing-history pages). All share the same wrapper
+   styling so the header, card spacing, and action rows match the rest
+   of /ops. */
 #ops-account,
-#ops-kura-deployment {
+#ops-kura-deployment,
+#ops-account-kura-sizing {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-9);
@@ -54,30 +56,78 @@
     max-width: 480px;
   }
 
-  /* Kura disk claim override: the same treatment as the runner
-     concurrency form below, so the two editable cards on this page read
-     alike. Capped at the trigger-deployment form's width because the
-     value is a short quantity and a full-bleed input reads as broken. */
-  & [data-part="kura-storage-claim-description"] {
+  & [data-part="kura-placement-description"],
+  & [data-part="kura-placement-empty"],
+  & [data-part="kura-traffic-mix-empty"],
+  & [data-part="kura-placement-proposal-evidence"],
+  & [data-part="kura-storage-claim-description"],
+  & [data-part="kura-sized-claim"],
+  & [data-part="kura-disk-usage-empty"],
+  & [data-part="kura-claim-proposal-summary"],
+  & [data-part="kura-claim-proposal-evidence"],
+  & [data-part="kura-claim-proposal-basis"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
   }
 
-  & #kura-storage-claim-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-    max-width: 480px;
+  & [data-part="kura-claim-proposal-summary"],
+  & [data-part="kura-placement-proposal-summary"] {
+    color: var(--noora-surface-label-primary);
+    font-weight: var(--noora-font-weight-medium);
+  }
+
+  & [data-part="kura-claim-history-section"],
+  & [data-part="kura-placement-history-section"] {
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      margin-bottom: var(--noora-spacing-6);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+
+      & > [data-part="title"] {
+        flex-grow: 1;
+        color: var(--noora-surface-label-primary);
+      }
+    }
   }
 
   & [data-part="runner-concurrency-description"],
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
-  & [data-part="prepaid-empty"] {
+  & [data-part="prepaid-empty"],
+  & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
+  }
+
+  /* Per-region egress limits: the column rhythm the other editable forms use,
+     but not width-capped, since this one is a table and wants the full card. */
+  & #kura-egress-limits-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  /* An editable cell holds a bare input rather than a [data-part="cell"], so it
+     inherits none of the table's cell padding. Inline only: the taller text
+     cells beside it already set the row height. */
+  & [data-part="egress-input-cell"] {
+    padding-inline: var(--noora-spacing-4);
+
+    /* A validation message is inline-flex, so it sizes to its own content and
+       widens the cell, and with it the table. Wrap it inside the cell instead. */
+    & .noora-hint-text {
+      align-items: flex-start;
+
+      & span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+    }
   }
 
   & #prepaid-minutes-form {

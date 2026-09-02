@@ -27,7 +27,7 @@ import (
 // gives the memory budget the pool's shapes compete for.
 const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 
-// macosFleetLabel + macosNodeOSLabel identify the Mac mini hosts
+// macosFleetLabel + nodeOSLabel identify the Mac mini hosts
 // claimed by a macOS RunnerPool's fleetSelector. tuist.dev/fleet is
 // stamped by the runners-fleet's MachineDeployment (and matched by
 // the macOS runner Pods' nodeSelector); kubernetes.io/os=darwin
@@ -35,13 +35,16 @@ const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 // actually admit gives the slot budget the macOS Xcode pools compete
 // for.
 //
+// nodeOSLabel is not macOS-only: the reservation path pairs it with
+// fleetNodePoolLabel to address the Linux fleet's bare-metal hosts.
+//
 // One fleet label can span several MachineDeployments — that is how a
 // mixed-SKU fleet is expressed (M2-L at one guest per host next to
 // M4-XL at two), so the node set behind a fleetSelector is NOT
 // homogeneous and its capacity is not its cardinality.
 const (
 	macosFleetLabel   = "tuist.dev/fleet"
-	macosNodeOSLabel  = "kubernetes.io/os"
+	nodeOSLabel       = "kubernetes.io/os"
 	macosNodeOSDarwin = "darwin"
 )
 
@@ -271,7 +274,7 @@ func (r *AutoscalerReconciler) allocate(
 		return perPool
 	}
 
-	demands, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
+	demands, shapes, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
 	if err != nil {
 		if errors.Is(err, errPodCostUnavailable) {
 			logger.Error(err, "per-Pod scheduling cost unknown; leaving replicas unchanged",
@@ -298,11 +301,112 @@ func (r *AutoscalerReconciler) allocate(
 		return perPool
 	}
 
-	alloc := scaling.AllocateFleet(demands, capacity)
+	// A cap read failure degrades to the byte budget alone rather than
+	// freezing the pool: the budget is never LOWER than the true
+	// placeable count, so the worst case is the over-scheduling this cap
+	// exists to prevent — which is where the fleet already was.
+	shapeCaps, err := r.shapePlacementCaps(ctx, pool, shapes)
+	if err != nil {
+		logger.Error(err, "read shape placement caps; allocating on the byte budget alone",
+			"fleetSelector", pool.Spec.FleetSelector)
+	}
+
+	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
 	if v, ok := alloc[pool.Name]; ok {
 		return v
 	}
 	return perPool
+}
+
+// podShape is the placement footprint of one pool's Pod. Two pools with
+// the same footprint compete for the same node slots regardless of which
+// runner image they carry, which is what makes it the right grouping key
+// for a placement cap.
+type podShape struct {
+	cpuMilli int32
+	memoryMB int32
+}
+
+func podShapeOf(pool *tuistv1.RunnerPool) podShape {
+	return podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
+}
+
+func (s podShape) key() string {
+	return fmt.Sprintf("%dm-%dMi", s.cpuMilli, s.memoryMB)
+}
+
+// shapePlacementCaps returns, per shape, how many Pods of that shape the
+// fleet's Ready nodes can actually seat — summing each node's own
+// `min(cpu, memory)` quotient rather than dividing a fleet-wide total.
+//
+// The distinction is the whole point. Summing first and dividing after
+// answers "how much fleet is there", which over-counts twice over on a
+// mixed fleet: it pools memory from hosts too small to seat the shape at
+// all, and it ignores CPU, which is what actually binds a guest whose
+// memory-per-vCPU is richer than its host's. Per-node `min` answers the
+// question kube-scheduler will actually be asked.
+//
+// darwin only, deliberately. Linux runner Pods are kata microVMs that
+// pin memory per sandbox while CPU is intentionally oversubscribed, so a
+// CPU quotient there would cap a fleet that is not CPU-bound; and those
+// hosts are homogeneous, so the byte budget is already exact.
+//
+// An empty result (no nodes, or a non-darwin pool) disables the cap.
+func (r *AutoscalerReconciler) shapePlacementCaps(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	shapes map[string]podShape,
+) (map[string]int32, error) {
+	if pool.Spec.OS != macosNodeOSDarwin || len(shapes) == 0 {
+		return nil, nil
+	}
+
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, client.MatchingLabels{
+		macosFleetLabel: pool.Spec.FleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
+	}); err != nil {
+		return nil, fmt.Errorf("list macOS fleet nodes for shape caps: %w", err)
+	}
+
+	caps := make(map[string]int32, len(shapes))
+	for key, shape := range shapes {
+		if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
+			continue
+		}
+		var seats int32
+		for i := range nodes.Items {
+			if nodeFilterReason(&nodes.Items[i]) != "" {
+				continue
+			}
+			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+		}
+		caps[key] = seats
+	}
+	return caps, nil
+}
+
+// nodeSeatsForShape is how many Pods of `shape` one node could hold if
+// it were empty: the smaller of its CPU and memory quotients. Current
+// occupancy is deliberately not subtracted — the allocator sizes a
+// steady-state target, and the Pods already running are themselves part
+// of that target.
+func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
+	cpu := node.Status.Allocatable.Cpu()
+	memory := node.Status.Allocatable.Memory()
+	if cpu == nil || memory == nil {
+		return 0
+	}
+
+	byCPU := cpu.MilliValue() / int64(shape.cpuMilli)
+	byMemory := memory.Value() / (int64(shape.memoryMB) * 1024 * 1024)
+	if byMemory < byCPU {
+		byCPU = byMemory
+	}
+	if byCPU < 0 {
+		return 0
+	}
+	return int32(byCPU)
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with
@@ -388,13 +492,14 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 	pool *tuistv1.RunnerPool,
 	signals scaling.Signals,
 	knobs scaling.PolicyKnobs,
-) ([]scaling.PoolDemand, error) {
+) ([]scaling.PoolDemand, map[string]podShape, error) {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
-		return nil, fmt.Errorf("list runner pools: %w", err)
+		return nil, nil, fmt.Errorf("list runner pools: %w", err)
 	}
 
 	var demands []scaling.PoolDemand
+	shapes := map[string]podShape{}
 	for i := range pools.Items {
 		p := &pools.Items[i]
 		if p.Spec.OS != pool.Spec.OS || p.Spec.FleetSelector != pool.Spec.FleetSelector {
@@ -409,7 +514,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		if p.Name != pool.Name {
 			fetched, err := r.SignalsClient.Signals(ctx, p.Name)
 			if err != nil {
-				return nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
+				return nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
 			k = scaling.PolicyKnobs{
@@ -420,7 +525,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 
 		cost, err := r.perPodCost(ctx, p)
 		if err != nil {
-			return nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
+			return nil, nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
 		}
 
 		// A costless Pod would consume none of the shared budget, so
@@ -450,16 +555,20 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			continue
 		}
 
+		shape := podShapeOf(p)
+		shapes[shape.key()] = shape
+
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
 			PerPodCost: cost,
 			Floor:      k.MinWarmPoolFloor,
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
+			ShapeKey:   shape.key(),
 		})
 	}
 
-	return demands, nil
+	return demands, shapes, nil
 }
 
 // fleetAllocatableMemory sums allocatable memory across nodes in the
@@ -510,8 +619,8 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, fleetSelector string) (int64, error) {
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  fleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
+		macosFleetLabel: fleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}

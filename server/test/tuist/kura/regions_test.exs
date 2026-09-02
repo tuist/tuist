@@ -74,6 +74,32 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "reads the egress pair the same way wherever it is declared" do
+      assert Regions.egress_guaranteed_mbps(Regions.get("us-east")) == 25
+      assert Regions.egress_burst_mbps(Regions.get("us-east")) == 1500
+      assert Regions.egress_governed?(Regions.get("us-east"))
+
+      # The runner-cache pool caps a tenant without reserving one a floor, and
+      # its ceiling is read through the same accessor rather than by parsing the
+      # annotation back out.
+      runner_cache = Regions.get("scw-fr-par-runners")
+      assert Regions.egress_burst_mbps(runner_cache) == 750
+      assert Regions.egress_guaranteed_mbps(runner_cache) == nil
+      assert Regions.egress_governed?(runner_cache)
+
+      assert runner_cache.provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "750M"
+             }
+    end
+
+    test "a region with no shared NIC governs no egress" do
+      stub(Tuist.Environment, :dev?, fn -> true end)
+
+      local = Regions.get("local-controller")
+      refute Regions.egress_governed?(local)
+      assert Regions.egress_burst_mbps(local) == nil
+    end
+
     test "sizes the managed regions per tier" do
       # Safe here and not before: a tiered floor sits far below its ceiling, so
       # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
@@ -111,7 +137,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["50Gi", "30Gi", "8Gi"]
+      assert claims == ["16Gi", "8Gi", "8Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)

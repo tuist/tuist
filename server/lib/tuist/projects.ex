@@ -13,10 +13,13 @@ defmodule Tuist.Projects do
   alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
+
+  require Logger
 
   def get_projects_count do
     Repo.aggregate(Project, :count, :id)
@@ -306,8 +309,12 @@ defmodule Tuist.Projects do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{project: project}} -> {:ok, project}
-      {:error, _step, changeset, _changes} -> {:error, changeset}
+      {:ok, %{project: project}} ->
+        seed_kura_cache_demand(project)
+        {:ok, project}
+
+      {:error, _step, changeset, _changes} ->
+        {:error, changeset}
     end
   end
 
@@ -337,6 +344,28 @@ defmodule Tuist.Projects do
 
   defp seed_default_alert(%Project{id: project_id}) do
     Automations.create_alert(Automations.default_alert_attrs(project_id), source: "system")
+  end
+
+  # Creating a project is the earliest signal that builds are coming, so it is
+  # where an account with no Kura instance gets one
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band, because
+  # the cache decision reads the cluster and resolves a region, and that wait
+  # does not belong to a person naming a project.
+  #
+  # A rejected enqueue is logged rather than raised: the project is already
+  # committed, and an account this misses is provisioned the ordinary way on
+  # its first cache request. Anything that raises here is schema drift or a
+  # dead connection rather than a cache decision, so it is left to surface.
+  defp seed_kura_cache_demand(%Project{account_id: account_id}) do
+    case %{account_id: account_id} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Projects] could not seed Kura cache demand for account #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
   end
 
   def delete_project(%Project{} = project) do

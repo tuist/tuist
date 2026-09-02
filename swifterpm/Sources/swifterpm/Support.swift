@@ -83,6 +83,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
@@ -90,7 +91,7 @@ enum SystemProcess {
             let result = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
-                environment: subprocessEnvironment(environment),
+                environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
                 output: .standardOutput,
                 error: .standardError
@@ -106,7 +107,7 @@ enum SystemProcess {
         let result = try await Subprocess.run(
             subprocessExecutable(executable),
             arguments: Arguments(arguments),
-            environment: subprocessEnvironment(environment),
+            environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
@@ -144,9 +145,27 @@ enum SystemProcess {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }
 
-    private static func subprocessEnvironment(_ environment: [String: String])
+    private static func subprocessEnvironment(
+        _ environment: [String: String],
+        customEnvironment: [String: String]?
+    )
         -> Subprocess.Environment
     {
+        if let customEnvironment {
+            var values: [Subprocess.Environment.Key: String] = [:]
+            var overrides: [Subprocess.Environment.Key: String?] = [:]
+            for (key, value) in customEnvironment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    values[subprocessKey] = value
+                }
+            }
+            for (key, value) in environment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    overrides[subprocessKey] = value
+                }
+            }
+            return .custom(values).updating(overrides)
+        }
         guard !environment.isEmpty else { return .inherit }
         var overrides: [Subprocess.Environment.Key: String?] = [:]
         for (key, value) in environment {
@@ -227,17 +246,14 @@ enum HTTPClient {
     }
 
     private static func ensureSuccessfulStatus(_ response: URLResponse, url: URL) throws {
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200 ..< 300).contains(httpResponse.statusCode)
-        {
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+        if let error = StatusError(response: response, requestedURL: url) {
+            throw error
         }
     }
 
-    // Retries transient transport failures (timeouts, dropped or half-open
-    // connections) on a fresh connection with linear backoff. HTTP status
-    // failures are not retried: a non-2xx response is deterministic for an
-    // artifact URL, so a retry would only delay the surfaced error.
+    /// Retries transient transport failures (timeouts, dropped or half-open
+    /// connections) and transient HTTP statuses on a fresh connection with
+    /// linear backoff.
     private static func withRetry<T>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
@@ -246,10 +262,18 @@ enum HTTPClient {
             do {
                 return try await operation()
             } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
-                try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
+                attempt += 1
+            } catch let error as StatusError where attempt < maxAttempts && error.isRetryable {
+                try? await Task.sleep(
+                    nanoseconds: backoff(attempt: attempt, retryAfter: error.retryAfter))
                 attempt += 1
             }
         }
+    }
+
+    private static func backoff(attempt: Int, retryAfter: TimeInterval?) -> UInt64 {
+        UInt64((retryAfter ?? TimeInterval(attempt)) * 1_000_000_000)
     }
 
     private static func isRetryable(_ error: URLError) -> Bool {
@@ -261,6 +285,96 @@ enum HTTPClient {
             return false
         }
     }
+
+    /// A non-2xx HTTP response. `url` is the URL that produced the status, which after a
+    /// redirect is not the URL that was requested. Rendering goes through
+    /// `redactingCredentials`, since a redirect target is routinely a presigned URL whose
+    /// query string carries a signature.
+    struct StatusError: Error, CustomStringConvertible {
+        /// Bounds a hostile or mistaken `Retry-After` so a restore cannot stall on it.
+        static let maximumRetryAfter: TimeInterval = 30
+
+        let statusCode: Int
+        let url: URL
+        let retryAfter: TimeInterval?
+
+        init?(response: URLResponse, requestedURL: URL, now: Date = Date()) {
+            guard let httpResponse = response as? HTTPURLResponse,
+                  !(200 ..< 300).contains(httpResponse.statusCode)
+            else { return nil }
+
+            statusCode = httpResponse.statusCode
+            url = httpResponse.url ?? requestedURL
+            retryAfter = Self.retryAfter(from: httpResponse, now: now)
+        }
+
+        var isRetryable: Bool {
+            statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+        }
+
+        var description: String {
+            "HTTP \(statusCode) for \(Self.redactingCredentials(url))"
+        }
+
+        /// Keeps scheme, host, port and path; drops user info, query and fragment.
+        static func redactingCredentials(_ url: URL) -> String {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.user = nil
+            components?.password = nil
+            components?.query = nil
+            components?.fragment = nil
+            if let string = components?.string, !string.isEmpty {
+                return string
+            }
+            let scheme = url.scheme.map { "\($0)://" } ?? ""
+            let port = url.port.map { ":\($0)" } ?? ""
+            return "\(scheme)\(url.host ?? "")\(port)\(url.path)"
+        }
+
+        /// `Retry-After` is either delay-seconds or an HTTP-date (RFC 9110 section 10.2.3).
+        private static func retryAfter(from response: HTTPURLResponse, now: Date) -> TimeInterval? {
+            guard let raw = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
+            let value = raw.trimmingCharacters(in: .whitespaces)
+
+            let seconds: TimeInterval?
+            if let delay = TimeInterval(value) {
+                seconds = delay
+            } else if let date = httpDate(from: value) {
+                seconds = date.timeIntervalSince(now)
+            } else {
+                seconds = nil
+            }
+
+            guard let seconds, seconds > 0 else { return nil }
+            return min(seconds, maximumRetryAfter)
+        }
+
+        /// The three formats a recipient must accept (RFC 9110 section 5.6.7). Foundation
+        /// ships no HTTP-date constant, so they are spelled out here.
+        private enum HTTPDateFormat {
+            static let imfFixdate = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            static let rfc850 = "EEEE, dd-MMM-yy HH:mm:ss zzz"
+            static let asctime = "EEE MMM d HH:mm:ss yyyy"
+
+            static let all = [imfFixdate, rfc850, asctime]
+        }
+
+        private static func httpDate(from value: String) -> Date? {
+            let normalized = value.split(separator: " ", omittingEmptySubsequences: true)
+                .joined(separator: " ")
+
+            for format in HTTPDateFormat.all {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
+                formatter.dateFormat = format
+                if let date = formatter.date(from: normalized) {
+                    return date
+                }
+            }
+            return nil
+        }
+    }
 }
 
 enum HTTPAuthorization {
@@ -269,16 +383,18 @@ enum HTTPAuthorization {
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
         // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic GITHUB_TOKEN /
-        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
+        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. This mirrors SwiftPM, whose download
-        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
+        // a private release asset. SwiftPM's makeAuthorizationProvider actually
+        // ranks its environment token above netrc, but we keep netrc first here
+        // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
+        // host a netrc entry deliberately targets.
         if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
             keychain: { await KeychainAuthorization.credential(for: url) },
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+            gitHubEnvToken: GitHubAuth.envToken(from: environment)
         ) {
             return header
         }
@@ -302,7 +418,7 @@ enum HTTPAuthorization {
         if let credential = await keychain() {
             return basicHeader(credential)
         }
-        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
+        if isGitHub, let token = gitHubEnvToken {
             return bearerHeader(token)
         }
         return nil
@@ -320,11 +436,6 @@ enum HTTPAuthorization {
 
     private static func bearerHeader(_ token: String) -> String {
         "Bearer \(token)"
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
     }
 }
 

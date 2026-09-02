@@ -53,6 +53,13 @@ type linuxCloudInitOptions struct {
 	// Taints are rendered into kubelet's --register-with-taints.
 	Taints []corev1.Taint
 
+	// KataRuntime installs kata-static, registers the kata-qemu handler with
+	// containerd, and labels the node for the kata-qemu RuntimeClass. Off for
+	// cache fleets, which run ordinary runc Pods and should not pay the
+	// download. See kataSetup for why this is safe to append to the distro
+	// containerd's config rather than replacing the runtime.
+	KataRuntime bool
+
 	// BootstrapUser is the OS login user the install lands on. Empty (the
 	// Instance default) means the bootstrap runs directly as root with no
 	// privilege-escalation prefix. A non-root value (Elastic Metal's
@@ -262,7 +269,7 @@ func clientCAFilePath(opts linuxCloudInitOptions) string {
 // kubeletUnitContent renders the kubelet systemd unit with the node's
 // hostname-override, any register-with-taints argument, and the
 // node.cluster.x-k8s.io/instance-type label (provider-specific).
-func kubeletUnitContent(nodeName, taintArg, instanceType string) string {
+func kubeletUnitContent(nodeName, taintArg, instanceType, extraNodeLabels string) string {
 	return fmt.Sprintf(`[Unit]
 Description=kubelet (tuist runner-cache node)
 After=containerd.service network-online.target
@@ -273,12 +280,12 @@ ExecStart=/usr/bin/kubelet \
   --config=/var/lib/kubelet/config.yaml \
   --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
   --hostname-override=%s \
-  %s--node-labels=node.cluster.x-k8s.io/instance-type=%s
+  %s--node-labels=node.cluster.x-k8s.io/instance-type=%s%s
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
-`, nodeName, taintArg, instanceType)
+`, nodeName, taintArg, instanceType, extraNodeLabels)
 }
 
 // instanceTypeOrDefault keeps the Scaleway kinds rendering the original
@@ -297,7 +304,7 @@ func instanceTypeOrDefault(t string) string {
 // brings the PN VLAN up first. The leading indent prefix is supplied by the
 // caller so it nests correctly under cloud-init's YAML block or stands alone in
 // a bare script.
-func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup string) string {
+func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup string) string {
 	// Pipe `containerd config default` through sed so the rendered config sets
 	// the CRI registry config_path to /etc/containerd/certs.d. containerd v2
 	// emits an empty `[plugins."io.containerd.grpc.v1.cri".registry]` table, so
@@ -373,7 +380,7 @@ export DEBIAN_FRONTEND=noninteractive
 # reboot. Same guard as containerd above: a no-op where /data is not its own
 # mounted filesystem, trailing 'true' keeps set -e happy.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/local-path-provisioner /opt/local-path-provisioner; mountpoint -q /opt/local-path-provisioner || { grep -q " /opt/local-path-provisioner " /etc/fstab || echo "/data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/local-path-provisioner /opt/local-path-provisioner; }; }; true'
-%[2]ssystemctl restart containerd
+%[11]s%[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -384,7 +391,7 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuotaSetup(sudo, writeFile))
+		containerdQuotaSetup(sudo, writeFile), kataSetup)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -525,7 +532,7 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup), "      ")
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime)), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -573,7 +580,7 @@ runcmd:
 		kubelet,
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
-		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType)), "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime)), "      "),
 		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts)), "      "),
 		body,
 		caEntry,
@@ -590,7 +597,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup)
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -630,7 +637,7 @@ set -euxo pipefail
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
-		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType))),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime))),
 		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
@@ -823,6 +830,108 @@ func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) st
 // Elastic Metal). containerd's /data root is still set later, in bootstrapBody.
 func dataKubeletMount(sudo string) string {
 	return sudo + `sh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/kubelet /var/lib/kubelet; mountpoint -q /var/lib/kubelet || { grep -q " /var/lib/kubelet " /etc/fstab || echo "/data/kubelet /var/lib/kubelet none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/kubelet /var/lib/kubelet; }; }; true'`
+}
+
+// kataVersion is the kata-containers release installed when KataRuntime is set.
+// Pinned and bumped deliberately: kata releases have historically shipped
+// install-script regressions, and the guest kernel/image pairing is what runner
+// Pods actually boot. Keep it in lockstep with the Hetzner bare-metal worker
+// (`infra/k8s/clusters/bare-metal.yaml`), which pre-bakes the same version, so a
+// job behaves the same whichever fleet it lands on.
+const kataVersion = "3.30.0"
+
+// kataVersionStampPath records which kata release the box has unpacked, so the
+// install block above is a no-op on a box that already carries it.
+const kataVersionStampPath = "/opt/kata/.tuist-kata-version"
+
+// kataSetup installs kata-static and registers the kata-qemu handler with
+// containerd. Empty (a no-op) unless the fleet asked for it, so cache boxes
+// neither download it nor carry the runtime block.
+//
+// This APPENDS to the distro containerd's config rather than replacing
+// containerd the way the Hetzner worker template does. That template installs
+// containerd 2.x from upstream because Ubuntu Noble shipped 1.7.x, which only
+// understands `version = 2` / `io.containerd.grpc.v1.cri` and would silently
+// fail to register a handler written in the v3 syntax below. Noble has since
+// moved to containerd 2.x (2.2.1 as of this writing, emitting `version = 3`),
+// so the apt package the bootstrap already installs parses this block. The
+// guard below is what keeps that from being a silent assumption: on a box whose
+// containerd is too old to emit a v3 config, the join fails loudly here rather
+// than coming up with every kata Pod stuck in creation.
+//
+// Ordering matters: this runs after the config is generated and after the
+// SystemdCgroup rewrite, but before containerd restarts, so the handler is
+// registered by the time kubelet first talks to it.
+func kataSetup(sudo, sudoE string, enabled bool) string {
+	if !enabled {
+		return ""
+	}
+	return fmt.Sprintf(`# ---- Kata Containers %[3]s (runner fleets only) ----
+# Fail loud if containerd predates the v3 config syntax the handler below is
+# written in: registering it against a v2 config is silently ignored, and the
+# node then reports Ready while every runtimeClassName=kata-qemu Pod hangs.
+%[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
+%[2]sapt-get install -y zstd
+# kata-static expands with a top-level opt/, so extracting at / lands the shim
+# and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
+# stamp so a re-run costs nothing: the repair loop re-runs this block on every
+# retry against a box whose verification keeps failing, and an unguarded pull
+# would drag ~250 MiB off GitHub each time. Stamping the version (rather than
+# just testing for the shim) keeps a kataVersion bump reinstalling.
+if [ "$(cat %[4]s 2>/dev/null)" != "%[3]s" ]; then
+  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-static-%[3]s-amd64.tar.zst"
+  %[1]star --zstd -xf /tmp/kata.tar.zst -C /
+  rm -f /tmp/kata.tar.zst
+  printf '%%s' "%[3]s" | %[1]stee %[4]s > /dev/null
+fi
+# Idempotent: a re-bootstrap of an already-kata box must not append twice.
+%[1]ssh -c 'grep -q "runtimes.kata-qemu" /etc/containerd/config.toml || cat >> /etc/containerd/config.toml' <<'TUIST_KATA_EOF'
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu]
+runtime_type = "io.containerd.kata-qemu.v2"
+runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
+privileged_without_host_devices = true
+pod_annotations = ["io.katacontainers.*"]
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
+ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
+# SystemdCgroup MUST be set on the handler itself. The SystemdCgroup rewrite
+# above only touches what the generated default emitted, and this block is
+# appended after it, so the kata handler would otherwise keep the false default
+# while kubelet runs cgroupDriver: systemd. Under that mismatch the shim creates
+# the slice name as a LITERAL directory at the cgroup root instead of nesting it
+# under kubepods.slice, nothing ever reclaims those, and the node eventually
+# fails every cgroup mkdir with ENOSPC while still reporting Ready. See the
+# same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
+SystemdCgroup = true
+TUIST_KATA_EOF
+`, sudo, sudoE, kataVersion, kataVersionStampPath)
+}
+
+// kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
+// kata, and are the same labels the repair loop patches onto a node that joined
+// without them. `katacontainers.io/kata-runtime` is what the kata-qemu
+// RuntimeClass selects on, so without it a runner Pod never schedules here;
+// `tuist.dev/kata-runtime` mirrors the Hetzner workers so anything keying off our
+// own label sees both fleets alike. Both sit outside the kubernetes.io/k8s.io
+// namespaces the NodeRestriction admission plugin reserves, so a kubelet may
+// self-apply them.
+//
+// An ordered slice, not a map: it renders into the kubelet unit, and a map's
+// iteration order would churn that unit's content between reconciles.
+var kataNodeLabels = []struct{ Key, Value string }{
+	{KataRuntimeSelectorLabel, "true"},
+	{"tuist.dev/kata-runtime", "true"},
+}
+
+func kataNodeLabelsArg(enabled bool) string {
+	if !enabled {
+		return ""
+	}
+	var arg strings.Builder
+	for _, label := range kataNodeLabels {
+		arg.WriteString("," + label.Key + "=" + label.Value)
+	}
+	return arg.String()
 }
 
 // nopasswdSetup renders the one-time passwordless-sudo bootstrap: it uses the

@@ -14,12 +14,16 @@ use moka::policy::EvictionPolicy;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+use tracing::{Instrument, field};
 
 use super::config::AuthConfig;
 use super::policy::{self, Authentication};
 use super::tuist::TuistBackend;
 use crate::auth::{Access, AccessDecision, DenyDecision, RequestContext};
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    telemetry::{record_trace_context, trace_export_active},
+};
 
 pub type SharedAuth = Arc<AuthEngine>;
 
@@ -423,7 +427,23 @@ impl AuthEngine {
         request: &policy::ResolvedRequest,
     ) -> Authentication {
         let start = Instant::now();
-        let result = policy::authenticate(&self.backend, ctx, request).await;
+        let authenticate_span = if trace_export_active() {
+            let span = tracing::info_span!(
+                "kura.auth.authenticate",
+                kura.auth.cache = "miss",
+                kura.auth.result = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            );
+            record_trace_context(&span);
+            span
+        } else {
+            tracing::Span::none()
+        };
+        let result = policy::authenticate(&self.backend, ctx, request)
+            .instrument(authenticate_span.clone())
+            .await;
+        authenticate_span.record("kura.auth.result", result_label(&result));
         self.metrics
             .record_auth_decision("authenticate", result_label(&result), start.elapsed());
         result

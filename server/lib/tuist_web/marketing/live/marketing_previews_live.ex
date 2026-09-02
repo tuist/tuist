@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Marketing.StructuredMarkup
+
   def mount(_params, session, socket) do
     socket =
       socket
@@ -17,6 +19,12 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
   end
 
   def handle_params(_params, _url, socket) do
+    description =
+      dgettext(
+        "marketing",
+        "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+      )
+
     {:noreply,
      socket
      |> assign(:head_title, dgettext("marketing", "Previews · Tuist"))
@@ -30,12 +38,7 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
            )
        )
      )
-     |> assign(
-       :head_description,
-       dgettext(
-         "marketing",
-         "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
-       )
-     )}
+     |> assign(:head_description, description)
+     |> assign_feature_structured_data(dgettext("marketing", "Previews"), description, "/previews")}
   end
 end

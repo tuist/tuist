@@ -36,7 +36,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -616,12 +616,12 @@ defmodule TuistWeb.RunnerJobLive do
 
   def terminal_tab_visible?(_interactive, true), do: true
 
-  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+  def terminal_tab_visible?(%{can_attach?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
     do: true
 
   def terminal_tab_visible?(_, _), do: false
 
-  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+  def vnc_tab_visible?(%{can_attach?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
     do: true
 
   def vnc_tab_visible?(_), do: false
@@ -630,7 +630,7 @@ defmodule TuistWeb.RunnerJobLive do
     terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
   end
 
-  def interactive_vnc_unavailable_reason(%{can_read?: false}),
+  def interactive_vnc_unavailable_reason(%{can_attach?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
 
   def interactive_vnc_unavailable_reason(%{macos?: false}),
@@ -760,7 +760,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.vnc_requestable? ->
@@ -791,7 +791,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.shell_requestable? ->
@@ -834,11 +834,16 @@ defmodule TuistWeb.RunnerJobLive do
   defp maybe_auto_request_interactive_sessions(socket), do: socket
 
   # A public account lets anyone mount this LiveView, and any client can push
-  # the disconnect event regardless of which tabs were rendered, so re-check
-  # `:runners_read` here rather than trusting that the interactive tabs were
-  # visible. `close_for_job/5` additionally scopes the close to the user who
-  # holds the session.
-  defp close_interactive_session(%{assigns: %{interactive: %{can_read?: false}}} = socket, kind)
+  # the disconnect event regardless of which tabs were rendered, so gate the
+  # close rather than trusting that the interactive tabs were visible.
+  # `close_for_job/5` additionally scopes the close to the user who holds the
+  # session.
+  #
+  # This reads the mount-time snapshot on purpose, where requesting a session
+  # resolves the permission afresh. Closing only ever ends access, so a member
+  # demoted mid-session should still be able to hang up rather than leave their
+  # session running until it times out.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_attach?: false}}} = socket, kind)
        when kind in [:vnc, :shell] do
     socket
   end
@@ -1070,6 +1075,18 @@ defmodule TuistWeb.RunnerJobLive do
     assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
+  # `:runners_interactive_access`, not the page's `:runners_read`:
+  # attaching to a running VM executes commands on it, so it stays with members
+  # that can write.
+  #
+  # Resolved per call rather than read off the socket. `InteractiveSessions`
+  # mints tokens without authorizing, and a socket outlives the role that
+  # opened it, so a member demoted while the page is open would otherwise keep
+  # requesting sessions until they reload.
+  defp can_attach?(current_user, selected_account) do
+    Authorization.authorize(:runners_interactive_access, current_user, selected_account) == :ok
+  end
+
   defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
     platform = Catalog.fleet_platform(job.fleet_name)
     macos? = platform == :macos
@@ -1077,13 +1094,11 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
-    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
-    # running VM stays members-only even when the account is public.
-    can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
+    can_attach? = can_attach?(current_user, selected_account)
 
-    vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
+    vnc_requestable? = can_attach? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
-    shell_requestable? = can_read? and InteractiveSessions.shell_requestable?(job)
+    shell_requestable? = can_attach? and InteractiveSessions.shell_requestable?(job)
 
     vnc_session =
       selected_account.id
@@ -1096,7 +1111,7 @@ defmodule TuistWeb.RunnerJobLive do
       |> with_shell_session_token(shell_session_token)
 
     %{
-      can_read?: can_read?,
+      can_attach?: can_attach?,
       macos?: macos?,
       linux?: linux?,
       running?: running?,

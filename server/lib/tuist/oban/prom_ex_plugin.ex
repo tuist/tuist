@@ -11,13 +11,30 @@ defmodule Tuist.Oban.PromExPlugin do
   node that runs this plugin. That is deliberate: it makes "the only
   consumer of this queue is gone" observable from a node that is
   itself healthy.
+
+  Those queue-level gauges answer "is this queue being drained at all".
+  They cannot answer "is every consumer of it healthy": one broken
+  consumer beside a working one leaves the queue draining normally. The
+  `node_last_attempt/completion_timestamp_seconds` pair covers that case
+  from the opposite direction, reported by each consumer about itself.
+
+  Both of those only turn positive once a consumer has already stopped
+  finishing work. `node_executing_jobs_count` against `node_queue_limit`
+  is the earlier signal: a consumer that has lost slots keeps completing
+  jobs on the ones it still holds, so every other gauge reads healthy
+  while its capacity decays. On 2026-08-31 both production xcresult
+  processors sat at 3 in-flight jobs against a configured limit of 6,
+  with a 3000-job backlog available to fill them; a restart restored
+  both to 6. A node below its own limit while the queue has work is
+  losing capacity, and it is visible long before throughput reaches zero.
   """
   use PromEx.Plugin
 
-  import Ecto.Query, only: [group_by: 3, select: 3]
+  import Ecto.Query, only: [group_by: 3, select: 3, where: 3]
 
   alias Tuist.Environment
 
+  @job_start_event [:oban, :job, :start]
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
   @producer_complete_event [:oban, :producer, :stop]
@@ -27,6 +44,7 @@ defmodule Tuist.Oban.PromExPlugin do
 
   @queue_length_event [:prom_ex, :plugin, :oban, :queue, :length, :count]
   @queue_age_event [:prom_ex, :plugin, :oban, :queue, :oldest, :available, :age, :seconds]
+  @node_slots_event [:prom_ex, :plugin, :oban, :node, :slots]
 
   # Process-dict key holding the set of queues reported on the previous
   # poll, so a queue that drains to nothing still gets an explicit zero.
@@ -104,6 +122,27 @@ defmodule Tuist.Oban.PromExPlugin do
         ]
       ),
       Event.build(
+        :oban_node_liveness_metrics,
+        [
+          last_value(
+            @metric_prefix ++ [:node, :last, :attempt, :timestamp, :seconds],
+            event_name: @job_start_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node started on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
+          ),
+          last_value(
+            @metric_prefix ++ [:node, :last, :completion, :timestamp, :seconds],
+            event_name: @job_complete_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node completed on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
+          )
+        ]
+      ),
+      Event.build(
         :oban_producer_event_metrics,
         [
           distribution(
@@ -167,6 +206,25 @@ defmodule Tuist.Oban.PromExPlugin do
               "Age in seconds of the oldest job sitting in the `available` state for a queue (0 when nothing is available).",
             measurement: :age_seconds,
             tags: [:name, :queue]
+          ),
+          last_value(
+            @metric_prefix ++ [:node, :executing, :jobs, :count],
+            event_name: @node_slots_event,
+            description: "Number of jobs this node currently holds in the `executing` state for a queue.",
+            measurement: :executing,
+            tags: [:name, :queue, :node]
+          ),
+          # Emitted beside the count rather than baked into an alert
+          # threshold: the limit is per environment (production runs
+          # `queueConcurrency: 6`, the in-code default is 4), so a rule
+          # comparing the two stays correct when an environment is
+          # retuned.
+          last_value(
+            @metric_prefix ++ [:node, :queue, :limit],
+            event_name: @node_slots_event,
+            description: "Configured concurrency limit of a queue this node runs.",
+            measurement: :limit,
+            tags: [:name, :queue, :node]
           )
         ]
       )
@@ -204,12 +262,71 @@ defmodule Tuist.Oban.PromExPlugin do
           )
         end)
 
+        execute_node_slot_metrics(config, name)
+
         Process.put(@queues_seen_key, queues)
 
       _ ->
         :ok
     end
   end
+
+  # Counted from `oban_jobs` rather than from this node's producers so
+  # the number means "work this node is credited with" — the same
+  # `attempted_by` a stuck-consumer investigation greps for. A slot lost
+  # inside a stalled NIF stops producing rows here while the producer
+  # still believes it is occupied, which is exactly the divergence the
+  # gauge exists to expose.
+  defp execute_node_slot_metrics(config, name) do
+    limits = configured_queue_limits()
+
+    executing =
+      config
+      |> Oban.Repo.all(
+        Oban.Job
+        |> where([j], j.state == "executing")
+        |> where([j], fragment("?[1]", j.attempted_by) == ^config.node)
+        |> group_by([j], j.queue)
+        |> select([j], {j.queue, count(j.id)})
+      )
+      |> Map.new()
+
+    limits
+    |> Map.keys()
+    |> MapSet.new()
+    |> MapSet.union(MapSet.new(Map.keys(executing)))
+    |> Enum.each(fn queue ->
+      measurements =
+        case Map.fetch(limits, queue) do
+          {:ok, limit} -> %{executing: Map.get(executing, queue, 0), limit: limit}
+          :error -> %{executing: Map.get(executing, queue, 0)}
+        end
+
+      :telemetry.execute(@node_slots_event, measurements, %{name: name, queue: queue, node: config.node})
+    end)
+  end
+
+  # Keyed by the queue's string name to match what the `oban_jobs` scan
+  # returns; `String.to_existing_atom/1` on a queue name read back from
+  # the table would raise for a queue this node does not run.
+  # A queue can be configured as a bare integer, as opts carrying
+  # `:limit`, or as `false` to disable it. Only the ones that resolve to
+  # a number get a limit gauge; the rest still report their executing
+  # count, just without anything to compare it against.
+  defp configured_queue_limits do
+    configured_queue_opts()
+    |> Enum.flat_map(fn {queue, opts} ->
+      case queue_limit(opts) do
+        limit when is_integer(limit) -> [{to_string(queue), limit}]
+        _ -> []
+      end
+    end)
+    |> Map.new()
+  end
+
+  defp queue_limit(limit) when is_integer(limit), do: limit
+  defp queue_limit(opts) when is_list(opts), do: Keyword.get(opts, :limit)
+  defp queue_limit(_opts), do: nil
 
   # Every queue the gauges must report on this tick: the ones this node
   # runs, the ones the scan saw rows for (a queue delegated to another
@@ -245,15 +362,15 @@ defmodule Tuist.Oban.PromExPlugin do
     |> Enum.map(&elem(&1, 0))
   end
 
-  defp configured_queues do
+  defp configured_queues, do: Keyword.keys(configured_queue_opts())
+
+  defp configured_queue_opts do
     {_, opts} =
       Enum.find(Oban.config().plugins, {nil, [queues: Oban.config().queues]}, fn {plugin, _} ->
         plugin == Oban.Pro.Plugins.DynamicQueues
       end)
 
-    opts
-    |> Keyword.get(:queues, [])
-    |> Keyword.keys()
+    Keyword.get(opts, :queues, [])
   end
 
   defp include_zeros_for_missing_queue_states(query_result, queues) do
@@ -281,6 +398,34 @@ defmodule Tuist.Oban.PromExPlugin do
 
   defp age_seconds(now, %NaiveDateTime{} = scheduled_at),
     do: age_seconds(now, DateTime.from_naive!(scheduled_at, "Etc/UTC"))
+
+  # Absolute timestamps rather than a "seconds since" gauge, so the pair
+  # needs no state between events and no scan of `oban_jobs`. The elapsed
+  # time is `time() - <gauge>` at query time, which is also what makes a
+  # node that stops reporting fall out of the alert as absent rather than
+  # as a stale healthy-looking sample.
+  #
+  # Reported per node because the failure this pair exists to catch is
+  # per-consumer, not per-queue: on 2026-08-25 one of two xcresult
+  # processors took jobs for 14 hours and completed none, while its
+  # sibling kept `available` at 0. Every queue-level gauge, including
+  # `queue_oldest_available_age_seconds`, read perfectly healthy
+  # throughout.
+  #
+  # `node` is Oban's own node name, the same value it writes into
+  # `oban_jobs.attempted_by`, so a firing alert names the row you can go
+  # and query.
+  defp node_liveness_tag_values(metadata) do
+    config = config_from_metadata(metadata)
+
+    %{
+      name: normalize_module_name(config.name),
+      queue: metadata.job.queue,
+      node: config.node
+    }
+  end
+
+  defp current_unix_second(_measurements, _metadata), do: System.system_time(:second)
 
   defp job_complete_tag_values(metadata) do
     config = config_from_metadata(metadata)

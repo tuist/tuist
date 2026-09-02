@@ -3,7 +3,7 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -29,15 +29,15 @@ use crate::{
         producer::ArtifactProducer,
         range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
     },
-    auth::{AccessDecision, RequestContext},
+    auth::{AccessDecision, RequestContext as AuthRequestContext},
     backpressure,
     bandwidth::BandwidthLimiter,
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, MAX_BACKFILL_BODIES_ENTRIES,
         MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
         MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
-        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
-        response_stream_chunk_bytes,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, REPLICATION_BATCH_MAX_BYTES,
+        REPLICATION_BATCH_MAX_ITEMS, RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
     io::is_fd_pool_exhausted_error,
     memory::{
@@ -48,13 +48,17 @@ use crate::{
     multipart::error::MultipartError,
     peer_tls::InternalPeerIdentity,
     replication::replication_targets,
+    request_observability::{
+        REQUEST_ID_HEADER, RequestCompletion, RequestContext, RequestLogPolicy, current_request,
+        log_request_completion, request_id, scope_request,
+    },
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::{
         BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, StagedArtifactPath, backfill_record_kind,
         is_disk_full_error, is_multipart_capacity_error, is_outbox_full_error, manifest_version_ms,
     },
-    telemetry::{attach_parent_context, record_trace_context},
+    telemetry::{attach_parent_context, record_trace_context, trace_export_active},
     utils::{
         BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyStaging,
         TempFileCleanup, TmpReservation, action_cache_key, blob_key, module_key,
@@ -88,10 +92,11 @@ const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
 // The oversized-entry path of the backfill protocol.
 const ROUTE_INTERNAL_BACKFILL_ARTIFACT: &str = "/_internal/backfill/artifacts/{artifact_id}";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
+const ROUTE_INTERNAL_REPLICATE_ARTIFACTS: &str = "/_internal/replicate/artifacts";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -106,6 +111,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_INTERNAL_BACKFILL_ENTRIES,
     ROUTE_INTERNAL_BACKFILL_BODIES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
+    ROUTE_INTERNAL_REPLICATE_ARTIFACTS,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
 ];
 
@@ -290,6 +296,10 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_REPLICATE_ARTIFACT,
             put(internal_replicate_artifact),
+        )
+        .route(
+            ROUTE_INTERNAL_REPLICATE_ARTIFACTS,
+            put(internal_replicate_artifacts),
         )
         .route(
             ROUTE_INTERNAL_REPLICATE_NAMESPACE,
@@ -653,6 +663,87 @@ impl BackfillBodyManifestMeta {
     }
 }
 
+/// One item of a batched replication request. The batch carries only inline
+/// artifacts (the metadata lane), so there is no `inline` flag and no segment
+/// path: every body is present in the frame.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplicateBatchItemMeta {
+    pub producer: String,
+    pub namespace_id: String,
+    pub key: String,
+    pub content_type: String,
+    pub version_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trunk: Option<String>,
+}
+
+/// Per-item result of a batched replication request, in request order. An
+/// entry that is not `error` means the peer is done with that item (it applied
+/// it, or ignored it as not newer), so the sender may clear its outbox
+/// message; `error` leaves the message queued for retry. Reporting per item is
+/// what keeps one poison item from stranding everything batched with it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplicateBatchOutcomes {
+    pub outcomes: Vec<String>,
+}
+
+/// Fixed header of one batched replication frame: `meta_len` then `body_len`,
+/// both big-endian. Bodies are inline artifacts, bounded by
+/// `MAX_INLINE_REPLICATION_BODY_BYTES`, so a u32 length is sufficient.
+pub const REPLICATE_BATCH_FRAME_HEADER_BYTES: usize = 4 + 4;
+
+pub fn encode_replicate_batch_frame(meta: &[u8], body: &[u8]) -> Result<Vec<u8>, String> {
+    let meta_len = u32::try_from(meta.len()).map_err(|_| {
+        format!(
+            "replication batch meta of {} bytes is too large",
+            meta.len()
+        )
+    })?;
+    let body_len = u32::try_from(body.len()).map_err(|_| {
+        format!(
+            "replication batch body of {} bytes is too large",
+            body.len()
+        )
+    })?;
+    let mut frame =
+        Vec::with_capacity(REPLICATE_BATCH_FRAME_HEADER_BYTES + meta.len() + body.len());
+    frame.extend_from_slice(&meta_len.to_be_bytes());
+    frame.extend_from_slice(&body_len.to_be_bytes());
+    frame.extend_from_slice(meta);
+    frame.extend_from_slice(body);
+    Ok(frame)
+}
+
+/// Splits a batched replication body into its frames. Returns an error rather
+/// than a partial list when the buffer is truncated or a length overruns it, so
+/// a malformed request is rejected whole instead of silently applying a prefix.
+pub fn decode_replicate_batch_frames(
+    mut buffer: &[u8],
+) -> Result<Vec<(ReplicateBatchItemMeta, Vec<u8>)>, String> {
+    let mut items = Vec::new();
+    while !buffer.is_empty() {
+        if buffer.len() < REPLICATE_BATCH_FRAME_HEADER_BYTES {
+            return Err("replication batch frame header is truncated".to_owned());
+        }
+        let meta_len = u32::from_be_bytes(buffer[0..4].try_into().expect("fixed slice")) as usize;
+        let body_len = u32::from_be_bytes(buffer[4..8].try_into().expect("fixed slice")) as usize;
+        let rest = &buffer[REPLICATE_BATCH_FRAME_HEADER_BYTES..];
+        let payload_len = meta_len
+            .checked_add(body_len)
+            .ok_or_else(|| "replication batch frame lengths overflow".to_owned())?;
+        if rest.len() < payload_len {
+            return Err("replication batch frame payload is truncated".to_owned());
+        }
+        let meta: ReplicateBatchItemMeta = serde_json::from_slice(&rest[..meta_len])
+            .map_err(|error| format!("failed to decode replication batch meta: {error}"))?;
+        items.push((meta, rest[meta_len..payload_len].to_vec()));
+        buffer = &rest[payload_len..];
+    }
+    Ok(items)
+}
+
 /// Encodes one frame header of the bodies response stream. This function and
 /// [`read_backfill_body_frame_prelude`] are the single definition of the wire
 /// layout — the requester decodes with the same code, so the two can never
@@ -968,10 +1059,10 @@ fn one_segment_after_prefix(path: &str, prefix: &str) -> bool {
 
 async fn track_http_metrics(
     State(state): State<SharedState>,
-    req: Request,
+    mut req: Request,
     next: Next,
 ) -> Response {
-    let start = std::time::Instant::now();
+    let started_at = Instant::now();
     let route = request_route(&req);
     let traffic_class = if is_public_load_route(&route) {
         HttpTrafficClass::Public
@@ -980,6 +1071,15 @@ async fn track_http_metrics(
     };
     let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
+    let request_id = request_id(
+        req.headers()
+            .get(REQUEST_ID_HEADER)
+            .and_then(|value| value.to_str().ok()),
+    );
+    let request_id_header = HeaderValue::from_str(&request_id)
+        .expect("generated or validated request id should be a valid header value");
+    req.headers_mut()
+        .insert(REQUEST_ID_HEADER, request_id_header.clone());
     let uri_path = req.uri().path().to_owned();
 
     let request_span = tracing::info_span!(
@@ -987,6 +1087,7 @@ async fn track_http_metrics(
         otel.name = %format!("{method} {route}"),
         otel.kind = "server",
         http.request.method = %method,
+        http.request.id = %request_id,
         http.route = %route,
         url.path = %uri_path,
         http.response.status_code = field::Empty,
@@ -997,13 +1098,32 @@ async fn track_http_metrics(
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
 
-    let response = next.run(req).instrument(request_span.clone()).await;
+    let request_context = RequestContext::new(
+        started_at,
+        request_id,
+        method,
+        route.clone(),
+        RequestLogPolicy {
+            sample_rate: state.config.request_log_sample_rate,
+            slow_request_threshold: Duration::from_millis(state.config.slow_request_threshold_ms),
+            warning_log_interval: Duration::from_millis(state.config.warning_log_interval_ms),
+        },
+        request_span.clone(),
+    );
+    let mut response = scope_request(
+        request_context.clone(),
+        next.run(req).instrument(request_span.clone()),
+    )
+    .await;
     request_span.record("http.response.status_code", response.status().as_u16());
     if response.status().is_server_error() {
         request_span.record("otel.status_code", "ERROR");
     }
+    response
+        .headers_mut()
+        .insert(REQUEST_ID_HEADER, request_id_header);
 
-    let elapsed = start.elapsed();
+    let elapsed = request_context.started_at().elapsed();
     if traffic_class == HttpTrafficClass::Public {
         state
             .runtime
@@ -1011,8 +1131,41 @@ async fn track_http_metrics(
     }
     state.metrics.record_http(route, response.status(), elapsed);
 
+    if response
+        .extensions()
+        .get::<ObservedStreamingResponse>()
+        .is_none()
+    {
+        let response_bytes = response
+            .headers()
+            .get(axum::http::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0);
+        let result = if response.status().is_server_error() {
+            "server_error"
+        } else {
+            "ok"
+        };
+        log_request_completion(
+            &request_context,
+            RequestCompletion {
+                status: response.status().as_u16(),
+                response_bytes,
+                time_to_first_byte: elapsed,
+                total_duration: elapsed,
+                serving_path: "handler",
+                result,
+                error: None,
+            },
+        );
+    }
+
     response
 }
+
+#[derive(Clone, Copy)]
+struct ObservedStreamingResponse;
 
 fn is_public_load_route(route: &str) -> bool {
     !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
@@ -1209,8 +1362,28 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
     )
     .await;
 
-    if let AccessDecision::Deny(deny) = auth.evaluate_access(&context).await {
-        return error_response(status_from_u16(deny.status), deny.message);
+    let access_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.auth.access",
+            kura.auth.transport = "http",
+            kura.auth.route = %route,
+            kura.auth.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let access = auth
+        .evaluate_access(&context)
+        .instrument(access_span.clone())
+        .await;
+    match access {
+        AccessDecision::Allow => {
+            access_span.record("kura.auth.result", "allow");
+        }
+        AccessDecision::Deny(deny) => {
+            access_span.record("kura.auth.result", "deny");
+            return error_response(status_from_u16(deny.status), deny.message);
+        }
     }
 
     next.run(req).await
@@ -1234,7 +1407,7 @@ fn is_http1(version: Version) -> bool {
 async fn request_context_from_http(
     state: &SharedState,
     request: HttpRequestFacts<'_>,
-) -> RequestContext {
+) -> AuthRequestContext {
     let metadata = http_request_metadata(
         state,
         request.route,
@@ -1244,7 +1417,7 @@ async fn request_context_from_http(
         request.body,
     )
     .await;
-    RequestContext {
+    AuthRequestContext {
         transport: "http".into(),
         route: request.route.to_owned(),
         method: request.method.to_owned(),
@@ -1568,6 +1741,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "ready": status.ready,
         "state": status.state.as_str(),
         "ring_members": status.ring_members,
+        "ring_fingerprint": status.ring_fingerprint,
         "initial_discovery_completed": status.initial_discovery_completed,
         "writer_lock_owned": status.writer_lock_owned,
         "http_inflight_requests": status.http_inflight,
@@ -1575,6 +1749,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
+        "peer_connection_failure_count": status.peer_connection_failure_count,
         "backfill_initial_cycle": status.backfill.initial_cycle.as_str(),
         "backfill_backfilling_peers": status.backfill.backfilling_peers,
         "backfill_budget_exhausted_real_peers": status.backfill.budget_exhausted_real,
@@ -2833,6 +3008,110 @@ async fn spool_backfill_bodies_inner(
     })
 }
 
+/// Batched sibling of `internal_replicate_artifact`, for the metadata lane.
+/// Applies every framed inline artifact and answers one outcome per item in
+/// request order, so the sender can clear exactly the messages the peer is done
+/// with. A peer that predates this route answers 404 and the sender falls back
+/// to the per-artifact endpoint, which is what keeps a mixed-version mesh
+/// working during a rollout.
+async fn internal_replicate_artifacts(
+    State(state): State<SharedState>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), REPLICATION_BATCH_MAX_BYTES as usize).await {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!("Failed to read replication batch: {error}"),
+            );
+        }
+    };
+
+    let items = match decode_replicate_batch_frames(&bytes) {
+        Ok(items) => items,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
+    if items.len() > REPLICATION_BATCH_MAX_ITEMS {
+        return error_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "replication batch carries {} items, above the {REPLICATION_BATCH_MAX_ITEMS} limit",
+                items.len()
+            ),
+        );
+    }
+
+    let mut outcomes = Vec::with_capacity(items.len());
+    for (meta, body) in items {
+        let Some(producer) = ArtifactProducer::from_str(&meta.producer) else {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            outcomes.push("error".to_owned());
+            continue;
+        };
+
+        // Same version gate the per-artifact route applies, so a batched item
+        // that lost the last-writer-wins race costs no write.
+        match state.store.artifact_apply_outcome(
+            producer,
+            &meta.namespace_id,
+            &meta.key,
+            meta.version_ms,
+        ) {
+            Ok(outcome) if !outcome.applied() => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", outcome.as_str());
+                outcomes.push(outcome.as_str().to_owned());
+                continue;
+            }
+            Ok(_) => {}
+            Err(_) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", "error");
+                outcomes.push("error".to_owned());
+                continue;
+            }
+        }
+
+        match state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                producer,
+                &meta.namespace_id,
+                &meta.key,
+                &meta.content_type,
+                &body,
+                meta.version_ms,
+                meta.branch.as_deref(),
+                meta.trunk.as_deref(),
+            )
+            .await
+        {
+            Ok(outcome) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", outcome.as_str());
+                outcomes.push(outcome.as_str().to_owned());
+            }
+            Err(_) => {
+                state
+                    .metrics
+                    .record_replication_apply("replication", "artifact", "error");
+                outcomes.push("error".to_owned());
+            }
+        }
+    }
+
+    (StatusCode::OK, Json(ReplicateBatchOutcomes { outcomes })).into_response()
+}
+
 async fn internal_replicate_artifact(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -3062,12 +3341,23 @@ async fn get_artifact(
     usage: Option<UsageContext>,
     range_request: RangeRequest<'_>,
 ) -> Response {
-    match state
+    let lookup_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.store.manifest_lookup",
+            kura.artifact.producer = producer.as_str(),
+            kura.store.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let lookup = state
         .store
         .fetch_artifact_for_serving(producer, namespace_id, key)
-        .await
-    {
+        .instrument(lookup_span.clone())
+        .await;
+    match lookup {
         Ok(Some(manifest)) => {
+            lookup_span.record("kura.store.result", "hit");
             // Resolved after the fetch so a 416's `Content-Range` only ever
             // discloses the size of an artifact the caller is already allowed
             // to read.
@@ -3117,10 +3407,12 @@ async fn get_artifact(
             response
         }
         Ok(None) => {
+            lookup_span.record("kura.store.result", "miss");
             state.metrics.record_artifact_read(producer, "not_found", 0);
             error_response(StatusCode::NOT_FOUND, "Artifact not found")
         }
         Err(error) => {
+            lookup_span.record("kura.store.result", "error");
             state.metrics.record_artifact_read(producer, "error", 0);
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -3379,8 +3671,25 @@ async fn serve_file(
     range: ServedRange,
     attribution: DownloadAttribution,
 ) -> Response {
-    match state.store.try_mmap_artifact_bytes(manifest).await {
+    let open_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.store.artifact_open",
+            kura.artifact.producer = manifest.producer.as_str(),
+            kura.store.serving_path = field::Empty,
+            kura.store.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let mmap_result = state
+        .store
+        .try_mmap_artifact_bytes(manifest)
+        .instrument(open_span.clone())
+        .await;
+    match mmap_result {
         Ok(Some(bytes)) => {
+            open_span.record("kura.store.serving_path", "mmap");
+            open_span.record("kura.store.result", "ok");
             state.metrics.record_artifact_serving_path("mmap");
             let requested_bytes = response_stream_chunk_bytes(range.length).saturating_mul(4);
             let permit = match state
@@ -3401,22 +3710,34 @@ async fn serve_file(
             // and no second mapping.
             let start = (range.start as usize).min(bytes.len());
             let end = start.saturating_add(range.length as usize).min(bytes.len());
+            let status = artifact_response_status(range);
             let stream = instrument_artifact_stream(
                 state,
                 manifest,
                 bytes_chunks(bytes.slice(start..end)),
                 true,
-                range.length,
-                Some(attribution),
+                ArtifactStreamObservation {
+                    status,
+                    serving_path: "mmap",
+                    expected_bytes: range.length,
+                    attribution: Some(attribution),
+                },
             );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = artifact_response_status(range);
+            *response.status_mut() = status;
+            response.extensions_mut().insert(ObservedStreamingResponse);
             apply_artifact_response_headers(&mut response, manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, manifest, range, attribution).await,
+        Ok(None) => {
+            open_span.record("kura.store.serving_path", "reader");
+            open_span.record("kura.store.result", "fallback");
+            serve_file_reader(state, manifest, range, attribution).await
+        }
         Err(error) => {
+            open_span.record("kura.store.serving_path", "reader_fallback");
+            open_span.record("kura.store.result", "error");
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
@@ -3489,35 +3810,58 @@ async fn serve_file_reader(
     // `Store::open_artifact_reader_range_tolerating_promotion`); response
     // metadata comes from the manifest that was actually opened so headers
     // always describe the bytes being streamed.
-    match state
+    let open_span = if trace_export_active() {
+        tracing::info_span!(
+            "kura.store.artifact_reader_open",
+            kura.artifact.producer = manifest.producer.as_str(),
+            kura.store.result = field::Empty,
+        )
+    } else {
+        tracing::Span::none()
+    };
+    let open_result = state
         .store
         .open_artifact_reader_range_tolerating_promotion(manifest, range.start, Some(range.length))
-        .await
-    {
+        .instrument(open_span.clone())
+        .await;
+    match open_result {
         Ok(Some((manifest, reader))) => {
+            open_span.record("kura.store.result", "ok");
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
+            let status = artifact_response_status(range);
             let stream = instrument_artifact_stream(
                 state,
                 &manifest,
                 stream,
                 true,
-                range.length,
-                Some(attribution),
+                ArtifactStreamObservation {
+                    status,
+                    serving_path: "reader",
+                    expected_bytes: range.length,
+                    attribution: Some(attribution),
+                },
             );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = artifact_response_status(range);
+            *response.status_mut() = status;
+            response.extensions_mut().insert(ObservedStreamingResponse);
             apply_artifact_response_headers(&mut response, &manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => error_response(
-            StatusCode::NOT_FOUND,
-            "Artifact bytes are missing from local storage".to_string(),
-        ),
-        Err(error) => error_response(
-            StatusCode::NOT_FOUND,
-            format!("Artifact bytes are missing from local storage: {error}"),
-        ),
+        Ok(None) => {
+            open_span.record("kura.store.result", "missing");
+            error_response(
+                StatusCode::NOT_FOUND,
+                "Artifact bytes are missing from local storage".to_string(),
+            )
+        }
+        Err(error) => {
+            open_span.record("kura.store.result", "error");
+            error_response(
+                StatusCode::NOT_FOUND,
+                format!("Artifact bytes are missing from local storage: {error}"),
+            )
+        }
     }
 }
 
@@ -3557,8 +3901,7 @@ fn instrument_artifact_stream<S>(
     manifest: &ArtifactManifest,
     stream: S,
     hold_public_inflight: bool,
-    expected_bytes: u64,
-    attribution: Option<DownloadAttribution>,
+    observation: ArtifactStreamObservation,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
@@ -3570,18 +3913,29 @@ where
         manifest.producer,
         stream,
         request_guard,
-        expected_bytes,
-        attribution,
+        observation,
     )
+}
+
+struct ArtifactStreamObservation {
+    status: StatusCode,
+    serving_path: &'static str,
+    expected_bytes: u64,
+    attribution: Option<DownloadAttribution>,
 }
 
 struct InstrumentedArtifactStream<S> {
     inner: S,
     metrics: Metrics,
     producer: ArtifactProducer,
+    status: StatusCode,
     _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
+    first_byte_at: Option<Duration>,
+    request_context: Option<Arc<RequestContext>>,
+    body_span: tracing::Span,
+    serving_path: &'static str,
     // What the response promised in its `Content-Length`. A body is complete
     // when it has yielded this much, whether or not anything polls it again:
     // Hyper stops polling once the promised length is on the wire, so the
@@ -3599,16 +3953,62 @@ impl<S> InstrumentedArtifactStream<S> {
         producer: ArtifactProducer,
         stream: S,
         request_guard: Option<InflightGuard>,
-        expected_bytes: u64,
-        attribution: Option<DownloadAttribution>,
+        observation: ArtifactStreamObservation,
     ) -> Self {
+        let ArtifactStreamObservation {
+            status,
+            serving_path,
+            expected_bytes,
+            attribution,
+        } = observation;
+        let request_context = current_request();
+        let body_span = if !trace_export_active() {
+            tracing::Span::none()
+        } else if let Some(context) = request_context.as_ref() {
+            tracing::info_span!(
+                parent: context.request_span(),
+                "kura.http.response_body",
+                http.request.id = %context.request_id(),
+                http.response.status_code = status.as_u16(),
+                kura.artifact.producer = producer.as_str(),
+                kura.response.serving_path = serving_path,
+                http.response.body.size = field::Empty,
+                kura.request.time_to_first_byte_ms = field::Empty,
+                kura.request.duration_ms = field::Empty,
+                kura.response.result = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            )
+        } else {
+            tracing::info_span!(
+                "kura.http.response_body",
+                http.request.id = field::Empty,
+                http.response.status_code = status.as_u16(),
+                kura.artifact.producer = producer.as_str(),
+                kura.response.serving_path = serving_path,
+                http.response.body.size = field::Empty,
+                kura.request.time_to_first_byte_ms = field::Empty,
+                kura.request.duration_ms = field::Empty,
+                kura.response.result = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            )
+        };
+        if trace_export_active() {
+            record_trace_context(&body_span);
+        }
         Self {
             inner: stream,
             metrics,
             producer,
+            status,
             _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
+            first_byte_at: None,
+            request_context,
+            body_span,
+            serving_path,
             expected_bytes,
             recorded: false,
             attribution,
@@ -3620,22 +4020,54 @@ impl<S> InstrumentedArtifactStream<S> {
         self.yielded_bytes >= self.expected_bytes
     }
 
-    fn record_once(&mut self, result: &str) {
+    fn record_once(&mut self, result: &str, error: Option<&str>) {
         if self.recorded {
             return;
         }
 
         self.recorded = true;
+        let transfer_duration = self.started_at.elapsed();
         self.metrics.record_artifact_egress(
             self.producer,
             result,
             self.yielded_bytes,
-            self.started_at.elapsed(),
+            transfer_duration,
         );
         if result == "ok"
             && let Some(attribution) = self.attribution.take()
         {
             attribution.commit(self.yielded_bytes);
+        }
+        let total_duration = self
+            .request_context
+            .as_ref()
+            .map(|context| context.started_at().elapsed())
+            .unwrap_or(transfer_duration);
+        let time_to_first_byte = self.first_byte_at.unwrap_or(total_duration);
+        self.body_span
+            .record("http.response.body.size", self.yielded_bytes);
+        self.body_span.record(
+            "kura.request.time_to_first_byte_ms",
+            time_to_first_byte.as_secs_f64() * 1_000.0,
+        );
+        self.body_span.record(
+            "kura.request.duration_ms",
+            total_duration.as_secs_f64() * 1_000.0,
+        );
+        self.body_span.record("kura.response.result", result);
+        if let Some(context) = self.request_context.as_ref() {
+            log_request_completion(
+                context,
+                RequestCompletion {
+                    status: self.status.as_u16(),
+                    response_bytes: self.yielded_bytes,
+                    time_to_first_byte,
+                    total_duration,
+                    serving_path: self.serving_path,
+                    result,
+                    error,
+                },
+            );
         }
     }
 }
@@ -3671,15 +4103,24 @@ where
         let inner = unsafe { Pin::new_unchecked(&mut this.inner) };
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
+                if this.first_byte_at.is_none() {
+                    this.first_byte_at = Some(
+                        this.request_context
+                            .as_ref()
+                            .map(|context| context.started_at().elapsed())
+                            .unwrap_or_else(|| this.started_at.elapsed()),
+                    );
+                }
                 this.yielded_bytes = this.yielded_bytes.saturating_add(bytes.len() as u64);
                 Poll::Ready(Some(Ok(bytes)))
             }
             Poll::Ready(Some(Err(error))) => {
-                this.record_once("error");
+                let error_message = error.to_string();
+                this.record_once("error", Some(&error_message));
                 Poll::Ready(Some(Err(error)))
             }
             Poll::Ready(None) => {
-                this.record_once("ok");
+                this.record_once("ok", None);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
@@ -3699,7 +4140,7 @@ impl<S> Drop for InstrumentedArtifactStream<S> {
         } else {
             "aborted"
         };
-        self.record_once(result);
+        self.record_once(result, None);
     }
 }
 
@@ -4446,6 +4887,12 @@ mod tests {
             .state
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
+        context.state.metrics.record_replication(
+            &peer,
+            "upsert_artifact",
+            "error",
+            Duration::from_millis(3),
+        );
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -4467,6 +4914,12 @@ mod tests {
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
+        assert_eq!(body["peer_connection_failure_count"], 1);
+        let fingerprint = body["ring_fingerprint"]
+            .as_str()
+            .expect("ring fingerprint should be a string");
+        assert_eq!(fingerprint.len(), 16);
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(body["backfill_initial_cycle"], "complete");
     }
 
@@ -7291,6 +7744,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn responses_preserve_or_generate_a_bounded_request_id() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let preserved = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .header(REQUEST_ID_HEADER, "client-request-123")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(
+            preserved.headers().get(REQUEST_ID_HEADER),
+            Some(&HeaderValue::from_static("client-request-123"))
+        );
+
+        let generated = app
+            .oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        let generated = generated
+            .headers()
+            .get(REQUEST_ID_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .expect("generated request id");
+        assert!(!generated.is_empty());
+        assert!(generated.len() <= 128);
+    }
+
+    #[tokio::test]
     async fn clean_namespace_removes_existing_artifacts() {
         let context = test_context(|_| {}).await;
         context
@@ -7387,8 +7879,12 @@ mod tests {
             ArtifactProducer::Xcode,
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
-            1,
-            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 1,
+                attribution: None,
+            },
         );
 
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
@@ -7500,8 +7996,12 @@ mod tests {
             ArtifactProducer::Module,
             futures_util::stream::iter(chunks),
             None,
-            10,
-            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
         );
 
         // Drain exactly the promised bytes, then drop without polling again.
@@ -7532,8 +8032,12 @@ mod tests {
             ArtifactProducer::Module,
             futures_util::stream::iter(chunks),
             None,
-            10,
-            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
         );
 
         // The client goes away after the first chunk.
@@ -7598,8 +8102,12 @@ mod tests {
             ArtifactProducer::Module,
             futures_util::stream::iter(chunks),
             None,
-            10,
-            Some(download_attribution(&context)),
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: Some(download_attribution(&context)),
+            },
         );
 
         assert!(stream.next().await.is_some());
@@ -7625,8 +8133,12 @@ mod tests {
             ArtifactProducer::Module,
             futures_util::stream::iter(chunks),
             None,
-            4,
-            Some(download_attribution(&context)),
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 4,
+                attribution: Some(download_attribution(&context)),
+            },
         );
 
         assert!(stream.next().await.is_some());
@@ -7803,5 +8315,72 @@ mod tests {
                 body: body.to_vec(),
             });
         StatusCode::ACCEPTED
+    }
+
+    #[test]
+    fn replicate_batch_frames_round_trip() {
+        let first = ReplicateBatchItemMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "entry-1".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            version_ms: 200,
+            branch: Some("main".to_owned()),
+            trunk: None,
+        };
+        let second = ReplicateBatchItemMeta {
+            key: "entry-2".to_owned(),
+            version_ms: 300,
+            branch: None,
+            ..first.clone()
+        };
+
+        let mut body = Vec::new();
+        for (meta, payload) in [(&first, b"one".as_slice()), (&second, b"".as_slice())] {
+            let meta_bytes = serde_json::to_vec(meta).expect("meta should encode");
+            body.extend_from_slice(
+                &encode_replicate_batch_frame(&meta_bytes, payload).expect("frame should encode"),
+            );
+        }
+
+        let decoded = decode_replicate_batch_frames(&body).expect("frames should decode");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].0, first);
+        assert_eq!(decoded[0].1, b"one".to_vec());
+        // An empty body is a legitimate frame, not a terminator.
+        assert_eq!(decoded[1].0, second);
+        assert!(decoded[1].1.is_empty());
+    }
+
+    #[test]
+    fn a_truncated_replicate_batch_is_rejected_whole() {
+        // Applying a prefix would silently drop the tail while the sender
+        // clears every message it sent, so a short read must fail the request.
+        let meta = ReplicateBatchItemMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "entry".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            version_ms: 1,
+            branch: None,
+            trunk: None,
+        };
+        let meta_bytes = serde_json::to_vec(&meta).expect("meta should encode");
+        let frame =
+            encode_replicate_batch_frame(&meta_bytes, b"payload").expect("frame should encode");
+
+        let error = decode_replicate_batch_frames(&frame[..frame.len() - 2])
+            .expect_err("a truncated payload must be rejected");
+        assert!(
+            error.contains("truncated"),
+            "expected a truncation error, got: {error}"
+        );
+
+        let error = decode_replicate_batch_frames(&frame[..4])
+            .expect_err("a truncated header must be rejected");
+        assert!(
+            error.contains("truncated"),
+            "expected a truncation error, got: {error}"
+        );
     }
 }

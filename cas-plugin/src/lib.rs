@@ -14,6 +14,7 @@
 //! sets it and the Swift path does not, and both are ours to serve.
 
 pub mod analytics;
+pub mod endpoint;
 pub mod proxy;
 pub mod proxy_proto;
 pub mod prefetch;
@@ -26,7 +27,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use proxy_proto::{ProxyClient, Resolution};
+use proxy_proto::{Backing, ProxyClient, Resolution};
 use reapi::OpStats;
 use types::*;
 use upstream::Upstream;
@@ -285,6 +286,17 @@ struct CasState {
     // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
+    // Local associations withheld because the remote does not hold the key, so
+    // nothing could have produced the interior nodes the root probe cannot see.
+    // Counted apart from unbacked_local_hits: that one means the value ROOT is
+    // gone from this store, while this one means the store is fine and the
+    // association came from somewhere that never finished publishing it — a
+    // different author, and the one that survives a whole-image cache-volume
+    // promote between hosts.
+    stats_unbacked_associations: AtomicU64,
+    // One build-log line per frontend that hits an unproducible object; see
+    // report_unproducible_object.
+    reported_unproducible: AtomicBool,
     // Resolve hits whose association was NOT recorded because the graph had not
     // materialized yet. Not a degradation: the key resolves again next build and
     // is recorded then. A count that stays high across builds means graphs are
@@ -553,6 +565,8 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
         stats_unbacked_local_hits: AtomicU64::new(0),
+        stats_unbacked_associations: AtomicU64::new(0),
+        reported_unproducible: AtomicBool::new(false),
         stats_poisoned_puts: AtomicU64::new(0),
         stats_deferred_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
@@ -607,9 +621,11 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // This does cover the build system's own instance, which issues the gets.
         let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
         let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
-        if unbacked > 0 || poisoned > 0 {
+        let associations = state.stats_unbacked_associations.load(Ordering::Relaxed);
+        if unbacked > 0 || poisoned > 0 || associations > 0 {
             log_line(&format!(
-                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned} \
+                 unbacked_associations={associations}"
             ));
         }
         // Deliberately NOT part of `degraded:`. A deferral is the expected
@@ -643,16 +659,127 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
 }
 
 
-pub fn log_line(message: &str) {
-    if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
-        use std::io::Write;
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let _ = writeln!(file, "[tuist-cas-plugin t={now} pid={}] {message}", std::process::id());
+/// Soft cap on the `TUIST_CAS_LOG` file, enforced by truncating it in place.
+///
+/// Sized to hold a whole build's diagnostics with room to spare. The bulk of the
+/// output is the per-process block each compiler frontend writes on dispose (a
+/// handful of ~150-byte lines), so even a workspace spawning tens of thousands of
+/// frontends lands in the low tens of megabytes, and everything else logged here
+/// is an exceptional path plus the proxy's periodic stats line. The per-resolve
+/// firehose is the one writer that will roll this over routinely, and it is
+/// behind its own `TUIST_CAS_LOG_RESOLVES` flag.
+const MAX_LOG_BYTES: u64 = 32 * 1024 * 1024;
+
+/// How many bytes a process appends between size checks, so the bound costs one
+/// `metadata` call per this much output rather than one per line.
+const LOG_SIZE_CHECK_INTERVAL: u64 = 64 * 1024;
+
+/// Seeded AT the interval so the FIRST line a process writes checks the size, and
+/// only then does the counter amortize. Every compiler frontend on the machine is
+/// its own writer and most of them never produce 64 KiB, so a counter starting at
+/// zero would leave the common case — thousands of short-lived processes, none of
+/// them individually chatty — never checking at all, which is unbounded growth
+/// spelled differently.
+static LOG_BYTES_SINCE_CHECK: AtomicU64 = AtomicU64::new(LOG_SIZE_CHECK_INTERVAL);
+
+/// The CI markers the CLI itself keys on (`Environment.isCI`), matched on
+/// presence rather than value, exactly as it does.
+const CI_MARKERS: [&str; 3] = ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"];
+
+/// Where the diagnostics go, or `None` to write none.
+///
+/// An explicitly set `TUIST_CAS_LOG` always wins, and setting it EMPTY is the way
+/// to opt out of the CI default below.
+fn log_path() -> Option<String> {
+    match std::env::var("TUIST_CAS_LOG") {
+        Ok(path) => (!path.is_empty()).then_some(path),
+        Err(_) => default_log_path(),
+    }
+}
+
+/// The CI default: the CLI's state directory, and nothing off CI.
+///
+/// Defaulted HERE rather than exported by the CLI because the frontends this code
+/// runs in are reached by more than `tuist build`. A project generated with the
+/// cache enabled carries `COMPILATION_CACHE_PLUGIN_PATH` in its build settings, so
+/// a workflow that runs `tuist generate` and then drives `xcodebuild` or Fastlane
+/// directly loads this plugin from a shell the CLI never touched. Setting the
+/// variable on the environment the CLI hands `xcodebuild` would cover only the
+/// builds the CLI itself launches, leaving those workflows with the proxy's half of
+/// the diagnostics and none of the per-compilation half — worse than the manual
+/// path it replaces, since a workflow that exports the variable gets both halves by
+/// plain shell inheritance. Same reasoning as `default_proxy_socket`: what a
+/// frontend cannot inherit, it resolves.
+///
+/// Resolution mirrors the CLI's `Environment.stateDirectory` (`XDG_STATE_HOME` when
+/// absolute, else `$HOME/.local/state`, then `tuist`) so the file the proxy is
+/// pointed at by its launch agent and the file the frontends write are one file.
+/// Not created here: a build that reaches this plugin was generated by `tuist`, and
+/// every CLI invocation writes its session state into that directory first.
+///
+/// CI only. On a developer machine the proxy is a long-lived LaunchAgent and this
+/// would be state created on every build for a reader who never asked for it; a CI
+/// machine is ephemeral and the job bounds it.
+fn default_log_path() -> Option<String> {
+    if !CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some()) {
+        return None;
+    }
+    let state_directory = match std::env::var("XDG_STATE_HOME") {
+        Ok(base) if base.starts_with('/') => base,
+        _ => {
+            let home = std::env::var("HOME").ok().filter(|home| !home.is_empty())?;
+            format!("{home}/.local/state")
         }
+    };
+    Some(format!("{state_directory}/tuist/cas.log"))
+}
+
+pub fn log_line(message: &str) {
+    let Some(path) = log_path() else { return };
+    use std::io::Write;
+    let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    // Formatted into one buffer and written with a single `write_all`, rather than
+    // formatted straight into the file: `File` is unbuffered, so writing through
+    // the format machinery issues a syscall per fragment and lines from the many
+    // processes sharing this path interleave mid-line. It also hands the size
+    // check below the byte count for free, with no second look at the file.
+    let line = format!("[tuist-cas-plugin t={now} pid={}] {message}\n", std::process::id());
+    // Bound checked BEFORE the write, so a line that trips the rollover survives
+    // it as the first line of the fresh file rather than being the one thing the
+    // truncation takes.
+    enforce_log_bound(&file, line.len() as u64);
+    let _ = file.write_all(line.as_bytes());
+}
+
+/// Keeps the file under `MAX_LOG_BYTES` by truncating it in place, which keeps
+/// the RECENT output: the lines that explain a failed build are the last ones, so
+/// refusing to write past a ceiling would drop exactly what a reader came for.
+///
+/// Truncation rather than rename-based rotation because the writers here are the
+/// proxy plus a plugin instance inside every compiler frontend on the machine,
+/// all on one path. A rename splits them across two inodes — whoever holds the
+/// old descriptor keeps appending to a file that is no longer at the path, and a
+/// second rotator can unlink it outright — whereas a truncate races only with
+/// itself and costs at worst one extra truncation. `O_APPEND` is what makes it
+/// safe: every write re-seeks to the current end of the file, so a concurrent
+/// writer whose offset was past the truncation point cannot leave a NUL hole.
+///
+/// Soft rather than exact: the file may run over by whatever the writers produce
+/// between checks, which is bounded by the interval and, because each process
+/// checks on its first line, small in practice.
+fn enforce_log_bound(file: &std::fs::File, about_to_write: u64) {
+    if LOG_BYTES_SINCE_CHECK.fetch_add(about_to_write, Ordering::Relaxed) + about_to_write < LOG_SIZE_CHECK_INTERVAL {
+        return;
+    }
+    LOG_BYTES_SINCE_CHECK.store(0, Ordering::Relaxed);
+    if file.metadata().map(|metadata| metadata.len()).unwrap_or(0) > MAX_LOG_BYTES {
+        let _ = file.set_len(0);
     }
 }
 
@@ -871,6 +998,40 @@ unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
 }
 
 
+/// Names, in the build log, the object the proxy could not produce.
+///
+/// What the compiler prints on its own is `CAS operation failed: missing object
+/// '0~...'` — no target, no file, no instance, and a digest that is usually an
+/// interior node rather than the cache key the failing task is named after. It
+/// reads as a flake, it self-heals on a re-run once the recompile republishes
+/// the object, and it has been retried away repeatedly. This line is what makes
+/// the next occurrence identify itself: stderr from a compiler frontend lands in
+/// the xcodebuild log, where `TUIST_CAS_LOG` (a file, unset on CI) does not.
+///
+/// Once per process. A frontend compiles one primary input, so one line still
+/// attributes the failure to the compile that hit it, without a graph's worth of
+/// missing nodes flooding the log. The lookup result is deliberately unchanged:
+/// NOTFOUND is what lets the Swift lane downgrade to a replay warning and
+/// recompile, and turning it into an ABI error would break that to make the
+/// clang lane — which fails either way — no better.
+unsafe fn report_unproducible_object(state: &CasState, id: llcas_objectid_t) {
+    if state.reported_unproducible.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let instance = if state.proxy_instance.is_empty() {
+        "<unset>"
+    } else {
+        &state.proxy_instance
+    };
+    eprintln!(
+        "tuist-cas-plugin: object {} is named by a cached compilation but no longer exists, \
+         and the remote cache for {instance} cannot supply it. This is a dangling cache entry, \
+         not a transient failure: retrying the build only helps because the recompile \
+         republishes the object. See cas-plugin/AGENTS.md, \"unbacked associations\".",
+        printed_digest(state, id)
+    );
+}
+
 unsafe fn load_object_impl(
     state: &CasState,
     id: llcas_objectid_t,
@@ -916,6 +1077,7 @@ unsafe fn load_object_impl(
                     "proxy fetch_object could not produce {}",
                     printed_digest(state, id)
                 ));
+                report_unproducible_object(state, id);
             }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
@@ -1192,10 +1354,74 @@ unsafe fn verified_local_get(
         ));
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
+    // The probe above covers the root and nothing deeper, so it cannot see an
+    // association whose INTERIOR nodes are gone — the shape that reaches the
+    // compiler as `missing object` on a digest that is not the key, and that
+    // clang does not survive. A graph walk here is the wrong instrument (a load
+    // per node, transitively, on the serial task-setup path), and the write-side
+    // invariants that were meant to cover it only bind writers in this crate:
+    // an association that arrived by whole-image clone — the per-account runner
+    // cache volume promotes the local CAS between hosts — was written by a
+    // different machine, possibly a different plugin version, and no local
+    // invariant ever applied to it.
+    //
+    // So ask the one component that can answer cheaply. The proxy already holds
+    // the instance snapshot and, on a hit, registers the closure's fetch
+    // instructions, which is simultaneously the check and the repair: after a
+    // `Backed` answer a demand load for a missing interior node has an
+    // instruction to fetch it. Only a definitive `Unbacked` withholds the hit.
+    if !closure_is_backed(state, key_digest, value) {
+        state.stats_unbacked_associations.fetch_add(1, Ordering::Relaxed);
+        log_line(&format!(
+            "unbacked association, falling through to the remote: value={}",
+            printed_digest(state, value)
+        ));
+        return LLCAS_LOOKUP_RESULT_NOTFOUND;
+    }
     if !p_value.is_null() {
         *p_value = value;
     }
     LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// Whether the proxy can produce the closure named by an association the local
+/// store holds.
+///
+/// Every "cannot tell" regime is decided by the PROXY, which answers `Unknown`:
+/// no routable instance, a project that does not upload, or any transport
+/// failure. Nothing is filtered here first — in particular not on `state.upload`,
+/// which is the trap `Proxy::upload_enabled` documents: that flag comes from a
+/// compiler option that reaches Swift, while swift-build's Clang caching runs
+/// against a CAS created with a plugin path and no options and so reads as
+/// uploading even under an explicit opt-out. Gating client-side would have left
+/// the Clang lane — the one that fails the build — recompiling every valid
+/// local entry, every build.
+///
+/// What is left is the regime the invariant was written for: uploads on, where
+/// the design's own rule is that everything a promoted CAS claims must be
+/// resolvable from the remote.
+unsafe fn closure_is_backed(
+    state: &CasState,
+    key_digest: llcas_digest_t,
+    value: llcas_objectid_t,
+) -> bool {
+    let key = std::slice::from_raw_parts(key_digest.data, key_digest.size);
+    let cas_path = state
+        .cas_dir
+        .as_ref()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    match state.proxy.backed(&cas_path, &state.proxy_instance, key) {
+        // Backed, but only for the graph the remote named. A remote value that
+        // differs from this association's is a key whose recompile was not
+        // byte-reproducible, and the instructions the check registered describe
+        // the OTHER graph — so this one is still unvouched. Withholding costs
+        // nothing here: the fall-through resolves the same key and serves the
+        // remote's value, which does have its closure registered.
+        Backing::Backed(remote_value) => remote_value == digest_bytes(state, value),
+        Backing::Unbacked => false,
+        Backing::Unknown => true,
+    }
 }
 
 /// Whether a put failure is the store declining to CHANGE an existing
