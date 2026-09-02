@@ -30,7 +30,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "sets the right title", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -39,7 +39,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "lists registered self-hosted nodes", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _endpoint} =
@@ -69,29 +69,14 @@ defmodule TuistWeb.CacheLiveTest do
     end
   end
 
-  test "shows a disabled notice when cache is not enabled", %{conn: conn, account: account} do
-    disable_cache(account)
-
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
-
-    assert html =~ "not enabled for this account"
-    refute html =~ "create_self_hosted_client"
-    refute html =~ "cache-servers-table"
-  end
-
-  test "is available on a self-hosted server without the kura flag", %{conn: conn, account: account} do
-    # Non-hosted deployments grant the Kura surface unconditionally, so the
-    # page and credential generation work even with the flag off.
+  test "renders on a hosted deployment without a feature flag", %{conn: conn, account: account} do
     stub(Environment, :dev?, fn -> false end)
-    stub(Environment, :tuist_hosted?, fn -> false end)
-    stub_cache_flag(account, false)
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
 
-    refute html =~ "not enabled for this account"
-    assert html =~ "Self-hosted servers"
-    assert html =~ "create_self_hosted_client"
+    assert has_element?(lv, "[data-part=cache-write-policy-card]")
   end
 
   test "hides the managed cache-servers section on a self-hosted server with no regions", %{
@@ -104,7 +89,6 @@ defmodule TuistWeb.CacheLiveTest do
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :tuist_hosted?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> [] end)
-    stub_cache_flag(account, false)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -113,25 +97,10 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "Self-hosted servers"
   end
 
-  test "renders on the hosted server when the kura flag is on", %{conn: conn, account: account} do
-    # Positive coverage for the hosted branch: with tuist_hosted? true the
-    # `not tuist_hosted?()` disjunct is false, so the surface appears only
-    # because the :kura flag is on for the account.
-    stub(Environment, :dev?, fn -> false end)
-    stub(Environment, :tuist_hosted?, fn -> true end)
-    stub_cache_flag(account, true)
-    stub(Kura, :latest_versions, fn 1 -> [] end)
-
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
-
-    refute html =~ "not enabled for this account"
-    assert has_element?(lv, "[data-part=cache-write-policy-card]")
-  end
-
   test "tells the account nothing about where its cache runs", %{conn: conn, account: account} do
     # Placement is not a request the account can make, and not a status it is
     # given either: the page carries no managed-cache surface at all.
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -148,7 +117,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "updates the cache upload access", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -187,7 +156,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "renders the self-hosted sections", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -198,7 +167,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "hides the self-hosted section without the enterprise entitlement", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
@@ -211,7 +180,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "shows the self-hosted section with the enterprise entitlement", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
@@ -222,7 +191,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "generates a tenant-scoped credential and reveals the secret once", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
@@ -243,7 +212,7 @@ defmodule TuistWeb.CacheLiveTest do
   end
 
   test "revokes a credential through the confirmation modal", %{conn: conn, account: account} do
-    enable_cache(account)
+    stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
     {:ok, {client, _secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "production"})
 
@@ -260,28 +229,11 @@ defmodule TuistWeb.CacheLiveTest do
     assert SelfHostedClients.list_self_hosted_clients(account) == []
   end
 
-  defp enable_cache(account) do
+  defp stub_non_hosted_deployment do
     stub(Environment, :dev?, fn -> false end)
     # Non-hosted deployments grant every entitlement, so this keeps the
-    # self-hosted (Enterprise-only) section available; gate tests override it.
+    # self-hosted (Enterprise-only) section available; the entitlement tests
+    # override it.
     stub(Environment, :tuist_hosted?, fn -> false end)
-    stub_cache_flag(account, true)
-  end
-
-  defp disable_cache(account) do
-    stub(Environment, :dev?, fn -> false end)
-    # The Cache surface is on by default on non-hosted deployments, so the
-    # only way it stays hidden is the hosted server with the flag off.
-    stub(Environment, :tuist_hosted?, fn -> true end)
-    stub_cache_flag(account, false)
-  end
-
-  defp stub_cache_flag(account, enabled?) do
-    account_id = account.id
-
-    stub(FunWithFlags, :enabled?, fn
-      :kura, [for: %{id: ^account_id}] -> enabled?
-      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
-    end)
   end
 end
