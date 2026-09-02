@@ -4,6 +4,8 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistEnvironment
+import TuistEnvironmentTesting
 @testable import TuistCore
 
 struct SupportCachePrunerTests {
@@ -187,6 +189,35 @@ struct SupportCachePrunerTests {
         let manifest = try await seed(.manifests, name: "1.abc", bytes: 1_000_000, lastUsed: Date(), in: cache)
 
         #expect(try await subject(cache).size(of: manifest) == 1_000_000)
+    }
+
+    @Test(.withMockedEnvironment()) func budget_splitsTheStagedBudgetWithTheModuleCache() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "10000000"
+
+        // The module cache holds what a build links and a miss costs a download; these hold what
+        // the CLI derives along the way and a miss costs a recompute, so they take the small share.
+        #expect(CacheBudget.supportCaches == 1_000_000)
+        #expect(CacheBudget.moduleCache == 9_000_000)
+        // The two are one budget, so bounding these cannot push the volume past what it was sized
+        // for — the property the shared variable exists to keep.
+        #expect(CacheBudget.supportCaches! + CacheBudget.moduleCache! == 10_000_000)
+    }
+
+    @Test(.withMockedEnvironment()) func budget_capsTheSupportShareOnALargeBudget() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "107374182400" // 100 GiB
+
+        // A compiled helpers module is the same size whatever the volume is, so the share is capped
+        // rather than proportional and the rest stays with the module cache.
+        #expect(CacheBudget.supportCaches == 1024 * 1024 * 1024)
+        #expect(CacheBudget.moduleCache == 107_374_182_400 - 1024 * 1024 * 1024)
+    }
+
+    @Test(.withMockedEnvironment()) func budget_isUnboundedWithoutAStagedBudget() {
+        // Off a runner the cache is the user's own directory, so only the age pass applies.
+        #expect(CacheBudget.supportCaches == nil)
+        #expect(CacheBudget.moduleCache == nil)
     }
 
     @Test func everyCategoryNamesTheBudgetThatBoundsIt() {

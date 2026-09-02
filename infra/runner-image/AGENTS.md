@@ -98,11 +98,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
   (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
   budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune and the support-cache budget
-  (`cache-support-max-bytes`) into `TUIST_SUPPORT_CACHE_MAX_BYTES`, which bounds
-  everything the CLI caches that is neither a binary artifact nor a CAS object
-  (result bundles, compiled project description helpers, manifests, plugin
-  checkouts), reads the host-staged base generation
+  for the CLI's LRU self-prune, reads the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
   The host also stages its Kubernetes `node-name` there at VM create, which the

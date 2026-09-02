@@ -315,14 +315,6 @@ const cacheReadyFile = "cache-ready"
 // virtio-fs share, which would be a far-too-large budget.
 const cacheBudgetFile = "cache-max-bytes"
 
-// cacheSupportBudgetFile carries the byte budget the guest exports as
-// TUIST_SUPPORT_CACHE_MAX_BYTES, bounding every cache the CLI keeps that is
-// neither a binary artifact nor a CAS object: result bundles, compiled project
-// description helpers, manifests, plugin checkouts. Those had no budget at all
-// and grew until the image hit ENOSPC, at which point every command died at its
-// first cache write.
-const cacheSupportBudgetFile = "cache-support-max-bytes"
-
 // allocateVolumeBranch prepares an empty per-VM cache branch directory for a
 // booting VM (shared into the guest as a virtio-fs mount), or returns an
 // un-attached zero value when the feature is off or admission declines. The
@@ -433,37 +425,18 @@ const (
 	// (crossover at 40 GiB). The binary cache and the folded CAS split the rest.
 	cacheVolumeReserveFloorGiB = 2
 	cacheVolumeReservePercent  = 5
-	// cacheSupportCeilingGiB / cacheSupportPercent size the support caches'
-	// share: support = min(ceiling, percent of usable). A CEILING, not the
-	// reserve's max(floor, percent): what these caches hold does not scale with
-	// the image (a compiled helpers module is the same size on a 20 GiB volume
-	// as on a 100 GiB one), so the absolute value is the real budget and the
-	// percent only keeps a small image from handing them a share that would
-	// starve the binary cache.
-	cacheSupportCeilingGiB = 1
-	cacheSupportPercent    = 10
 )
 
 // cacheImageSplit computes the coordinated budget split for a capGiB cache image
-// shared by the binary cache, the folded CAS and the CLI's support caches. It
-// returns the binary cache's byte budget (TUIST_CACHE_MAX_BYTES), the CAS's byte
-// budget (COMPILATION_CACHE_LIMIT_SIZE, 0 when the CAS is off) and the support
-// caches' byte budget (TUIST_SUPPORT_CACHE_MAX_BYTES). The three never exceed
-// cap−reserve, so the independent pruners cannot over-commit the one image to
-// ENOSPC. A CASGiB set larger than the usable space is clamped so the binary
-// cache always keeps a slice.
-//
-// The support share comes out of usable rather than out of the reserve, even
-// though the reserve is what those caches used to grow into. The reserve is
-// headroom for APFS metadata and for a pruner's overshoot within a single
-// build; a tenant that grows across runs living inside it is the reserve
-// silently doing two jobs, which is how a 2 GiB reserve came to be a third
-// spent before a build wrote anything. Carving the share out of usable costs
-// the binary cache the bytes the support caches were already taking, and buys
-// back a reserve that is only headroom.
-func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes, supportBytes uint64) {
+// shared by the binary cache and the folded CAS. It returns the binary cache's
+// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's byte budget
+// (COMPILATION_CACHE_LIMIT_SIZE, 0 when the CAS is off). binary + CAS never
+// exceed cap−reserve, so the two independent pruners cannot over-commit the one
+// image to ENOSPC. A CASGiB set larger than the usable space is clamped so the
+// binary cache always keeps a slice.
+func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	if capGiB <= 0 {
-		return 0, 0, 0
+		return 0, 0
 	}
 	const gib = uint64(1024 * 1024 * 1024)
 	capBytes := uint64(capGiB) * gib
@@ -475,36 +448,28 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes, supportBytes ui
 		reserve = capBytes / 2 // a tiny cap never reserves more than half
 	}
 	usable := capBytes - reserve
-	supportBytes = uint64(cacheSupportCeilingGiB) * gib
-	if pct := usable * cacheSupportPercent / 100; pct < supportBytes {
-		supportBytes = pct
-	}
-	usable -= supportBytes
 	if casGiB <= 0 {
 		b := capBytes * 80 / 100 // CAS off: binary keeps ~80% (its own 20% headroom)
 		if b > usable {
 			b = usable
 		}
-		return b, 0, supportBytes
+		return b, 0
 	}
 	casBytes = uint64(casGiB) * gib
 	if maxCAS := usable * 90 / 100; casBytes > maxCAS {
 		casBytes = maxCAS // oversized CASGiB: keep the binary cache a ≥10% slice
 	}
 	binaryBytes = usable - casBytes
-	return binaryBytes, casBytes, supportBytes
+	return binaryBytes, casBytes
 }
 
-// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES)
-// and the support caches' (TUIST_SUPPORT_CACHE_MAX_BYTES). Both from one split,
-// here, so a guest can never be handed one of them without the other.
+// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
 func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
-	budget, _, support := cacheImageSplit(capGiB, casGiB)
+	budget, _ := cacheImageSplit(capGiB, casGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
-	_ = os.WriteFile(filepath.Join(statusDir, cacheSupportBudgetFile), []byte(strconv.FormatUint(support, 10)), 0o644)
 }
 
 // casEnabledFile signals the guest to point the compiler at the folded CAS store
@@ -522,7 +487,7 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	// drift), which the guest emits as COMPILATION_CACHE_LIMIT_SIZE — an absolute
 	// bound, not a percent, because Swift Build's LIMIT_PERCENT is against the
 	// cache-db size plus free space, which shrinks as the binary cache fills.
-	_, casBytes, _ := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
+	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
 }
 

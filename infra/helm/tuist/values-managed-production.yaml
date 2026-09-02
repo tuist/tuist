@@ -915,13 +915,11 @@ macosFleet:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
     # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
-    # the CLI's support caches (result bundles, compiled helpers, manifests,
-    # plugin checkouts) get up to 1 GiB, and the binary cache the rest minus a
-    # ~2 GiB reserve. A typical binary master is ~2.4 GB, so the ~6 GiB binary
-    # budget still holds ~2.5x headroom while the CAS rides the same
-    # clone/promote/converge path. The guest is fail-safe: a store it cannot
-    # write falls back to a VM-local cold compilation cache, so a bad budget
-    # costs warmth, not the job.
+    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
+    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
+    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # store it cannot write falls back to a VM-local cold compilation cache, so
+    # a bad budget costs warmth, not the job.
     #
     # The cap is bounded by admission, not by taste. Admission reserves
     # masterCapGib for the branch it is admitting plus every branch already

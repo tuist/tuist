@@ -53,19 +53,21 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         }
     }
 
-    /// Which byte budget bounds a category's growth.
+    /// Which share of the CLI's byte budget bounds a category's growth.
     ///
     /// The cache directory can be a runner's per-account cache volume, an image with a fixed
-    /// capacity that the host splits between the tenants writing into it. Every category has to
-    /// name the budget that bounds it, so that adding one cannot silently add an unbounded tenant.
+    /// capacity. The host stages one budget for the whole of it and `CacheBudget` divides that
+    /// between the two shares below, so the categories cannot together exceed what the volume was
+    /// sized for. Every category has to name the share that bounds it, so that adding one cannot
+    /// silently add an unbounded tenant.
     public enum Budget: Equatable, Sendable {
-        /// Bounded by the binary cache's own budget (`TUIST_CACHE_MAX_BYTES`), enforced where the
-        /// artifacts are stored and fetched.
+        /// Bounded by `CacheBudget.moduleCache`, enforced where the artifacts are stored and
+        /// fetched.
         case binaries
 
-        /// Bounded by the shared support-cache budget (`TUIST_SUPPORT_CACHE_MAX_BYTES`), enforced
-        /// by `SupportCachePruner`. Entries unused for `maxAge` are dropped before the budget is
-        /// considered, so what the budget arbitrates is only what is still in use.
+        /// Bounded by `CacheBudget.supportCaches`, enforced by `SupportCachePruner`. Entries unused
+        /// for `maxAge` are dropped before the budget is considered, so what the budget arbitrates
+        /// is only what is still in use.
         case support(maxAge: TimeInterval)
     }
 

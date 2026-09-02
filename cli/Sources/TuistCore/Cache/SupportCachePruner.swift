@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import TuistEnvironment
 
 /// Bounds the growth of every cache category that is not the binary cache and not the compilation
 /// CAS.
@@ -10,8 +9,8 @@ import TuistEnvironment
 /// `COMPILATION_CACHE_LIMIT_SIZE`. Everything else the CLI caches — result bundles, compiled
 /// helper modules, manifests, plugin checkouts — had no budget at all, so on a runner's fixed-size
 /// cache volume it grew until the volume hit ENOSPC and every command died at its first cache
-/// write. `TUIST_SUPPORT_CACHE_MAX_BYTES` is the third share of the same host-side split, so the
-/// three budgets together cannot over-commit the image.
+/// write. It now takes `CacheBudget.supportCaches`, the module cache's own budget less the share
+/// carved off it, so bounding these cannot push the volume past what the host sized it for.
 ///
 /// Retention runs in two passes. The per-category age pass drops what is no longer in use and runs
 /// everywhere, including on developer machines where there is no volume to fill. The byte pass
@@ -42,9 +41,7 @@ public struct SupportCachePruner {
 
     /// Unset outside a runner, where the cache is the user's own directory and only the
     /// per-category retention applies.
-    var budget: Int? {
-        Environment.current.variables["TUIST_SUPPORT_CACHE_MAX_BYTES"].flatMap { Int($0) }
-    }
+    var budget: Int? { CacheBudget.supportCaches }
 
     public func prune() async throws {
         try await prune(maxBytes: budget, now: Date())
