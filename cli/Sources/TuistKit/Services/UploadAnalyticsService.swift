@@ -96,12 +96,21 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
     ///
     /// The whole run entry goes, not just the bundle inside it: the run directory is what the
     /// support-cache retention accounts for, and one left behind empty is one it keeps measuring.
+    ///
+    /// Ownership is read from the exact shapes Tuist writes — `<runs>/<run id>` and
+    /// `<runs>/<run id>/<bundle>`, the id being a UUID — rather than from "somewhere below the runs
+    /// cache". Walking up to whatever child of the runs directory an arbitrary path descends from
+    /// would delete a caller's own tree when they point `--result-bundle-path` inside it.
     private func removeOwnedRun(at resultBundlePath: AbsolutePath, in runsDirectory: AbsolutePath) async {
-        guard resultBundlePath.parentDirectory.commonAncestor(with: runsDirectory) == runsDirectory else { return }
-        var run = resultBundlePath
-        while run.parentDirectory != runsDirectory {
-            run = run.parentDirectory
+        let run: AbsolutePath
+        if resultBundlePath.parentDirectory == runsDirectory {
+            run = resultBundlePath
+        } else if resultBundlePath.parentDirectory.parentDirectory == runsDirectory {
+            run = resultBundlePath.parentDirectory
+        } else {
+            return
         }
+        guard UUID(uuidString: run.basename) != nil else { return }
         try? await fileSystem.remove(run)
     }
 }

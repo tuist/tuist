@@ -81,8 +81,9 @@ struct UploadAnalyticsServiceTests {
             .cacheDirectory(for: .value(.runs))
             .willReturn(temporaryDirectory)
 
+        let runId = UUID().uuidString
         let resultBundle = temporaryDirectory
-            .appending(components: "some-run-id", "\(Constants.resultBundleName).xcresult")
+            .appending(components: runId, "\(Constants.resultBundleName).xcresult")
         try await fileSystem.makeDirectory(at: resultBundle)
 
         let event = CommandEvent.test(resultBundlePath: resultBundle)
@@ -124,7 +125,7 @@ struct UploadAnalyticsServiceTests {
         #expect(exists == false)
         // The whole run entry goes, not just the bundle inside it: the run directory is what the
         // support-cache retention accounts for, and one left behind empty is one it keeps measuring.
-        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: "some-run-id"))
+        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: runId))
         #expect(runExists == false)
     }
 
@@ -471,6 +472,59 @@ struct UploadAnalyticsServiceTests {
         #expect(exists == true)
     }
 
+    @Test(.inTemporaryDirectory) func upload_does_not_delete_a_caller_tree_that_sits_under_the_runs_directory() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        // A caller who points --result-bundle-path inside the runs cache. Their tree is theirs.
+        let callerTree = temporaryDirectory.appending(component: "my-runs")
+        let resultBundle = callerTree.appending(components: "build-42", "out.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundle)
+
+        let event = CommandEvent.test(resultBundlePath: resultBundle)
+        let eventID = UUID().uuidString
+        let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        given(analyticsArtifactUploadService)
+            .uploadAndAnalyzeResultBundle(
+                .value(resultBundle),
+                accountHandle: .value("tuist-org"),
+                projectHandle: .value("tuist"),
+                commandEventId: .value(eventID),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(())
+
+        // When
+        _ = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then: walking up to whatever child of the runs directory the path descends from would
+        // take the whole tree with it.
+        #expect(try await fileSystem.exists(callerTree))
+        #expect(try await fileSystem.exists(resultBundle))
+    }
+
     @Test(.inTemporaryDirectory) func upload_removes_the_run_when_the_result_bundle_upload_fails() async throws {
         // Given
         let fileSystem = FileSystem()
@@ -480,8 +534,9 @@ struct UploadAnalyticsServiceTests {
             .cacheDirectory(for: .value(.runs))
             .willReturn(temporaryDirectory)
 
+        let runId = UUID().uuidString
         let resultBundle = temporaryDirectory
-            .appending(components: "some-run-id", "\(Constants.resultBundleName).xcresult")
+            .appending(components: runId, "\(Constants.resultBundleName).xcresult")
         try await fileSystem.makeDirectory(at: resultBundle)
 
         let event = CommandEvent.test(resultBundlePath: resultBundle)
@@ -522,7 +577,7 @@ struct UploadAnalyticsServiceTests {
 
         // Then: nothing retries the upload, so a bundle kept after a failure is a bundle kept
         // forever, and on a runner's cache volume that is the leak that filled it.
-        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: "some-run-id"))
+        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: runId))
         #expect(runExists == false)
     }
 }

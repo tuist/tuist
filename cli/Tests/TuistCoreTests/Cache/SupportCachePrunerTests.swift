@@ -163,6 +163,44 @@ struct SupportCachePrunerTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func prune_keepsGoingPastAnEntryItCannotMeasure() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        // A symlink left dangling by an interrupted write: stat fails with something other than
+        // "no such file", so measuring it throws rather than answering nil.
+        let runs = cache.appending(component: CacheCategory.runs.directoryName)
+        try await fileSystem.makeDirectory(at: runs)
+        let dangling = runs.appending(component: "loop")
+        try await fileSystem.createSymbolicLink(from: dangling, to: dangling)
+
+        let staleManifest = try await seed(
+            .manifests, name: "1.abc", bytes: 1000, lastUsed: now.addingTimeInterval(-30 * day), in: cache
+        )
+
+        try await subject(cache).prune(maxBytes: nil, now: now)
+
+        // Manifests is walked after Runs, so propagating would strand it — and every command after
+        // this one would meet the same entry and stop in the same place, leaving the volume to fill
+        // exactly as it did before any of this existed.
+        #expect(try await !fileSystem.exists(staleManifest))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func prune_doesNotSpendASweepItDidNotFinish() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let overBudget = try await seed(
+            .manifests, name: "1.abc", bytes: 1_000_000, lastUsed: now.addingTimeInterval(-2 * hour), in: cache
+        )
+
+        // A cache root that cannot hold the stamp: the sweep still runs rather than being locked
+        // out, which is the safe direction for a bound.
+        try await subject(cache).prune(maxBytes: 1, now: now)
+
+        #expect(try await !fileSystem.exists(overBudget))
+    }
+
+    @Test(.inTemporaryDirectory)
     func prune_sweepsForBytesPeriodicallyRatherThanOnEveryCommand() async throws {
         let cache = try #require(FileSystem.temporaryTestDirectory)
         let now = Date()

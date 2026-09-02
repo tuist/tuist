@@ -66,24 +66,32 @@ public struct SupportCachePruner {
         var survivors: [Entry] = []
         for category in CacheCategory.supportCaches {
             guard case let .support(maxAge) = category.budget else { continue }
-            survivors += try await expire(category, olderThan: now.addingTimeInterval(-maxAge))
+            // Per category, so a directory this cannot walk costs only its own retention rather
+            // than that of every category after it.
+            survivors += (try? await expire(category, olderThan: now.addingTimeInterval(-maxAge))) ?? []
         }
-        guard let maxBytes, await claimByteSweep(now: now) else { return }
+        guard let maxBytes, await byteSweepIsDue(now: now) else { return }
         try await evict(survivors, toFit: maxBytes, notModifiedAfter: now.addingTimeInterval(-Self.evictionGracePeriod))
+        await recordByteSweep(now: now)
     }
 
-    /// Whether the byte sweep is due, claiming it when it is. Best effort in both directions: a
-    /// cache directory that cannot hold the stamp sweeps on every command rather than on none.
-    private func claimByteSweep(now: Date) async -> Bool {
-        let stamp = cacheDirectoriesProvider.cacheDirectory().appending(component: Self.sweepStampName)
-        if let metadata = try? await fileSystem.fileMetadata(at: stamp),
-           now.timeIntervalSince(metadata.lastModificationDate) < Self.byteSweepInterval
-        {
-            return false
-        }
-        try? await fileSystem.touch(stamp)
-        try? await fileSystem.setFileTimes(of: stamp, lastAccessDate: nil, lastModificationDate: now)
-        return true
+    /// Whether the byte sweep is due. Best effort: a cache directory that cannot hold the stamp
+    /// sweeps on every command rather than on none.
+    private func byteSweepIsDue(now: Date) async -> Bool {
+        guard let metadata = try? await fileSystem.fileMetadata(at: sweepStampPath) else { return true }
+        return now.timeIntervalSince(metadata.lastModificationDate) >= Self.byteSweepInterval
+    }
+
+    /// Records a sweep, after it has measured the survivors rather than before. A sweep that did not
+    /// get that far has not answered the question the interval is spacing out, so it does not spend
+    /// one.
+    private func recordByteSweep(now: Date) async {
+        try? await fileSystem.touch(sweepStampPath)
+        try? await fileSystem.setFileTimes(of: sweepStampPath, lastAccessDate: nil, lastModificationDate: now)
+    }
+
+    private var sweepStampPath: AbsolutePath {
+        cacheDirectoriesProvider.cacheDirectory().appending(component: Self.sweepStampName)
     }
 
     /// Removes the category's entries last used before `cutoff` and returns the ones that survived.
@@ -93,7 +101,10 @@ public struct SupportCachePruner {
 
         var survivors: [Entry] = []
         for path in try await fileSystem.glob(directory: directory, include: ["*"]).collect() {
-            guard let metadata = try await fileSystem.fileMetadata(at: path) else { continue }
+            // An entry that cannot be measured — a permission bit off, a symlink left dangling by
+            // an interrupted write — is left where it is. Propagating here would abort retention
+            // for good, since the next command meets the same entry and stops in the same place.
+            guard let metadata = try? await fileSystem.fileMetadata(at: path) else { continue }
             if metadata.lastModificationDate < cutoff {
                 try? await fileSystem.remove(path)
             } else {
@@ -111,7 +122,7 @@ public struct SupportCachePruner {
         var sized: [(entry: Entry, size: Int)] = []
         var used = 0
         for entry in entries {
-            let size = try await size(of: entry.path)
+            guard let size = try? await size(of: entry.path) else { continue }
             used += size
             sized.append((entry, size))
         }
@@ -152,7 +163,7 @@ public struct SupportCachePruner {
         }
         var total = 0
         for file in try await fileSystem.glob(directory: path, include: ["**/*"]).collect() {
-            if let metadata = try await fileSystem.fileMetadata(at: file) {
+            if let metadata = try? await fileSystem.fileMetadata(at: file) {
                 total += Int(metadata.size)
             }
         }
