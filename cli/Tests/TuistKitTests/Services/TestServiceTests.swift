@@ -6631,6 +6631,34 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_without_building_with_xctestrun_forwards_selected_test_targets() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: ["-xctestrun", "/tmp/Sample.xctestrun"]
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .testWithoutBuilding,
+                testTargets: [
+                    try TestIdentifier(target: "AppTests"),
+                    try TestIdentifier(target: "AppSnapshotTests"),
+                    try TestIdentifier(target: "FeatureTests"),
+                ],
+                resultBundlePath: nil,
+                derivedDataPath: nil
+            ),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_excludes_passthrough_skips_from_invocations_and_hashes() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
