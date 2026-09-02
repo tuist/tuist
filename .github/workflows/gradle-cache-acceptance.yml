@@ -85,6 +85,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+      - uses: ./.github/actions/github-deps-auth
+        with:
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install server deps
         working-directory: server
         run: mix deps.get
