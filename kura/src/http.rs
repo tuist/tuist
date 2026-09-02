@@ -20,7 +20,6 @@ use futures_util::{Stream, StreamExt};
 use http_body::{Body as HttpBody, Frame, SizeHint};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
-use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
@@ -2743,7 +2742,8 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
 
     // Stream the spooled file under the same background admission and
     // bandwidth shaping as the per-artifact backfill endpoint.
-    let requested_bytes = response_stream_chunk_bytes(spool.file_len).saturating_mul(4);
+    let requested_bytes = response_stream_chunk_bytes(spool.file_len)
+        .saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT);
     let permit = match state
         .memory
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
@@ -2756,7 +2756,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             return peer_response_stream_unavailable(&state.memory);
         }
     };
-    let file = match state.io.open_file(&spool.path).await {
+    let file = match state.io.open_persistent_read_file(&spool.path).await {
         Ok(file) => file,
         Err(error) => {
             state
@@ -2769,7 +2769,12 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
         }
     };
     let file_len = spool.file_len;
-    let stream = ReaderStream::with_capacity(file, response_stream_chunk_bytes(file_len));
+    let reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+        Arc::new(file),
+        0,
+        file_len,
+    ));
+    let stream = reader.into_bytes_stream(response_stream_chunk_bytes(file_len));
     let stream = throttle_body_stream(stream, state.replication_bandwidth_limiter.clone());
     // The spool guards (file cleanup + tmp reservations) and the per-peer slot
     // must live for the whole transfer, so the stream closure owns them.
@@ -6166,6 +6171,96 @@ mod tests {
         candidate_throughputs.sort_by(f64::total_cmp);
         println!(
             "METRIC backfill_spool_owned_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn backfill_spool_response_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: futures_util::Stream<Item = std::io::Result<Bytes>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.expect("benchmark response chunk");
+                std::hint::black_box(chunk.as_ptr());
+                read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("backfill-spool-response-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline_file = tokio::fs::File::open(&path)
+                .await
+                .expect("open baseline benchmark file");
+            let baseline = tokio_util::io::ReaderStream::with_capacity(baseline_file, CHUNK_BYTES);
+            let candidate = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+            .into_bytes_stream(CHUNK_BYTES);
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC backfill_spool_response_speedup_ratio={:.6}",
             speedups[speedups.len() / 2]
         );
         println!(
