@@ -6,7 +6,7 @@
   },
   "spec": {
     "title": "Tuist Kura / Region Scalability",
-    "description": "How far each Kura region is from the point where it needs another node, per resource: instances the scheduler can still place, reservations versus capacity, and real host memory. RAM today; disk and egress columns to follow. Thresholds match the region capacity alerts in infra/helm/k8s-monitoring/alerts.md.",
+    "description": "How far each Kura region is from the point where it needs another node, per resource: instances the scheduler can still place, reservations versus capacity, and real host memory. RAM and disk today; egress to follow. Thresholds match the region capacity alerts in infra/helm/k8s-monitoring/alerts.md.",
     "tags": [
       "tuist",
       "kura",
@@ -138,6 +138,21 @@
         }
       },
       {
+        "kind": "TextVariable",
+        "spec": {
+          "name": "instance_claim_gib",
+          "label": "Instance claim (GiB)",
+          "description": "Per-replica storage claim of the profile to size for, requested as ephemeral-storage; 50 GiB on nearly every live instance today (Tuist.Kura.ClaimSizing proposes changes). Multiplied by two replicas.",
+          "query": "50",
+          "current": {
+            "text": "50",
+            "value": "50"
+          },
+          "hide": "dontHide",
+          "skipUrlSync": false
+        }
+      },
+      {
         "kind": "ConstantVariable",
         "spec": {
           "name": "node_region",
@@ -158,7 +173,7 @@
         "spec": {
           "id": 7,
           "title": "Instances that still fit",
-          "description": "How many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor) each region can still place, by placement constraint. A pod places only if the node satisfies both, so the lower of the two is the region's real headroom; 0 means the next provisioning is declined and the region needs a node. **no ceiling** = the region's boxes advertise no `tuist.dev/memory-ceiling-mib` budget, so memory is its only constraint. The RAM section below has the reservations and host memory behind these counts.",
+          "description": "How many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor) each region can still place, by placement constraint. A pod places only if the node satisfies both, so the lower of the two is the region's real headroom; 0 means the next provisioning is declined and the region needs a node. **no ceiling** = the region's boxes advertise no `tuist.dev/memory-ceiling-mib` budget, so memory and disk are its only constraints. Disk counts two replicas of `$instance_claim_gib` GiB ephemeral-storage claims against allocatable disk. The RAM and Disk sections below have the reservations, host usage and retention behind these counts.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -209,6 +224,29 @@
                       "version": "v0"
                     }
                   }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"})) / (2 * $instance_claim_gib * 1073741824)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
                 }
               ],
               "queryOptions": {},
@@ -219,7 +257,7 @@
                   "spec": {
                     "options": {
                       "include": {
-                        "pattern": "^(region|Value #[AB])$"
+                        "pattern": "^(region|Value #[ABC])$"
                       }
                     }
                   }
@@ -241,7 +279,8 @@
                       "indexByName": {
                         "region": 0,
                         "Value #A": 1,
-                        "Value #B": 2
+                        "Value #B": 2,
+                        "Value #C": 3
                       }
                     }
                   }
@@ -367,6 +406,57 @@
                       {
                         "id": "displayName",
                         "value": "Fit (memory)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (disk)"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -2019,6 +2109,1563 @@
             }
           }
         }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "id": 8,
+          "title": "Disk by region",
+          "description": "**Fit (disk)** counts how many more instances (two replicas of `$instance_claim_gib` GiB) the region's allocatable ephemeral-storage still admits, `floor()` per node first; each replica requests its storage claim as an `ephemeral-storage` request with no limit, so the request is the only admission control the claim has and it is what **Kura region cannot place another instance** counts as its `disk` row. **Disk requested** is the scheduler's view (claims against allocatable, the disk minus kubelet's eviction reserve); **Host disk used** is the filesystem holding the local-path cache. Rings run full by design, so usage says little: **Shortest retention** is the lowest one-day median of `kura_segment_shed_age_seconds` among the region's full rings (how soon after being written an artifact can be evicted), the number the customer feels; under two days warns, under a day pages (**Kura instance retention horizon**). Its lever is the account's storage claim (`Tuist.Kura.ClaimSizing`), and the region only enters when the claim cannot grow because the boxes are full.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"})) / (2 * $instance_claim_gib * 1073741824)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "1 - sum by (cluster, region) (max by (cluster, instance) (node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (max by (cluster, instance) (node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "D",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "count by (cluster, region) (max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "E",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|Value #[ABCDE])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "Value #A": 1,
+                        "Value #B": 2,
+                        "Value #C": 3,
+                        "Value #D": 4,
+                        "Value #E": 5
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (disk)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Disk requested"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.85
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Host disk used"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.85
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #D"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Full rings"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 90
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #E"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Shortest retention"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no full ring",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 170
+                      },
+                      {
+                        "id": "unit",
+                        "value": "s"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 86400
+                            },
+                            {
+                              "color": "green",
+                              "value": 172800
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Fit (disk)",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-9": {
+        "kind": "Panel",
+        "spec": {
+          "id": 9,
+          "title": "Retention by instance",
+          "description": "One row per Kura instance replica. **Ring fullness** is the segment count against the ring's desired total; 100% is steady state, not an alarm, and anything lower is a ring still filling after a bootstrap or a claim change. **Median shed age** is the one-day median of the youngest content in every segment the ring rotated out, computed only for full rings: how long an artifact survives before eviction. Under two days a build that reuses yesterday's artifacts starts to miss; under a day, overnight and weekend builds miss. The lever is this account's storage claim, not the region.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (cluster, region, tenant_id, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|tenant_id|pod|Value #[AB])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "tenant_id": 1,
+                        "pod": 2,
+                        "Value #A": 3,
+                        "Value #B": 4
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "tenant_id"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Account"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "pod"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Instance"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 320
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Ring fullness"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percent"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Median shed age"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "ring not full",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 170
+                      },
+                      {
+                        "id": "unit",
+                        "value": "s"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 86400
+                            },
+                            {
+                              "color": "green",
+                              "value": 172800
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Median shed age",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "Disk by node",
+          "description": "The per-box breakdown of **Disk by region**: a region reads 0 fits while every box still has free disk if no single box has one instance's worth of claim left.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"})) / (2 * $instance_claim_gib * 1073741824)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "1 - sum by (cluster, region, node) (label_replace(max by (cluster, instance) (node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\")) / sum by (cluster, region, node) (label_replace(max by (cluster, instance) (node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\"))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|node|Value #[ABC])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "node": 1,
+                        "Value #A": 2,
+                        "Value #B": 3,
+                        "Value #C": 4
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "node"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Node"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 360
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (disk)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Disk requested"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.85
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Host disk used"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.85
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Fit (disk)",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Instances that still fit by disk",
+          "description": "Same count as **Fit (disk)** over time: placements the ephemeral-storage claims still allow. Each provisioning steps it down by one, a claim change moves it, a new node steps it up.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"})) / (2 * $instance_claim_gib * 1073741824)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  "unit": "short",
+                  "min": 0,
+                  "decimals": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Disk requested",
+          "description": "Share of allocatable ephemeral-storage already claimed across the region's boxes. The slope is the onboarding and claim-growth rate; the gap to 100% is the runway.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_allocatable{resource=\"ephemeral_storage\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.85
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "Host disk used",
+          "description": "Used share of the filesystem holding the local-path cache, summed across the region's boxes. Rings fill to their claims by design, so this trends toward **Disk requested** as instances mature.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "1 - sum by (cluster, region) (max by (cluster, instance) (node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_avail_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (max by (cluster, instance) (node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/opt/local-path-provisioner\"} or on (cluster, instance) node_filesystem_size_bytes{env=\"$env\", mountpoint=\"/\"}) * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.85
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.95
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-14": {
+        "kind": "Panel",
+        "spec": {
+          "id": 14,
+          "title": "Shortest retention",
+          "description": "Lowest one-day median shed age among each region's full rings. Dashed lines at 2 days (warning) and 1 day (critical) match the retention alerts.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 86400
+                      },
+                      {
+                        "color": "green",
+                        "value": 172800
+                      }
+                    ]
+                  },
+                  "unit": "s",
+                  "min": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "layout": {
@@ -2146,6 +3793,125 @@
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-6"
+                        },
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Disk",
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-8"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 24,
+                        "height": 9
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-9"
+                        },
+                        "x": 0,
+                        "y": 9,
+                        "width": 24,
+                        "height": 12
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-10"
+                        },
+                        "x": 0,
+                        "y": 21,
+                        "width": 24,
+                        "height": 9
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Disk trends",
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-11"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-12"
+                        },
+                        "x": 12,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-13"
+                        },
+                        "x": 0,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-14"
                         },
                         "x": 12,
                         "y": 8,
