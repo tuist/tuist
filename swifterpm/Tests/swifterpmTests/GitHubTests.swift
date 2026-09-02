@@ -64,6 +64,64 @@ struct GitHubTests {
     }
 
     @Test
+    func ambientTokenIsUsedWhenTheWorkflowRunsAgainstGitHubDotCom() {
+        #expect(GitHubAuth.envToken(from: ["GITHUB_TOKEN": "ghs_secret"]) == "ghs_secret")
+        #expect(GitHubAuth.envToken(from: ["GH_TOKEN": "gho_secret"]) == "gho_secret")
+        #expect(
+            GitHubAuth.envToken(
+                from: [
+                    "GITHUB_TOKEN": "ghs_secret",
+                    "GITHUB_SERVER_URL": "https://github.com",
+                    "GITHUB_API_URL": "https://api.github.com",
+                ]
+            ) == "ghs_secret"
+        )
+        #expect(GitHubAuth.envToken(from: ["GITHUB_TOKEN": "   "]) == nil)
+        #expect(GitHubAuth.envToken(from: [:]) == nil)
+    }
+
+    @Test
+    func ambientTokenIsIgnoredWhenItBelongsToAnotherGitHubInstance() {
+        #expect(
+            GitHubAuth.envToken(
+                from: [
+                    "GITHUB_TOKEN": "ghs_secret",
+                    "GITHUB_SERVER_URL": "https://github.acme-internal.test",
+                ]
+            ) == nil
+        )
+        #expect(
+            GitHubAuth.envToken(
+                from: [
+                    "GITHUB_TOKEN": "ghs_secret",
+                    "GITHUB_API_URL": "https://github.acme-internal.test/api/v3",
+                ]
+            ) == nil
+        )
+        #expect(
+            GitHubAuth.envToken(
+                from: ["GH_TOKEN": "gho_secret", "GH_HOST": "github.acme-internal.test"]
+            ) == nil
+        )
+    }
+
+    @Test
+    func dedicatedTokenIsUsedEvenWhenTheWorkflowRunsAgainstAnotherGitHubInstance() {
+        // Naming SWIFTERPM_GITHUB_TOKEN is itself a statement that the token is meant for
+        // github.com, which is the whole point of the variable on a runner attached to a
+        // GitHub Enterprise Server instance.
+        #expect(
+            GitHubAuth.envToken(
+                from: [
+                    "SWIFTERPM_GITHUB_TOKEN": "ghp_dedicated",
+                    "GITHUB_TOKEN": "ghs_secret",
+                    "GITHUB_SERVER_URL": "https://github.acme-internal.test",
+                ]
+            ) == "ghp_dedicated"
+        )
+    }
+
+    @Test
     func gitHubTransportAuthInjectsBearerTokenAsBasicExtraHeader() {
         let encoded = Data("x-access-token:ghp_secret".utf8).base64EncodedString()
         #expect(

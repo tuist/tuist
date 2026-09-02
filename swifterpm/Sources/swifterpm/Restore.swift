@@ -891,41 +891,34 @@ enum WorkspaceRestorer {
         let revision = try pin.revision()
         let isLocalSourceControlPackage =
             try await PackageResolver.localSourceControlPackageLocation(pin.location) != nil
-        var attempts: [(candidate: String, error: any Error)] = []
-        for location in SourceControlLocations.fetchCandidates(pin.location) {
-            do {
-                try await resetDirectory(destination)
-                try await SystemProcess.run("/usr/bin/git", ["init", destination.path])
-                try await SystemProcess.run(
-                    "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
-                )
-                let authArguments = await GitTransportAuth.configArguments(for: location)
-                try await SystemProcess.run(
-                    "/usr/bin/git",
-                    authArguments
-                        + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
-                    environment: SystemProcess.nonInteractiveGitEnvironment
-                )
-                try await SystemProcess.run(
-                    "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
-                )
-                try await updateSubmodulesIfNeeded(
-                    in: destination,
-                    gitConfigArguments: authArguments,
-                    allowFileProtocol: isLocalSourceControlPackage
-                )
-                let gitDir = destination.appendingPathComponent(".git")
-                if !isLocalSourceControlPackage,
-                   try await fileSystem.exists(gitDir.absolutePath)
-                {
-                    try await fileSystem.remove(gitDir.absolutePath)
-                }
-                return
-            } catch {
-                attempts.append((location, error))
+        try await GitFetch.withAttempts(for: pin.location) { attempt in
+            try await resetDirectory(destination)
+            try await SystemProcess.run("/usr/bin/git", ["init", destination.path])
+            try await SystemProcess.run(
+                "/usr/bin/git",
+                ["-C", destination.path, "remote", "add", "origin", attempt.location]
+            )
+            try await SystemProcess.run(
+                "/usr/bin/git",
+                attempt.configArguments
+                    + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                environment: SystemProcess.nonInteractiveGitEnvironment
+            )
+            try await SystemProcess.run(
+                "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
+            )
+            try await updateSubmodulesIfNeeded(
+                in: destination,
+                gitConfigArguments: attempt.configArguments,
+                allowFileProtocol: isLocalSourceControlPackage
+            )
+            let gitDir = destination.appendingPathComponent(".git")
+            if !isLocalSourceControlPackage,
+               try await fileSystem.exists(gitDir.absolutePath)
+            {
+                try await fileSystem.remove(gitDir.absolutePath)
             }
         }
-        throw GitFetchFailure.error(location: pin.location, attempts: attempts)
     }
 
     private static func updateSubmodulesIfNeeded(
