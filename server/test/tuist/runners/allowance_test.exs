@@ -223,7 +223,10 @@ defmodule Tuist.Runners.AllowanceTest do
         })
       end
 
-      breakdown = Allowance.period_breakdown(account)
+      # The period is given rather than left to the calendar month, which
+      # holds fewer than three days back on the first days of a month.
+      period_start = DateTime.new!(Date.add(Date.utc_today(), -3), ~T[00:00:00], "Etc/UTC")
+      breakdown = Allowance.period_breakdown(account, {period_start, DateTime.shift(period_start, month: 1)})
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.

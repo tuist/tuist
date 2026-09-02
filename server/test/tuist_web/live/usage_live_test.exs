@@ -505,6 +505,15 @@ defmodule TuistWeb.UsageLiveTest do
       account = user.account
       started = DateTime.add(DateTime.utc_now(), -2, :hour)
 
+      # The pace sentence is withheld until a tenth of the period has
+      # elapsed, so the window has to be underway rather than the calendar
+      # month, which is hours old on the first days of a month.
+      period_start = DateTime.new!(Date.add(Date.utc_today(), -20), ~T[00:00:00], "Etc/UTC")
+
+      stub(Tuist.Billing, :current_billing_period, fn _account ->
+        {period_start, DateTime.shift(period_start, month: 1)}
+      end)
+
       Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
         workflow_job_id: System.unique_integer([:positive]),
