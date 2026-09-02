@@ -484,7 +484,8 @@ class TuistPluginTest {
 
         assertEquals(TaskOutcome.UP_TO_DATE, reusedResult.task(":hello")?.outcome)
         assertTrue(
-            reusedResult.output.contains("Configuration cache entry reused"),
+            reusedResult.output.contains("Configuration cache entry reused") ||
+                reusedResult.output.contains("Reusing configuration cache"),
             "Gradle did not reuse a configuration cache entry:\n${reusedResult.output}"
         )
     }
