@@ -83,6 +83,16 @@ sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region
 node-exporter series carry the node name as `instance`, not `node`; join those
 through `label_replace(kura:node_region, "instance", "$1", "node", "(.*)")`.
 
+The recording rules cover every cluster so dashboards can use them, and the
+alert rules that join through them are scoped to production by matching on the
+recording-rule side of the join:
+`kura:pod_region{cluster="tuist-production"}`. Filtering the right-hand side
+of an `on (cluster, ...)` join filters the whole result, so the scope lives in
+one place per query and adding a cluster is a matcher change, not a rewrite.
+Staging and canary regions are sized for testing and would fire on their own
+(a staging region already sits past the disk pressure line), and these rules
+are about customer capacity.
+
 Two limits to keep in mind:
 
 - A node is attributable to a region only once it hosts a Kura pod. A freshly
@@ -820,13 +830,13 @@ of the older ones too.
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"})
          - sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})) / (2 * 4096))
-  * on (cluster, node) group_left(region) kura:node_region
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "ceiling", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="memory"})
          - sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})) / 1048576 / (2 * 1024))
-  * on (cluster, node) group_left(region) kura:node_region
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "memory", "", "")
 ```
 
@@ -834,7 +844,8 @@ label_replace(sum by (cluster, region) (
   value is the number of instances that still fit
 - Pending period: 15 minutes
 - Severity: critical
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting** (the
   region join can be aggregated away, see **Recording rules for Kura
   regions**).
@@ -889,14 +900,15 @@ constraint everywhere it is advertised.
 min by (cluster, region, instance) (
   (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
   * on (cluster, instance) group_left(region)
-    label_replace(kura:node_region, "instance", "$1", "node", "(.*)")
+    label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
 )
 ```
 
 - Threshold: `< 0.08`, as a separate threshold expression on `A`
 - Pending period: 15 minutes
 - Severity: critical
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura box {{ $labels.instance }} in {{ $labels.region }} has
   {{ $values.A.Value | humanizePercentage }} of its memory available
@@ -915,7 +927,7 @@ host-level rule exists alongside the pod-level ones.
 ```promql
 max by (cluster, region, pod) (
   max by (cluster, pod) (kura_memory_pressure_state)
-  * on (cluster, pod) group_left(region) kura:pod_region
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
@@ -923,7 +935,8 @@ max by (cluster, region, pod) (
   1 = constrained, 2 = critical)
 - Pending period: 10 minutes
 - Severity: critical
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has been under
   memory pressure (state {{ $values.A.Value | printf "%.0f" }}) for 10 minutes
@@ -947,18 +960,19 @@ quiet on creation.
 max by (cluster, region, pod) (
   kube_pod_container_status_last_terminated_reason{namespace="kura", container="kura", reason="OOMKilled"} == 1
   and on (cluster, pod) increase(kube_pod_container_status_restarts_total{namespace="kura", container="kura"}[1h]) > 0
-) * on (cluster, pod) group_left(region) kura:pod_region
+) * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 or
 sum by (cluster, region, pod) (
   increase(kura_container_memory_oom_kill_events[1h])
-  * on (cluster, pod) group_left(region) kura:pod_region
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 ) > 0
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`
 - Pending period: 0 minutes
 - Severity: critical
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} was OOM-killed
   in the last hour ({{ $labels.cluster }})`
@@ -1892,14 +1906,15 @@ in the fleet came close.
 ```promql
 sum by (cluster, region, pod, kind) (
   sum by (cluster, pod, kind) (rate(kura_capacity_sheds_total_total{kind!="response_stream"}[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
 - Threshold: `> 1` shed/s, as a separate threshold expression on `A`
 - Pending period: 10 minutes
 - Severity: warning
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
   **Kura shedding cache writes from the replication outbox** (see **Retired
   rules**); preview it against the last 7 days for `kind="outbox"` and confirm
@@ -1986,7 +2001,7 @@ rule and has lost a thousand uploads in an hour. That is the next rule.
 ```promql
 sum by (cluster, region, pod, kind) (
   sum by (cluster, pod, kind) (increase(kura_capacity_sheds_total_total{kind!="response_stream"}[1h]))
-  * on (cluster, pod) group_left(region) kura:pod_region
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
@@ -1994,7 +2009,8 @@ sum by (cluster, region, pod, kind) (
   expression on `A`
 - Pending period: 10 minutes
 - Severity: warning
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} shed
   {{ $values.A.Value | printf "%.0f" }} writes at the {{ $labels.kind }} limit
@@ -2062,7 +2078,8 @@ Same query as **Kura region cannot place another instance**.
 - Threshold: `< 2`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
 - Severity: warning
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura region {{ $labels.region }} can place
   {{ $values.A.Value | printf "%.0f" }} more enterprise instances by
@@ -2078,19 +2095,20 @@ critical one pages and this one keeps the Slack thread.
 ```promql
 sum by (cluster, region) (
   node_memory_MemAvailable_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
 )
 /
 sum by (cluster, region) (
   node_memory_MemTotal_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
 )
 ```
 
 - Threshold: `< 0.15`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
 - Severity: warning
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura region {{ $labels.region }} has
   {{ $values.A.Value | humanizePercentage }} of its host memory available and
@@ -2118,14 +2136,15 @@ creation; it is the guard rail.
 max by (cluster, region, pod) (
   avg_over_time(kura_container_memory_pressure_bytes[1h])
   / on (cluster, pod) group_left() max by (cluster, pod) (kube_pod_container_resource_requests{namespace="kura", container="kura", resource="memory"})
-  * on (cluster, pod) group_left(region) kura:pod_region
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
 - Threshold: `> 1`, as a separate threshold expression on `A`
 - Pending period: 60 minutes
 - Severity: warning
-- Not yet created. Folder `Alerts`, group `Cache`, receiver
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Not yet created. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has averaged
   {{ $values.A.Value | printf "%.1f" }}x its memory request for an hour
