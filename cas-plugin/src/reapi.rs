@@ -102,6 +102,16 @@ const MAX_BATCH_BYTES: i64 = 32 << 20;
 // systematically.
 const RPC_TIMEOUT: Duration = Duration::from_secs(180);
 const ATTEMPTS: usize = 3;
+
+/// How much a single action lookup may spend. `Retried` is the ordinary policy
+/// (`ATTEMPTS` with backoff, under `RPC_TIMEOUT`), right for a resolve that is
+/// going to fetch blobs anyway. `Within` is one attempt under a deadline the
+/// caller names, for a lookup that is only worth having if it is quick.
+#[derive(Clone, Copy)]
+enum LookupBudget {
+    Retried,
+    Within(Duration),
+}
 // How many times `batch_read` re-requests the subset of blobs a `BatchReadBlobs`
 // call returned with a retryable per-blob status. This is a separate budget from
 // `ATTEMPTS`: that one retries the RPC itself, which succeeds here -- the
@@ -687,7 +697,22 @@ impl Remote {
     /// holds and will discard. Cold-store resolves -- the dominant remote-hit
     /// case -- waste nothing and save a full WAN round-trip per resolve.
     pub fn get_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
-        self.get_action_with_inline(key, true)
+        self.lookup_action(key, true, LookupBudget::Retried)
+    }
+
+    /// The same lookup with ONE attempt and a hard deadline, for a caller that is
+    /// asking on the build engine's serial task-setup path and would rather have
+    /// no answer than a late one. The deadline rides the request as
+    /// `grpc-timeout`, which the channel takes as the shorter of it and its own
+    /// `RPC_TIMEOUT`, and which the server sees too, so it can abandon the work
+    /// instead of finishing it for a client that has already stopped waiting.
+    /// `Err` is "could not tell", not a miss; only `Ok(None)` is.
+    pub fn get_action_within(
+        &self,
+        key: &[u8],
+        deadline: Duration,
+    ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.lookup_action(key, true, LookupBudget::Within(deadline))
     }
 
     /// Existence probe for the publish path: the same lookup without the
@@ -697,13 +722,14 @@ impl Remote {
     /// pool, billed egress up to the response budget) would pay all of that
     /// for bytes that are immediately dropped.
     pub fn probe_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
-        self.get_action_with_inline(key, false)
+        self.lookup_action(key, false, LookupBudget::Retried)
     }
 
-    fn get_action_with_inline(
+    fn lookup_action(
         &self,
         key: &[u8],
         inline_outputs: bool,
+        budget: LookupBudget,
     ) -> Result<Option<Vec<ManifestEntry>>, String> {
         let started = Instant::now();
         let result = (|| {
@@ -724,9 +750,16 @@ impl Remote {
                 },
                 ..Default::default()
             };
-            let response = retry_call(|| {
-                runtime().block_on(client.get_action_result(self.authed(request.clone())))
-            });
+            let response = match budget {
+                LookupBudget::Retried => retry_call(|| {
+                    runtime().block_on(client.get_action_result(self.authed(request.clone())))
+                }),
+                LookupBudget::Within(deadline) => {
+                    let mut request = self.authed(request.clone());
+                    request.set_timeout(deadline);
+                    runtime().block_on(client.get_action_result(request))
+                }
+            };
             match response {
                 Ok(response) => {
                     let manifest = response
