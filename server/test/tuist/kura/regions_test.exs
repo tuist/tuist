@@ -226,7 +226,7 @@ defmodule Tuist.Kura.RegionsTest do
       # Identity is unchanged so the cutover is invisible to the customer and CLI.
       assert config.cluster_id == "eu-central-1"
       assert config.ingress_class_name == "kura-eu-central"
-      assert Regions.get("eu-central").display_name == "EU Central"
+      assert Regions.get("eu-central").display_name == "EU West"
     end
 
     test "threads the per-region public peer failover IP from the environment" do

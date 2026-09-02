@@ -285,7 +285,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> render_submit()
 
     assert html =~ "Egress limits updated in US East"
-    assert html =~ "EU Central was rejected and not saved"
+    assert html =~ "EU West was rejected and not saved"
     refute html =~ "Nothing was saved"
 
     assert Kura.egress_limits_override(user.account, us_east) == %{floor_mbps: 60, burst_mbps: 400}
@@ -327,7 +327,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       })
       |> render_submit()
 
-    assert html =~ "Egress limits updated in EU Central"
+    assert html =~ "Egress limits updated in EU West"
 
     assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
              %{floor_mbps: nil, burst_mbps: 200}
@@ -395,7 +395,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> render_submit()
 
     assert html =~ "kura-egress-limits-result"
-    assert html =~ "EU Central, US East"
+    assert html =~ "EU West, US East"
     assert html =~ "2 instances are recreated to pick them up"
   end
 

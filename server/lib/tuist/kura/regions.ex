@@ -229,7 +229,7 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
+    # EU West runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
     # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
     # and two bounded-size replicas so a rolling deploy fails the cache Service
@@ -240,9 +240,17 @@ defmodule Tuist.Kura.Regions do
     # id, cluster_id,
     # ingress class, and public hostnames are unchanged from the former Hetzner
     # ccx13 backing, so the cutover is invisible to the customer.
+    #
+    # The id reads `eu-central` and the label reads EU West. The label is the
+    # accurate one: the boxes sit in Scaleway DC5 in the Paris region, which is
+    # the west of Europe rather than its centre, and eu-central conventionally
+    # names Frankfurt. The id cannot follow it: `cluster_id` is interpolated into
+    # the account's public cache hostname and `account_cache_endpoints` stores the
+    # resulting URLs, so changing it re-issues hostnames rather than renaming
+    # anything.
     %{
       id: "eu-central",
-      display_name: "EU Central",
+      display_name: "EU West",
       cluster_id: "eu-central-1",
       ingress_class_name: "kura-eu-central",
       node_pool: "kura-dedibox",
