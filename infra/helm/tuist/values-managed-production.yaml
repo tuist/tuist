@@ -843,12 +843,10 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Four boxes carry the whole Linux runner fleet: 128 GB each at the chart's
-    # 1 vCPU / 4 GB slot size is 32 slots, so 128 in total, which is what the two
-    # AX162-R hosts provided before they were retired. Note the CPU ratio differs
-    # even though the slot count matches: an AX162-R backed 64 slots with 96
-    # threads, a RISE-L backs 32 with 32, so the fleet is packed closer to its
-    # thread count and leans on single-thread speed rather than oversubscription.
+    # Four boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 128 in total. Slots and threads are 1:1
+    # on this shape, so there is no oversubscription headroom to absorb a burst;
+    # capacity grows by box count rather than by packing slots tighter.
     replicas: 4
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
