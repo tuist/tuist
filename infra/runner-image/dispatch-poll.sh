@@ -785,18 +785,36 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
+# The post-job fill % at or above which an image is refused promotion. A master
+# is cloned into every later job of the account, and the CLI writes to the volume
+# before it does anything else (the manifest cache is on the load path of every
+# command), so a master with no headroom fails those jobs at their first cache
+# write rather than merely running them cold. Promotion is the only channel that
+# can carry the fill fleet-wide, and nothing on the job path can undo it: the
+# account is then wedged from the inside, because a failing job never promotes a
+# replacement. Refusing costs the account one job's warmth and keeps the last
+# master that still had room.
+CACHE_FILL_PROMOTE_CEILING=98
+
 # sample_cache_fill records the image's post-job fill % (binary cache + CAS +
 # overhead) for the host's fill histogram — the signal for whether the reserve is
 # holding or the volume is running near ENOSPC. Must run while the image is still
 # MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
 # format; column 5 is Use%.
+#
+# Returns non-zero once the fill reaches CACHE_FILL_PROMOTE_CEILING so teardown
+# can withdraw the branch. An unreadable fill returns 0: the gauge is the only
+# evidence here, and refusing to promote every image whose `df` did not parse
+# would freeze the account's cache on a reporting failure.
 sample_cache_fill() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   local fill
   fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
-  [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ -n "${fill}" ] || return 0
+  printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ "${fill}" -lt "${CACHE_FILL_PROMOTE_CEILING}" ]
 }
 
 # Where the detached image is re-attached to be measured. Deliberately not
@@ -1374,12 +1392,21 @@ HOOK
       if ! drain_cas_publications "${rc}"; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
-      sample_cache_fill
+      # A full image is withheld from BOTH channels, so the detach still runs
+      # (the host must be handed a settled file either way) but the reporting
+      # that would authorize a promote is skipped. report_cache_dirty writes the
+      # marker unconditionally, so the ceiling has to be carried past it here
+      # rather than left to mark_cache_not_promotable's provisional "0".
+      cache_within_fill_ceiling=1
+      if ! sample_cache_fill; then
+        mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
+        cache_within_fill_ceiling=0
+      fi
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
         mark_cache_not_promotable "settled image could not be measured"
-      else
+      elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         report_cache_dirty "${rc}"
         report_volume_head "${rc}"
       fi

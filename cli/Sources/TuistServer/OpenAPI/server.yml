@@ -10539,22 +10539,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -10569,6 +10553,22 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -24034,6 +24034,14 @@ paths:
             application/json:
               schema:
                 properties:
+                  artifact_transforms:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   cache_hit_rate:
                     nullable: true
                     type: number
@@ -24041,6 +24049,37 @@ paths:
                     x-validate:
                   cacheable_tasks_count:
                     type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_entry_size:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_invalidation_reasons:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  configuration_cache_load_duration_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_status:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration_operations:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   duration_ms:
@@ -24130,6 +24169,15 @@ paths:
                           x-validate:
                         outcome:
                           type: string
+                          x-struct:
+                          x-validate:
+                        remote_cache_miss:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        remote_cache_stored:
+                          nullable: true
+                          type: boolean
                           x-struct:
                           x-validate:
                         started_at:
@@ -25022,6 +25070,29 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        configuration_cache_entry_size:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        configuration_cache_invalidation_reasons:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        configuration_cache_load_duration_ms:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        configuration_cache_status:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         duration_ms:
                           type: integer
                           x-struct:
@@ -25167,6 +25238,127 @@ paths:
           application/json:
             schema:
               properties:
+                artifact_transforms:
+                  description: Artifact transforms executed while resolving dependencies.
+                  items:
+                    properties:
+                      artifact_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      consumer_project_path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      started_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      subject_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      transform_action_class:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      transformer_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - transformer_name
+                      - transform_action_class
+                      - subject_name
+                      - artifact_name
+                      - consumer_project_path
+                      - duration_ms
+                      - started_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  nullable: true
+                  type: array
+                  x-struct:
+                  x-validate:
+                configuration_cache:
+                  description: Configuration cache status and invalidation diagnostics.
+                  nullable: true
+                  properties:
+                    entry_size:
+                      nullable: true
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    invalidation_reasons:
+                      items:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    load_duration_ms:
+                      nullable: true
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    status:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - status
+                  type: object
+                  x-struct:
+                  x-validate:
+                configuration_operations:
+                  description: Settings, build, and project configuration operations.
+                  items:
+                    properties:
+                      build_path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      phase:
+                        enum:
+                          - build
+                          - settings
+                          - project
+                        type: string
+                        x-struct:
+                        x-validate:
+                      project_path:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      started_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - phase
+                      - build_path
+                      - duration_ms
+                      - started_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  nullable: true
+                  type: array
+                  x-struct:
+                  x-validate:
                 duration_ms:
                   description: Build duration in milliseconds.
                   type: integer
@@ -25340,6 +25532,18 @@ paths:
                           - skipped
                           - no_source
                         type: string
+                        x-struct:
+                        x-validate:
+                      remote_cache_miss:
+                        description: Whether the remote cache was checked and did not contain the task output.
+                        nullable: true
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      remote_cache_stored:
+                        description: Whether this build wrote the task output to the remote cache.
+                        nullable: true
+                        type: boolean
                         x-struct:
                         x-validate:
                       started_at:
