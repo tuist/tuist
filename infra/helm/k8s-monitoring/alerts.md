@@ -48,6 +48,65 @@ If the option does not exist yet, add it in Grafana Cloud → IRM →
 Settings → Labels first; the worker matches on the option's `value`, and
 an unmatched label value is silently ignored.
 
+## Recording rules for Kura regions
+
+No `kura_*` request, memory, disk or egress series carries a `region` label,
+and `kube_node_labels` keeps only the `kubernetes.io/*` labels, so a node has
+no region either. The only carriers are `kura_node_geo_info` and
+`kura_node_info`, which exist once per Kura pod. Every region-scoped rule in
+this document therefore joins through them, and two recording rules make that
+join once so the rules stay readable and the join has one place to change.
+
+Create them under **Alerting → Recording rules**, folder `Alerts`, group
+`Kura region joins`, evaluated every minute.
+
+```promql
+# kura:pod_region — one series per Kura pod, carrying its region
+max by (cluster, pod, region) (kura_node_geo_info)
+```
+
+```promql
+# kura:node_region — one series per node that hosts at least one Kura pod
+max by (cluster, node, region) (
+  kube_pod_info{namespace="kura"}
+  * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info)
+)
+```
+
+Usage, for a per-pod and a per-node series respectively:
+
+```promql
+sum by (cluster, region) (<per-pod expr>  * on (cluster, pod)  group_left(region) kura:pod_region)
+sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region) kura:node_region)
+```
+
+node-exporter series carry the node name as `instance`, not `node`; join those
+through `label_replace(kura:node_region, "instance", "$1", "node", "(.*)")`.
+
+The recording rules cover every cluster so dashboards can use them, and the
+alert rules that join through them are scoped to production by matching on the
+recording-rule side of the join:
+`kura:pod_region{cluster="tuist-production"}`. Filtering the right-hand side
+of an `on (cluster, ...)` join filters the whole result, so the scope lives in
+one place per query and adding a cluster is a matcher change, not a rewrite.
+Staging and canary regions are sized for testing and would fire on their own
+(a staging region already sits past the disk pressure line), and these rules
+are about customer capacity.
+
+Two limits to keep in mind:
+
+- A node is attributable to a region only once it hosts a Kura pod. A freshly
+  added, still empty node is invisible to every region rollup until the first
+  placement lands on it. The fix is upstream: allow-list a `tuist.dev/region`
+  node label into `kube_node_labels` and read it here instead.
+- Grafana Cloud Adaptive Metrics can aggregate a label away without the series
+  disappearing. It has already done so for `tuist_kura_capacity_reserved_gibibytes`
+  and `tuist_kura_capacity_allocatable_gibibytes` (`cluster`, `region` and
+  `pod` are gone; only a fleet-wide sum is queryable), which is why no rule
+  below reads them. A rule that selects on `region` then **errors** rather than
+  returning nothing, so set **Error** to **Alerting** on the region rules and
+  check the Adaptive Metrics recommendations before trusting a new one.
+
 ## Critical alerts
 
 ### Kubernetes control endpoint unavailable
@@ -724,8 +783,10 @@ absent_over_time(up{cluster="tuist-canary", job="kura"}[15m])
 - Summary: `Kura cache scrape targets have disappeared in {{ $labels.cluster }}`
 
 The paired telemetry rule for every Kura rule that reads a metric off the
-`kura` scrape job: `kura_http_*`, `kura_rocksdb_*` and
-`kura_response_stream_admissions_*`. Those are threshold rules with
+`kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
+`kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
+`kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_container_memory_*` and the
+`kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
 configuration that stopped discovering the `kura` namespace altogether. The
 series would simply stop arriving and every one of them would go quiet.
@@ -762,6 +823,216 @@ prompt below, which said to make **No Data** Alerting for telemetry-missing
 rules; that reads as correct but inverts the semantics of every
 `absent_over_time` rule in this document, so check the deployed configuration
 of the older ones too.
+
+### Kura region cannot place another instance
+
+```promql
+label_replace(sum by (cluster, region) (
+  floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"})
+         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})) / (2 * 4096))
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+), "constraint", "ceiling", "", "")
+or
+label_replace(sum by (cluster, region) (
+  floor((max by (cluster, node) (kube_node_status_allocatable{resource="memory"})
+         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})) / 1048576 / (2 * 1024))
+  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+), "constraint", "memory", "", "")
+```
+
+- Threshold: `< 1`, as a separate threshold expression on `A`, so the alert
+  value is the number of instances that still fit
+- Pending period: 15 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting** (the
+  region join can be aggregated away, see **Recording rules for Kura
+  regions**).
+- Summary: `Kura region {{ $labels.region }} can place
+  {{ $values.A.Value | printf "%.0f" }} more enterprise instances by
+  {{ $labels.constraint }} in {{ $labels.cluster }}; add a node`
+- Description: `Counts how many more two-replica enterprise instances the
+  region can place, per placement constraint: "ceiling" is the
+  tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
+  "memory" is the native memory request against allocatable. Zero means the
+  scheduler will decline the next provisioning in this region. Add a node to
+  the region, or lower the ceiling profile. If "Kura region host memory low" is
+  quiet, the region is full of reservations, not of usage.`
+
+The "add a node" alert. It counts how many more instances of the largest
+profile the region can place, per placement constraint, and fires when that
+count reaches zero: the next provisioning in the region is declined by the
+scheduler, and the only signal today would be **Pod cannot be scheduled**,
+thirty minutes later and in production only.
+
+Two constraints decide placement, and a pod places only if the node satisfies
+every request it carries, so either one running out is enough. The native
+`memory` request is the instance's floor (`Tuist.Kura.Regions.memory_profile/1`:
+1024 MiB for the enterprise profile). In regions with
+`memory_ceiling_bin_packed` the kura-controller also requests the
+`tuist.dev/memory-ceiling-mib` extended resource, equal to the pod's limit
+(4096 MiB for enterprise, twice the floor by default), and the scheduler
+bin-packs that against the capacity the CAPI provider advertises on the box.
+The ceiling binds first wherever it is on: the boxes reserve several times the
+working set the fleet actually peaks at, which is deliberate (see the
+`defaultResources` comment in `kurainstance_controller.go`), so a region runs
+out of schedulable memory long before it runs out of real memory. **Kura cache
+box out of memory** below is the rule for the second case; this one firing
+while that one is quiet means the region is full of reservations, not of
+usage, and the answer is a node or a smaller ceiling profile, not a bigger box.
+
+The two constants are one instance's worth: two replicas per region today,
+times the enterprise ceiling (8192 MiB) and the enterprise floor (2048 MiB).
+Size from the largest plan on purpose: a region that can still place a
+standard instance but not an enterprise one is exactly the case to know about
+before an enterprise sign-up. Change both constants together when the replica
+count or the profile changes.
+
+`floor()` is applied per node before the sum, so a region whose free memory is
+spread across several boxes in slices too small for one instance correctly
+reads as zero. The `constraint` label is what lets the summary say which lever
+to pull; the `or` makes one row per constraint, and a box that advertises no
+ceiling (the kura-fleet pool today) simply has no `ceiling` row.
+
+Measured on 2026-09-02: one production region already cannot place another
+enterprise instance by ceiling and would fire on creation, which is a real
+finding rather than noise; the other regions have room for two or more. By
+native memory every region has room for many, so the ceiling is the binding
+constraint everywhere it is advertised.
+
+### Kura cache box out of memory
+
+```promql
+min by (cluster, region, instance) (
+  (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+  * on (cluster, instance) group_left(region)
+    label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+)
+```
+
+- Threshold: `< 0.08`, as a separate threshold expression on `A`
+- Pending period: 15 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura box {{ $labels.instance }} in {{ $labels.region }} has
+  {{ $values.A.Value | humanizePercentage }} of its memory available
+  ({{ $labels.cluster }})`
+- Description: `The kernel's MemAvailable on this Kura box (reclaimable page
+  cache counts as available) has been below 8% for 15 minutes: the box is about
+  to reclaim from every pod on it or OOM-kill one. Look for the pod living
+  above its floor ("Kura pod living above its memory request"), then for a
+  host-side leak (slab, cgroups); if neither, the region needs a node.`
+
+The single-box tier of **Kura region host memory low** below: the box that is
+about to start reclaiming from every pod on it, or OOM-killing them. Kura pods
+are allowed to peak above their requests and their mmap'd segments live in
+page cache, so the honest measure is the kernel's `MemAvailable`, which counts
+reclaimable cache as available. Unreclaimable slab and jemalloc arena growth
+have both got a box here before without any pod limit noticing, which is why a
+host-level rule exists alongside the pod-level ones.
+
+### Kura pod under memory pressure
+
+```promql
+max by (cluster, region, pod) (
+  max by (cluster, pod) (kura_memory_pressure_state)
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A` (0 = normal,
+  1 = constrained, 2 = critical)
+- Pending period: 10 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has been under
+  memory pressure (state {{ $values.A.Value | printf "%.0f" }}) for 10 minutes
+  ({{ $labels.cluster }})`
+- Description: `The pod's own memory controller has been out of Normal for 10
+  minutes (1 = constrained: outbox, backfill, segment refresh and snapshot
+  build paused; 2 = critical: transient budget zeroed, every read refused,
+  manifest index may be zeroed while the pod stays Ready). A short trip during
+  a burst is expected; sustained means the pod is not working within its
+  ceiling. The lever is the account's memory profile, not the box. Check
+  kura_background_work_paused and kura_memory_transient_reserved_bytes.`
+
+The pod's own controller has left Normal and stayed there. At Constrained the
+node pauses background work (`kura_background_work_paused` by worker: outbox,
+backfill, segment refresh, snapshot build); at Critical the transient budget is
+zeroed, every read is refused, and the manifest index can be zeroed while the
+pod stays Ready. A short trip into Constrained during a burst is the controller
+working; ten minutes is a pod that is not working within its ceiling, and the
+lever is the account's memory profile, not the box. **Kura pod living above its
+memory request** below is the same story an hour earlier and one tier lower.
+
+No production pod has left Normal in the 7 days to 2026-09-02, so the rule is
+quiet on creation.
+
+### Kura pod OOM-killed
+
+```promql
+max by (cluster, region, pod) (
+  kube_pod_container_status_last_terminated_reason{namespace="kura", container="kura", reason="OOMKilled"} == 1
+  and on (cluster, pod) increase(kube_pod_container_status_restarts_total{namespace="kura", container="kura"}[1h]) > 0
+) * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+or
+sum by (cluster, region, pod) (
+  increase(kura_container_memory_oom_kill_events[1h])
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+) > 0
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 0 minutes
+- Severity: critical
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} was OOM-killed
+  in the last hour ({{ $labels.cluster }})`
+- Description: `The kernel OOM-killed this pod within the last hour: it
+  exceeded its ceiling (the memory limit), which the pod's own pressure
+  controller exists to prevent. Peaks above the request are allowed; the limit
+  is not. Read the last termination reason and exit code, compare
+  kura_jemalloc_resident_bytes against the cgroup charge for allocator growth
+  the controller cannot see, and raise the ceiling profile only once the cause
+  is understood.`
+
+Every restart seen so far was a liveness kill (**Kura cache pod restart
+loop**: exit 137, reason `Error`), never `OOMKilled`; the pressure controller
+exists precisely so the kernel never has to act. An OOM kill therefore means
+the controller's accounting was wrong (the glibc arena case) or the profile is
+mis-sized, and it deserves its own page rather than a place in a 6-hour restart
+count. Peaks above the request are allowed; the limit is not.
+
+**The first arm is the one that catches the real kill, and it needs the
+restart bound.** kube-state-metrics keeps `reason="OOMKilled"` on
+`kube_pod_container_status_last_terminated_reason` until the *next*
+termination, which can be days, so on its own the series would keep the alert
+firing long after the event. `kube_pod_container_status_last_terminated_timestamp`
+is not in Prometheus, otherwise `time() - timestamp < 3600` would be the
+cleaner bound; a restart inside the same window is the substitute.
+
+**The second arm cannot see the kill that matters.** Kura reads
+`/sys/fs/cgroup/memory.events` of its own container cgroup
+(`kura/src/memory/cgroup.rs`). When the OOM killer takes the main process the
+container restarts with a fresh cgroup and the counter starts at zero, so
+`kura_container_memory_oom_kill_events` only ever counts a kill that took a
+child or thread and left the process running. Keep it; do not rely on it.
+
+The `[1h]` window is not a frequency threshold. The event is discrete and the
+pending period is zero, so the window is how long the alert stays visible
+before it resolves on its own: long enough to be seen, short enough that the
+resolve arrives the same hour. Use `[6h]` instead if it should stay open
+alongside the restart-loop window; nothing else changes.
+
+Over the 30 days to 2026-09-02 the only termination reason recorded for a Kura
+container in production is `Error`. Never `OOMKilled`.
 
 ### Runner host PN VLAN missing
 
@@ -1656,125 +1927,337 @@ that week on the two busy pods, in bursts that peaked between 47% and 100%, with
 at least one burst per pod holding above 5% for a full 10 minutes. Nothing else
 in the fleet came close.
 
-### Kura shedding cache writes from the replication outbox
+### Kura shedding cache writes by kind
 
 ```promql
-sum by (cluster, pod) (
-  rate(kura_capacity_sheds_total_total{kind="outbox"}[5m])
+max by (cluster, region, pod, kind) (
+  (
+    increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
+    or
+    label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")
+  )
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
-- Live: rule `efwtvv4wuspvkc`, titled `Kura - cache writes shed by the
-  replication outbox`, `severity: warning`, `for: 10m`, threshold `> 1` shed/s,
-  folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`.
-- Summary: `Kura pod {{ $labels.pod }} is shedding {{ $values.A.Value | printf
-  "%.1f" }} cache writes/sec in {{ $labels.cluster }}`.
+- Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
+  value is the number of writes refused in the last 15 minutes
+- Pending period: the same as the live outbox rule it replaces (group
+  `Cache` evaluates every 5 minutes)
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
+  **Kura shedding cache writes from the replication outbox** (see **Retired
+  rules**); preview it against the last 7 days for `kind="outbox"` and confirm
+  it fires on the same samples before deleting that rule.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
+  least {{ $values.A.Value | printf "%.0f" }} cache writes at the
+  {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
+- Description: `The pod refused uploads at the named limit. On the HTTP path
+  every one is an artifact lost, not a slowdown: the cache client only retries
+  GET, so a refused upload becomes a future cache miss and no build fails. On
+  the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
+  which clients retry, so read a REAPI-heavy pod as sustained backpressure.
+  outbox: the replication outbox is at its cap, read kura_outbox_messages
+  (exactly 100000 is pinned); peers being unreachable is NOT the usual cause,
+  check kura_peer_connection_failures_total and
+  kura_replication_bandwidth_effective_limit_bytes_per_second first.
+  upload_memory, memory_pressure_write, reapi_write_decode,
+  reapi_materialization: the transient memory budget derived from the pod's
+  ceiling is exhausted, the lever is the account's memory profile.
+  tmp_staging, multipart_storage, multipart_uploads: staging disk or the fixed
+  128-upload cap; an orphaned backlog can survive a restart for up to a day.`
 
-Sibling to the read shed above, in a deliberately different shape: an absolute
-rate rather than a ratio.
+Sibling to the read shed above, in a deliberately different shape: a count
+rather than a ratio, and one rule keyed on `kind` for every write-shed limit
+instead of one rule per limit. The `outbox` kind is the retired rule, query,
+threshold and `or` term unchanged; the other kinds ride along at the same bar.
 
-#### Why this one is worse than the read shed
+#### Why a write shed is worse than a read shed
 
 A shed read answers 429 with `Retry-After` and the client retries, so the build
 slows down. A shed write is simply gone. The cache client installs
-`RetryMiddleware(retryableRequestMethods: ["GET"])`, so these upload POSTs are
-never retried, on 429 or on 503. Every event this counter records is an artifact
-that was dropped and becomes a future cache miss. No build fails, nobody
-notices, and the tenant quietly gets a worse hit rate, which is the whole reason
-the rule needs to exist.
+`RetryMiddleware(retryableRequestMethods: ["GET"])`, so upload POSTs are never
+retried, on 429 or on 503. Every event this counter records is an artifact that
+was dropped and becomes a future cache miss. No build fails, nobody notices,
+and the tenant quietly gets a worse hit rate, which is the whole reason the
+rule needs to exist.
 
-#### Why an absolute rate and not a ratio
+#### Why a count and not a rate, and not a ratio
 
-There is no usable denominator. `kura_http_requests_total` has no method label,
-and the routes serving both reads and writes cannot be split by route either, so
-"writes attempted" is not expressible. That is survivable here precisely because
-each shed is a discrete loss: the raw count already means something, where the
-read-shed ratio on its own would not.
+One shed is already a refused customer write, which is why the threshold is
+`> 0` on a 15-minute count rather than a rate. The earlier form of the outbox
+rule, `rate(...[5m]) > 1` for 10 minutes, needed roughly 600 dropped
+artifacts before saying anything, and stayed Normal on 2026-08-31 while one
+pod dropped 30 artifacts in a burst that peaked inside a single 5-minute
+window. A ratio is not available either: `kura_http_requests_total` has no
+method label, and the routes serving both reads and writes cannot be split by
+route, so "writes attempted" is not expressible. A discrete loss makes the raw
+count meaningful on its own.
 
-#### Threshold
+#### Why the query has an `or`
 
-Measured over the 7 days to 2026-08-31, the peak of
-`rate(kura_capacity_sheds_total_total{kind="outbox"}[5m])` was 76.5/s on one
-dedicated instance, 0.77/s on `kura-tuist-scw-fr-par-0`, 0.67/s on one other,
-and exactly zero across the remaining fifty-odd pods. Sampling that week at 5m
-resolution, 23 samples exceeded 1/s and all 23 belonged to the same pod, in
-contiguous runs comfortably longer than the 10m `for`. So the rule would have
-fired once, for roughly two hours, on a real incident, and stayed silent for
-everything else. The two sub-1/s pods are genuine but are trickles (order 10^3
-and 10^2 events across the entire week), not artifact-loss worth paging on.
+Until the 2026-08-31 fix the gRPC outbox gate recorded only
+`kura_memory_actions_total{action="grpc_write_rejected_outbox"}` and never
+touched the shed counter, as did the three REAPI persistence sites. That gap
+hid a very large number of remote-execution rejections on one pod (seven
+figures in 7 days) against a few dozen HTTP-path rejections in a day. The
+second term keeps the rule honest on pods still running an image from before
+that fix; it is safe to drop once the fix is fleet-wide. `max`, not `sum`, so
+the two terms do not double count once both are recorded, and `label_replace`
+files the fallback under the `outbox` kind so it lands on the same row.
 
-#### When it fires
+The shed counter legitimately exceeds the gate's own rejection count: a write
+admitted at the gate still loses when the remaining room is smaller than the
+target count or another write wins the race, and each persistence path
+records that shed itself.
 
-Read `kura_outbox_messages` for that pod. The gate trips when the outbox reaches
-its 100,000 cap, and a pod sitting at exactly 100000 is pinned against it.
+#### One rule keyed on kind
 
-Do not assume the peers are unreachable. Both
-`kura_peer_connection_failures_total` and
-`kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
-throughout the 2026-08-28 episode this rule was written from, with bandwidth
-sitting at its configured 512 MiB/s ceiling almost the whole time. The backlog
-was ingest outrunning replication drain. Why drain falls behind on a node whose
-peers and pipe are both fine is still open.
+`kura_capacity_sheds_total{kind}` records one increment per shed request, with
+one series per limit and every value a constant in `metrics::shed_kind`, so
+the label cannot grow with traffic. Grouping by it costs nothing and names the
+limit in the summary, which is what the on-call needs to pick the lever:
 
-#### It is also a rollout signal
+- `outbox`: the replication outbox reached its 100,000 cap. The drain is
+  serial and node-wide (one message per peer round-trip, on the order of tens
+  of messages per second), so a backlog is normally ingest outrunning it, not
+  peers being unreachable: in the 2026-08-28 episode both
+  `kura_peer_connection_failures_total` and
+  `kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
+  and bandwidth sat at its configured ceiling almost the whole time. It is
+  also a rollout signal: `Tuist.Kura.Rollouts.gate_checks/2` compares each
+  canary's `outboxMessages` against `baseline + 10%`, so the pod firing this
+  is very likely the one holding a runtime rollout in wave 0.
+- `upload_memory`, `memory_pressure_write`: the transient memory budget, which
+  is derived from the pod's ceiling at startup, is exhausted. The lever is the
+  account's memory profile; **Kura pod living above its memory request** usually
+  fires first.
+- `reapi_write_decode`, `reapi_materialization`: the same budget on the
+  remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
+  Bazel retries, so this counter is the only place they show, and a
+  REAPI-heavy pod firing on them continuously is backpressure from a small
+  floor rather than loss. If that proves to be steady state on an instance,
+  raise the floor or move those two kinds to a rate-based tier; do not raise
+  the bar for the HTTP kinds, which are loss.
+- `tmp_staging`: the per-upload staging reserve on disk.
+- `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
+  the fixed 128-upload cap every instance runs regardless of size. An orphaned
+  backlog can outlive the restart that caused it for up to a day, so a fresh
+  pod firing this is not clean (see **Kura cache read faults**). One
+  production pod carries a standing trickle of `multipart_uploads` sheds
+  today, so this kind fires on creation; a pod resting at non-zero
+  `kura_multipart_uploads` while the fleet sits at 0 is leaking uploads toward
+  the cap, and that is a finding, not noise.
 
-`Tuist.Kura.Rollouts.gate_checks/2` compares each canary's `outboxMessages`
-against `baseline + 10%`, so an instance firing this rule is very likely the one
-holding a Kura runtime rollout in wave 0. A stuck rollout and this rule firing
-are usually the same problem, not two.
+#### Triage
 
-#### Not covered
-
-The other write-shed kinds (`multipart_uploads`, `multipart_storage`,
-`upload_memory`, `tmp_staging`, `memory_pressure_write`) drop artifacts the same
-way and have no rule of their own. `multipart_uploads` is the next most active.
+```promql
+sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
+max by (pod) (kura_outbox_messages)
+```
 
 ### Kura replication outbox approaching its cap
 
 ```promql
-max by (cluster, pod) (kura_outbox_messages)
+max by (cluster, pod) (
+  (kura_outbox_messages > 25000 and predict_linear(kura_outbox_messages[5m], 600) > 100000)
+  or
+  (kura_outbox_messages > 90000)
+)
 ```
 
+- Threshold: `> 0`, as a separate threshold expression on `A`; the comparisons
+  inside the query filter the series and keep the depth as the value
 - Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
-  cap`, `severity: warning`, `for: 15m`, threshold `> 75000`, folder `Alerts`,
-  group `Cache`, receiver `Slack #notifications 2`.
-- Summary: `Kura pod {{ $labels.pod }} has {{ $values.A.Value | printf "%.0f" }}
-  messages in its replication outbox in {{ $labels.cluster }}`.
+  cap`, `severity: warning`, folder `Alerts`, group `Cache` (evaluated every
+  5 minutes), receiver `Slack #notifications 2`. Moved to this form on
+  2026-08-31 from `> 75000` for 15 minutes.
+- Summary: `Kura pod {{ $labels.pod }} is heading for its replication outbox
+  cap in {{ $labels.cluster }} (depth {{ $values.A.Value | printf "%.0f" }}),
+  where it starts refusing customer writes`
+- Description: `Leading indicator for "Kura shedding cache writes by kind"
+  (the outbox kind). Once the outbox reaches its cap both write gates refuse
+  public writes: HTTP answers 429 and the remote-execution surface answers gRPC
+  RESOURCE_EXHAUSTED; the cache client only retries GETs, so a refused HTTP
+  upload is lost rather than delayed. Do NOT assume an unreachable peer: check
+  max by (pod) (kura_outbox_messages) and sum by (pod)
+  (rate(kura_replication_requests_total_total{operation="upsert_artifact"}[10m]))
+  (filter by operation, the counter also counts backfill). Drain is serial and
+  node-wide, one delivery per peer round-trip, so a backlog is ingest
+  outrunning it. If the write-shed rule is also firing the window has closed.
+  The same backlog gates Kura runtime rollouts, so this pod is likely holding
+  a rollout in wave 0.`
 
-Leading indicator for the write shed above. That rule tells you writes are
-already being lost; this one is the window before it starts.
+Leading indicator for the `outbox` kind of **Kura shedding cache writes by
+kind** above. That rule tells you writes are already being lost; this one is
+the window before it starts. When the retired outbox rule is deleted, update
+this rule's description, which still names it by its old title.
 
-#### The lead time is hours, and the reason matters
+#### Two terms: a forecast that leads, and a static backstop
 
-A full outbox sheds nothing until traffic actually arrives, so the gap between
-this rule and the write-shed rule is however long it is until the tenant's next
-CI wave. In the 2026-08-28 episode the outbox crossed 75000 at 19:00 the
-previous evening and sat at or near the cap all night, and the first write was
-not shed until roughly 00:15, when that tenant's builds started. Over five hours
-of warning, and acting on it overnight is what buys the whole window.
+A depth threshold alone could not lead. In the 2026-08-31 episode one pod
+crossed 75000 and hit the cap under three minutes later; the old rule
+(`> 75000`, for 15 minutes, in the 5-minute Cache group) reached Alerting 28
+minutes *after* the cap. The `predict_linear` term, a 10-minute forecast over
+the last 5 minutes of depth, went true about 9 minutes before the cap at a
+depth around 32000. The 25000 floor keeps a short, self-resolving burst quiet.
 
-The corollary is that a pod parked at the cap looks harmless on the write-shed
-rule while it is quiet. Do not read a silent write-shed rule as a drained
-outbox.
+The `> 90000` term is the backstop for the case the forecast cannot see: a
+backlog parked just under the cap that is flat rather than rising. A full
+outbox sheds nothing until traffic arrives, so the gap between this rule and
+the shed can still be hours: in the 2026-08-28 episode the outbox sat near the
+cap all night and the first write was shed when the tenant's builds started the
+next morning. Do not read a silent shed rule as a drained outbox.
 
-#### Threshold
+Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
+than the old threshold on each of the three pods that ever reach the cap, so
+the form is net quieter as well as earlier.
 
-Measured over the 7 days to 2026-08-31 at 5m resolution, samples above 75000
-occurred on exactly three pods (128, 88 and 15 samples, roughly 10.7h, 7.3h and
-1.25h). Those same three are the only pods that ever reach the cap, so there is
-no false-positive population to trade off against: raising the bar to 90000 only
-shortens the warning (73, 50 and 6 samples) without removing a noisy pod.
-75000 was chosen for lead time rather than to suppress anything.
+#### Caveat: the cap is hardcoded
+
+Both 100000 and 90000 are `DEFAULT_OUTBOX_MAX_DEPTH`. `KURA_OUTBOX_MAX_DEPTH`
+is configurable per instance, so if the cap is ever raised for a tenant (the
+standing interim mitigation for this exact problem) this rule fires early and
+continuously for that pod until the numbers are updated. Kura does not export
+the cap as a metric yet; when it does, divide by it.
+
+#### Why the drain falls behind
+
+Do not assume the peers are unreachable. Through the 2026-08-31 episode
+`kura_peer_connection_failures_total` was 0, apply errors were 0, and
+replication bandwidth sat at its configured ceiling. Bandwidth is not the
+constraint: `process_outbox` awaits one delivery at a time, node-wide, so
+drain throughput is one message per peer round-trip, on the order of tens of
+messages per second at the fleet's mean RTT, and the pod in that episode was
+running at about 94% of that ceiling against a burst ingest several times
+higher. One artifact write also enqueues one message *per target*, so depth
+is not a count of artifacts.
 
 #### Aggregate by pod, not by series
 
-`kura_outbox_messages` carries an `instance` label, and a pod that has restarted
-appears under several instance IPs across a long window. A bare
-`kura_outbox_messages > 75000` therefore returns one series per historical IP and
-counts a single pod many times: one chronically backlogged pod showed up as seven
-separate series over a week. Always reduce with `max by (pod)` (or
-`by (cluster, pod)`) first. The same applies when counting how long a pod spent
-above a threshold.
+`kura_outbox_messages` carries an `instance` label, and a pod that has
+restarted appears under several instance IPs across a long window. A bare
+`kura_outbox_messages > 90000` therefore returns one series per historical IP
+and counts a single pod many times: one chronically backlogged pod showed up
+as seven separate series over a week. Always reduce with `max by (pod)` (or
+`by (cluster, pod)`) first. The same applies when counting how long a pod
+spent above a threshold.
+
+### Kura region has room for one more instance
+
+Same query as **Kura region cannot place another instance**.
+
+- Threshold: `< 2`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura region {{ $labels.region }} can place
+  {{ $values.A.Value | printf "%.0f" }} more enterprise instances by
+  {{ $labels.constraint }} in {{ $labels.cluster }}; add a node before the next
+  sign-up`
+- Description: `Counts how many more two-replica enterprise instances the
+  region can place, per placement constraint (ceiling = the
+  tuist.dev/memory-ceiling-mib extended resource, memory = native requests
+  against allocatable). One means the next enterprise sign-up is the last that
+  fits; zero is paged separately. Plan a node for the region before it lands.`
+
+The lead-time tier: the next enterprise instance is the last one that fits.
+It also holds at zero, alongside the critical rule; that is intended, the
+critical one pages and this one keeps the Slack thread.
+
+### Kura region host memory low
+
+```promql
+sum by (cluster, region) (
+  node_memory_MemAvailable_bytes
+  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+)
+/
+sum by (cluster, region) (
+  node_memory_MemTotal_bytes
+  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+)
+```
+
+- Threshold: `< 0.15`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura region {{ $labels.region }} has
+  {{ $values.A.Value | humanizePercentage }} of its host memory available and
+  has for 30 minutes ({{ $labels.cluster }})`
+- Description: `MemAvailable summed across the region's Kura boxes
+  (reclaimable page cache counts as available) has been below 15% for 30
+  minutes, so this is sustained usage, not a build-wave peak. If "Kura region
+  cannot place another instance" also fires, add a node; if it is quiet, a pod
+  is living above its floor ("Kura pod living above its memory request") or a
+  box is leaking ("Node leaking cgroups").`
+
+The "really out of memory" alert, as opposed to **Kura region cannot place
+another instance**, which is "out of reservations". Kura pods may peak above
+their requests and their mmap'd segments live in page cache, so the honest
+measure is the kernel's `MemAvailable` (reclaimable cache counts as
+available), summed across the region's boxes and held for 30 minutes so a
+build wave's peak passes without an alert. **Kura cache box out of memory**
+above is the single-box critical tier.
+
+Both rules firing means add a node. This one alone means pods are living above
+their floors (**Kura pod living above its memory request**) or a box is
+leaking (**Node leaking cgroups**).
+
+Over the 7 days to 2026-09-02 no production region dropped below half its
+memory available and no box below two thirds, so the rule is quiet on
+creation; it is the guard rail.
+
+### Kura pod living above its memory request
+
+```promql
+max by (cluster, region, pod) (
+  avg_over_time(kura_container_memory_pressure_bytes[1h])
+  / on (cluster, pod) group_left() max by (cluster, pod) (kube_pod_container_resource_requests{namespace="kura", container="kura", resource="memory"})
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 1`, as a separate threshold expression on `A`
+- Pending period: 60 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} has averaged
+  {{ $values.A.Value | printf "%.1f" }}x its memory request for an hour
+  ({{ $labels.cluster }}); raise its floor or find the leak`
+- Description: `The pod's one-hour average of non-cache memory
+  (kura_container_memory_pressure_bytes, which excludes clean file-backed
+  cache) is above its memory request, its floor. Peaks above the request are
+  allowed and are filtered by the hour average; this pod lives above it. Raise
+  the account's memory profile, or find the leak if the growth is unbounded
+  (jemalloc resident vs allocated). It also explains a region that is out of
+  memory while it still has room to place.`
+
+The expectation is that a Kura pod works well within its requested memory (its
+floor) and may peak above it. This rule checks exactly that, with a one-hour
+average so peaks pass and only a pod that *lives* above its floor fires. It is
+an instance-sizing signal: the lever is the account's memory profile. It is
+also what explains **Kura region host memory low** firing while **Kura region
+cannot place another instance** says there is room.
+
+`kura_container_memory_pressure_bytes` is the cgroup charge excluding clean
+file-backed cache, which is the right exclusion here: the mmap'd segments are
+supposed to fill the page cache. Use `kura_container_memory_working_set_bytes`
+only if the pressure gauge is ever removed.
+
+Measured on 2026-09-02, every production pod's one-hour average sits well
+under half its request; over the previous 7 days a few pods peaked above their
+request at a single 10-minute sample, which is the allowed behaviour and which
+the hour average filters out.
 
 ### Swift registry release work repeatedly deferred
 
@@ -2707,6 +3190,21 @@ count_over_time(up[6h]) - sum_over_time(up[6h])
 
 Rules deleted on purpose. **Do not recreate them, and skip this section when
 creating rules from this document.**
+
+**Kura shedding cache writes from the replication outbox** (`efwtvv4wuspvkc`,
+warning, retired 2026-09-02) watched one write-shed kind:
+`max by (cluster, pod) (increase(kura_capacity_sheds_total_total{kind="outbox"}[15m]) or increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m])) > 0`.
+(This document had recorded an earlier `rate(...[5m]) > 1` form for it; the
+live rule had moved to the count form on 2026-08-31 because the rate form
+missed a 30-artifact burst.) **Kura shedding cache writes by kind** is that
+query generalised to `kind!="response_stream"` and grouped by `(pod, kind)`,
+with the `or` fallback filed under the `outbox` kind, the same `> 0` threshold
+and pending period, and a region label added, so for the outbox kind it fires
+on exactly the same samples at the same grain while the other write-shed
+kinds the old rule left uncovered ride along. Its reasoning (count not rate,
+the `or` term, the triage queries) moved into that section. Delete the old
+rule only after the new one has been previewed for `kind="outbox"` against
+the last 7 days and matches.
 
 **Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
 2026-08-26) counted absolute failed scrapes:
