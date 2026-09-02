@@ -414,10 +414,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
       />
       <.sidebar_item
-        :if={
-          FeatureFlags.kura_enabled?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Cache")}
         icon="database"
         navigate={~p"/#{@selected_account.name}/cache"}
@@ -431,7 +428,6 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
       />
       <.sidebar_item
-        :if={FeatureFlags.kura_enabled?(@selected_account)}
         label={dgettext("dashboard", "Usage")}
         icon="chart_column"
         navigate={~p"/#{@selected_account.name}/usage"}
