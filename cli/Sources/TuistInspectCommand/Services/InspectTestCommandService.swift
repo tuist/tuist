@@ -142,7 +142,8 @@
                 // `tuist inspect test` analyses a bundle someone else produced; how that run was
                 // invoked isn't knowable from here.
                 onlyTestIdentifiers: [],
-                skipTestIdentifiers: []
+                skipTestIdentifiers: [],
+                stressNewTests: nil
             )
 
             AlertController.current.success(
@@ -162,7 +163,8 @@
                 shardPlanId: nil,
                 shardIndex: nil,
                 onlyTestIdentifiers: [],
-                skipTestIdentifiers: []
+                skipTestIdentifiers: [],
+                stressNewTests: nil
             )
 
             AlertController.current.success(

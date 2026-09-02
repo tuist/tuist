@@ -84,6 +84,27 @@ To bypass quarantine entirely and run everything, including muted and skipped te
 tuist test --skip-quarantine
 ```
 
+## Stress-testing new tests {#stress-testing-new-tests}
+
+Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that disagree with themselves before the change merges. Tuist decides what counts as new by checking which test cases have never run in CI on the project's default branch, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
+
+The gate is off unless you enable it, and it takes a mode rather than a switch so anyone reading the pipeline can see whether the job can fail on flakiness:
+
+- **`report`**: prints a warning for each disagreement and exits on the first pass's own result. Start here and watch what the gate would have blocked for a couple of weeks.
+- **`enforce`**: identical, but a disagreement fails the run with the same exit code as a failed test.
+
+Pass the option ahead of the passthrough arguments, or set the `TUIST_TEST_STRESS_NEW_TESTS` environment variable to vary it per matrix lane:
+
+```sh
+tuist test --stress-new-tests report
+```
+
+Each new test case is rerun according to its own duration: up to 5 seconds earns 10 repetitions, up to 10 seconds 5, up to 30 seconds 3, up to 5 minutes 2, and slower test cases are excluded and reported as such. The pass reuses what the first pass built, is capped at 200 candidates and 10 minutes of wall-clock time, and every bound reports when it bites. The parameters are stored on the project and tuned by Tuist from telemetry, so they never require a CLI release.
+
+The gate runs nothing, and says so, when the first pass already failed, when the project has no default branch or no CI history on it yet, or when more than 30% of the project's test inventory reads as new (a renamed module, for example). A branch that adds no tests prints nothing and costs one request. If the server cannot be reached, the run's own result stands: the gate never blocks a merge because Tuist was down.
+
+Muted tests are stressed and recorded but cannot fail the gate, skipped tests never become candidates, and a test that fails the gate is never auto-quarantined. Repetitions the gate solicits are recorded apart from organic flakiness, so they never mark a test flaky, trigger alerts, or feed the flaky-test aggregates. The verdict shows up on the test run in the dashboard, including which guard fired and which candidates disagreed.
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.

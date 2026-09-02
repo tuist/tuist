@@ -50,6 +50,19 @@ defmodule Tuist.Projects.Project do
     field :auto_mark_flaky_threshold, :integer, default: 1
     field :flaky_cooldown_days, :integer, default: 14
 
+    field :stress_new_tests_repetition_curve, {:array, :map},
+      default: [
+        %{"max_duration_ms" => 5_000, "repetitions" => 10},
+        %{"max_duration_ms" => 10_000, "repetitions" => 5},
+        %{"max_duration_ms" => 30_000, "repetitions" => 3},
+        %{"max_duration_ms" => 300_000, "repetitions" => 2}
+      ]
+
+    field :stress_new_tests_candidate_cap, :integer, default: 200
+    field :stress_new_tests_wall_clock_ceiling_ms, :integer, default: 600_000
+    field :stress_new_tests_bulk_change_ratio, :float, default: 0.3
+    field :stress_new_tests_bulk_change_floor, :integer, default: 50
+
     belongs_to :account, Account
 
     has_many :previews, Preview
@@ -105,6 +118,11 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_tests,
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
+      :stress_new_tests_repetition_curve,
+      :stress_new_tests_candidate_cap,
+      :stress_new_tests_wall_clock_ceiling_ms,
+      :stress_new_tests_bulk_change_ratio,
+      :stress_new_tests_bulk_change_floor,
       :build_system,
       :bundle_size_approval_policy
     ])
@@ -112,6 +130,10 @@ defmodule Tuist.Projects.Project do
     |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_number(:flaky_cooldown_days, greater_than: 0)
+    |> validate_number(:stress_new_tests_candidate_cap, greater_than: 0)
+    |> validate_number(:stress_new_tests_wall_clock_ceiling_ms, greater_than: 0)
+    |> validate_number(:stress_new_tests_bulk_change_ratio, greater_than: 0, less_than_or_equal_to: 1)
+    |> validate_number(:stress_new_tests_bulk_change_floor, greater_than_or_equal_to: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])

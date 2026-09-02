@@ -43,7 +43,8 @@ public protocol UploadResultBundleServicing {
         shardPlanId: String?,
         shardIndex: Int?,
         onlyTestIdentifiers: [String],
-        skipTestIdentifiers: [String]
+        skipTestIdentifiers: [String],
+        stressNewTests: Components.Schemas.StressNewTestsResult?
     ) async throws -> Components.Schemas.RunsTest
 
     func uploadResultBundle(
@@ -54,7 +55,8 @@ public protocol UploadResultBundleServicing {
         shardPlanId: String?,
         shardIndex: Int?,
         onlyTestIdentifiers: [String],
-        skipTestIdentifiers: [String]
+        skipTestIdentifiers: [String],
+        stressNewTests: Components.Schemas.StressNewTestsResult?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -110,7 +112,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         onlyTestIdentifiers: [String] = [],
-        skipTestIdentifiers: [String] = []
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: Components.Schemas.StressNewTestsResult? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -159,7 +162,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
-            skipTestIdentifiers: skipTestIdentifiers
+            skipTestIdentifiers: skipTestIdentifiers,
+            stressNewTests: stressNewTests
         )
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
@@ -186,7 +190,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         onlyTestIdentifiers: [String] = [],
-        skipTestIdentifiers: [String] = []
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: Components.Schemas.StressNewTestsResult? = nil
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -252,7 +257,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
-            skipTestIdentifiers: skipTestIdentifiers
+            skipTestIdentifiers: skipTestIdentifiers,
+            stressNewTests: stressNewTests
         )
 
         return test

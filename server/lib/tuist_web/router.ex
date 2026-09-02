@@ -658,6 +658,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/stress-new-tests/verdict", StressNewTestsController, :verdict
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 

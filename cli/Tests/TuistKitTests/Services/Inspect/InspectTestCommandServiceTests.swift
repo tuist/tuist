@@ -57,7 +57,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -100,7 +101,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -140,7 +142,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -183,7 +186,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -252,7 +256,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -285,7 +290,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -314,7 +320,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
         verify(uploadResultBundleService)
@@ -325,7 +332,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(0)
     }
@@ -365,7 +373,8 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }

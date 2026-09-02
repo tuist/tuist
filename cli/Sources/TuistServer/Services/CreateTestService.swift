@@ -31,7 +31,8 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -86,7 +87,8 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -252,6 +254,7 @@ import TuistHTTP
                             shard_plan_id: shardPlanId,
                             skip_test_identifiers: skipTestIdentifiers,
                             status: status,
+                            stress_new_tests: stressNewTests,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
                         )

@@ -44,12 +44,17 @@ data class TuistGradleConfig(
     val project: String?,
     val network: Network,
     val uploadInBackground: Boolean? = null,
-    val testQuarantineEnabled: Boolean? = null
+    val testQuarantineEnabled: Boolean? = null,
+    val stressNewTestsMode: String? = null,
+    val stressRepetition: StressRepetitionContext? = null
 ) {
     data class Network(val proxy: Boolean)
 
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
+        internal const val STRESS_MODE_ENV = "TUIST_TEST_STRESS_NEW_TESTS"
+        internal const val STRESS_FILTERS_PROPERTY = "tuist.stressNewTests.filters"
+        internal const val STRESS_OUTPUT_PROPERTY = "tuist.stressNewTests.output"
 
         fun from(settings: Settings, extension: TuistExtension): TuistGradleConfig =
             TuistGradleConfig(
@@ -65,7 +70,12 @@ data class TuistGradleConfig(
                     )
                 ),
                 uploadInBackground = extension.uploadInBackground,
-                testQuarantineEnabled = extension.testQuarantine.enabled
+                testQuarantineEnabled = extension.testQuarantine.enabled,
+                stressNewTestsMode = StressNewTestsMode.resolve(
+                    environmentValue = System.getenv(STRESS_MODE_ENV),
+                    extensionValue = extension.stressNewTests.mode
+                ),
+                stressRepetition = StressRepetitionContext.from(settings.startParameter.projectProperties)
             )
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
@@ -99,7 +109,12 @@ class TuistPlugin : Plugin<Settings> {
         val config = TuistGradleConfig.from(settings, extension)
         publishSharedConfig(settings, config)
         configureBuildCache(settings, config, extension.buildCache)
-        configureBuildInsights(settings, config)
+        // A stress repetition is a nested build whose only job is to rerun a few
+        // test cases and write their results to a file: it reports no build of its
+        // own, and reruns nothing but the filters it was handed.
+        if (config.stressRepetition == null) {
+            configureBuildInsights(settings, config)
+        }
         configureTestInsights(settings, config)
     }
 
@@ -120,9 +135,13 @@ class TuistPlugin : Plugin<Settings> {
     private fun configureTestInsights(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
             pluginManager.apply(TuistTestInsightsPlugin::class.java)
+            if (config.stressRepetition != null) return@rootProject
             pluginManager.apply(TuistTestShardingPlugin::class.java)
             val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Test insights configured for $projectLabel")
+            config.stressNewTestsMode?.let { mode ->
+                logger.lifecycle("Tuist: Stress-testing new tests configured in $mode mode")
+            }
         }
     }
 
@@ -214,6 +233,18 @@ open class TuistExtension {
     fun testQuarantine(action: Action<TestQuarantineExtension>) {
         action.execute(testQuarantine)
     }
+
+    /**
+     * Stress gate for newly added tests.
+     */
+    val stressNewTests: StressNewTestsExtension = StressNewTestsExtension()
+
+    /**
+     * Configure the stress gate for newly added tests.
+     */
+    fun stressNewTests(action: Action<StressNewTestsExtension>) {
+        action.execute(stressNewTests)
+    }
 }
 
 /**
@@ -258,4 +289,19 @@ open class TestQuarantineExtension {
      * automatically enabled on CI and disabled for local builds.
      */
     var enabled: Boolean? = null
+}
+
+/**
+ * Configuration for the stress gate for newly added tests. After the test tasks
+ * run, the test cases that have never run in CI on the project's default branch
+ * are rerun several times each, in a fresh process per repetition, and one that
+ * disagrees with itself is reported (`report`) or fails the build (`enforce`).
+ * Absent means off, in every environment; the `TUIST_TEST_STRESS_NEW_TESTS`
+ * environment variable overrides the declared mode per invocation.
+ */
+open class StressNewTestsExtension {
+    /**
+     * `report` or `enforce`. When null (default), the gate does not run.
+     */
+    var mode: String? = null
 }

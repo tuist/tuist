@@ -240,7 +240,8 @@ struct XcodeBuildTestCommandServiceTests {
                     shardPlanId: .any,
                     shardIndex: .any,
                     onlyTestIdentifiers: .any,
-                    skipTestIdentifiers: .any
+                    skipTestIdentifiers: .any,
+                    stressNewTests: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -256,7 +257,8 @@ struct XcodeBuildTestCommandServiceTests {
                     shardPlanId: .any,
                     shardIndex: .any,
                     onlyTestIdentifiers: .any,
-                    skipTestIdentifiers: .any
+                    skipTestIdentifiers: .any,
+                    stressNewTests: .any
                 )
                 .called(1)
             let warnings = alertController.warnings()
@@ -315,7 +317,8 @@ struct XcodeBuildTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -341,7 +344,8 @@ struct XcodeBuildTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .value(["AppTests/SmokeSuite"]),
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -389,7 +393,8 @@ struct XcodeBuildTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(0)
         verify(uploadResultBundleService)
@@ -400,7 +405,8 @@ struct XcodeBuildTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(0)
     }

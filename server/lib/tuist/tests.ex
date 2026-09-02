@@ -36,6 +36,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseBranchPresence
@@ -503,6 +504,7 @@ defmodule Tuist.Tests do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
+    stress_new_tests = Map.get(attrs, :stress_new_tests)
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -511,12 +513,15 @@ defmodule Tuist.Tests do
         attrs
       end
 
+    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
+
     case %Test{}
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
         create_run_destinations(test, Map.get(attrs, :run_destinations, []))
         create_run_errors(test, Map.get(attrs, :run_errors, []))
+        StressNewTests.insert_candidates(test, stress_new_tests)
 
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -713,10 +718,14 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
+          stress_new_tests = Map.get(attrs, :stress_new_tests)
+          StressNewTests.insert_candidates(existing_test, stress_new_tests)
+
           updated_test =
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
+            |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
           update_attrs =
             updated_test
@@ -1147,7 +1156,7 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+  def generate_test_case_id(project_id, name, module_name, suite_name) do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
     <<a::32, b::16, c::16, d::16, e::48>> =

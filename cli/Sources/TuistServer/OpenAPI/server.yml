@@ -198,6 +198,8 @@ components:
           type: string
           x-struct:
           x-validate:
+        stress_new_tests:
+          $ref: '#/components/schemas/StressNewTestsResult'
         test_modules:
           description: The test modules associated with the test run.
           items:
@@ -2160,6 +2162,49 @@ components:
       type: object
       x-struct:
       x-validate:
+    StressNewTestsVerdictParams:
+      properties:
+        test_cases:
+          description: The test cases that executed and were not skipped, with the duration the run measured for each.
+          items:
+            properties:
+              duration:
+                description: Duration of the test case in milliseconds.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              module_name:
+                description: The module (target or Gradle project) of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              suite_name:
+                description: The suite (class) of the test case.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - module_name
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - test_cases
+      title: StressNewTestsVerdictParams
+      type: object
+      x-struct:
+      x-validate:
     Error:
       properties:
         message:
@@ -2235,6 +2280,129 @@ components:
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
+      x-validate:
+    StressNewTestsResult:
+      description: 'What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a candidate disagreeing with itself or why it ran nothing, and every test case it examined.'
+      properties:
+        excluded_count:
+          description: 'How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.'
+          type: integer
+          x-struct:
+          x-validate:
+        inventory_count:
+          description: How many test cases have run in CI on the default branch, as the verdict measured it.
+          type: integer
+          x-struct:
+          x-validate:
+        mode:
+          description: The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
+          enum:
+            - report
+            - enforce
+          type: string
+          x-struct:
+          x-validate:
+        new_count:
+          description: How many of the run's test cases had never run in CI on the default branch.
+          type: integer
+          x-struct:
+          x-validate:
+        outcome:
+          description: '`passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.'
+          enum:
+            - passed
+            - disagreed
+            - skipped
+            - no_candidates
+          type: string
+          x-struct:
+          x-validate:
+        skip_reason:
+          description: Why the gate ran nothing, when `outcome` is `skipped`.
+          enum:
+            - first_pass_failed
+            - no_default_branch
+            - no_default_branch_history
+            - bulk_change
+            - verdict_unavailable
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        stressed_count:
+          description: How many candidates the gate reran.
+          type: integer
+          x-struct:
+          x-validate:
+        test_cases:
+          description: Every candidate the gate examined.
+          items:
+            properties:
+              failed_repetitions:
+                description: How many of those repetitions failed.
+                type: integer
+                x-struct:
+                x-validate:
+              is_quarantined:
+                description: Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate.
+                type: boolean
+                x-struct:
+                x-validate:
+              module_name:
+                description: The module (target or Gradle project) of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              outcome:
+                description: What the gate concluded for this candidate.
+                enum:
+                  - passed
+                  - disagreed
+                  - excluded_too_slow
+                  - excluded_candidate_cap
+                  - not_stressed_ceiling
+                  - not_stressed_error
+                type: string
+                x-struct:
+                x-validate:
+              repetitions:
+                description: How many times the gate ran the test case.
+                type: integer
+                x-struct:
+                x-validate:
+              suite_name:
+                description: The suite (class) of the test case.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - module_name
+              - repetitions
+              - failed_repetitions
+              - outcome
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - mode
+        - outcome
+        - new_count
+        - stressed_count
+        - excluded_count
+        - test_cases
+      title: StressNewTestsResult
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.StressNewTestsResult
       x-validate:
     TestRunStatus:
       enum:
@@ -5803,6 +5971,157 @@ components:
       type: integer
       x-struct:
       x-validate:
+    StressNewTestsVerdict:
+      description: Which of the reported test cases have never run in CI on the project's default branch, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.
+      properties:
+        candidates:
+          description: The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+          items:
+            properties:
+              excluded_reason:
+                description: "`too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows."
+                enum:
+                  - too_slow
+                  - candidate_cap
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              module_name:
+                description: The module (target or Gradle project) of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              repetitions:
+                description: How many times to rerun the test case, priced from its duration on the project's curve. 0 when excluded.
+                type: integer
+                x-struct:
+                x-validate:
+              suite_name:
+                description: The suite (class) of the test case, or an empty string.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - suite_name
+              - module_name
+              - repetitions
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        enabled:
+          description: Whether the account is entitled to the gate. When false the client runs nothing and prints nothing.
+          type: boolean
+          x-struct:
+          x-validate:
+        guard:
+          description: The guard that kept the gate from producing candidates, if one fired.
+          nullable: true
+          properties:
+            inventory_count:
+              description: How many test cases have run in CI on the default branch.
+              type: integer
+              x-struct:
+              x-validate:
+            kind:
+              description: "`no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio."
+              enum:
+                - no_default_branch
+                - no_default_branch_history
+                - bulk_change
+              type: string
+              x-struct:
+              x-validate:
+            new_count:
+              description: How many reported test cases had no default-branch history.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - new_count
+            - inventory_count
+          type: object
+          x-struct:
+          x-validate:
+        inventory_count:
+          description: How many test cases have run in CI on the default branch.
+          type: integer
+          x-struct:
+          x-validate:
+        parameters:
+          description: The project's stress parameters, so the client can report which bound bit.
+          properties:
+            bulk_change_floor:
+              description: Minimum number of new test cases before the bulk-change guard applies.
+              type: integer
+              x-struct:
+              x-validate:
+            bulk_change_ratio:
+              description: Share of the default-branch inventory above which the bulk-change guard fires.
+              type: number
+              x-struct:
+              x-validate:
+            candidate_cap:
+              description: Maximum number of candidates a run stresses.
+              type: integer
+              x-struct:
+              x-validate:
+            repetition_curve:
+              description: Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+              items:
+                properties:
+                  max_duration_ms:
+                    description: Upper bound of the bucket in milliseconds, inclusive.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  repetitions:
+                    description: Repetitions for test cases in the bucket.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - max_duration_ms
+                  - repetitions
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            wall_clock_ceiling_ms:
+              description: Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - repetition_curve
+            - candidate_cap
+            - wall_clock_ceiling_ms
+            - bulk_change_ratio
+            - bulk_change_floor
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - enabled
+        - candidates
+        - parameters
+        - inventory_count
+      title: StressNewTestsVerdict
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.StressNewTestsVerdict
+      x-validate:
     ModuleCacheTargetsPageSize:
       default: 20
       description: The maximum number of targets to return in a single page.
@@ -9238,6 +9557,8 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                stress_new_tests:
+                  $ref: '#/components/schemas/StressNewTestsResult'
                 test_modules:
                   description: The test modules associated with the test run.
                   items:
@@ -10539,10 +10860,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -10555,20 +10876,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -14389,6 +14710,131 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict:
+    post:
+      callbacks: {}
+      description: "Given the test cases a run just executed, returns the ones that have never run in CI on the project's default branch, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under."
+      operationId: createStressNewTestsVerdict
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                test_cases:
+                  description: The test cases that executed and were not skipped, with the duration the run measured for each.
+                  items:
+                    properties:
+                      duration:
+                        description: Duration of the test case in milliseconds.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      module_name:
+                        description: The module (target or Gradle project) of the test case.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: The name of the test case.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      suite_name:
+                        description: The suite (class) of the test case.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                      - module_name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - test_cases
+              title: StressNewTestsVerdictParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Stress verdict params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StressNewTestsVerdict'
+          description: The verdict
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to request a verdict
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Decide which of a run's test cases the stress gate for newly added tests should rerun.
+      tags:
+        - Tests
   /api/accounts/{account_handle}/runners/jobs:
     get:
       callbacks: {}

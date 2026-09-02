@@ -64,6 +64,13 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
 
     @Option(
         name: .long,
+        help: "Rerun the test cases this branch adds, priced by duration, and flag any that disagree with themselves. 'report' warns; 'enforce' fails the run on a disagreement. Off when omitted.",
+        envKey: .testStressNewTests
+    )
+    var stressNewTests: StressNewTestsMode?
+
+    @Option(
+        name: .long,
         help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
         completion: .file(),
         envKey: .runReportPath
@@ -85,7 +92,8 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
                 shardReference: shardReference,
                 shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
-                mode: inspectMode
+                mode: inspectMode,
+                stressNewTests: stressNewTests
             )
     }
 }

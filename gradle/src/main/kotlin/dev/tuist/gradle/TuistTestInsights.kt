@@ -35,6 +35,7 @@ data class TestReport(
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("shard_plan_id") val shardPlanId: String? = null,
     @SerializedName("shard_index") val shardIndex: Int? = null,
+    @SerializedName("stress_new_tests") val stressNewTests: StressNewTestsReport? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -118,6 +119,41 @@ internal class TestReportCollector {
         )
     }
 
+    /**
+     * One entry per test case, with the last attempt's result and the summed duration,
+     * which is what the stress gate prices repetitions from.
+     */
+    fun executedTestCases(): List<ExecutedTestCase> {
+        return attemptsByModule.flatMap { (moduleName, attempts) ->
+            attempts
+                .groupBy { Pair(it.testName, it.className) }
+                .map { (key, caseAttempts) ->
+                    val last = caseAttempts.last()
+                    ExecutedTestCase(
+                        moduleName = moduleName,
+                        className = key.second,
+                        testName = key.first,
+                        durationMs = caseAttempts.sumOf { it.endTime - it.startTime },
+                        resultType = last.resultType,
+                        isQuarantined = caseAttempts.any { it.isQuarantined }
+                    )
+                }
+        }
+    }
+
+    fun repetitionResults(): List<StressRepetitionResult> {
+        return attemptsByModule.flatMap { (moduleName, attempts) ->
+            attempts.map {
+                StressRepetitionResult(
+                    moduleName = moduleName,
+                    className = it.className,
+                    testName = it.testName,
+                    status = if (it.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
+                )
+            }
+        }
+    }
+
     fun buildReport(
         totalDurationMs: Long,
         isCi: Boolean,
@@ -128,7 +164,8 @@ internal class TestReportCollector {
         gitRemoteUrlOrigin: String?,
         gradleBuildId: String?,
         shardPlanId: String? = null,
-        shardIndex: Int? = null
+        shardIndex: Int? = null,
+        stressNewTests: StressNewTestsReport? = null
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts)
@@ -171,6 +208,7 @@ internal class TestReportCollector {
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
+            stressNewTests = stressNewTests,
             testModules = testModules
         )
     }
@@ -302,6 +340,15 @@ abstract class TuistTestInsightsService :
     internal var buildInsightsService: TuistBuildInsightsService? = null
     internal var shardPlanId: String? = null
     internal var shardIndex: Int? = null
+    internal var stressNewTestsReport: StressNewTestsReport? = null
+
+    /**
+     * When set, this build is a stress repetition: the results are written here for the
+     * parent build to read instead of being reported as a test run of their own.
+     */
+    internal var stressRepetitionOutput: java.io.File? = null
+
+    private val testTaskPathsByModule = mutableMapOf<String, MutableSet<String>>()
 
     private val collector = TestReportCollector()
     private var earliestStartTime: Long = Long.MAX_VALUE
@@ -318,6 +365,18 @@ abstract class TuistTestInsightsService :
     internal fun hasQuarantinedFailures(moduleName: String): Boolean {
         return collector.hasQuarantinedFailures(moduleName)
     }
+
+    @Synchronized
+    internal fun registerTestTask(moduleName: String, taskPath: String) {
+        testTaskPathsByModule.getOrPut(moduleName) { linkedSetOf() }.add(taskPath)
+    }
+
+    @Synchronized
+    internal fun taskPathsByModule(): Map<String, List<String>> =
+        testTaskPathsByModule.mapValues { it.value.toList() }
+
+    @Synchronized
+    internal fun executedTestCases(): List<ExecutedTestCase> = collector.executedTestCases()
 
     @Synchronized
     internal fun onTestFinished(
@@ -345,6 +404,12 @@ abstract class TuistTestInsightsService :
     }
 
     override fun close() {
+        stressRepetitionOutput?.let { output ->
+            output.parentFile?.mkdirs()
+            output.writer().use { Gson().toJson(StressRepetitionResults(collector.repetitionResults()), it) }
+            return
+        }
+
         if (!hasTests) {
             logger.debug("Tuist: No test results collected, skipping test insights upload.")
             return
@@ -405,7 +470,8 @@ abstract class TuistTestInsightsService :
             gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
-            shardIndex = shardIndex
+            shardIndex = shardIndex,
+            stressNewTests = stressNewTestsReport
         )
 
         val response = httpClient.execute { config ->
@@ -473,7 +539,24 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
         }
 
-        val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
+        val repetition = config.stressRepetition
+        val quarantineEnabled = repetition == null && (config.testQuarantineEnabled ?: ciDetector.isCi())
+
+        val stressTaskProvider = config.stressNewTestsMode?.takeIf { repetition == null }?.let { mode ->
+            project.tasks.register("tuistStressNewTests", TuistStressNewTestsTask::class.java) {
+                group = "verification"
+                description = "Reruns the test cases this build added and flags any that disagree with themselves."
+                this.mode.set(mode)
+                serverUrl.set(config.url)
+                config.project?.let { tuistProject.set(it) }
+                useEnvironmentProxy.set(config.network.proxy)
+                projectDir.set(project.rootProject.layout.projectDirectory)
+                gradleUserHomeDir.set(project.gradle.gradleUserHomeDir)
+                project.gradle.gradleHomeDir?.let { gradleHomeDir.set(it) }
+                insightsService.set(serviceProvider)
+                usesService(serviceProvider)
+            }
+        }
         val quarantineServiceProvider = if (quarantineEnabled) {
             project.gradle.sharedServices.registerIfAbsent(
                 "tuistTestQuarantine",
@@ -502,6 +585,29 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                         serviceProvider.get().onTestFinished(moduleName, testDescriptor, result)
                     }
                 })
+
+                val taskPath = testTask.path
+                testTask.doFirst {
+                    serviceProvider.get().registerTestTask(moduleName, taskPath)
+                }
+
+                if (repetition != null) {
+                    // A repetition reruns exactly the patterns it was handed, whatever Gradle's
+                    // up-to-date check says, and lets the parent build decide what a failure means.
+                    val patterns = repetition.filtersByTaskPath[taskPath].orEmpty()
+                    testTask.outputs.upToDateWhen { false }
+                    testTask.ignoreFailures = true
+                    testTask.doFirst {
+                        testTask.filter.isFailOnNoMatchingTests = false
+                        patterns.forEach { testTask.filter.includeTestsMatching(it) }
+                        serviceProvider.get().stressRepetitionOutput = repetition.outputFile
+                    }
+                }
+
+                stressTaskProvider?.let { stressTask ->
+                    testTask.finalizedBy(stressTask)
+                    stressTask.configure { mustRunAfter(testTask) }
+                }
 
                 if (quarantineServiceProvider != null) {
                     testTask.usesService(quarantineServiceProvider)

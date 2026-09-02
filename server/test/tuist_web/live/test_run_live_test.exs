@@ -41,6 +41,81 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
+  test "shows the stress gate's verdict and the candidate that disagreed", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{name: "testAppliesDiscount", test_suite_name: "CheckoutTests", status: "success", duration: 10}
+            ]
+          }
+        ],
+        stress_new_tests: %{
+          mode: "report",
+          outcome: "disagreed",
+          new_count: 1,
+          stressed_count: 1,
+          excluded_count: 0,
+          inventory_count: 40,
+          test_cases: [
+            %{
+              name: "testAppliesDiscount",
+              suite_name: "CheckoutTests",
+              module_name: "AppTests",
+              repetitions: 10,
+              failed_repetitions: 2,
+              outcome: "disagreed",
+              is_quarantined: false
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    assert has_element?(lv, "[data-part='stress-new-tests']")
+    assert has_element?(lv, "[data-part='counts']", "1 new test cases, 1 stressed, 0 excluded")
+
+    assert has_element?(
+             lv,
+             "[data-part='reason']",
+             "testAppliesDiscount failed 2 of 10 repetitions and would have blocked this run"
+           )
+
+    assert has_element?(lv, "#stress-new-tests-table", "AppTests/CheckoutTests/testAppliesDiscount")
+    assert has_element?(lv, "#stress-new-tests-table", "Disagreed")
+  end
+
+  test "does not show the stress gate for a run that did not carry it", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='stress-new-tests']")
+  end
+
   test "surfaces linked runner CI context when test run came from a Tuist runner job", %{
     conn: conn,
     organization: organization,

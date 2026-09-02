@@ -99,6 +99,32 @@
     }
   }
 
+  & [data-part="stress-new-tests"] {
+    & [data-part="stress-new-tests-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="summary"] {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="counts"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="reason"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
+    }
+  }
+
   & [data-part="run-errors"] {
     & [data-part="run-errors-section"] {
       & > [data-part="errors-list"] {

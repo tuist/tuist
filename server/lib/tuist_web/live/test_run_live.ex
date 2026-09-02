@@ -23,6 +23,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -92,6 +93,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
+      |> assign(:stress_candidates, stress_candidates(run))
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -116,6 +118,9 @@ defmodule TuistWeb.TestRunLive do
 
     {:ok, socket}
   end
+
+  defp stress_candidates(%{stress_mode: ""}), do: []
+  defp stress_candidates(run), do: StressNewTests.list_candidates(run.id)
 
   # The `Download result` button and its route are keyed on the id under which
   # the bundle was stored: the command_event id for CLI `tuist test` runs, and

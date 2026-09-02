@@ -36,6 +36,7 @@ struct XcodeBuildTestCommandService {
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
+    private let stressNewTestsService: StressNewTestsServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -53,7 +54,8 @@ struct XcodeBuildTestCommandService {
         testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -71,6 +73,7 @@ struct XcodeBuildTestCommandService {
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
+        self.stressNewTestsService = stressNewTestsService
     }
 
     func run(
@@ -80,7 +83,8 @@ struct XcodeBuildTestCommandService {
         shardReference: String? = nil,
         shardPlanId: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = nil
+        mode: TestProcessingMode? = nil,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
         // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
         // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
@@ -157,6 +161,21 @@ struct XcodeBuildTestCommandService {
         let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
         }
+        let parseSummary = mode == .local || stressNewTests != nil
+
+        // The stress pass reruns only the candidates against the products the first pass built, in a
+        // fresh process per repetition, so the caller's action, selection and repetition options are
+        // replaced while everything else passes through.
+        let stressPass: StressNewTestsPass = { identifiers, repetitions, stressResultBundlePath in
+            try await xcodeBuildController.run(
+                arguments: Self.stressPassArguments(
+                    from: passthroughXcodebuildArguments,
+                    identifiers: identifiers,
+                    repetitions: repetitions,
+                    resultBundlePath: stressResultBundlePath
+                )
+            )
+        }
 
         do {
             try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
@@ -171,7 +190,7 @@ struct XcodeBuildTestCommandService {
             }
 
             var testSummary: TestSummary?
-            if mode == .local, let resultBundlePath {
+            if parseSummary, let resultBundlePath {
                 let rootDirectory = await rootDirectory()
                 if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                     testSummary = testQuarantineService.markQuarantinedTests(
@@ -180,20 +199,6 @@ struct XcodeBuildTestCommandService {
                     )
                 }
             }
-
-            await uploadResultBundleIfNeeded(
-                testSummary: testSummary,
-                resultBundlePath: resultBundlePath,
-                projectDerivedDataDirectory: derivedDataPath,
-                config: config,
-                quarantinedTests: allQuarantinedTests,
-                shardPlanId: resolvedShardPlanId,
-                shardIndex: shardIndex,
-                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-                mode: mode,
-                onlyTestIdentifiers: callerOnlyTestIdentifiers,
-                skipTestIdentifiers: callerSkipTestIdentifiers
-            )
 
             let quarantinePass: Bool
             if let testSummary {
@@ -208,9 +213,36 @@ struct XcodeBuildTestCommandService {
                 quarantinePass = false
             }
 
+            let stressResult = await stressNewTestsIfNeeded(
+                mode: stressNewTests,
+                summary: testSummary,
+                firstPassFailed: !quarantinePass,
+                config: config,
+                mutedTests: mutedTests,
+                stressPass: stressPass
+            )
+
+            await uploadResultBundleIfNeeded(
+                testSummary: mode == .local ? testSummary : nil,
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: derivedDataPath,
+                config: config,
+                quarantinedTests: allQuarantinedTests,
+                shardPlanId: resolvedShardPlanId,
+                shardIndex: shardIndex,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                mode: mode,
+                onlyTestIdentifiers: callerOnlyTestIdentifiers,
+                skipTestIdentifiers: callerSkipTestIdentifiers,
+                stressNewTests: stressResult
+            )
+
             if quarantinePass {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
+                }
+                if let stressResult, stressResult.blocks {
+                    throw StressNewTestsError.blocked(stressResult.blockingCandidates)
                 }
                 return
             }
@@ -229,7 +261,7 @@ struct XcodeBuildTestCommandService {
         }
 
         var testSummary: TestSummary?
-        if mode == .local, let resultBundlePath {
+        if parseSummary, let resultBundlePath {
             let rootDirectory = await rootDirectory()
             if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                 testSummary = testQuarantineService.markQuarantinedTests(
@@ -238,8 +270,16 @@ struct XcodeBuildTestCommandService {
                 )
             }
         }
+        let stressResult = await stressNewTestsIfNeeded(
+            mode: stressNewTests,
+            summary: testSummary,
+            firstPassFailed: testSummary == nil,
+            config: config,
+            mutedTests: mutedTests,
+            stressPass: stressPass
+        )
         await uploadResultBundleIfNeeded(
-            testSummary: testSummary,
+            testSummary: mode == .local ? testSummary : nil,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
@@ -249,11 +289,89 @@ struct XcodeBuildTestCommandService {
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
             mode: mode,
             onlyTestIdentifiers: callerOnlyTestIdentifiers,
-            skipTestIdentifiers: callerSkipTestIdentifiers
+            skipTestIdentifiers: callerSkipTestIdentifiers,
+            stressNewTests: stressResult
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
         }
+        if let stressResult, stressResult.blocks {
+            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
+        }
+    }
+
+    // MARK: - Stress-testing new tests
+
+    private func stressNewTestsIfNeeded(
+        mode: StressNewTestsMode?,
+        summary: TestSummary?,
+        firstPassFailed: Bool,
+        config: Tuist,
+        mutedTests: [TestIdentifier],
+        stressPass: @escaping StressNewTestsPass
+    ) async -> StressNewTestsResult? {
+        guard let mode, let fullHandle = config.fullHandle,
+              let serverURL = try? serverEnvironmentService.url(configServerURL: config.url)
+        else { return nil }
+        return await stressNewTestsService.run(
+            mode: mode,
+            testSummary: summary,
+            firstPassFailed: firstPassFailed,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            mutedTests: mutedTests,
+            stressPass: stressPass
+        )
+    }
+
+    private static let stressValueOptions: Set<String> = [
+        "-resultBundlePath",
+        "-test-iterations",
+        "-test-repetition-relaunch-enabled",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    private static let stressFlagOptions: Set<String> = [
+        "-retry-tests-on-failure",
+        "-run-tests-until-failure",
+    ]
+
+    /// The xcodebuild invocation for one stress group: the caller's arguments with the action swapped
+    /// for `test-without-building`, their selection and repetition options dropped, and the group's
+    /// identifiers, repetition count and result bundle appended.
+    static func stressPassArguments(
+        from arguments: [String],
+        identifiers: [TestIdentifier],
+        repetitions: Int,
+        resultBundlePath: AbsolutePath
+    ) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "test" || argument == "test-without-building", result.isEmpty {
+                result.append("test-without-building")
+                continue
+            }
+            if stressValueOptions.contains(argument) {
+                _ = iterator.next()
+                continue
+            }
+            if stressFlagOptions.contains(argument) {
+                continue
+            }
+            if stressValueOptions.contains(where: { argument.hasPrefix("\($0):") }) {
+                continue
+            }
+            result.append(argument)
+        }
+        result += identifiers.flatMap { ["-only-testing", $0.description] }
+        result += [
+            "-test-iterations", "\(repetitions)",
+            "-test-repetition-relaunch-enabled", "YES",
+            "-resultBundlePath", resultBundlePath.pathString,
+        ]
+        return result
     }
 
     private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?) async {
@@ -403,7 +521,8 @@ extension XcodeBuildTestCommandService {
         scheme: String? = nil,
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
-        skipTestIdentifiers: [String] = []
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: StressNewTestsResult? = nil
     ) async {
         guard config.fullHandle != nil else { return }
 
@@ -420,7 +539,8 @@ extension XcodeBuildTestCommandService {
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
                     onlyTestIdentifiers: onlyTestIdentifiers,
-                    skipTestIdentifiers: skipTestIdentifiers
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -433,7 +553,8 @@ extension XcodeBuildTestCommandService {
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
                     onlyTestIdentifiers: onlyTestIdentifiers,
-                    skipTestIdentifiers: skipTestIdentifiers
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
