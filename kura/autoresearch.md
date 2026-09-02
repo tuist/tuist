@@ -6,7 +6,7 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: interleaved uninitialized segment-read speedup over a zero-filled destination (ratio, higher is better)
+- Primary: interleaved replication upload speedup from moving owned segment chunks into the request body (ratio, higher is better)
 - Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
@@ -65,9 +65,10 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Tonic consumes each response vector while encoding it, then yields an owned encoded frame. Hyper can retain up to its configured 512 kibibyte per-stream send buffer while the next frame is encoded. The new peak therefore has three charged owners instead of the old path's four: response vector, encoded frame, and transport buffer. Reduce only ByteStream's admission multiplier from four to three; ordinary file streams retain their existing four-buffer model.
 - Owned segment chunks now feed ByteStream, public artifact responses, and single-artifact backfill responses directly. The paired disk-backed benchmark measured a 1.419 times median speedup, and each stream's response reservation fell from four chunks to three. Spool-file responses retain four because Tokio's file adapter still owns its private blocking-read buffer.
 - Rustix now passes vector spare capacity directly to the positional read and safely extends the vector by the returned byte count. The paired low-level benchmark measured a 1.162 times median speedup over zero-initializing the same bounded allocation before the read.
+- Replication upload bodies now consume the same owned chunks while preserving bandwidth reservations and forward-progress marks. The paired full body-adapter benchmark measured a 1.200 times median speedup over the copied asynchronous-reader path.
 
 ## Next Segment
 
-- Stop zero-filling each owned segment vector immediately before the positional read overwrites it.
-- Use Rustix's safe spare-capacity buffer interface so the operating system initializes the vector and its length without application `unsafe` code.
-- Benchmark the positional read in isolation against the previous initialized vector.
+- Move owned segment chunks directly into replication request bodies.
+- Preserve bandwidth limiting and stall detection on every yielded chunk and at stream completion.
+- Benchmark the complete replication body adapter against its asynchronous-reader copy path.
