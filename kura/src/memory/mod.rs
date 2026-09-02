@@ -977,6 +977,59 @@ mod tests {
     use tokio::sync::Barrier;
     use tokio::task::JoinSet;
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn response_stream_uncontended_admission_benchmark() {
+        const WORKERS: usize = 8;
+        const ADMISSIONS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(controller: MemoryController) -> f64 {
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let mut workers = JoinSet::new();
+            for _ in 0..WORKERS {
+                let controller = controller.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for _ in 0..ADMISSIONS_PER_WORKER {
+                        let (permit, _) = controller
+                            .try_acquire_response_stream_memory(1, "benchmark")
+                            .expect("benchmark admission should have headroom");
+                        std::hint::black_box(&permit);
+                        drop(permit);
+                    }
+                });
+            }
+
+            let started_at = Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * ADMISSIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("benchmark".into(), "benchmark".into()),
+            2 * 1024 * 1024 * 1024,
+            1024 * 1024 * 1024,
+            1536 * 1024 * 1024,
+        );
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure(controller.clone()).await;
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC response_stream_admissions_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
+    }
+
     #[test]
     fn forced_pressure_override_parses_only_known_spellings() {
         // Fails open: a misspelled or unset value never pins the node.
