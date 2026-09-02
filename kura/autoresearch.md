@@ -44,8 +44,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - The generated Google ByteStream `ReadResponse.data` field is a `Vec<u8>` because Prost uses that type for protocol `bytes` fields by default.
 - Converting the yielded `Bytes` with `to_vec` performs a full chunk copy. Filling the final `Vec<u8>` directly can remove that pass without changing the protocol.
 - Linux `sendfile` and `splice` already cover Kura's eligible plaintext artifact downloads. Remote Execution responses still require protocol framing, so the target there is one owned message buffer plus the encoder and transport buffers.
-- Tokio implements ordinary file operations on its blocking pool. Kura's `SegmentReader` likewise performs positional reads there, but currently returns a private vector and then copies it into the caller's asynchronous read buffer. Returning that owned vector directly can remove the copy without changing runtimes.
-- The separate `tokio-uring` runtime accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
+- [Tokio implements ordinary file operations on its blocking pool](https://docs.rs/tokio/latest/tokio/fs/index.html). Kura's `SegmentReader` likewise performs positional reads there, but previously returned a private vector and then copied it into the caller's asynchronous read buffer. Returning that owned vector directly removes the copy without changing runtimes.
+- The separate [`tokio-uring` runtime](https://github.com/tokio-rs/tokio-uring) accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
 
 ## What's Been Tried
 
@@ -72,6 +72,6 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Next Segment
 
-- Yield reference-counted slices from inline artifacts instead of allocating and copying each chunk.
-- Keep ByteStream on vectors because its generated response field requires one.
-- Charge ordinary inline responses for the retained value plus two transport chunks rather than a redundant body allocation.
+- Measure blocking-pool dispatch under realistic concurrent network-limited reads, not only warm single-stream memory throughput.
+- Keep Tokio unless production traces show that dispatch materially contributes to response latency after these copy removals.
+- Continue the ownership audit in accelerated request classification and metadata caches.
