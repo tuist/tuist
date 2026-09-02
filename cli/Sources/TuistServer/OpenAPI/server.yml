@@ -12038,6 +12038,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Token exchange successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unsupported CI provider or missing repository claim
         '401':
           content:
             application/json:
