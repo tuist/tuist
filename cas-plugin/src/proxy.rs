@@ -613,9 +613,9 @@ pub struct PathState {
     pub ms_store: AtomicU64,
     // The local half of a publication's cost, separated from the four RPCs it
     // shares `write_duration` with. That one number covering both is why the
-    // 40x write regression of 2026-09-02 survived three incompatible
-    // explanations for a day: nothing said whether the time was network or
-    // disk. It was network, and this is what says so next time.
+    // 40x write regression of 2026-09-02 survived four wrong explanations and
+    // is still open: nothing said whether the time was network or disk, so
+    // every theory had to be argued instead of read off.
     //
     // Every llcas read a publication makes, from both of the places it makes
     // them (see `encode_node_blob_accounted`), and nothing else: not the memo

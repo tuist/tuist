@@ -9,9 +9,17 @@
 //!
 //! Before the fix every publication paid the full ladder, whose sleep is 200ms,
 //! on every shed. Publications are background work, so a build's wall clock
-//! absorbed it and the only place it surfaced was `write_duration` in the build
-//! report -- the 40x write-latency regression of 2026-09-02, whose tell was that
-//! `read_duration` stayed flat because reads already had a breaker.
+//! absorbs that and the only place it surfaces is `write_duration` in the build
+//! report, which is how the gap went unnoticed: the read path has had a breaker
+//! for a long time and this one had none.
+//!
+//! A robustness fix, not the explanation of any particular incident. It was
+//! written while chasing the 2026-09-02 write-latency regression, and the shed
+//! hypothesis was afterwards DISPROVED for it: `kura_capacity_sheds_total` was
+//! flat zero across all three of those builds and the outbox never came near
+//! its cap. Sheds are real, reaching ~2k in a burst that morning with the
+//! outbox pinned at 99,999, so the missing breaker was worth closing on its
+//! own. It just did not cause that.
 
 use std::net::TcpListener as StdTcpListener;
 use std::pin::Pin;
