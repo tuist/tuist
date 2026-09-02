@@ -21,7 +21,6 @@ func TestRenderContainerdQuotaLiftScript(t *testing.T) {
 		`[ "$(findmnt -no FSTYPE "$data")" = xfs ] || exit 0`,
 		"*,prjquota,*|*,pquota,*) ;;",
 		`grep -v ":$dir$" /etc/projects`,
-		"sudo xfs_quota",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("expected %q in the lift script, got:\n%s", want, script)
@@ -31,6 +30,61 @@ func TestRenderContainerdQuotaLiftScript(t *testing.T) {
 		if strings.Contains(script, forbidden) {
 			t.Fatalf("lift script must not contain %q (not additive), got:\n%s", forbidden, script)
 		}
+	}
+}
+
+// The script runs over SSH as the install user, and a per-line sudo does not
+// cover a shell redirection: the open happens as that user before sudo runs.
+// The lock fd reopens a root-owned file the bootstrap created, and /etc/projects
+// is root-owned, so either would fail the script before the Node is stamped and
+// the repair would retry forever. Every write therefore has to sit inside one
+// root shell, and nothing inside that shell may carry its own sudo, since the
+// heredoc is already root.
+func TestContainerdQuotaLiftWritesRunInARootShell(t *testing.T) {
+	script := renderContainerdQuotaLiftScript(linuxCloudInitOptions{BootstrapUser: "ubuntu"})
+
+	const opener = "sudo bash -s <<'TUIST_ROOT'\n"
+	open := strings.Index(script, opener)
+	if open < 0 {
+		t.Fatalf("expected the privileged block to open a root shell, got:\n%s", script)
+	}
+	bodyStart := open + len(opener)
+	closeIdx := strings.Index(script[bodyStart:], "\nTUIST_ROOT\n")
+	if closeIdx < 0 {
+		t.Fatalf("expected the root heredoc to be terminated, got:\n%s", script)
+	}
+	// guards is everything before the escalation; root is the heredoc body
+	// alone, excluding the opener line that carries the one legitimate sudo.
+	guards, root := script[:open], script[bodyStart:bodyStart+closeIdx]
+
+	for _, write := range []string{"exec 9>", "> /etc/projects", "> /tmp/projects.tuist", "xfs_quota", "flock"} {
+		if strings.Contains(guards, write) {
+			t.Fatalf("%q runs outside the root shell, where the redirection opens as the install user:\n%s", write, script)
+		}
+		if !strings.Contains(root, write) {
+			t.Fatalf("expected %q inside the root shell, got:\n%s", write, script)
+		}
+	}
+	if strings.Contains(root, "sudo") {
+		t.Fatalf("root shell must not re-escalate, got:\n%s", root)
+	}
+	if !strings.Contains(guards, "findmnt") {
+		t.Fatalf("read-only guards should run before escalating, got:\n%s", guards)
+	}
+	if !strings.Contains(root, "set -euxo pipefail") {
+		t.Fatalf("a failure inside the root shell must propagate to the outer exit status, got:\n%s", root)
+	}
+}
+
+// Root on the box (no BootstrapUser) needs no sudo, and the block must still be
+// a heredoc-fed shell so the two renderings differ only by the prefix.
+func TestContainerdQuotaLiftScriptAsRoot(t *testing.T) {
+	script := renderContainerdQuotaLiftScript(linuxCloudInitOptions{})
+	if strings.Contains(script, "sudo") {
+		t.Fatalf("expected no sudo when bootstrapping as root, got:\n%s", script)
+	}
+	if !strings.Contains(script, "\nbash -s <<'TUIST_ROOT'\n") {
+		t.Fatalf("expected the same heredoc shape without a prefix, got:\n%s", script)
 	}
 }
 
