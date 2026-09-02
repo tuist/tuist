@@ -28,6 +28,8 @@ import { RunnerGrid } from "./hooks/compute-runners.js";
 import { TaskFeed } from "./hooks/compute-tasks.js";
 import { TestGrid } from "./hooks/test-grid.js";
 import { ShardingTimeline } from "./hooks/sharding-timeline.js";
+import { InsightsChart } from "./hooks/insights-chart.js";
+import { FlakyQuarantine } from "./hooks/flaky-quarantine.js";
 import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
 import { ThemeSwitcher } from "./hooks/theme-switcher.js";
 import { DitherPing } from "./hooks/dither-ping.js";
@@ -55,6 +57,8 @@ const Hooks = {
   TaskFeed,
   TestGrid,
   ShardingTimeline,
+  InsightsChart,
+  FlakyQuarantine,
   TuistDitherParticles,
   ThemeSwitcher,
   DitherPing,
