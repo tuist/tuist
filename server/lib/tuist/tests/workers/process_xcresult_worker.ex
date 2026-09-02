@@ -46,10 +46,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # Failures whose root cause is the uploaded archive itself, not anything
   # transient. Retrying is pointless and surfacing them as Oban errors lights
   # up Sentry every five attempts for what is fundamentally a CLI-side
-  # mistake (xcodebuild never populated the bundle, or the upload was a
-  # bare `quarantined_tests.json` skeleton). We mark the run as
-  # `failed_processing` once and cancel the job.
-  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+  # mistake (xcodebuild never populated the bundle, the upload was a bare
+  # `quarantined_tests.json` skeleton, or `xcresulttool` reads the bundle and
+  # returns no test results at all). We mark the run as `failed_processing`
+  # once and cancel the job.
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found, :empty_test_results]
 
   # A parse timeout is the one failure that costs a worker slot the full
   # NIF deadline (10 minutes) before it reports anything, so it is also the

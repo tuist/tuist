@@ -176,8 +176,28 @@ defmodule Tuist.Processor.XCResultProcessor do
   defp normalize_parse_error({:error, reason}, xcresult_path) do
     message = parse_error_message(reason)
     Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
-    {:error, stable_parse_error(message, xcresult_path)}
+    reason = stable_parse_error(message, xcresult_path)
+    report_unprocessable_parse_failure(reason, message, xcresult_path)
+    {:error, reason}
   end
+
+  # `:empty_test_results` cancels the job on its first attempt, so Oban never
+  # reports it, and the xcresult-processor Deployment sets no `TUIST_LOKI_URL`,
+  # so the log line above stays on the host. Capture the failure directly to
+  # keep its rate and the xcresulttool diagnostic visible. The static message
+  # and fingerprint hold the grouping; the volatile bundle path is stripped out
+  # of the detail the same way it is for a reported parse failure.
+  defp report_unprocessable_parse_failure(:empty_test_results, message, xcresult_path) do
+    Sentry.capture_message("xcresult test-results output was empty",
+      extra: %{detail: String.replace(message, xcresult_path, "<xcresult>")},
+      fingerprint: ["xcresult-empty-test-results"],
+      level: :warning
+    )
+
+    :ok
+  end
+
+  defp report_unprocessable_parse_failure(_reason, _message, _xcresult_path), do: :ok
 
   defp parse_error_message(reason) when is_binary(reason) do
     case JSON.decode(reason) do
@@ -188,15 +208,21 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp parse_error_message(reason), do: inspect(reason)
 
-  # A dedicated atom rather than a sanitized string: the timeout is the one
-  # failure mode with its own alert, and an atom is what a queue-consumer
-  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
-  # replaces are a compile-time constant in the NIF, not information.
+  # Dedicated atoms rather than sanitized strings: these are the failure modes
+  # callers act on, and an atom is what a queue-consumer rule and a `grep` can
+  # both key on unambiguously. The timeout's elapsed seconds are a compile-time
+  # constant in the NIF, not information, and absent test-results output says
+  # nothing beyond its own absence.
   defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
-      :parse_timeout
-    else
-      {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
+    cond do
+      String.starts_with?(message, "xcresult parsing timed out") ->
+        :parse_timeout
+
+      String.starts_with?(message, "xcresulttool produced no test-results output") ->
+        :empty_test_results
+
+      true ->
+        {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
     end
   end
 

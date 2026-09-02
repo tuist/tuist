@@ -12,6 +12,9 @@ import Testing
 /// run unchanged through the public parsing API.
 private struct XCResultToolStub: CommandRunning {
     let testResultsJSON: String
+    /// Yielded on the standard-error pipeline. The real invocation redirects
+    /// stdout into the temp file, so the stream carries only stderr.
+    var stderr: String = ""
 
     func run(
         arguments: [String],
@@ -25,6 +28,9 @@ private struct XCResultToolStub: CommandRunning {
                 if let close = tail.firstIndex(of: "'") {
                     try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
                 }
+            }
+            if !stderr.isEmpty {
+                continuation.yield(.standardError(Array(stderr.utf8)))
             }
             continuation.finish()
         }
@@ -136,6 +142,43 @@ struct XCResultParserTests {
             // Exported attachments must live under the caller-owned
             // attachments dir so its wholesale cleanup reclaims them.
             #expect(try await fileSystem.exists(attachmentsDirectory.appending(component: "xcresult-attachments")))
+        }
+    }
+
+    @Test
+    func parse_reportsAnEmptyTestResultsOutputAsItsOwnFailure() async throws {
+        // `xcresulttool get test-results tests` exits cleanly having written
+        // nothing for some bundles. Zero bytes decode as "dataCorrupted [...]
+        // The given data was not valid JSON", which reads as a malformed
+        // payload; absent output is its own failure, distinct from output we
+        // cannot decode.
+        let parser = XCResultParser(commandRunner: XCResultToolStub(testResultsJSON: ""))
+        let path = try AbsolutePath(validating: "/tmp/empty.xcresult")
+
+        await #expect(throws: XCResultParserError.emptyOutput(step: "test-results", path: path, stderr: "")) {
+            try await parser.parse(path: path, rootDirectory: nil)
+        }
+    }
+
+    @Test
+    func parse_carriesXcresulttoolStderrOnAnEmptyTestResultsOutput() async throws {
+        // The invocation redirects stdout into a temp file, so the command
+        // stream carries xcresulttool's stderr and nothing else. That
+        // diagnostic is the only account of why the tool went silent, and it
+        // has to reach the error the server reports.
+        let parser = XCResultParser(
+            commandRunner: XCResultToolStub(
+                testResultsJSON: "",
+                stderr: "Error: item missing for id 0~abc\n"
+            )
+        )
+        let path = try AbsolutePath(validating: "/tmp/empty.xcresult")
+
+        await #expect {
+            try await parser.parse(path: path, rootDirectory: nil)
+        } throws: { error in
+            (error as? XCResultParserError)?.errorDescription?
+                .contains("Error: item missing for id 0~abc") == true
         }
     }
 
