@@ -99,7 +99,15 @@ public struct SupportCachePruner {
             }
 
         for candidate in candidates where used > maxBytes {
-            try? await fileSystem.remove(candidate.entry.path)
+            do {
+                try await fileSystem.remove(candidate.entry.path)
+            } catch {
+                // A concurrent `tuist` may have removed the entry first, in which case its bytes
+                // are reclaimed all the same. Anything else — a permission error, a busy file —
+                // leaves the entry on disk, and counting it would stop the loop believing it had
+                // reached the budget while the cache is still over it.
+                guard (try? await fileSystem.exists(candidate.entry.path)) == false else { continue }
+            }
             used -= candidate.size
         }
     }
@@ -107,6 +115,10 @@ public struct SupportCachePruner {
     /// On-disk size of a cache entry. Entries are directories in most categories, but a manifest is
     /// cached as a single file, so a file has to measure as itself rather than as the empty glob of
     /// its descendants.
+    ///
+    /// The glob descends into hidden entries, which a plugin's `.git` checkout depends on
+    /// (`FileSystem.glob` searches with `skipHiddenFiles: false`), and counts the directories it
+    /// walks as well as their files, so an entry measures at or above what it occupies.
     func size(of path: AbsolutePath) async throws -> Int {
         guard try await fileSystem.exists(path, isDirectory: true) else {
             guard let metadata = try await fileSystem.fileMetadata(at: path) else { return 0 }

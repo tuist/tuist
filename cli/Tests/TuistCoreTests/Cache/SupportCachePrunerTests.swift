@@ -121,6 +121,66 @@ struct SupportCachePrunerTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func size_countsHiddenDescendants() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        // A plugin entry is a git checkout, and `.git` is usually the bulk of it.
+        let plugin = try await seed(.plugins, name: "plugin", bytes: 1_000_000, lastUsed: Date(), in: cache)
+        let git = plugin.appending(components: "Repository", ".git", "objects")
+        try await fileSystem.makeDirectory(at: git)
+        FileManager.default.createFile(
+            atPath: git.appending(component: "pack").pathString,
+            contents: Data(repeating: 0x41, count: 4_000_000)
+        )
+
+        // A measurement blind to hidden entries would report the 1 MB outside `.git` and let the
+        // entry occupy five times what it is charged for. At or above, not equal: the walk counts
+        // the directories it descends as well as the files under them.
+        #expect(try await subject(cache).size(of: plugin) >= 5_000_000)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func prune_evictsHiddenBytesThatPutTheCacheOverBudget() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let lastUsed = now.addingTimeInterval(-2 * hour)
+        let plugin = try await seed(.plugins, name: "plugin", bytes: 1000, lastUsed: lastUsed, in: cache)
+        let git = plugin.appending(components: "Repository", ".git")
+        try await fileSystem.makeDirectory(at: git)
+        FileManager.default.createFile(
+            atPath: git.appending(component: "pack").pathString,
+            contents: Data(repeating: 0x41, count: 4_000_000)
+        )
+        // Writing into the entry bumped its modification time, and an entry touched this recently
+        // is one a concurrent command may be using, so restamp it as the seed left it.
+        try FileManager.default.setAttributes([.modificationDate: lastUsed], ofItemAtPath: plugin.pathString)
+
+        // Everything the entry holds outside `.git` fits the budget several times over.
+        try await subject(cache).prune(maxBytes: 100_000, now: now)
+
+        #expect(try await !fileSystem.exists(plugin))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func prune_doesNotCountAnEntryItFailedToRemove() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let lastUsed = now.addingTimeInterval(-2 * hour)
+        let unremovable = try await seed(.runs, name: "locked", bytes: 1_000_000, lastUsed: lastUsed, in: cache)
+        let removable = try await seed(.manifests, name: "1.abc", bytes: 1_000_000, lastUsed: lastUsed, in: cache)
+
+        // Immutable, so the eviction of the first candidate fails.
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: unremovable.pathString)
+        defer { try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: unremovable.pathString) }
+
+        try await subject(cache).prune(maxBytes: 1_500_000, now: now)
+
+        // Counting the failed removal would have left the cache over budget with the entry still on
+        // disk, believing it had reclaimed enough.
+        #expect(try await fileSystem.exists(unremovable))
+        #expect(try await !fileSystem.exists(removable))
+    }
+
+    @Test(.inTemporaryDirectory)
     func size_measuresARegularFileRatherThanItsEmptyGlob() async throws {
         let cache = try #require(FileSystem.temporaryTestDirectory)
         // A manifest is cached as one flat file, not as a directory.
