@@ -348,20 +348,24 @@ defmodule Tuist.Projects do
 
   # Creating a project is the earliest signal that builds are coming, so it is
   # where an account with no Kura instance gets one
-  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band and
-  # best-effort in both directions: the cache decision reads the cluster and
-  # resolves a region, and neither the wait nor the failure belongs to a person
-  # naming a project. An account this misses is provisioned the ordinary way on
-  # its first cache request.
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band, because
+  # the cache decision reads the cluster and resolves a region, and that wait
+  # does not belong to a person naming a project.
+  #
+  # A rejected enqueue is logged rather than raised: the project is already
+  # committed, and an account this misses is provisioned the ordinary way on
+  # its first cache request. Anything that raises here is schema drift or a
+  # dead connection rather than a cache decision, so it is left to surface.
   defp seed_kura_cache_demand(%Project{account_id: account_id}) do
     case %{account_id: account_id} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
-      {:ok, _job} -> :ok
-      {:error, _reason} -> :ok
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Projects] could not seed Kura cache demand for account #{account_id}: #{inspect(reason)}")
+
+        :ok
     end
-  rescue
-    error ->
-      Logger.warning("[Projects] could not seed Kura cache demand for account #{account_id}: #{inspect(error)}")
-      :ok
   end
 
   def delete_project(%Project{} = project) do

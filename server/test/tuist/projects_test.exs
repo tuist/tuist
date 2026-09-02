@@ -3,6 +3,8 @@ defmodule Tuist.ProjectsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
@@ -267,16 +269,23 @@ defmodule Tuist.ProjectsTest do
       refute_enqueued(worker: SeedProjectCacheDemandWorker)
     end
 
-    test "creates the project even when the cache-demand seed cannot be enqueued" do
+    test "creates the project and logs when the cache-demand seed is rejected" do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
 
-      Mimic.stub(Oban, :insert, fn _changeset -> raise "oban is down" end)
+      Mimic.stub(Oban, :insert, fn _changeset -> {:error, :queue_not_running} end)
 
-      # When / Then
-      assert {:ok, %{name: "flaky-demo"}} =
-               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+      # When
+      log =
+        capture_log(fn ->
+          assert {:ok, %{name: "flaky-demo"}} =
+                   Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+        end)
+
+      # Then
+      assert log =~ "could not seed Kura cache demand for account #{account.id}"
+      assert log =~ "queue_not_running"
     end
   end
 
