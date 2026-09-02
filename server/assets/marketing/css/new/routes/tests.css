@@ -1,0 +1,703 @@
+/* Tests feature page (/tests): left-aligned hero card followed by the
+   features frame (intro text + four full-width showcase cards) on the
+   1200px page frame with 2px seams — the same skeleton as
+   routes/cache.css and routes/compute.css. */
+
+/* Selective-testing marquee: the track holds two identical chip groups, so
+   scrolling half its width loops seamlessly (same recipe as the home page
+   testimonials marquee). */
+@keyframes marketing-tests-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Sharding timeline: each bar reveals left → right over the time its
+   width represents on the axis; the runner dots pulse while their lane is
+   still running. */
+@keyframes marketing-tests-bar-fill {
+  from {
+    visibility: hidden;
+    width: 0;
+  }
+
+  to {
+    visibility: visible;
+    width: 100%;
+  }
+}
+
+@keyframes marketing-tests-runner-blink {
+  50% {
+    background: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+  }
+}
+
+#marketing-tests {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Both frames share the page shell: stroke border, primary surface, the
+     same margin/width override that beats pages.css (its :not counts an
+     ID, but the #id selector here still wins). */
+  & > header[data-part="header"],
+  & > [data-part="features"] {
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  /* Hero card: fixed 600px frame with the copy bottom-aligned on the left,
+     same as the cache and compute heroes (Figma: 8px left, 64px
+     right/bottom padding, 32px gaps). */
+  & > header[data-part="header"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: var(--noora-spacing-9);
+    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    height: 600px;
+    overflow: hidden;
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      height: auto;
+    }
+
+    /* Tab mode: the hero runs edge to edge — the 1200px cap only kicks in
+       on wide desktop viewports (narrower ones already stretch via the
+       base margin rule). */
+    @media (min-width: 1024px) and (max-width: 1439px) {
+      align-self: stretch;
+      margin: 0;
+      max-width: none;
+    }
+
+    /* The hero copy sits above the background illustration slot. */
+    & > :not([data-part="illustration"]) {
+      position: relative;
+      z-index: var(--noora-z-index-1);
+    }
+
+    /* Background test grid: the home page's TestGrid canvas tiling the
+       whole frame. The alpha mask is the comp's: full-strength at the
+       top-right corner, melted away by 60% of the run to the far corner,
+       so the hero copy at the bottom left sits on quiet ground. */
+    & > [data-part="illustration"] {
+      position: absolute;
+      inset: 0;
+      mask-image: radial-gradient(circle farthest-corner at 100% 0%, #000 0%, transparent 60%);
+      pointer-events: none;
+
+      @media (max-width: 720px) {
+        display: none;
+      }
+
+      & > canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+
+      & > [data-part="line"] {
+        display: block;
+      }
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
+    }
+  }
+
+  /* Features frame: intro text (96px above the eyebrow, 8px sides — the
+     same convention as the cache and compute pages), then the showcase
+     cards stacked flush so their hairlines read as one continuous frame. */
+  & > [data-part="features"] {
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--noora-spacing-16);
+
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-bottom: var(--noora-spacing-11);
+      padding: 0 var(--noora-spacing-4);
+
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      /* Same eyebrow → h2 → p ramp as the brand, cache, and compute
+         pages. */
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > [data-part="description"] {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    /* Full-width showcase bands, hairline above each, sharing the compute
+       page's inner rhythm: 20px vertical card padding, full-bleed
+       illustration, text block flush against it with its own padding. */
+    & > [data-part="showcase"] {
+      display: flex;
+      flex-direction: column;
+
+      & > [data-part="cell"] {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-7) 0;
+
+        /* Showcase illustration slot: a taller full-width stage for the
+           scenes; reserved until the artwork lands. */
+        & > [data-part="illustration"] {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 0;
+          width: 100%;
+          height: 480px;
+
+          @media (max-width: 720px) {
+            height: 320px;
+          }
+        }
+
+        /* Test sharding (Figma: 1200x450): a 926x401 timeline scene with
+           four runner lanes. Each lane is a runner tile plus its packed
+           test bundles, drawn over 12 gridlines at a 72px pitch with ms
+           ticks underneath. Fixed pixel geometry from the comp; narrow
+           frames clip the right edge. */
+        & > [data-illustration="sharding"] {
+          /* Plain Noora purples, opaque in both modes so the bars hide the
+             gridlines behind them: the three palest steps in light mode,
+             the three darkest in dark mode. */
+          --sharding-tint-1: light-dark(var(--noora-purple-50), var(--noora-purple-900));
+          --sharding-tint-2: light-dark(var(--noora-purple-100), var(--noora-purple-800));
+          --sharding-tint-3: light-dark(var(--noora-purple-200), var(--noora-purple-700));
+          --sharding-stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+          /* Playback clock read by the ShardingTimeline hook: real
+             milliseconds per axis millisecond. 72px on the axis is 5ms, so
+             50 makes the ~60ms timeline play in about 3s (before the hook's
+             per-bar jitter). */
+          --sharding-ms: 50;
+
+          height: 450px;
+          overflow: hidden;
+
+          @media (max-width: 1023px) {
+            justify-content: flex-start;
+            padding-left: var(--noora-spacing-5);
+          }
+
+          /* Narrow frames keep the fixed geometry but show fewer bars and
+             ticks per lane, so nothing is cut mid-bar: three bars up to
+             720px (longest lane 665px), two below 480px (379px, with the
+             left inset tightened to fit a 390px frame). */
+          @media (max-width: 720px) {
+            [data-part="grid"] {
+              width: 577px;
+            }
+
+            [data-part="bar"]:nth-child(n + 5),
+            [data-part="tick"]:nth-child(n + 10) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 480px) {
+            padding-left: var(--noora-spacing-4);
+
+            [data-part="grid"] {
+              width: 289px;
+            }
+
+            [data-part="bar"]:nth-child(n + 4),
+            [data-part="tick"]:nth-child(n + 6) {
+              display: none;
+            }
+          }
+
+          & > [data-part="scene"] {
+            position: relative;
+            flex: none;
+            width: 926px;
+            height: 401px;
+          }
+
+          /* 12 hairlines from x=75 at a 72px pitch. They end 12px above
+             the tick labels (y=334, 38px below the last bar) and start the
+             same 38px above the first bar (y=22), so the overhang matches
+             top and bottom. */
+          [data-part="grid"] {
+            position: absolute;
+            top: 22px;
+            bottom: 67px;
+            left: 75px;
+            background: repeating-linear-gradient(
+              to right,
+              var(--marketing-illustration-neutral-2) 0 1px,
+              transparent 1px 72px
+            );
+            width: 793px;
+          }
+
+          /* Lanes: 50px tall at a 74px pitch, the first at y=48; bars are
+             vertically centered on the runner tile. */
+          [data-part="lane"] {
+            display: flex;
+            position: absolute;
+            left: 0;
+            align-items: center;
+            gap: 6px;
+            height: 50px;
+
+            &:nth-child(2) {
+              top: 48px;
+            }
+
+            &:nth-child(3) {
+              top: 122px;
+            }
+
+            &:nth-child(4) {
+              top: 196px;
+            }
+
+            &:nth-child(5) {
+              top: 270px;
+            }
+          }
+
+          /* Runner tile: 50px rounded box with a status dot in the top
+             right corner and a 24px Tabler icon in the middle. */
+          [data-part="runner"] {
+            display: inline-flex;
+            position: relative;
+            flex: none;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            margin-right: 12px;
+            border: 1px solid var(--marketing-illustration-neutral-4);
+            border-radius: var(--noora-radius-4);
+            width: 50px;
+            height: 50px;
+            color: var(--marketing-illustration-neutral-4);
+
+            &::after {
+              position: absolute;
+              top: 6px;
+              right: 6px;
+              border-radius: var(--noora-radius-99);
+              background: var(--marketing-illustration-neutral-4);
+              width: 6px;
+              height: 6px;
+              content: "";
+            }
+
+            /* While the lane runs, the dot pulses purple on the period,
+               phase and count the hook set on the lane (count = run time in
+               periods), so it settles back to neutral as the lane's last
+               bar completes. */
+            @media (prefers-reduced-motion: no-preference) {
+              [data-state="running"] &::after {
+                animation: marketing-tests-runner-blink var(--blink-period, 600ms) ease-in-out
+                  var(--blink-delay, 0ms) var(--blink-count, 5);
+              }
+            }
+
+            & > svg {
+              width: 24px;
+              height: 24px;
+            }
+          }
+
+          /* Each bar reserves its full slot so the lane never reflows; the
+             visible pill is a pseudo-element that grows from the left with
+             its border and radius intact, so it reads as the bar itself
+             extending rather than being uncovered. */
+          [data-part="bar"] {
+            position: relative;
+            flex: none;
+            width: calc(var(--bar-width) * 1px);
+            height: 26px;
+
+            &::before {
+              position: absolute;
+              top: 0;
+              bottom: 0;
+              left: 0;
+              box-sizing: border-box;
+              border: 1px solid var(--sharding-stroke);
+              border-radius: 6px;
+              width: 100%;
+              content: "";
+            }
+
+            /* Hidden until the hook flips the figure to running, then each
+               pill grows over the duration and after the delay the hook
+               scheduled for it. `visibility` interpolates as visible for
+               the whole run and hidden only at the start, so the pill stays
+               out of sight during its delay. Reduced motion shows the
+               finished chart. */
+            @media (prefers-reduced-motion: no-preference) {
+              &::before {
+                visibility: hidden;
+              }
+
+              [data-state="running"] &::before {
+                animation: marketing-tests-bar-fill var(--bar-duration, 600ms) linear var(--bar-delay, 0ms) both;
+              }
+            }
+
+            &[data-tone="1"]::before {
+              background: var(--sharding-tint-1);
+            }
+
+            &[data-tone="2"]::before {
+              background: var(--sharding-tint-2);
+            }
+
+            &[data-tone="3"]::before {
+              background: var(--sharding-tint-3);
+            }
+          }
+
+          /* Ticks centered under each gridline. */
+          [data-part="axis"] {
+            position: absolute;
+            top: 346px;
+            left: 75px;
+            height: 12px;
+
+            & > [data-part="tick"] {
+              position: absolute;
+              left: calc(var(--tick) * 72px);
+              transform: translateX(-50%);
+              color: var(--marketing-illustration-neutral-4);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+              white-space: nowrap;
+            }
+          }
+        }
+
+        /* Selective testing (Figma: 1200x400): a marquee of test-target
+           chips wired together on one hairline, then a Swift diff in a
+           code window that runs past the bottom edge and fades out. */
+        & > [data-illustration="selective"] {
+          --marketing-tint-green: light-dark(
+            var(--noora-green-50),
+            color-mix(in oklch, var(--noora-green-500) 20%, transparent)
+          );
+          /* GitHub-style diff rows: the number gutter carries a stronger
+             tint than the code beside it. */
+          --marketing-tint-red-strong: light-dark(
+            var(--noora-red-100),
+            color-mix(in oklch, var(--noora-red-500) 45%, transparent)
+          );
+          --marketing-tint-green-strong: light-dark(
+            var(--noora-green-100),
+            color-mix(in oklch, var(--noora-green-500) 45%, transparent)
+          );
+
+          flex-direction: column;
+          justify-content: flex-start;
+          gap: 52px;
+          padding-top: 18px;
+          height: 400px;
+          overflow: hidden;
+          /* Small fade at the bottom so the code window melts into the
+             card instead of being cut off by the slot. */
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent);
+
+          & > [data-part="marquee"] {
+            flex: none;
+            width: 100%;
+            overflow: hidden;
+
+            &:hover > [data-part="track"] {
+              animation-play-state: paused;
+            }
+
+            & > [data-part="track"] {
+              display: flex;
+              /* One loop covers one group's width, so scaling the period by
+                 the chip count keeps the drift speed stable if the list
+                 changes. */
+              animation: marketing-tests-marquee calc(var(--marquee-chip-count, 12) * 4s) linear infinite;
+              width: max-content;
+
+              @media (prefers-reduced-motion: reduce) {
+                animation: none;
+              }
+            }
+
+            [data-part="group"] {
+              display: flex;
+              position: relative;
+              align-items: center;
+              gap: var(--noora-spacing-8);
+              /* Trailing gap so the seam between the two groups matches the
+                 gap between chips. */
+              padding-right: var(--noora-spacing-8);
+
+              /* The wire the chips hang on: one hairline through the row's
+                 middle, showing only in the gaps because the chips paint
+                 over it with an opaque surface. */
+              &::before {
+                position: absolute;
+                top: 50%;
+                right: 0;
+                left: 0;
+                height: 1px;
+                background: var(--marketing-illustration-neutral-4);
+                content: "";
+              }
+            }
+
+            [data-part="chip"] {
+              display: inline-flex;
+              position: relative;
+              flex: none;
+              align-items: center;
+              box-sizing: border-box;
+              border: 1px solid var(--marketing-illustration-neutral-4);
+              background: var(--noora-surface-background-primary);
+              padding: 0 var(--noora-spacing-5);
+              height: 36px;
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              white-space: nowrap;
+
+              /* Targets touched by the diff: the only ones that run. */
+              &[data-state="run"] {
+                border-color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+                color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+              }
+            }
+          }
+
+          /* Code window: 785px in the comp, shrinking with the frame on
+             narrow viewports. Its bottom is never reached — the slot clips
+             it and the mask above fades it out. */
+          & > [data-part="window"] {
+            flex: none;
+            box-sizing: border-box;
+            border: 1px solid var(--marketing-illustration-neutral-3);
+            border-radius: var(--noora-radius-3);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-5) 0;
+            width: min(785px, calc(100% - 2 * var(--noora-spacing-5)));
+            /* Clip the tint bands and long lines at the rounded border. */
+            overflow: hidden;
+
+            & > [data-part="lines"] {
+              margin: 0;
+              padding: 0;
+              list-style: none;
+            }
+
+            [data-part="line"] {
+              display: grid;
+              /* minmax(0, …) lets the code column shrink below its content
+                 width, so long lines truncate instead of widening the row. */
+              grid-template-columns: 56px minmax(0, 1fr);
+              font: var(--noora-font-weight-regular) 0.75rem/1.125rem var(--noora-font-code);
+
+              & > [data-part="number"] {
+                padding-right: var(--noora-spacing-5);
+                color: var(--marketing-illustration-neutral-5);
+                text-align: right;
+              }
+
+              & > [data-part="code"] {
+                margin: 0;
+                /* Left inset keeps the diff marker off the number gutter. */
+                padding: 0 var(--noora-spacing-5) 0 var(--noora-spacing-4);
+                color: var(--noora-surface-label-primary);
+                font: inherit;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: pre;
+
+                /* Diff marker column (blank on unchanged rows so the code
+                   stays aligned). */
+                &::before {
+                  display: inline-block;
+                  width: 20px;
+                  content: " ";
+                }
+
+                [data-token="keyword"] {
+                  color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+                }
+
+                [data-token="type"] {
+                  color: light-dark(var(--noora-blue-600), var(--noora-blue-400));
+                }
+              }
+
+              /* Changed rows tint edge to edge like GitHub's diff view: a
+                 stronger wash on the number gutter, a lighter one on the
+                 marker + code, with the number and marker taking the
+                 change's color. */
+              &[data-change="removed"] {
+                & > [data-part="number"] {
+                  background: var(--marketing-tint-red-strong);
+                  color: light-dark(var(--noora-red-600), var(--noora-red-300));
+                }
+
+                & > [data-part="code"] {
+                  background: var(--marketing-tint-red);
+
+                  &::before {
+                    color: light-dark(var(--noora-red-500), var(--noora-red-400));
+                    content: "−";
+                  }
+                }
+              }
+
+              &[data-change="added"] {
+                & > [data-part="number"] {
+                  background: var(--marketing-tint-green-strong);
+                  color: light-dark(var(--noora-green-600), var(--noora-green-300));
+                }
+
+                & > [data-part="code"] {
+                  background: var(--marketing-tint-green);
+
+                  &::before {
+                    color: light-dark(var(--noora-green-500), var(--noora-green-400));
+                    content: "+";
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        & > [data-part="text"] {
+          padding: var(--noora-spacing-7);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+          }
+
+          & > [data-part="description"] {
+            margin-top: var(--noora-spacing-3);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. The
+     margin/width override beats pages.css's `[id^="marketing-"] > section`
+     margins and 1296px max-width. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
