@@ -1872,6 +1872,24 @@ where
     })
 }
 
+#[cfg(test)]
+fn copying_bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Send,
+{
+    ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
+        Ok(bytes) => Ok(bytestream::ReadResponse {
+            data: bytes.to_vec(),
+        }),
+        Err(error) => Err(Status::internal(format!(
+            "failed to stream blob chunk: {error}"
+        ))),
+    })
+}
+
 async fn fetch_keyvalue_proto<T>(
     state: &SharedState,
     namespace_id: &str,
@@ -2661,14 +2679,14 @@ mod tests {
     async fn bytestream_read_chunk_materialization_benchmark() {
         use tokio::io::AsyncReadExt as _;
 
-        const SAMPLE_BYTES: u64 = 8 * 1_024 * 1_024 * 1_024;
+        const SAMPLE_BYTES: u64 = 4 * 1_024 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
         const SAMPLE_COUNT: usize = 8;
 
-        let mut throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
-        for sample in 0..SAMPLE_COUNT {
-            let reader = tokio::io::repeat(0x5a).take(SAMPLE_BYTES);
-            let stream = bytestream_read_response_stream(reader, CHUNK_BYTES);
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
             tokio::pin!(stream);
             let started_at = Instant::now();
             let mut read_bytes = 0_u64;
@@ -2678,14 +2696,50 @@ mod tests {
                 read_bytes = read_bytes.saturating_add(response.data.len() as u64);
             }
             assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = copying_bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let candidate = bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
             if sample > 0 {
                 let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
-                throughputs.push(mebibytes / started_at.elapsed().as_secs_f64());
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
             }
         }
-        throughputs.sort_by(f64::total_cmp);
-        let median = throughputs[throughputs.len() / 2];
-        println!("METRIC bytestream_read_mebibytes_per_second={median:.3}");
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC bytestream_read_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
     }
 
     fn grpc_request<T: Message>(path: &str, message: &T) -> http::Request<axum::body::Body> {
