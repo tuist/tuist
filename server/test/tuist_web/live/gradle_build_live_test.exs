@@ -93,6 +93,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
         inserted_at: @now,
         status: "success",
         root_project_name: "my-android-app",
+        custom_tags: ["nightly"],
+        custom_values: %{"team" => "android"},
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true, duration_ms: 1000},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true, duration_ms: 2000}
@@ -103,6 +105,9 @@ defmodule TuistWeb.GradleBuildLiveTest do
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}")
 
     assert has_element?(lv, "h1", "my-android-app")
+    assert has_element?(lv, "span", "nightly")
+    assert has_element?(lv, "td", "team")
+    assert has_element?(lv, "td", "android")
     assert has_element?(lv, "td", ":app:compileKotlin")
     assert has_element?(lv, "td", ":app:assembleDebug")
   end

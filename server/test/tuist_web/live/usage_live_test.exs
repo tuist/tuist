@@ -499,6 +499,17 @@ defmodule TuistWeb.UsageLiveTest do
       # 20 minutes past the allowance at the standard rate.
       assert html =~ "1.50"
     end
+
+    test "renders a pace for a projected runner receipt" do
+      pace =
+        UsageLive.pace_label(%{
+          minutes: 120,
+          projected_minutes: 1_800,
+          previous_minutes: 0
+        })
+
+      assert pace =~ "On track for about"
+    end
   end
 
   describe "runner_chart_series/2" do

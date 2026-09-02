@@ -146,6 +146,64 @@ defmodule Tuist.GradleTest do
       assert length(builds) == 1
       assert hd(builds).requested_tasks == ["assembleRelease"]
     end
+
+    test "filters builds by custom tags" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      matching_build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: account.id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Gradle.list_builds(project.id, %{
+          page_size: 10,
+          page: 1,
+          filters: [%{field: :custom_tags, op: :contains, value: "release"}]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build_id]
+    end
+
+    test "rejects unsupported custom tag operators" do
+      assert_raise Flop.InvalidParamsError, fn ->
+        Gradle.list_builds(1, %{
+          page_size: 10,
+          page: 1,
+          filters: [%{field: :custom_tags, op: :==, value: "nightly"}]
+        })
+      end
+    end
+  end
+
+  describe "project_build_tags/1" do
+    test "returns the unique tags from a project's recent builds" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: account_id,
+        custom_tags: ["nightly", "release"]
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      assert Gradle.project_build_tags(project) == ["nightly", "release", "staging"]
+    end
   end
 
   describe "cache_hit_rate/1 with cacheable_tasks_count" do

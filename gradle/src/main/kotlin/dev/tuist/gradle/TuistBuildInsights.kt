@@ -7,6 +7,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.GradleInternal
 import org.gradle.api.logging.Logging
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
@@ -135,6 +137,7 @@ data class BuildReportRequest(
     @SerializedName("requested_tasks") val requestedTasks: List<String>,
     val tasks: List<TaskReportEntry>,
     @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null,
+    @SerializedName("custom_metadata") val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
     @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
     @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
@@ -157,6 +160,8 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val customTags: ListProperty<String>
+        val customValues: MapProperty<String, String>
         val gitBranch: Property<String>
         val gitCommitSha: Property<String>
         val gitRef: Property<String>
@@ -495,6 +500,10 @@ abstract class TuistBuildInsightsService :
             requestedTasks = requestedTaskNames.toList(),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
+            customMetadata = buildCustomMetadata(
+                configuredTags = parameters.customTags.get(),
+                configuredValues = parameters.customValues.get()
+            ),
             machineMetrics = machineMetrics,
             configurationCache = configurationCacheReport(),
             configurationOperations = configurationOperations.toList(),
@@ -571,6 +580,7 @@ internal fun buildReport(
     requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
+    customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
     machineMetrics: List<MachineMetricSample>? = null,
     configurationCache: ConfigurationCacheReport? = null,
     configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
@@ -608,6 +618,7 @@ internal fun buildReport(
                 remoteCacheStored = task.remoteCacheStored
             )
         },
+        customMetadata = customMetadata,
         machineMetrics = machineMetrics,
         configurationCache = configurationCache,
         configurationOperations = configurationOperations,
@@ -636,6 +647,8 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.customTags.set(config.customMetadata.tags)
+            parameters.customValues.set(config.customMetadata.values)
             parameters.gitBranch.set(gitInfo.branch())
             parameters.gitCommitSha.set(gitInfo.commitSha())
             parameters.gitRef.set(gitInfo.ref())

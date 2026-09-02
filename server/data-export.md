@@ -107,6 +107,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ### Analytics Data (ClickHouse)
 The following data is stored in ClickHouse for analytics purposes:
 - **Build runs** (`build_runs` table): Complete build execution data including duration, status, cache statistics, CI metadata, git information, and custom tags
+- **Gradle builds** (`gradle_builds` table): Build duration, status, task and cache outcomes, git metadata, machine metric samples, custom tags, and custom key-value metadata. Retained for 90 days by the table time-to-live policy.
 - **Build issues** (`build_issues` table): Compilation warnings and errors from builds
 - **Build files** (`build_files` table): Individual file compilation metrics
 - **Build targets** (`build_targets` table): Target/module build performance
