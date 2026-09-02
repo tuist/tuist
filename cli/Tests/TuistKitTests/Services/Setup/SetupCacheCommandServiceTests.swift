@@ -424,6 +424,104 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_defaultsTheCASLogPathOnCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the counters that tell the CAS failure shapes apart are written
+        // only to this file, so a diagnostic nobody knew to switch on is off during
+        // every incident that needs it.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": environment.casLogPath().pathString,
+                    "TUIST_CAS_PREFETCH": "keys",
+                ])
+            )
+            .called(1)
+    }
+
+    /// The proxy on a developer machine is a long-lived LaunchAgent, so even a
+    /// bounded file is state `tuist setup cache` would be creating for a reader who
+    /// never asked for it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotDefaultTheCASLogPathOffCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"])
+            )
+            .called(1)
+    }
+
+    /// The #12733 forwarding stays in front of the default: a value the caller set
+    /// is where they expect to read the diagnostics back from.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_prefersAnExplicitCASLogPathOverTheCIDefault() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/explicit-cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": "/tmp/explicit-cas.log",
+                    "TUIST_CAS_PREFETCH": "keys",
+                ])
+            )
+            .called(1)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
