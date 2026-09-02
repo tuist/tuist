@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: 95th-percentile blocking-dispatch latency as a share of one 512-kibibyte chunk's wire time at the fleet's fastest 3-gigabit-per-second public egress rate (percentage, lower is better)
-- Secondary: blocking dispatch and cached positional-read latency, functional correctness, peak live buffer count, compile and lint status
+- Primary: paired whole-artifact positional-read speedup from letting the operating system initialize the admitted result vector (ratio, higher is better)
+- Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
 
@@ -71,8 +71,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Backfill spool responses now use the same owned positional-read stream and reserve three live chunks instead of four. The paired spool-reader benchmark measured a 1.233 times median speedup over Tokio's file stream adapter.
 - Inline byte-stream consumers now yield slices of the existing reference-counted value. Pointer identity proves no byte allocation or copy; the synthetic materialization benchmark measured 372.308 times the copied path because the candidate moves no payload bytes.
 - A paced benchmark staggers 32 concurrent streams across the fastest production node's 3-gigabit-per-second aggregate egress budget. Across three runs, the 95th-percentile Tokio blocking handoff was 31.083, 48.625, and 43.750 microseconds, with a median of 43.750 microseconds. That is 3.129 percent of a single chunk's 1.398-millisecond wire time; the complete cached positional read's median 95th percentile was 92.625 microseconds. Replacing Tokio would attack a small residual cost while introducing a second, Linux-specific runtime and file-resource model, so keep Tokio and optimize the remaining allocation work instead.
+- Whole-artifact materialization still allocated a zero-filled result vector before the positional read overwrote every byte. On Unix, pass the vector's spare capacity to Rustix and let the operating system initialize it while preserving the exact allocation, admission bound, short-read error, and Windows fallback. Three paired 512-mebibyte runs measured 1.099118, 1.097661, and 1.103675 times speedups, a median of 1.099118 times.
 
 ## Next Segment
 
-- Remove whole-artifact buffer initialization before positional reads while keeping the existing materialization admission bound.
 - Continue the ownership audit in accelerated request classification and metadata caches.
+- Measure allocation counts around authorization-disabled accelerated requests before changing ownership.

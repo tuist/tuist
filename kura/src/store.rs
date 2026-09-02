@@ -7788,6 +7788,31 @@ fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> boo
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
     let size = usize::try_from(size)
         .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
+    read_bytes_at_len(file, offset, size)
+}
+
+#[cfg(unix)]
+fn read_bytes_at_len(file: &std::fs::File, offset: u64, size: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::with_capacity(size);
+    while bytes.len() < size {
+        let read_offset = bytes.len();
+        rustix::io::pread(
+            file,
+            rustix::buffer::spare_capacity(&mut bytes),
+            offset + read_offset as u64,
+        )
+        .map_err(|error| format!("failed to read artifact bytes at offset {offset}: {error}"))?;
+        if bytes.len() == read_offset {
+            return Err(format!(
+                "unexpected EOF while reading {size} bytes at offset {offset}"
+            ));
+        }
+    }
+    Ok(bytes)
+}
+
+#[cfg(windows)]
+fn read_bytes_at_len(file: &std::fs::File, offset: u64, size: usize) -> Result<Vec<u8>, String> {
     let mut bytes = vec![0; size];
     let mut read_offset = 0_usize;
     while read_offset < bytes.len() {
@@ -7804,13 +7829,6 @@ fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>
         read_offset += bytes_read;
     }
     Ok(bytes)
-}
-
-#[cfg(unix)]
-fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
-    use std::os::unix::fs::FileExt;
-
-    file.read_at(bytes, offset)
 }
 
 #[cfg(windows)]
@@ -7940,6 +7958,108 @@ mod tests {
     };
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn read_bytes_at_returns_exact_requested_range() {
+        use std::io::Write as _;
+
+        let mut file = tempfile::tempfile().expect("create range test file");
+        file.write_all(b"prefix-payload-suffix")
+            .expect("write range test file");
+
+        assert_eq!(
+            read_bytes_at(&file, 7, 7).expect("read exact range"),
+            b"payload"
+        );
+    }
+
+    #[test]
+    fn read_bytes_at_rejects_a_truncated_range() {
+        use std::io::Write as _;
+
+        let mut file = tempfile::tempfile().expect("create truncation test file");
+        file.write_all(b"short")
+            .expect("write truncation test file");
+
+        let error = read_bytes_at(&file, 0, 6).expect_err("truncated range must fail");
+        assert_eq!(error, "unexpected EOF while reading 6 bytes at offset 0");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn whole_artifact_uninitialized_read_benchmark() {
+        use std::{os::unix::fs::FileExt as _, time::Duration};
+
+        const SAMPLE_BYTES: usize = 512 * 1_024 * 1_024;
+        const SAMPLE_COUNT: usize = 9;
+
+        fn initialized_read(
+            file: &std::fs::File,
+            offset: u64,
+            size: usize,
+        ) -> Result<Vec<u8>, String> {
+            let mut bytes = vec![0; size];
+            let mut read_offset = 0;
+            while read_offset < bytes.len() {
+                let bytes_read = file
+                    .read_at(&mut bytes[read_offset..], offset + read_offset as u64)
+                    .map_err(|error| format!("failed to read benchmark bytes: {error}"))?;
+                if bytes_read == 0 {
+                    return Err("unexpected benchmark EOF".to_owned());
+                }
+                read_offset += bytes_read;
+            }
+            Ok(bytes)
+        }
+
+        fn measure(file: &std::fs::File, uninitialized: bool) -> Duration {
+            let started_at = std::time::Instant::now();
+            let bytes = if uninitialized {
+                read_bytes_at_len(file, 0, SAMPLE_BYTES)
+            } else {
+                initialized_read(file, 0, SAMPLE_BYTES)
+            }
+            .expect("read benchmark artifact");
+            assert_eq!(bytes.len(), SAMPLE_BYTES);
+            std::hint::black_box(bytes.as_ptr());
+            started_at.elapsed()
+        }
+
+        let file = tempfile::tempfile().expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES as u64)
+            .expect("size sparse benchmark file");
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&file, false), measure(&file, true))
+            } else {
+                let candidate = measure(&file, true);
+                let baseline = measure(&file, false);
+                (baseline, candidate)
+            };
+            if sample == 0 {
+                continue;
+            }
+            speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            baseline_throughputs
+                .push(SAMPLE_BYTES as f64 / baseline.as_secs_f64() / (1_024.0 * 1_024.0));
+            candidate_throughputs
+                .push(SAMPLE_BYTES as f64 / candidate.as_secs_f64() / (1_024.0 * 1_024.0));
+        }
+
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        println!(
+            "whole artifact read benchmark: speedup={:.6} baseline_mib_per_second={:.3} candidate_mib_per_second={:.3}",
+            speedups[median], baseline_throughputs[median], candidate_throughputs[median]
+        );
+    }
 
     #[test]
     fn segment_ring_limits_fall_back_to_legacy_floor_without_disk_information() {
