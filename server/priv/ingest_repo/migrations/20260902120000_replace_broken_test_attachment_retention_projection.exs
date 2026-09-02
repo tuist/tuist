@@ -15,9 +15,11 @@ defmodule Tuist.IngestRepo.Migrations.ReplaceBrokenTestAttachmentRetentionProjec
   (`Nullable(UUID)` plus `DateTime64(6)`) while the read path types the same
   name through the projection's `SELECT` as `UUID` and consumes 24, so every
   read of a part carrying the projection fails with `Code: 4 ... primary.cidx
-  is unexpectedly long (EXPECTED_END_OF_FILE)`. That has broken
-  `Tuist.Storage.ExpiredArtifacts.delete_test_attachments/3` on every run since
-  the 30 day cutoff first reached a partition holding the projection.
+  is unexpectedly long (EXPECTED_END_OF_FILE)`. Since the 30 day cutoff first
+  reached a partition holding the projection, that has failed
+  `Tuist.Storage.ExpiredArtifacts.delete_test_attachments/3` for every account
+  whose scan range reaches such a part, freezing those accounts' rows in
+  `artifact_retention_cursors`.
 
   `(test_run_id, inserted_at)` could not serve that sweep in any case: it scans
   `inserted_at < cutoff` and pages by `ORDER BY inserted_at, id`. The
