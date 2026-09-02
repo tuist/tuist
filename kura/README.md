@@ -302,7 +302,7 @@ A pass talks to a peer over three internal endpoints. All three are peer-plane r
 | `POST /_internal/backfill/bodies` | Takes the tuples the requester decided it is missing and answers one length-prefixed frame per requested tuple, in request order. A frame is `Present` (header, manifest meta, then the body), `Absent` (the row is gone), or `FetchIndividually` (the body does not fit the batch). Batches are composed against `KURA_BACKFILL_BATCH_BYTES` and are bounded by a 32 MiB response ceiling both sides compile in. |
 | `GET /_internal/backfill/artifacts/{artifact_id}` | One entry, framed exactly like a bodies frame. Used for entries above the batch threshold and for `FetchIndividually` bounces. |
 
-Both sides spool through the filesystem: the sender writes frames to a temp file before responding, and the requester streams the response to its own temp file and applies from disk, so neither holds a batch in memory. A frame carries the version, kind and manifest meta of the manifest its bytes were opened from, never the requested tuple's, so a mid-flight overwrite cannot land under a stale stamp.
+Both sides spool through the filesystem: the sender writes frames to a temp file before responding, moving each owned segment-read chunk directly into the spool writer, and the requester streams the response to its own temp file and applies from disk, so neither holds a batch in memory. A frame carries the version, kind and manifest meta of the manifest its bytes were opened from, never the requested tuple's, so a mid-flight overwrite cannot land under a stale stamp.
 
 Kura also enforces a few hard-coded budgets that are not configurable:
 

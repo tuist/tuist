@@ -55,8 +55,9 @@ use crate::{
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::{
-        BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, StagedArtifactPath, backfill_record_kind,
-        is_disk_full_error, is_multipart_capacity_error, is_outbox_full_error, manifest_version_ms,
+        ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, StagedArtifactPath,
+        backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
+        is_outbox_full_error, manifest_version_ms,
     },
     telemetry::{attach_parent_context, record_trace_context, trace_export_active},
     utils::{
@@ -2982,11 +2983,15 @@ async fn spool_backfill_bodies_inner(
         })?;
         file_len += header.len() as u64;
         if let Some((size, mut reader)) = body {
-            let copied = tokio::io::copy(&mut reader, &mut file)
-                .await
-                .map_err(|error| {
-                    BackfillSpoolError::Internal(format!("failed to spool backfill body: {error}"))
-                })?;
+            let copied = copy_artifact_reader_owned(
+                &mut reader,
+                &mut file,
+                response_stream_chunk_bytes(size),
+            )
+            .await
+            .map_err(|error| {
+                BackfillSpoolError::Internal(format!("failed to spool backfill body: {error}"))
+            })?;
             if copied != size {
                 return Err(BackfillSpoolError::Internal(format!(
                     "backfill body for {record_id} yielded {copied} bytes, expected {size}"
@@ -3007,6 +3012,25 @@ async fn spool_backfill_bodies_inner(
         _cleanup: cleanup,
         _reservations: reservations,
     })
+}
+
+async fn copy_artifact_reader_owned<W>(
+    reader: &mut ArtifactReader,
+    writer: &mut W,
+    chunk_bytes: usize,
+) -> std::io::Result<u64>
+where
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    let mut copied = 0_u64;
+    loop {
+        let chunk = reader.read_chunk_owned(chunk_bytes).await?;
+        if chunk.is_empty() {
+            return Ok(copied);
+        }
+        writer.write_all(&chunk).await?;
+        copied = copied.saturating_add(chunk.len() as u64);
+    }
 }
 
 /// Batched sibling of `internal_replicate_artifact`, for the metadata lane.
@@ -6018,6 +6042,140 @@ mod tests {
             sleep(Duration::from_millis(10)).await;
         }
         panic!("spool files were not reclaimed after response completion");
+    }
+
+    #[tokio::test]
+    async fn backfill_spool_owned_chunks_preserve_bytes() {
+        let context = test_context(|_| {}).await;
+        let contents = (0..(512 * 1_024 + 37))
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        let source = context.state.config.tmp_dir.join("backfill-spool-source");
+        let destination = context
+            .state
+            .config
+            .tmp_dir
+            .join("backfill-spool-destination");
+        std::fs::write(&source, &contents).expect("write backfill spool source");
+        let handle = Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&source)
+                .await
+                .expect("open backfill spool source"),
+        );
+        let mut reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+            handle,
+            0,
+            contents.len() as u64,
+        ));
+        let mut writer = context
+            .state
+            .io
+            .create_file(&destination)
+            .await
+            .expect("create backfill spool destination");
+
+        let copied = copy_artifact_reader_owned(&mut reader, &mut writer, 64 * 1_024)
+            .await
+            .expect("copy backfill spool body");
+        writer.flush().await.expect("flush backfill spool body");
+        drop(writer);
+
+        assert_eq!(copied, contents.len() as u64);
+        assert_eq!(
+            std::fs::read(destination).expect("read backfill spool destination"),
+            contents
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn backfill_spool_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure(handle: Arc<crate::io::PersistentFile>, owned: bool) -> Duration {
+            let mut reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle,
+                0,
+                SAMPLE_BYTES,
+            ));
+            let mut sink = tokio::io::sink();
+            let started_at = Instant::now();
+            let copied = if owned {
+                copy_artifact_reader_owned(&mut reader, &mut sink, CHUNK_BYTES)
+                    .await
+                    .expect("benchmark owned copy")
+            } else {
+                tokio::io::copy(&mut reader, &mut sink)
+                    .await
+                    .expect("benchmark asynchronous-reader copy")
+            };
+            assert_eq!(copied, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("backfill-spool-owned-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (
+                    measure(handle.clone(), false).await,
+                    measure(handle.clone(), true).await,
+                )
+            } else {
+                let candidate_elapsed = measure(handle.clone(), true).await;
+                let baseline_elapsed = measure(handle.clone(), false).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC backfill_spool_owned_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
     }
 
     #[tokio::test]
