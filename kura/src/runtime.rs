@@ -204,7 +204,6 @@ impl RuntimeState {
             let count = self.public_http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
             metrics.update_public_http_inflight(count);
         }
-        self.inflight_changed.notify_waiters();
         InflightGuard::new(
             self.clone(),
             metrics.clone(),
@@ -217,7 +216,6 @@ impl RuntimeState {
     pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
         let count = self.grpc_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_grpc_inflight(count);
-        self.inflight_changed.notify_waiters();
         InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
     }
 
@@ -331,7 +329,9 @@ impl Drop for InflightGuard {
                     .update_grpc_inflight(previous.saturating_sub(1));
             }
         }
-        self.runtime.inflight_changed.notify_waiters();
+        if self.runtime.is_draining() {
+            self.runtime.inflight_changed.notify_waiters();
+        }
     }
 }
 
@@ -444,12 +444,27 @@ mod tests {
         let metrics = Metrics::new("region".into(), "tenant".into());
         let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
 
+        runtime.request_drain();
         let notified = runtime.inflight_changed();
         drop(guard);
 
         timeout(Duration::from_secs(1), notified)
             .await
             .expect("request completion should wake inflight waiters");
+    }
+
+    #[tokio::test]
+    async fn inflight_requests_do_not_notify_before_drain() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+        let notified = runtime.inflight_changed();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+
+        let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+        drop(guard);
+
+        assert!(timeout(Duration::from_millis(10), notified).await.is_err());
     }
 
     #[test]

@@ -1725,6 +1725,7 @@ mod tests {
         let guard = context
             .state
             .start_http_request(crate::runtime::HttpTrafficClass::Public);
+        context.state.enter_draining();
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),
@@ -1744,6 +1745,7 @@ mod tests {
     async fn wait_for_inflight_drain_times_out_when_requests_do_not_finish() {
         let context = test_context(|_| {}).await;
         let _guard = context.state.start_grpc_request();
+        context.state.enter_draining();
 
         assert!(
             !wait_for_inflight_drain(
