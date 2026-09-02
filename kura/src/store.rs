@@ -6771,11 +6771,24 @@ impl Store {
     }
 
     fn manifest_cache_get(&self, artifact_id: &str) -> Option<ArtifactManifest> {
+        let retained = {
+            let mut cache = self
+                .manifest_cache
+                .lock()
+                .expect("manifest cache lock poisoned");
+            cache.get(artifact_id)
+        }?;
+        Some((*retained).clone())
+    }
+
+    #[cfg(test)]
+    fn manifest_cache_get_cloning_under_lock(&self, artifact_id: &str) -> Option<ArtifactManifest> {
         let mut cache = self
             .manifest_cache
             .lock()
             .expect("manifest cache lock poisoned");
-        cache.get(artifact_id)
+        let retained = cache.get(artifact_id)?;
+        Some((*retained).clone())
     }
 
     fn maybe_cache_manifest(&self, manifest: ArtifactManifest) {
@@ -7239,7 +7252,7 @@ struct CachedExistence {
 }
 
 struct CachedManifest {
-    manifest: ArtifactManifest,
+    manifest: Arc<ArtifactManifest>,
     size_bytes: usize,
     access_order: u64,
 }
@@ -7268,7 +7281,7 @@ impl ManifestCache {
         self.total_bytes
     }
 
-    fn get(&mut self, artifact_id: &str) -> Option<ArtifactManifest> {
+    fn get(&mut self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
         let (key, previous_order) = self
             .entries
             .get_key_value(artifact_id)
@@ -7299,7 +7312,7 @@ impl ManifestCache {
         self.entries.insert(
             artifact_id,
             CachedManifest {
-                manifest,
+                manifest: Arc::new(manifest),
                 size_bytes,
                 access_order,
             },
@@ -7419,7 +7432,8 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
     // The artifact id has one allocation inside the manifest and one shared
-    // by the HashMap key and AccessOrder's BTreeMap value.
+    // by the HashMap key and AccessOrder's BTreeMap value. The retained
+    // manifest has one allocation header for its reference counts.
     manifest.artifact_id.len().saturating_mul(2)
         + manifest.namespace_id.len()
         + manifest.key.len()
@@ -7427,6 +7441,7 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + optional_blob_path
         + optional_segment_id
         + std::mem::size_of::<ArtifactManifest>()
+        + std::mem::size_of::<usize>() * 2
 }
 
 pub const DISK_FULL_MARKER: &str = "disk_full";
@@ -10543,6 +10558,31 @@ mod tests {
     }
 
     #[test]
+    fn manifest_cache_reuses_retained_manifest_allocation() {
+        let mut cache = ManifestCache::new(1024 * 1024);
+        cache.insert(ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+        });
+
+        let first = cache.get("artifact").expect("manifest should be cached");
+        let second = cache.get("artifact").expect("manifest should stay cached");
+
+        assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
     #[ignore = "performance benchmark run by autoresearch.sh"]
     fn manifest_cache_concurrent_hit_benchmark() {
         const WORKERS: usize = 8;
@@ -10567,7 +10607,7 @@ mod tests {
             branch: Some("branch".repeat(16)),
         });
 
-        let measure = || {
+        let measure = |clone_under_lock: bool| {
             let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
             let started_at = std::thread::scope(|scope| {
                 for _ in 0..WORKERS {
@@ -10577,9 +10617,12 @@ mod tests {
                     scope.spawn(move || {
                         barrier.wait();
                         for _ in 0..LOOKUPS_PER_WORKER {
-                            let manifest = store
-                                .manifest_cache_get(artifact_id)
-                                .expect("benchmark manifest should stay cached");
+                            let manifest = if clone_under_lock {
+                                store.manifest_cache_get_cloning_under_lock(artifact_id)
+                            } else {
+                                store.manifest_cache_get(artifact_id)
+                            }
+                            .expect("benchmark manifest should stay cached");
                             std::hint::black_box(manifest.version_ms);
                         }
                     });
@@ -10591,17 +10634,30 @@ mod tests {
             (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
         };
 
-        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
         for sample in 0..SAMPLES {
-            let rate = measure();
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
             if sample > 0 {
-                rates.push(rate);
+                speedups.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
             }
         }
-        rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
         println!(
-            "METRIC manifest_cache_lookups_per_second={:.3}",
-            rates[rates.len() / 2]
+            "METRIC manifest_cache_hit_speedup_ratio={:.6}\nMETRIC baseline_lookups_per_second={:.3}\nMETRIC candidate_lookups_per_second={:.3}",
+            speedups[speedups.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            candidate_rates[candidate_rates.len() / 2]
         );
     }
 

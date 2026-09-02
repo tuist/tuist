@@ -6,7 +6,7 @@ Increase Kura's concurrent cached-read throughput by shortening metadata-cache c
 
 ## Metrics
 
-- Primary: concurrent manifest-cache hit throughput (lookups per second, higher is better)
+- Primary: paired concurrent manifest-cache hit speedup (ratio, higher is better)
 - Secondary: exact manifests, least-recently-used eviction order, retained-byte accounting, compile and lint status
 
 ## How to Run
@@ -56,6 +56,7 @@ Increase Kura's concurrent cached-read throughput by shortening metadata-cache c
 ## What's Been Tried
 
 - Baseline same-hot-artifact manifest-cache hits sustained 1,423,779.733 lookups per second across eight concurrent workers while cloning all manifest strings under the global lock.
+- Retained cached manifests behind one shared allocation, cloned only that reference under the lock, and moved the required owned-string clone after unlock. Paired same-process runs measured 1.126040 and 1.140262 times speedups while pointer identity proved allocation reuse and retained-byte accounting includes the two reference counters.
 - Baseline request accounting, with every arrival and completion notifying the shutdown waiter, sustained 279,259.648 requests per second across eight concurrent workers.
 - Removed arrival notifications and limited completion notifications to the draining state. Two candidate runs sustained 349,744.257 and 360,105.299 requests per second, improving the confirmed result by 28.954 percent while focused in-flight and shutdown-drain checks passed.
 - In-flight guards cloned the complete `Metrics` value even though their drop path updates only three gauges. Replaced that broad clone, which touched every shared metric family's reference count, with one shared in-flight metrics handle. Two candidate runs sustained 3,929,250.582 and 4,643,989.770 requests per second. The confirmed result is 12.896 times the notification-only result and 16.629 times the original baseline, with identical gauge updates.
