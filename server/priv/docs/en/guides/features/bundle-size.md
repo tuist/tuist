@@ -79,11 +79,19 @@ The per-device rows in App Store Connect are smaller again, because app thinning
 
 To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
-Tuist also needs to know which project to report the bundle to. Add a <.localized_link href="/references/tuist-toml">`tuist.toml`</.localized_link> at the root of your repository:
+Tuist also needs to know which project to report the bundle to. If you have not connected the project yet, run `tuist init`, or declare the handle yourself:
 
-```toml
+::: code-group
+```swift [Tuist.swift]
+let tuist = Tuist(fullHandle: "my-account/my-project")
+```
+```toml [tuist.toml]
 project = "my-account/my-project"
 ```
+<!-- -->
+:::
+
+Use <.localized_link href="/references/tuist-toml">`tuist.toml`</.localized_link> for projects without a Swift manifest, such as Gradle projects. When both files are present, `Tuist.swift` takes precedence.
 
 An example workflow for GitHub Actions could then look like this:
 
