@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: paired accelerated-transfer setup speedup from moving the classified request's owned fields into their final consumers (ratio, higher is better)
-- Secondary: deterministic pointer identity, retained request fields, functional correctness, compile and lint status
+- Primary: paired Hypertext Transfer Protocol metric-label recording speedup from borrowing static routes and moving owned routes (ratio, higher is better)
+- Secondary: rendered metric compatibility, label cardinality, functional correctness, compile and lint status
 
 ## How to Run
 
@@ -73,8 +73,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - A paced benchmark staggers 32 concurrent streams across the fastest production node's 3-gigabit-per-second aggregate egress budget. Across three runs, the 95th-percentile Tokio blocking handoff was 31.083, 48.625, and 43.750 microseconds, with a median of 43.750 microseconds. That is 3.129 percent of a single chunk's 1.398-millisecond wire time; the complete cached positional read's median 95th percentile was 92.625 microseconds. Replacing Tokio would attack a small residual cost while introducing a second, Linux-specific runtime and file-resource model, so keep Tokio and optimize the remaining allocation work instead.
 - Whole-artifact materialization still allocated a zero-filled result vector before the positional read overwrote every byte. On Unix, pass the vector's spare capacity to Rustix and let the operating system initialize it while preserving the exact allocation, admission bound, short-read error, and Windows fallback. Three paired 512-mebibyte runs measured 1.099118, 1.097661, and 1.103675 times speedups, a median of 1.099118 times.
 - Accelerated requests previously built a complete owned authorization context even when authorization was disabled, then retained the full parsed artifact request through response admission and cloned the file handle, configured tenant, namespace, analytics key, route, and content type before transfer. Build the authorization context only when an engine exists, discard request-only fields after authorization and range resolution, move the remaining metadata and file into the transfer, borrow the configured tenant, and validate the file-owned content type inside the blocking closure. Pointer identity proves the namespace and analytics allocations move unchanged. Three paired setup runs measured 1.389168, 1.301090, and 1.386563 times speedups, a median of 1.386563 times.
+- Hypertext Transfer Protocol metric recording took an owned route from the ordinary middleware but cloned it for every request's label lookup. Accelerated responses first allocated their static route and then cloned that allocation. Store metric routes as borrowed-or-owned text, move dynamic routes into the primary label lookup, and borrow accelerated route templates. Internal backfill and server-error routes still clone only when a second metric family needs the same dynamic label. Three paired steady-state runs measured 2.314626, 2.321335, and 2.286898 times speedups, a median of 2.314626 times, while keeping identical route and status label values.
 
 ## Next Segment
 
-- Remove avoidable metric-label clones on the terminal accelerated response path.
 - Audit manifest and handle cache key ownership for duplicate strings retained across indexes.
+- Measure cache lookup allocations before changing key representation.

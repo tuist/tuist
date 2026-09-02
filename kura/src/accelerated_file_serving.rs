@@ -275,7 +275,7 @@ async fn serve_connection(
                 .await;
                 let error_message = result.as_ref().err().map(ToString::to_string);
                 state.metrics.record_http(
-                    denial.route.to_owned(),
+                    denial.route,
                     StatusCode::from_u16(denial.status)
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                     Duration::ZERO,
@@ -824,7 +824,7 @@ async fn serve_accelerated(
                 .metrics
                 .record_capacity_shed(crate::metrics::shed_kind::RESPONSE_STREAM);
             state.metrics.record_http(
-                route.to_owned(),
+                route,
                 StatusCode::TOO_MANY_REQUESTS,
                 transfer_started_at.elapsed(),
             );
@@ -954,7 +954,7 @@ async fn serve_accelerated(
                 time_to_first_byte,
             );
             state.metrics.record_http(
-                route.to_owned(),
+                route,
                 StatusCode::from_u16(range.status().0).unwrap_or(StatusCode::OK),
                 time_to_first_byte,
             );
@@ -1020,11 +1020,9 @@ async fn serve_accelerated(
                 total_duration.as_secs_f64() * 1_000.0,
             );
             body_span.record("kura.response.result", failure.result());
-            state.metrics.record_http(
-                route.to_owned(),
-                failure.status(),
-                transfer_started_at.elapsed(),
-            );
+            state
+                .metrics
+                .record_http(route, failure.status(), transfer_started_at.elapsed());
             // Carrying the byte count onto the failure result is what makes the
             // waste measurable: `kura_artifact_egress_bytes_total` split by
             // `result` separates link capacity that delivered an artifact from

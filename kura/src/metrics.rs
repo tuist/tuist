@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashSet,
     sync::{
         Arc, Mutex,
@@ -1489,27 +1490,36 @@ impl Metrics {
             .set(1);
     }
 
-    pub fn record_http(&self, route: String, status: StatusCode, duration: Duration) {
+    pub fn record_http(
+        &self,
+        route: impl Into<Cow<'static, str>>,
+        status: StatusCode,
+        duration: Duration,
+    ) {
+        let route = route.into();
+        let record_public_duration = records_public_http_metrics(&route);
+        let internal_backfill_route = route
+            .starts_with(INTERNAL_BACKFILL_ROUTE_PREFIX)
+            .then(|| route.clone());
+        let exception_route = status.is_server_error().then(|| route.clone());
         self.http_requests
             .get_or_create(&HttpRequestLabels {
-                route: route.clone(),
+                route,
                 status: status.as_u16(),
             })
             .inc();
-        if records_public_http_metrics(&route) {
+        if record_public_duration {
             self.http_request_duration.observe(duration.as_secs_f64());
         }
         // Internal routes are excluded from the public duration histogram, so
         // backfill endpoints get their own route-labeled timing family.
-        if route.starts_with(INTERNAL_BACKFILL_ROUTE_PREFIX) {
+        if let Some(route) = internal_backfill_route {
             self.internal_backfill_request_duration
-                .get_or_create(&InternalBackfillRouteLabels {
-                    route: route.clone(),
-                })
+                .get_or_create(&InternalBackfillRouteLabels { route })
                 .observe(duration.as_secs_f64());
         }
 
-        if status.is_server_error() {
+        if let Some(route) = exception_route {
             self.http_exceptions
                 .get_or_create(&HttpExceptionLabels {
                     route,
@@ -2514,13 +2524,13 @@ fn records_public_http_metrics(route: &str) -> bool {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpRequestLabels {
-    route: String,
+    route: Cow<'static, str>,
     status: u16,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct InternalBackfillRouteLabels {
-    route: String,
+    route: Cow<'static, str>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2556,7 +2566,7 @@ struct BackfillPassPeerLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpExceptionLabels {
-    route: String,
+    route: Cow<'static, str>,
     kind: String,
 }
 
@@ -2810,6 +2820,57 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn http_metric_borrowed_route_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLE_COUNT: usize = 9;
+        const ROUTE: &str = "/api/cache/cas/{id}";
+
+        fn measure(borrowed: bool) -> Duration {
+            let metrics = Metrics::new("benchmark".into(), "benchmark".into());
+            metrics.record_http(ROUTE, StatusCode::OK, Duration::ZERO);
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if borrowed {
+                    metrics.record_http(ROUTE, StatusCode::OK, Duration::ZERO);
+                } else {
+                    let route = ROUTE.to_owned();
+                    metrics
+                        .http_requests
+                        .get_or_create(&HttpRequestLabels {
+                            route: Cow::Owned(route.clone()),
+                            status: StatusCode::OK.as_u16(),
+                        })
+                        .inc();
+                    if records_public_http_metrics(&route) {
+                        metrics.http_request_duration.observe(0.0);
+                    }
+                }
+            }
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                let baseline = measure(false);
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "HTTP metric borrowed route benchmark: speedup={:.6}",
+            speedups[speedups.len() / 2]
+        );
+    }
+
+    #[test]
     fn public_http_metrics_exclude_probes_internal_and_unmatched_routes() {
         assert!(records_public_http_metrics("/api/cache/cas/{id}"));
         assert!(!records_public_http_metrics("/up"));
@@ -2849,12 +2910,12 @@ mod tests {
     fn internal_backfill_routes_record_route_labeled_durations() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http(
-            "/_internal/backfill/entries".into(),
+            "/_internal/backfill/entries",
             StatusCode::OK,
             Duration::from_millis(10),
         );
         metrics.record_http(
-            "/_internal/status".into(),
+            "/_internal/status",
             StatusCode::OK,
             Duration::from_millis(10),
         );
@@ -2907,9 +2968,9 @@ mod tests {
     #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
+        metrics.record_http("/up", StatusCode::OK, Duration::from_millis(10));
         metrics.record_http(
-            "/api/cache/keyvalue".into(),
+            "/api/cache/keyvalue",
             StatusCode::INTERNAL_SERVER_ERROR,
             Duration::from_millis(20),
         );
