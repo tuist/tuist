@@ -615,20 +615,23 @@ pub struct PathState {
     // shares `write_duration` with. That one number covering both is why the
     // 40x write regression of 2026-09-02 survived three incompatible
     // explanations for a day: nothing said whether the time was network or
-    // disk. It is disk here, and it is small -- a rotated on-disk store makes
-    // the walk several times more expensive, but several times a number this
-    // size is still noise against one RPC.
+    // disk. It was network, and this is what says so next time.
     //
-    // Microseconds, not the milliseconds the counters above use: a walk over a
-    // store that has not rotated is ~1.5us, and a millisecond counter reports a
-    // whole build of them as zero.
-    pub us_publish_walk: AtomicU64,
-    // llcas loads the walk actually made (memo misses). The per-node cost is
-    // what the generation chain changes, so the totals above are only readable
-    // against it.
+    // Every llcas read a publication makes, from both of the places it makes
+    // them (see `encode_node_blob_accounted`), and nothing else: not the memo
+    // lookups or the graph bookkeeping around them, which are not what a slow
+    // store makes slow.
+    //
+    // Microseconds, not the milliseconds the counters above use: a read against
+    // a store that has not rotated is tens of nanoseconds, and a millisecond
+    // counter reports a whole build of them as zero.
+    pub us_publish_local: AtomicU64,
+    // The reads those microseconds are spread over. The per-read cost is what
+    // the store's generation chain changes, so the total is only readable
+    // against the count.
     pub stats_publish_nodes_loaded: AtomicU64,
     // Publications skipped because the remote was inside its shed window. The
-    // companion to `us_publish_walk`: between them, a `write_duration` that
+    // companion to `us_publish_local`: between them, a `write_duration` that
     // moved says which half moved, and a `write_duration` that did not move
     // says whether that is health or silence.
     pub stats_publish_shed: AtomicU64,
@@ -1636,7 +1639,7 @@ impl Proxy {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
-            us_publish_walk: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
         }));
@@ -2807,11 +2810,7 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let walk_start = Instant::now();
         let (entries, blobs) = walk_closure(state, &record.value_digest)?;
-        state
-            .us_publish_walk
-            .fetch_add(walk_start.elapsed().as_micros() as u64, Ordering::Relaxed);
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -2828,7 +2827,7 @@ impl Proxy {
             }
             let bytes = match blob {
                 Some(bytes) => bytes,
-                None => unsafe { encode_node_blob(state, &entry.llcas_digest)?.0 },
+                None => encode_node_blob_accounted(state, &entry.llcas_digest)?.0,
             };
             if self.analytics.is_some() {
                 let (size, data) = reapi::decompress_frame(&bytes)
@@ -3963,7 +3962,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} backing checks={} snapshot={} per_key={} unbacked={} | ms action={} filter={} fetch={} decode={} store={} | us publish_walk={} nodes_loaded={} shed={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} backing checks={} snapshot={} per_key={} unbacked={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3986,7 +3985,7 @@ impl Proxy {
                 state.ms_fetch.load(Ordering::Relaxed),
                 state.ms_decode.load(Ordering::Relaxed),
                 state.ms_store.load(Ordering::Relaxed),
-                state.us_publish_walk.load(Ordering::Relaxed),
+                state.us_publish_local.load(Ordering::Relaxed),
                 state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
                 state.stats_publish_shed.load(Ordering::Relaxed),
             ));
@@ -4359,10 +4358,34 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
 /// (`tests/graph_retention.rs`), the same 41-node walk is ~1.5us against a
 /// store that has not rotated and ~167us/key on the first pass after one.
 ///
-/// Worth knowing and worth measuring (`us_publish_walk`), but worth keeping in
+/// Worth knowing and worth measuring (`us_publish_local`), but worth keeping in
 /// proportion: 100x a number this size is still small against one RPC, and a
 /// publication makes four. A walk cost is not a candidate explanation for a
 /// `write_duration` regression measured in hundreds of milliseconds.
+/// `encode_node_blob` with the local-cost accounting attached. Every llcas read
+/// a publication makes goes through here, because a publication makes them from
+/// TWO places and the counters are worth nothing if they only see one: the walk
+/// below reads each node it has not memoized, and the upload leg reads again for
+/// any node the memo answered from cache that the remote then turns out to be
+/// missing. That second read is local CAS latency sitting inside
+/// `write_duration` exactly like the first, and accounting for only the first
+/// would let the counters report no local work while the store was the thing
+/// being slow, which is the one conclusion they exist to prevent.
+fn encode_node_blob_accounted(
+    state: &'static PathState,
+    digest: &[u8],
+) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    let started = Instant::now();
+    let loaded = unsafe { encode_node_blob(state, digest) };
+    state
+        .us_publish_local
+        .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+    state
+        .stats_publish_nodes_loaded
+        .fetch_add(1, Ordering::Relaxed);
+    loaded
+}
+
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
@@ -4387,10 +4410,7 @@ fn walk_closure(
             pending.extend(children);
             continue;
         }
-        let (blob, children) = unsafe { encode_node_blob(state, &digest)? };
-        state
-            .stats_publish_nodes_loaded
-            .fetch_add(1, Ordering::Relaxed);
+        let (blob, children) = encode_node_blob_accounted(state, &digest)?;
         let blob_digest = reapi::blob_digest(&blob);
         state
             .publish_cache
@@ -5676,7 +5696,7 @@ mod tests {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
-            us_publish_walk: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
         }))

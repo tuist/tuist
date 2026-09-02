@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bazel_remote_apis::build::bazel::remote::execution::v2 as reapi;
+use bazel_remote_apis::google::rpc::Status as RpcStatus;
 use reapi::content_addressable_storage_server::{
     ContentAddressableStorage, ContentAddressableStorageServer,
 };
@@ -34,22 +35,51 @@ const LADDER_ATTEMPTS: usize = 3;
 /// attempt sleeps, so one ladder is one 200ms sleep.
 const LADDER_SLEEP: Duration = Duration::from_millis(200);
 
-/// A CAS server that sheds every write, counting the `BatchUpdateBlobs` RPCs it
-/// receives.
+/// gRPC RESOURCE_EXHAUSTED, as it appears in a per-blob `status` field.
+const RESOURCE_EXHAUSTED: i32 = 8;
+
+/// How a server refuses a write. Kura does it both ways, and the client used to
+/// notice only the first: it declines the whole call when its outbox is already
+/// at its cap, and answers OK with the refusal on the individual blob when
+/// capacity runs out partway through the request.
+#[derive(Clone, Copy)]
+enum Shed {
+    WholeCall,
+    PerBlob,
+}
+
+/// A CAS server that sheds every write in one of those two shapes, counting the
+/// `BatchUpdateBlobs` RPCs it receives.
 struct SheddingCas {
     batch_update_calls: Arc<AtomicUsize>,
+    shed: Shed,
 }
 
 #[tonic::async_trait]
 impl ContentAddressableStorage for SheddingCas {
     async fn batch_update_blobs(
         &self,
-        _: Request<reapi::BatchUpdateBlobsRequest>,
+        request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
         self.batch_update_calls.fetch_add(1, Ordering::SeqCst);
-        // The RPC itself is refused, which is how kura sheds a write: the
-        // per-blob status path is for reads it cannot materialize.
-        Err(Status::resource_exhausted("write outbox at capacity"))
+        match self.shed {
+            Shed::WholeCall => Err(Status::resource_exhausted("write outbox at capacity")),
+            Shed::PerBlob => Ok(Response::new(reapi::BatchUpdateBlobsResponse {
+                responses: request
+                    .into_inner()
+                    .requests
+                    .into_iter()
+                    .map(|entry| reapi::batch_update_blobs_response::Response {
+                        digest: entry.digest,
+                        status: Some(RpcStatus {
+                            code: RESOURCE_EXHAUSTED,
+                            message: "write outbox reached capacity mid-request".into(),
+                            details: Vec::new(),
+                        }),
+                    })
+                    .collect(),
+            })),
+        }
     }
 
     async fn batch_read_blobs(
@@ -98,7 +128,7 @@ impl ContentAddressableStorage for SheddingCas {
 /// The bound listener is handed to tonic directly so the port is held
 /// continuously and the client's connection lands in the listen backlog the
 /// moment `bind` returns -- readiness needs no sleep to guess at.
-fn spawn_server(calls: Arc<AtomicUsize>) -> std::net::SocketAddr {
+fn spawn_server(calls: Arc<AtomicUsize>, shed: Shed) -> std::net::SocketAddr {
     let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
     listener
         .set_nonblocking(true)
@@ -116,6 +146,7 @@ fn spawn_server(calls: Arc<AtomicUsize>) -> std::net::SocketAddr {
             tonic::transport::Server::builder()
                 .add_service(ContentAddressableStorageServer::new(SheddingCas {
                     batch_update_calls: calls,
+                    shed,
                 }))
                 .serve_with_incoming(incoming)
                 .await
@@ -138,7 +169,7 @@ fn one_blob() -> Vec<(Digest, Vec<u8>)> {
 #[test]
 fn a_shed_publication_arms_the_breaker_and_the_next_ones_stop_paying_the_ladder() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let addr = spawn_server(calls.clone());
+    let addr = spawn_server(calls.clone(), Shed::WholeCall);
     let remote = Remote::new(
         RemoteConfig {
             grpc_url: format!("http://{addr}"),
@@ -215,6 +246,47 @@ fn a_shed_publication_arms_the_breaker_and_the_next_ones_stop_paying_the_ladder(
         0,
         "batch_update is not the publication-level skip; that counter belongs to \
          the path that never starts a publication at all"
+    );
+}
+
+#[test]
+fn a_per_blob_shed_arms_the_same_breaker_as_a_refused_call() {
+    // The shape the RPC-level check cannot see: the call succeeds and the
+    // refusal rides on the blob. It means the same thing about the node, so it
+    // has to reach the same breaker; before it did, this path returned a plain
+    // error and left every later publication paying a probe, a closure walk and
+    // a missing-blob query to arrive at a refusal already known.
+    let calls = Arc::new(AtomicUsize::new(0));
+    let addr = spawn_server(calls.clone(), Shed::PerBlob);
+    let remote = Remote::new(
+        RemoteConfig {
+            grpc_url: format!("http://{addr}"),
+            instance: "test".into(),
+        },
+        TokenProvider::from_env(),
+    );
+
+    assert!(
+        remote.batch_update(one_blob()).is_err(),
+        "a per-blob shed is not reported as published"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "the RPC itself succeeded, so the ladder never re-issues it"
+    );
+    assert!(
+        remote.shedding_writes(),
+        "a per-blob shed arms the breaker just as a refused call does"
+    );
+
+    // And the publication path is now the cheap one.
+    let started = Instant::now();
+    assert!(remote.batch_update(one_blob()).is_err());
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed < LADDER_SLEEP,
+        "the next publication must not pay a ladder sleep (took {elapsed:?})"
     );
 }
 

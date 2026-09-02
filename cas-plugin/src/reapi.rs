@@ -991,6 +991,19 @@ impl Remote {
                 for entry in response.into_inner().responses {
                     if let Some(status) = entry.status {
                         if status.code != 0 {
+                            // A shed can arrive either way, and only the RPC-level
+                            // one goes through `retry_write`: kura refuses the whole
+                            // call when its outbox is already at its cap, but a call
+                            // that exhausts capacity mid-request comes back OK with
+                            // the refusal on the individual blob. Both mean the same
+                            // thing about the node, so both must arm the breaker.
+                            // Without this the per-blob shape left every later
+                            // publication paying a probe, a closure walk and a
+                            // missing-blob query to reach a refusal already known,
+                            // which is most of what the breaker exists to stop.
+                            if status.code == tonic::Code::ResourceExhausted as i32 {
+                                arm_write_pressure_backoff(&self.write_pressure_backoff_until_ms);
+                            }
                             return Err(format!("batch_update blob rejected: {}", status.message));
                         }
                     }
