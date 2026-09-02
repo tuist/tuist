@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: paired Hypertext Transfer Protocol metric-label recording speedup from borrowing static routes and moving owned routes (ratio, higher is better)
-- Secondary: rendered metric compatibility, label cardinality, functional correctness, compile and lint status
+- Primary: paired existence-cache hit speedup from sharing one immutable key between the lookup and recency indexes (ratio, higher is better)
+- Secondary: retained key allocations, eviction order, expiration, manifest byte accounting, compile and lint status
 
 ## How to Run
 
@@ -74,8 +74,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Whole-artifact materialization still allocated a zero-filled result vector before the positional read overwrote every byte. On Unix, pass the vector's spare capacity to Rustix and let the operating system initialize it while preserving the exact allocation, admission bound, short-read error, and Windows fallback. Three paired 512-mebibyte runs measured 1.099118, 1.097661, and 1.103675 times speedups, a median of 1.099118 times.
 - Accelerated requests previously built a complete owned authorization context even when authorization was disabled, then retained the full parsed artifact request through response admission and cloned the file handle, configured tenant, namespace, analytics key, route, and content type before transfer. Build the authorization context only when an engine exists, discard request-only fields after authorization and range resolution, move the remaining metadata and file into the transfer, borrow the configured tenant, and validate the file-owned content type inside the blocking closure. Pointer identity proves the namespace and analytics allocations move unchanged. Three paired setup runs measured 1.389168, 1.301090, and 1.386563 times speedups, a median of 1.386563 times.
 - Hypertext Transfer Protocol metric recording took an owned route from the ordinary middleware but cloned it for every request's label lookup. Accelerated responses first allocated their static route and then cloned that allocation. Store metric routes as borrowed-or-owned text, move dynamic routes into the primary label lookup, and borrow accelerated route templates. Internal backfill and server-error routes still clone only when a second metric family needs the same dynamic label. Three paired steady-state runs measured 2.314626, 2.321335, and 2.286898 times speedups, a median of 2.314626 times, while keeping identical route and status label values.
+- The manifest, existence, and persistent-file handle caches duplicated every key between their hash lookup and least-recently-used ordering tree. Worse, every cache hit allocated another string when it refreshed recency. Use one immutable reference-counted string allocation as both indexes' key and clone only the reference on a touch. Existence entries now retain one key allocation instead of two; manifest entries retain the identifier inside the manifest plus one shared index key instead of three copies. Three paired cache-hit runs measured 1.113830, 1.131098, and 1.119967 times speedups, a median of 1.119967 times.
 
 ## Next Segment
 
-- Audit manifest and handle cache key ownership for duplicate strings retained across indexes.
-- Measure cache lookup allocations before changing key representation.
+- Remove the temporary prefixed string allocation on persistent-file handle cache hits.
+- Profile manifest result cloning before considering shared manifest values.

@@ -7121,7 +7121,7 @@ fn validate_total_size(next_total: u64, max_total: u64) -> Result<(), MultipartE
 /// cache entry stores the order returned by `touch` and passes it back on the
 /// next touch or removal so the mirror stays in sync with the entry map.
 struct AccessOrder {
-    order: BTreeMap<u64, String>,
+    order: BTreeMap<u64, Arc<str>>,
     next: u64,
 }
 
@@ -7136,12 +7136,12 @@ impl AccessOrder {
     /// Assigns a fresh access order to `key`, dropping its previous order (from
     /// an earlier touch or insert) when supplied. Returns the new order to
     /// store on the entry.
-    fn touch(&mut self, key: &str, previous: Option<u64>) -> u64 {
+    fn touch(&mut self, key: Arc<str>, previous: Option<u64>) -> u64 {
         if let Some(previous) = previous {
             self.order.remove(&previous);
         }
         self.next = self.next.wrapping_add(1);
-        self.order.insert(self.next, key.to_owned());
+        self.order.insert(self.next, key);
         self.next
     }
 
@@ -7150,13 +7150,13 @@ impl AccessOrder {
     }
 
     /// Removes and returns the least-recently-used key.
-    fn pop_lru(&mut self) -> Option<String> {
+    fn pop_lru(&mut self) -> Option<Arc<str>> {
         self.order.pop_first().map(|(_, key)| key)
     }
 }
 
 struct ManifestCache {
-    entries: HashMap<String, CachedManifest>,
+    entries: HashMap<Arc<str>, CachedManifest>,
     total_bytes: usize,
     access: AccessOrder,
     max_bytes: usize,
@@ -7201,7 +7201,7 @@ impl ShardedExistenceCache {
         self.shard(artifact_id)
             .lock()
             .expect("existence cache lock poisoned")
-            .insert(artifact_id.to_owned());
+            .insert(artifact_id);
     }
 
     fn remove_many(&self, artifact_ids: &[String]) {
@@ -7227,7 +7227,7 @@ impl ShardedExistenceCache {
 }
 
 struct ExistenceCache {
-    entries: HashMap<String, CachedExistence>,
+    entries: HashMap<Arc<str>, CachedExistence>,
     access: AccessOrder,
     capacity: usize,
     ttl: Duration,
@@ -7269,30 +7269,33 @@ impl ManifestCache {
     }
 
     fn get(&mut self, artifact_id: &str) -> Option<ArtifactManifest> {
-        let previous_order = self.entries.get(artifact_id)?.access_order;
-        let access_order = self.access.touch(artifact_id, Some(previous_order));
+        let (key, previous_order) = self
+            .entries
+            .get_key_value(artifact_id)
+            .map(|(key, cached)| (key.clone(), cached.access_order))?;
+        let access_order = self.access.touch(key, Some(previous_order));
         let cached = self.entries.get_mut(artifact_id)?;
         cached.access_order = access_order;
         Some(cached.manifest.clone())
     }
 
     fn insert(&mut self, manifest: ArtifactManifest) -> ManifestCacheInsertResult {
-        let artifact_id = manifest.artifact_id.clone();
         let size_bytes = estimated_manifest_bytes(&manifest);
         if size_bytes > self.max_bytes {
-            if let Some(removed) = self.entries.remove(&artifact_id) {
+            if let Some(removed) = self.entries.remove(manifest.artifact_id.as_str()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 self.access.forget(removed.access_order);
             }
             return ManifestCacheInsertResult::Oversized;
         }
 
-        let existed = self.entries.remove(&artifact_id);
+        let artifact_id: Arc<str> = Arc::from(manifest.artifact_id.as_str());
+        let existed = self.entries.remove(artifact_id.as_ref());
         let previous_order = existed.as_ref().map(|removed| {
             self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
             removed.access_order
         });
-        let access_order = self.access.touch(&artifact_id, previous_order);
+        let access_order = self.access.touch(artifact_id.clone(), previous_order);
         self.entries.insert(
             artifact_id,
             CachedManifest {
@@ -7313,7 +7316,7 @@ impl ManifestCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            if let Some(removed) = self.entries.remove(artifact_id) {
+            if let Some(removed) = self.entries.remove(artifact_id.as_str()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 self.access.forget(removed.access_order);
             }
@@ -7326,7 +7329,7 @@ impl ManifestCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            if let Some(removed) = self.entries.remove(&oldest_key) {
+            if let Some(removed) = self.entries.remove(oldest_key.as_ref()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 evicted += 1;
             }
@@ -7346,10 +7349,10 @@ impl ExistenceCache {
     }
 
     fn contains(&mut self, artifact_id: &str) -> bool {
-        let Some((inserted_at, previous_order)) = self
+        let Some((key, inserted_at, previous_order)) = self
             .entries
-            .get(artifact_id)
-            .map(|entry| (entry.inserted_at, entry.access_order))
+            .get_key_value(artifact_id)
+            .map(|(key, entry)| (key.clone(), entry.inserted_at, entry.access_order))
         else {
             return false;
         };
@@ -7358,21 +7361,22 @@ impl ExistenceCache {
             self.access.forget(previous_order);
             return false;
         }
-        let access_order = self.access.touch(artifact_id, Some(previous_order));
+        let access_order = self.access.touch(key, Some(previous_order));
         if let Some(entry) = self.entries.get_mut(artifact_id) {
             entry.access_order = access_order;
         }
         true
     }
 
-    fn insert(&mut self, artifact_id: String) {
-        let previous_order = self
+    fn insert(&mut self, artifact_id: &str) {
+        let (key, previous_order) = self
             .entries
-            .get(&artifact_id)
-            .map(|entry| entry.access_order);
-        let access_order = self.access.touch(&artifact_id, previous_order);
+            .get_key_value(artifact_id)
+            .map(|(key, entry)| (key.clone(), Some(entry.access_order)))
+            .unwrap_or_else(|| (Arc::from(artifact_id), None));
+        let access_order = self.access.touch(key.clone(), previous_order);
         self.entries.insert(
-            artifact_id,
+            key,
             CachedExistence {
                 inserted_at: Instant::now(),
                 access_order,
@@ -7383,7 +7387,7 @@ impl ExistenceCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            if let Some(removed) = self.entries.remove(artifact_id) {
+            if let Some(removed) = self.entries.remove(artifact_id.as_str()) {
                 self.access.forget(removed.access_order);
             }
         }
@@ -7395,7 +7399,7 @@ impl ExistenceCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&oldest_key);
+            self.entries.remove(oldest_key.as_ref());
             evicted += 1;
         }
         evicted
@@ -7406,7 +7410,7 @@ impl ExistenceCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&oldest_key);
+            self.entries.remove(oldest_key.as_ref());
         }
     }
 }
@@ -7414,9 +7418,9 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
-    // The artifact id is owned three times: inside the manifest, as the
-    // HashMap key, and in AccessOrder's BTreeMap value.
-    manifest.artifact_id.len().saturating_mul(3)
+    // The artifact id has one allocation inside the manifest and one shared
+    // by the HashMap key and AccessOrder's BTreeMap value.
+    manifest.artifact_id.len().saturating_mul(2)
         + manifest.namespace_id.len()
         + manifest.key.len()
         + manifest.content_type.len()
@@ -7643,7 +7647,7 @@ struct SegmentLocation {
 }
 
 struct SegmentHandleCache {
-    entries: HashMap<String, CachedSegmentHandle>,
+    entries: HashMap<Arc<str>, CachedSegmentHandle>,
     access: AccessOrder,
     capacity: usize,
 }
@@ -7667,16 +7671,23 @@ impl SegmentHandleCache {
     }
 
     fn touch(&mut self, cache_key: &str) -> Option<Arc<PersistentFile>> {
-        let previous_order = self.entries.get(cache_key)?.access_order;
-        let access_order = self.access.touch(cache_key, Some(previous_order));
+        let (key, previous_order) = self
+            .entries
+            .get_key_value(cache_key)
+            .map(|(key, entry)| (key.clone(), entry.access_order))?;
+        let access_order = self.access.touch(key, Some(previous_order));
         let entry = self.entries.get_mut(cache_key)?;
         entry.access_order = access_order;
         Some(entry.handle.clone())
     }
 
     fn insert(&mut self, cache_key: String, handle: Arc<PersistentFile>) -> usize {
-        let previous_order = self.entries.get(&cache_key).map(|entry| entry.access_order);
-        let access_order = self.access.touch(&cache_key, previous_order);
+        let cache_key: Arc<str> = Arc::from(cache_key);
+        let previous_order = self
+            .entries
+            .get(cache_key.as_ref())
+            .map(|entry| entry.access_order);
+        let access_order = self.access.touch(cache_key.clone(), previous_order);
         self.entries.insert(
             cache_key,
             CachedSegmentHandle {
@@ -7710,7 +7721,7 @@ impl SegmentHandleCache {
             let Some(lru_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&lru_key);
+            self.entries.remove(lru_key.as_ref());
             evicted += 1;
         }
         evicted
@@ -9511,7 +9522,7 @@ mod tests {
     #[test]
     fn existence_cache_expires_entries_after_ttl() {
         let mut cache = ExistenceCache::new(8, Duration::from_millis(10));
-        cache.insert("artifact-1".into());
+        cache.insert("artifact-1");
         assert!(cache.contains("artifact-1"));
         std::thread::sleep(Duration::from_millis(20));
         assert!(!cache.contains("artifact-1"));
@@ -9521,16 +9532,90 @@ mod tests {
     fn existence_cache_evicts_least_recently_used() {
         let mut cache = ExistenceCache::new(3, Duration::from_secs(60));
         for id in ["a", "b", "c"] {
-            cache.insert(id.into());
+            cache.insert(id);
         }
         // Touch "a" so "b" becomes the least-recently-used entry.
         assert!(cache.contains("a"));
-        cache.insert("d".into());
+        cache.insert("d");
 
         assert!(!cache.contains("b"), "LRU entry should have been evicted");
         for id in ["a", "c", "d"] {
             assert!(cache.contains(id), "{id} should still be present");
         }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn existence_cache_shared_key_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLE_COUNT: usize = 9;
+        const ARTIFACT_ID: &str = "reapi/tenant/namespace/blobs/0123456789abcdef0123456789abcdef";
+
+        struct BaselineExistenceCache {
+            entries: HashMap<String, (Instant, u64)>,
+            access: BTreeMap<u64, String>,
+            next: u64,
+        }
+
+        impl BaselineExistenceCache {
+            fn contains(&mut self, artifact_id: &str) -> bool {
+                let Some((inserted_at, previous_order)) = self.entries.get(artifact_id).copied()
+                else {
+                    return false;
+                };
+                if Instant::now().duration_since(inserted_at) > Duration::from_secs(60) {
+                    return false;
+                }
+                self.access.remove(&previous_order);
+                self.next = self.next.wrapping_add(1);
+                self.access.insert(self.next, artifact_id.to_owned());
+                self.entries
+                    .get_mut(artifact_id)
+                    .expect("benchmark entry exists")
+                    .1 = self.next;
+                true
+            }
+        }
+
+        fn measure(shared: bool) -> Duration {
+            let started_at = Instant::now();
+            if shared {
+                let mut cache = ExistenceCache::new(1, Duration::from_secs(60));
+                cache.insert(ARTIFACT_ID);
+                for _ in 0..ITERATIONS {
+                    assert!(cache.contains(ARTIFACT_ID));
+                }
+            } else {
+                let mut cache = BaselineExistenceCache {
+                    entries: HashMap::from([(ARTIFACT_ID.to_owned(), (Instant::now(), 1))]),
+                    access: BTreeMap::from([(1, ARTIFACT_ID.to_owned())]),
+                    next: 1,
+                };
+                for _ in 0..ITERATIONS {
+                    assert!(cache.contains(ARTIFACT_ID));
+                }
+            }
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                let baseline = measure(false);
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "existence cache shared key benchmark: speedup={:.6}",
+            speedups[speedups.len() / 2]
+        );
     }
 
     #[test]
@@ -9540,7 +9625,7 @@ mod tests {
         // Insert far past capacity: O(log n) eviction must keep the entry map
         // and its access-order mirror bounded and equal in size.
         for index in 0..capacity * 20 {
-            cache.insert(format!("artifact-{index}"));
+            cache.insert(&format!("artifact-{index}"));
         }
         assert_eq!(cache.entries.len(), capacity);
         assert_eq!(
@@ -10544,12 +10629,15 @@ mod tests {
             let cache = store.segment_handles.lock().await;
             assert_eq!(cache.len(), 1);
             assert!(
-                cache.entries.contains_key(&segment_handle_cache_key(
-                    xcode
-                        .segment_id
-                        .as_deref()
-                        .expect("xcode manifest should have a segment id")
-                ))
+                cache.entries.contains_key(
+                    segment_handle_cache_key(
+                        xcode
+                            .segment_id
+                            .as_deref()
+                            .expect("xcode manifest should have a segment id"),
+                    )
+                    .as_str(),
+                )
             );
         }
 
@@ -10558,21 +10646,27 @@ mod tests {
             let cache = store.segment_handles.lock().await;
             assert_eq!(cache.len(), 1);
             assert!(
-                cache.entries.contains_key(&segment_handle_cache_key(
-                    gradle
-                        .segment_id
-                        .as_deref()
-                        .expect("gradle manifest should have a segment id")
-                ))
+                cache.entries.contains_key(
+                    segment_handle_cache_key(
+                        gradle
+                            .segment_id
+                            .as_deref()
+                            .expect("gradle manifest should have a segment id"),
+                    )
+                    .as_str(),
+                )
             );
             if xcode.segment_id != gradle.segment_id {
                 assert!(
-                    !cache.entries.contains_key(&segment_handle_cache_key(
-                        xcode
-                            .segment_id
-                            .as_deref()
-                            .expect("xcode manifest should have a segment id")
-                    ))
+                    !cache.entries.contains_key(
+                        segment_handle_cache_key(
+                            xcode
+                                .segment_id
+                                .as_deref()
+                                .expect("xcode manifest should have a segment id"),
+                        )
+                        .as_str(),
+                    )
                 );
             }
         }
@@ -10635,7 +10729,7 @@ mod tests {
             assert!(
                 cache
                     .entries
-                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+                    .contains_key(blob_handle_cache_key(&blob_path_string).as_str())
             );
         }
 
@@ -10649,7 +10743,7 @@ mod tests {
             assert!(
                 !cache
                     .entries
-                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+                    .contains_key(blob_handle_cache_key(&blob_path_string).as_str())
             );
         }
         assert!(!blob_path.exists());
@@ -12082,7 +12176,7 @@ mod tests {
             .expect("manifest cache lock should not be poisoned");
         for artifact_id in &evicted {
             assert!(
-                !cache.entries.contains_key(artifact_id),
+                !cache.entries.contains_key(artifact_id.as_str()),
                 "the eviction was cancelled mid-commit, so {artifact_id} was \
                  deleted from the store while the manifest cache kept serving it"
             );
