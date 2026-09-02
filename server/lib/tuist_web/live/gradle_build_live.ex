@@ -54,9 +54,7 @@ defmodule TuistWeb.GradleBuildLive do
     aggregates = Gradle.task_cache_aggregates(build.id)
     machine_metrics = build.machine_metrics
 
-    has_build_setup_data =
-      build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id) or
-        Gradle.has_artifact_transforms?(build.id)
+    has_build_setup_data = has_build_setup_data?(build)
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
@@ -114,6 +112,11 @@ defmodule TuistWeb.GradleBuildLive do
   defp build_run_path(socket) do
     %{selected_account: account, selected_project: project, build: build} = socket.assigns
     "/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
+  end
+
+  defp has_build_setup_data?(build) do
+    build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id) or
+      Gradle.has_artifact_transforms?(build.id)
   end
 
   def handle_event("search-tasks", %{"search" => search}, socket) do
