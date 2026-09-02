@@ -21,7 +21,7 @@ use serde::Serialize;
 use tokio::time::{MissedTickBehavior, interval};
 use tracing::{info, warn};
 
-use crate::state::SharedState;
+use crate::{VERSION, state::SharedState};
 
 const KURA_REGISTRATION_URL: &str = "KURA_REGISTRATION_URL";
 const KURA_ADVERTISED_HTTP_URL: &str = "KURA_ADVERTISED_HTTP_URL";
@@ -127,7 +127,7 @@ async fn send_heartbeat(
         region: config.region.as_deref(),
         advertised_http_url: &config.advertised_http_url,
         ready: report.ready,
-        version: env!("CARGO_PKG_VERSION"),
+        version: VERSION,
         traffic_state: report.state.as_str(),
         ring_members: report.known_peers.len() + 1,
         writer_lock_owned: report.writer_lock_owned,

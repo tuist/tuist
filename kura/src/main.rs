@@ -3,6 +3,11 @@
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("kura {}", kura::VERSION);
+        return;
+    }
+
     let worker_threads = resolve_worker_threads();
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(worker_threads)

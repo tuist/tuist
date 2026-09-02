@@ -19,7 +19,7 @@ use prometheus_client::{
 };
 
 use crate::{
-    artifact::producer::ArtifactProducer, node_location::NodeLocation,
+    VERSION, artifact::producer::ArtifactProducer, node_location::NodeLocation,
     utils::replication_target_label,
 };
 
@@ -58,6 +58,7 @@ pub struct Metrics {
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    build_info: Family<BuildInfoLabels, Gauge>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -190,6 +191,7 @@ impl Metrics {
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let build_info = Family::<BuildInfoLabels, Gauge>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -418,6 +420,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_build_info",
+            "Kura build information",
+            build_info.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -816,6 +823,7 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            build_info,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -890,6 +898,12 @@ impl Metrics {
             promotion_failures,
         };
 
+        metrics
+            .build_info
+            .get_or_create(&BuildInfoLabels {
+                version: VERSION.to_owned(),
+            })
+            .set(1);
         metrics
             .node_info
             .get_or_create(&NodeInfoLabels { region, tenant_id })
@@ -1648,6 +1662,11 @@ struct FileOperationRouteLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BuildInfoLabels {
+    version: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct NodeInfoLabels {
     region: String,
     tenant_id: String,
@@ -1923,6 +1942,7 @@ mod tests {
         assert!(rendered.contains("outcome=\"applied\""));
         assert!(rendered.contains("outcome=\"ignored_older\""));
         assert!(rendered.contains("kura_multipart_parts_total"));
+        assert!(rendered.contains(&format!("kura_build_info{{version=\"{VERSION}\"}} 1")));
         assert!(rendered.contains("kura_node_info"));
         assert!(rendered.contains("kura_node_geo_info"));
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
