@@ -10542,6 +10542,69 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn manifest_cache_concurrent_hit_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        let (_temp_dir, _config, store) = temp_store();
+        let artifact_id = "artifact".repeat(16);
+        store.maybe_cache_manifest(ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".repeat(16),
+            key: "key".repeat(32),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".repeat(16)),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: Some("branch".repeat(16)),
+        });
+
+        let measure = || {
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    let store = &store;
+                    let artifact_id = &artifact_id;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..LOOKUPS_PER_WORKER {
+                            let manifest = store
+                                .manifest_cache_get(artifact_id)
+                                .expect("benchmark manifest should stay cached");
+                            std::hint::black_box(manifest.version_ms);
+                        }
+                    });
+                }
+                let started_at = std::time::Instant::now();
+                barrier.wait();
+                started_at
+            });
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure();
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC manifest_cache_lookups_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
+    }
+
     #[tokio::test]
     async fn manifest_cache_stays_within_configured_byte_budget() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {

@@ -14,3 +14,5 @@
 - Avoid request-arrival shutdown notifications and steady-state completion notifications.
 - Measure authorization consultation-lock contention separately for cold misses and cache hits.
 - Check whether the response admission turn lock is reached only after bounded immediate admission fails.
+- Move manifest string cloning outside the global cache lock through shared retained values.
+- Measure whether sampled recency updates can safely reduce hot-key write-lock pressure without changing eviction quality.

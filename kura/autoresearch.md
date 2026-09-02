@@ -1,13 +1,13 @@
-# Autoresearch: Kura bounded-resource request concurrency
+# Autoresearch: Kura bounded-resource manifest concurrency
 
 ## Objective
 
-Increase Kura's concurrent request throughput and reduce tail latency by removing unnecessary synchronization from request entry and completion. Do not weaken hard memory, file descriptor, temporary disk, or background-work bounds.
+Increase Kura's concurrent cached-read throughput by shortening metadata-cache critical sections. Do not weaken hard memory, file descriptor, temporary disk, or background-work bounds.
 
 ## Metrics
 
-- Primary: concurrent request accounting throughput (requests per second, higher is better)
-- Secondary: shutdown-drain correctness, exact in-flight counts and gauges, compile and lint status
+- Primary: concurrent manifest-cache hit throughput (lookups per second, higher is better)
+- Secondary: exact manifests, least-recently-used eviction order, retained-byte accounting, compile and lint status
 
 ## How to Run
 
@@ -20,6 +20,7 @@ Increase Kura's concurrent request throughput and reduce tail latency by removin
 - `src/app.rs`: shutdown-drain waiter and its notification contract
 - `src/segment/reader.rs`: bounded asynchronous file reads
 - `src/store.rs`: append-only segment persistence and metadata access
+- `src/artifact/manifest.rs`: manifest ownership and retained allocations
 - `src/accelerated_file_serving.rs`: Linux direct file serving and request classification
 - `src/io/mod.rs`: bounded file descriptor operations
 - `src/memory/`: admission and resource accounting affected by buffer ownership
@@ -50,9 +51,11 @@ Increase Kura's concurrent request throughput and reduce tail latency by removin
 - The separate [`tokio-uring` runtime](https://github.com/tokio-rs/tokio-uring) accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
 - Production Kura nodes advertise 1- or 3-gigabit-per-second public egress budgets. At the fastest rate, one 512-kibibyte chunk occupies the wire for 1.398 milliseconds; slower nodes give each handoff more time.
 - Every request arrival and completion currently calls `Notify::notify_waiters`, although the only consumer waits for the in-flight count to reach zero during shutdown. An arrival can never make that condition true, and steady-state completions need no shutdown wake-up before draining begins.
+- Manifest-cache hits currently clone all owned manifest strings while holding the cache's global lock. The clone is required by the public store interface, but it does not need to serialize independent allocator work across requests.
 
 ## What's Been Tried
 
+- Baseline same-hot-artifact manifest-cache hits sustained 1,423,779.733 lookups per second across eight concurrent workers while cloning all manifest strings under the global lock.
 - Baseline request accounting, with every arrival and completion notifying the shutdown waiter, sustained 279,259.648 requests per second across eight concurrent workers.
 - Removed arrival notifications and limited completion notifications to the draining state. Two candidate runs sustained 349,744.257 and 360,105.299 requests per second, improving the confirmed result by 28.954 percent while focused in-flight and shutdown-drain checks passed.
 - In-flight guards cloned the complete `Metrics` value even though their drop path updates only three gauges. Replaced that broad clone, which touched every shared metric family's reference count, with one shared in-flight metrics handle. Two candidate runs sustained 3,929,250.582 and 4,643,989.770 requests per second. The confirmed result is 12.896 times the notification-only result and 16.629 times the original baseline, with identical gauge updates.
@@ -87,6 +90,6 @@ Increase Kura's concurrent request throughput and reduce tail latency by removin
 
 ## Next Segment
 
-- Measure request entry and completion notification contention under concurrent load.
-- Remove notifications that cannot advance shutdown draining, then retain a focused drain-race check.
-- Inspect authorization consultation and response admission locks only after request accounting is no longer adding global synchronization.
+- Measure same-hot-artifact manifest-cache hits across concurrent workers.
+- Move required owned-manifest cloning outside the cache lock without changing the public interface.
+- Preserve exact global least-recently-used order and byte-budget eviction.
