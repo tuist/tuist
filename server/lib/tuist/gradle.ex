@@ -254,15 +254,23 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
-  Lists the configuration operations for a Gradle build, ordered by duration.
+  Lists the slowest configuration operations for a Gradle build.
   """
-  def list_configuration_operations(build_id) do
+  def list_configuration_operations(build_id, limit \\ 100) do
     ClickHouseRepo.all(
       from(operation in ConfigurationOperation,
         where: operation.gradle_build_id == ^build_id,
-        order_by: [desc: operation.duration_ms]
+        order_by: [desc: operation.duration_ms],
+        limit: ^limit
       )
     )
+  end
+
+  @doc """
+  Returns whether a Gradle build has configuration operations.
+  """
+  def has_configuration_operations?(build_id) do
+    ClickHouseRepo.exists?(from(operation in ConfigurationOperation, where: operation.gradle_build_id == ^build_id))
   end
 
   @doc """
@@ -276,6 +284,13 @@ defmodule Tuist.Gradle do
         limit: ^limit
       )
     )
+  end
+
+  @doc """
+  Returns whether a Gradle build has artifact transforms.
+  """
+  def has_artifact_transforms?(build_id) do
+    ClickHouseRepo.exists?(from(transform in ArtifactTransform, where: transform.gradle_build_id == ^build_id))
   end
 
   @doc """

@@ -52,9 +52,11 @@ defmodule TuistWeb.GradleBuildLive do
 
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
-    configuration_operations = Gradle.list_configuration_operations(build.id)
-    artifact_transforms = Gradle.list_artifact_transforms(build.id)
     machine_metrics = build.machine_metrics
+
+    has_build_setup_data =
+      build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id) or
+        Gradle.has_artifact_transforms?(build.id)
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
@@ -74,14 +76,6 @@ defmodule TuistWeb.GradleBuildLive do
     from_cache = local_hits + remote_hits
     cacheable = build.cacheable_tasks_count || 0
 
-    configuration_duration_ms =
-      configuration_operations
-      |> Enum.filter(&(&1.phase == "build"))
-      |> Enum.map(& &1.duration_ms)
-      |> Enum.sum()
-
-    configuration_timeline_range = configuration_timeline_range(configuration_operations)
-
     socket
     |> assign(:build, build)
     |> assign(:test_run, test_run)
@@ -97,11 +91,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:confirmed_remote_cache_miss_count, aggregates.confirmed_remote_cache_miss_count)
     |> assign(:confirmed_remote_cache_miss_duration_ms, aggregates.confirmed_remote_cache_miss_duration_ms)
     |> assign(:remote_cache_entries_stored_count, aggregates.remote_cache_entries_stored_count)
-    |> assign(:configuration_operations, configuration_operations)
-    |> assign(:configuration_timeline_range, configuration_timeline_range)
-    |> assign(:configuration_duration_ms, configuration_duration_ms)
-    |> assign(:artifact_transforms, artifact_transforms)
-    |> assign(:artifact_transform_duration_ms, Enum.sum_by(artifact_transforms, & &1.duration_ms))
+    |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
     |> assign(:machine_metrics, machine_metrics)
@@ -259,6 +249,16 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   defp assign_tab_data(socket, "build-setup", params) do
+    build_id = socket.assigns.build.id
+
+    socket =
+      socket
+      |> assign_new(:configuration_operations, fn -> Gradle.list_configuration_operations(build_id) end)
+      |> assign_new(:artifact_transforms, fn -> Gradle.list_artifact_transforms(build_id) end)
+
+    all_configuration_operations = socket.assigns.configuration_operations
+    all_artifact_transforms = socket.assigns.artifact_transforms
+
     configuration_operations_filter = params["configuration-operations-filter"] || ""
     configuration_operations_available_filters = define_configuration_operations_filters()
 
@@ -270,7 +270,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     filtered_operations =
       filter_configuration_operations(
-        socket.assigns.configuration_operations,
+        all_configuration_operations,
         configuration_operations_filter,
         configuration_operations_active_filters
       )
@@ -294,7 +294,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     filtered_artifact_transforms =
       filter_artifact_transforms(
-        socket.assigns.artifact_transforms,
+        all_artifact_transforms,
         artifact_transforms_filter,
         artifact_transforms_active_filters
       )
@@ -309,7 +309,18 @@ defmodule TuistWeb.GradleBuildLive do
     {artifact_transforms, artifact_transforms_page, artifact_transforms_page_count} =
       paginate_rows(sorted_artifact_transforms, params["artifact-transforms-page"])
 
+    configuration_duration_ms =
+      all_configuration_operations
+      |> Enum.filter(&(&1.phase == "build"))
+      |> Enum.map(& &1.duration_ms)
+      |> Enum.sum()
+
+    configuration_timeline_range = configuration_timeline_range(all_configuration_operations)
+
     socket
+    |> assign(:configuration_timeline_range, configuration_timeline_range)
+    |> assign(:configuration_duration_ms, configuration_duration_ms)
+    |> assign(:artifact_transform_duration_ms, Enum.sum_by(all_artifact_transforms, & &1.duration_ms))
     |> assign(
       :configuration_timeline_operations,
       configuration_timeline_operations(filtered_operations, socket.assigns.configuration_timeline_range)

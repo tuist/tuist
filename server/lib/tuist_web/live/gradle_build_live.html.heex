@@ -64,10 +64,7 @@
       patch={"?#{Query.put(@uri.query, "tab", "gradle-cache")}"}
     />
     <.tab_menu_horizontal_item
-      :if={
-        @build.configuration_cache_status != "" or @configuration_operations != [] or
-          @artifact_transforms != []
-      }
+      :if={@has_build_setup_data}
       label={dgettext("dashboard_gradle", "Build Setup")}
       selected={@selected_tab == "build-setup"}
       patch={"?#{Query.put(@uri.query, "tab", "build-setup")}"}

@@ -59,6 +59,29 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert Enum.all?(tasks, fn t -> String.contains?(t.task_path, "compile") end)
   end
 
+  test "lists at most 100 configuration operations", %{project: project} do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        configuration_operations:
+          Enum.map(1..101, fn duration_ms ->
+            %{
+              phase: "project",
+              build_path: ":",
+              project_path: ":app",
+              duration_ms: duration_ms,
+              started_at: @now
+            }
+          end)
+      )
+
+    operations = Gradle.list_configuration_operations(build_id)
+
+    assert length(operations) == 100
+    assert Enum.map(operations, & &1.duration_ms) == Enum.to_list(101..2)
+  end
+
   test "shows build details", %{
     conn: conn,
     organization: organization,
