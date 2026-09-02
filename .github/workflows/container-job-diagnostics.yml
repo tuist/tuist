@@ -12,57 +12,32 @@ permissions:
   contents: read
 
 jobs:
-  host:
+  storage:
     runs-on: tuist-linux
     timeout-minutes: 10
     steps:
-      - name: Runner-side view
+      - name: What backs the work dir today vs the shared emptyDir
         run: |
           set -x
-          id
-          pwd
-          echo "RUNNER_WORKSPACE=$RUNNER_WORKSPACE RUNNER_TEMP=$RUNNER_TEMP RUNNER_TOOL_CACHE=$RUNNER_TOOL_CACHE"
-          ls -la /home/runner/actions-runner/ || true
-          ls -la /home/runner/actions-runner/_work/ || true
-          ls -la /home/runner/actions-runner/externals/ || true
-          grep -E "_work|externals" /proc/mounts || true
-      - uses: actions/checkout@v4
-      - name: Actions cache after checkout
-        run: ls -la /home/runner/actions-runner/_work/_actions/actions/checkout/ || true
-
-  container:
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    container:
-      image: ubuntu:22.04
-    steps:
-      - name: Container-side view before any JS action
-        run: |
-          set -x
-          id
-          pwd
-          echo "RUNNER_WORKSPACE=$RUNNER_WORKSPACE RUNNER_TEMP=$RUNNER_TEMP RUNNER_TOOL_CACHE=$RUNNER_TOOL_CACHE"
-          echo "=== mounts"
           cat /proc/mounts
-          echo "=== / "
-          ls -la /
-          echo "=== /__w"
-          ls -la /__w || true
-          echo "=== /__w/_actions"
-          find /__w/_actions -maxdepth 4 2>/dev/null | head -40 || true
-          echo "=== /__e"
-          ls -la /__e || true
-          echo "=== /__e/node20/bin"
-          ls -la /__e/node20/bin || true
-          echo "=== /__t"
-          ls -la /__t || true
-          echo "=== /__a /__o (legacy names, expected absent)"
-          ls -la /__a /__o 2>&1 | head -5 || true
-      - name: Checkout inside the container
-        uses: actions/checkout@v4
-      - name: Post-checkout view
-        if: always()
+          df -h /home/runner/work /home/runner/actions-runner/_work
+      - name: Sequential write, container layer (today's work dir)
         run: |
-          set -x
-          find /__w/_actions -maxdepth 4 2>/dev/null | head -40 || true
-          ls -la /__w || true
+          mkdir -p /home/runner/work/_bench
+          dd if=/dev/zero of=/home/runner/work/_bench/f bs=1M count=2048 conv=fdatasync 2>&1
+          rm -rf /home/runner/work/_bench
+      - name: Sequential write, shared emptyDir (post-fix work dir)
+        run: |
+          mkdir -p /home/runner/actions-runner/_work/_bench
+          dd if=/dev/zero of=/home/runner/actions-runner/_work/_bench/f bs=1M count=2048 conv=fdatasync 2>&1
+          rm -rf /home/runner/actions-runner/_work/_bench
+      - name: Many small files, container layer
+        run: |
+          mkdir -p /home/runner/work/_bench
+          time sh -c 'for i in $(seq 1 3000); do echo x > /home/runner/work/_bench/$i; done'
+          rm -rf /home/runner/work/_bench
+      - name: Many small files, shared emptyDir
+        run: |
+          mkdir -p /home/runner/actions-runner/_work/_bench
+          time sh -c 'for i in $(seq 1 3000); do echo x > /home/runner/actions-runner/_work/_bench/$i; done'
+          rm -rf /home/runner/actions-runner/_work/_bench
