@@ -1,0 +1,19 @@
+name: Container Job Diagnostics
+on:
+  push:
+    branches:
+      - claude/linux-container-jobs-aace5c
+permissions:
+  contents: read
+jobs:
+  bind:
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    steps:
+      - name: Does docker run -v $PWD resolve on the daemon side
+        run: |
+          set -x
+          pwd
+          mkdir -p "$PWD/bindcheck" && echo hello > "$PWD/bindcheck/marker"
+          ls -la "$PWD/bindcheck"
+          docker run --rm -v "$PWD/bindcheck":/x alpine:3 sh -c 'ls -la /x; cat /x/marker 2>&1 || echo "MARKER NOT VISIBLE IN CONTAINER"'
