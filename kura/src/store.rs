@@ -383,6 +383,43 @@ pub enum ArtifactReader {
     FileRange(SegmentReader),
 }
 
+impl ArtifactReader {
+    pub async fn read_chunk_owned(&mut self, max_bytes: usize) -> std::io::Result<Vec<u8>> {
+        if max_bytes == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "artifact read chunk size must be non-zero",
+            ));
+        }
+        match self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Ok(Vec::new());
+                }
+                let end = offset.saturating_add(max_bytes).min(bytes.len());
+                let chunk = bytes[*offset..end].to_vec();
+                *offset = end;
+                Ok(chunk)
+            }
+            Self::FileRange(reader) => reader.read_chunk_owned(max_bytes).await,
+        }
+    }
+
+    pub fn into_bytes_stream(
+        self,
+        chunk_bytes: usize,
+    ) -> impl futures_util::Stream<Item = std::io::Result<Bytes>> + Send + 'static {
+        futures_util::stream::try_unfold(self, move |mut reader| async move {
+            let bytes = reader.read_chunk_owned(chunk_bytes).await?;
+            if bytes.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some((Bytes::from(bytes), reader)))
+            }
+        })
+    }
+}
+
 #[derive(Clone)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct AcceleratedArtifactFile {

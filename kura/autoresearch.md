@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: interleaved ByteStream candidate speedup over the original copying path (ratio, higher is better)
-- Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
+- Primary: interleaved owned segment-chunk speedup over the asynchronous reader copy path (ratio, higher is better)
+- Secondary: original and candidate throughput, blocking-dispatch cost, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
 
@@ -44,6 +44,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - The generated Google ByteStream `ReadResponse.data` field is a `Vec<u8>` because Prost uses that type for protocol `bytes` fields by default.
 - Converting the yielded `Bytes` with `to_vec` performs a full chunk copy. Filling the final `Vec<u8>` directly can remove that pass without changing the protocol.
 - Linux `sendfile` and `splice` already cover Kura's eligible plaintext artifact downloads. Remote Execution responses still require protocol framing, so the target there is one owned message buffer plus the encoder and transport buffers.
+- Tokio implements ordinary file operations on its blocking pool. Kura's `SegmentReader` likewise performs positional reads there, but currently returns a private vector and then copies it into the caller's asynchronous read buffer. Returning that owned vector directly can remove the copy without changing runtimes.
+- The separate `tokio-uring` runtime accepts owned buffers, but requires a ring-specific runtime and file resources. Measure the remaining blocking-pool dispatch cost after removing Kura's copy before considering that operationally larger change.
 
 ## What's Been Tried
 
@@ -61,3 +63,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Plaintext accelerator audit: one request allocated a 16 kibibyte peek buffer and a second exact-size vector merely to consume those same headers. Keep one fixed-capacity buffer per connection, reuse it across keep-alive peeks and consumption, and move denial headers instead of cloning their map.
 - The connection-buffer change passed the socket-level peek/consume test, full and ranged accelerator tests, and capacity-shedding coverage. The paired ByteStream benchmark remained at 4.969 times the original copy path.
 - Tonic consumes each response vector while encoding it, then yields an owned encoded frame. Hyper can retain up to its configured 512 kibibyte per-stream send buffer while the next frame is encoded. The new peak therefore has three charged owners instead of the old path's four: response vector, encoded frame, and transport buffer. Reduce only ByteStream's admission multiplier from four to three; ordinary file streams retain their existing four-buffer model.
+
+## Next Segment
+
+- Return the vector filled by the positional segment read directly to streaming callers.
+- Use the same owned chunks for ByteStream, ordinary artifact responses, backfill responses, and replication where their interfaces permit it.
+- Benchmark warm positional reads separately from transport so the result exposes both eliminated copy cost and remaining Tokio blocking-pool dispatch overhead.

@@ -33,6 +33,40 @@ impl SegmentReader {
             buffered_offset: 0,
         }
     }
+
+    pub async fn read_chunk_owned(&mut self, max_bytes: usize) -> io::Result<Vec<u8>> {
+        if max_bytes == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "segment read chunk size must be non-zero",
+            ));
+        }
+        if self.pending_read.is_some() || self.buffered.is_some() {
+            return Err(io::Error::other(
+                "owned segment reads cannot follow a pending buffered read",
+            ));
+        }
+        if self.remaining == 0 {
+            return Ok(Vec::new());
+        }
+
+        let len = self
+            .remaining
+            .min(max_bytes as u64)
+            .min(READ_CHUNK_BYTES as u64) as usize;
+        let offset = self.offset;
+        let handle = self.handle.clone();
+        let bytes = tokio::task::spawn_blocking(move || read_chunk(handle, offset, len))
+            .await
+            .map_err(|error| io::Error::other(format!("segment read task failed: {error}")))?
+            .map_err(io::Error::other)?;
+        if bytes.is_empty() {
+            return Err(truncated_segment_error(self.remaining));
+        }
+        self.offset = self.offset.saturating_add(bytes.len() as u64);
+        self.remaining = self.remaining.saturating_sub(bytes.len() as u64);
+        Ok(bytes)
+    }
 }
 
 impl AsyncRead for SegmentReader {
@@ -78,13 +112,7 @@ impl AsyncRead for SegmentReader {
                             // `Store::open_manifest_reader_with_range` normally
                             // 404s these before any bytes are sent; this catches a
                             // file truncated mid-stream.
-                            return Poll::Ready(Err(io::Error::new(
-                                io::ErrorKind::UnexpectedEof,
-                                format!(
-                                    "segment truncated: {} bytes short of the artifact's manifested length",
-                                    self.remaining
-                                ),
-                            )));
+                            return Poll::Ready(Err(truncated_segment_error(self.remaining)));
                         }
                         self.buffered = Some(bytes);
                         self.buffered_offset = 0;
@@ -107,15 +135,25 @@ impl AsyncRead for SegmentReader {
             let offset = self.offset;
             let handle = self.handle.clone();
             self.pending_read = Some(tokio::task::spawn_blocking(move || {
-                let mut bytes = vec![0; len];
-                let read = read_at(handle.as_std(), &mut bytes, offset).map_err(|error| {
-                    format!("failed to read segment at offset {offset}: {error}")
-                })?;
-                bytes.truncate(read);
-                Ok(bytes)
+                read_chunk(handle, offset, len)
             }));
         }
     }
+}
+
+fn read_chunk(handle: Arc<PersistentFile>, offset: u64, len: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = vec![0; len];
+    let read = read_at(handle.as_std(), &mut bytes, offset)
+        .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
+    bytes.truncate(read);
+    Ok(bytes)
+}
+
+fn truncated_segment_error(remaining: u64) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::UnexpectedEof,
+        format!("segment truncated: {remaining} bytes short of the artifact's manifested length"),
+    )
 }
 
 #[cfg(unix)]

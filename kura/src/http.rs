@@ -67,9 +67,10 @@ use crate::{
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
+const ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
 #[cfg(test)]
 const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
-    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * 4;
+    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -2537,7 +2538,7 @@ async fn internal_backfill_artifact(
     };
 
     let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
-    let requested_bytes = stream_chunk_bytes.saturating_mul(4);
+    let requested_bytes = stream_chunk_bytes.saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT);
     let permit = match state
         .memory
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
@@ -2574,7 +2575,7 @@ async fn internal_backfill_artifact(
             let stream = futures_util::stream::once(async move {
                 Ok::<Bytes, std::io::Error>(Bytes::from(header))
             })
-            .chain(ReaderStream::with_capacity(reader, stream_chunk_bytes));
+            .chain(reader.into_bytes_stream(stream_chunk_bytes));
             let stream = throttle_body_stream(stream, state.replication_bandwidth_limiter.clone());
             let mut response = Response::new(Body::from_stream(stream));
             response.headers_mut().insert(
@@ -3770,7 +3771,7 @@ async fn serve_file_reader(
     let inline_bytes = if manifest.inline { range.length } else { 0 };
     let stream_chunk_bytes = response_stream_chunk_bytes(range.length);
     let requested_bytes = usize::try_from(
-        u64::try_from(stream_chunk_bytes.saturating_mul(4))
+        u64::try_from(stream_chunk_bytes.saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT))
             .unwrap_or(u64::MAX)
             .saturating_add(inline_bytes),
     )
@@ -3790,9 +3791,12 @@ async fn serve_file_reader(
         Ok(permit) => (permit, stream_chunk_bytes),
         Err(_) => {
             let degraded_bytes = usize::try_from(
-                u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
-                    .unwrap_or(u64::MAX)
-                    .saturating_add(inline_bytes),
+                u64::try_from(
+                    RESPONSE_STREAM_MIN_CHUNK_BYTES
+                        .saturating_mul(ARTIFACT_RESPONSE_LIVE_BUFFER_COUNT),
+                )
+                .unwrap_or(u64::MAX)
+                .saturating_add(inline_bytes),
             )
             .unwrap_or(usize::MAX);
             match state
@@ -3827,7 +3831,7 @@ async fn serve_file_reader(
     match open_result {
         Ok(Some((manifest, reader))) => {
             open_span.record("kura.store.result", "ok");
-            let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
+            let stream = reader.into_bytes_stream(stream_chunk_bytes);
             let status = artifact_response_status(range);
             let stream = instrument_artifact_stream(
                 state,
@@ -6746,7 +6750,7 @@ mod tests {
         assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
 
         // Leave no transient headroom at all, so both the weighted pool and the
-        // ledger refuse the full four-buffer reservation.
+        // ledger refuse the full three-buffer reservation.
         context
             .state
             .memory

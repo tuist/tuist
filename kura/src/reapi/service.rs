@@ -45,7 +45,7 @@ use crate::{
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
-    store::{RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
+    store::{ArtifactReader, RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
@@ -1871,7 +1871,25 @@ impl ByteStream for ReapiService {
     }
 }
 
-fn bytestream_read_response_stream<R>(
+fn bytestream_read_response_stream(
+    reader: ArtifactReader,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let data = reader
+            .read_chunk_owned(chunk_bytes)
+            .await
+            .map_err(|error| Status::internal(format!("failed to stream blob chunk: {error}")))?;
+        if data.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some((bytestream::ReadResponse { data }, reader)))
+        }
+    })
+}
+
+#[cfg(test)]
+fn direct_bytestream_read_response_stream<R>(
     reader: R,
     chunk_bytes: usize,
 ) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
@@ -2677,9 +2695,10 @@ mod tests {
 
     #[tokio::test]
     async fn bytestream_read_response_stream_preserves_bytes_and_chunk_bound() {
-        use tokio::io::AsyncReadExt as _;
-
-        let reader = tokio::io::repeat(0x5a).take(10_001);
+        let reader = ArtifactReader::Inline {
+            bytes: bytes::Bytes::from(vec![0x5a; 10_001]),
+            offset: 0,
+        };
         let responses = bytestream_read_response_stream(reader, 1_024)
             .collect::<Vec<_>>()
             .await;
@@ -2690,6 +2709,49 @@ mod tests {
             .flat_map(|response| response.expect("stream response").data)
             .collect::<Vec<_>>();
         assert_eq!(data, vec![0x5a; 10_001]);
+    }
+
+    #[tokio::test]
+    async fn segment_reader_owned_chunks_preserve_file_range_and_chunk_bound() {
+        let context = test_context(|_| {}).await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-test");
+        let contents = (0..10_001)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::write(&path, &contents).expect("write segment reader fixture");
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open segment reader fixture"),
+        );
+        let offset = 17_usize;
+        let length = 9_001_usize;
+        let reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+            handle,
+            offset as u64,
+            length as u64,
+        ));
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert!(
+            responses
+                .iter()
+                .all(|response| response.as_ref().expect("stream response").data.len() <= 1_024)
+        );
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, contents[offset..offset + length]);
     }
 
     #[tokio::test]
@@ -2730,7 +2792,7 @@ mod tests {
             destination: destination.clone(),
             remaining: 1_024,
         };
-        let stream = bytestream_read_response_stream(reader, 1_024);
+        let stream = direct_bytestream_read_response_stream(reader, 1_024);
         tokio::pin!(stream);
         let response = stream
             .next()
@@ -2777,7 +2839,7 @@ mod tests {
                 tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
                 CHUNK_BYTES,
             );
-            let candidate = bytestream_read_response_stream(
+            let candidate = direct_bytestream_read_response_stream(
                 tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
                 CHUNK_BYTES,
             );
@@ -2800,6 +2862,95 @@ mod tests {
         candidate_throughputs.sort_by(f64::total_cmp);
         println!(
             "METRIC bytestream_read_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn segment_reader_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+        let reader = || {
+            ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = direct_bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let candidate = bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_reader_owned_speedup_ratio={:.6}",
             speedups[speedups.len() / 2]
         );
         println!(
