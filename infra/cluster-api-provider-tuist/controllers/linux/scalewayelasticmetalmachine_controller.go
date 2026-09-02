@@ -216,12 +216,17 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		// so a restart re-finds the box via GetServer instead of double-claiming,
 		// and a deploy/rollout never blocks on procurement.
 		var server *baremetal.Server
+		// The claim state is read uncached, so Status.ServerID here is what the API
+		// server holds rather than what the informer cache has caught up to.
+		claims, claimErr := r.claimedServerIDs(ctx, machine)
+		if claimErr != nil {
+			return ctrl.Result{}, claimErr
+		}
+		if machine.Status.ServerID == "" && claims.self != "" {
+			machine.Status.ServerID = claims.self
+		}
 		if machine.Status.ServerID == "" {
-			claimed, claimErr := r.claimedServerIDs(ctx, machine)
-			if claimErr != nil {
-				return ctrl.Result{}, claimErr
-			}
-			adopted, adoptErr := r.ScalewayClient.FindAdoptableServer(ctx, zone, machine.Spec.AdoptNamePrefix, claimed)
+			adopted, adoptErr := r.ScalewayClient.FindAdoptableServer(ctx, zone, machine.Spec.AdoptNamePrefix, claims.claimed)
 			if adoptErr != nil {
 				return ctrl.Result{}, adoptErr
 			}
@@ -244,6 +249,16 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			// takes the else branch (GetServer) from the durable claim.
 			return ctrl.Result{RequeueAfter: time.Second}, nil
 		} else {
+			// Confirm the claim is exclusive before the bootstrap that self-joins
+			// the box, so two Machines never register one host under two node names.
+			if holder := claims.holders[machine.Status.ServerID]; holder != nil && yieldsDuplicateClaim(machine, holder) {
+				r.event(machine, "ClaimYielded", "Yielding Elastic Metal server %s to %s; re-adopting", machine.Status.ServerID, holder.Name)
+				logger.Info("yielding duplicate Elastic Metal claim", "id", machine.Status.ServerID, "to", holder.Name)
+				machine.Status.ServerID = ""
+				machine.Status.Addresses = nil
+				machine.Status.Phase = "Adopting"
+				return ctrl.Result{RequeueAfter: time.Second}, nil
+			}
 			got, getErr := r.ScalewayClient.GetServer(ctx, zone, machine.Status.ServerID)
 			if getErr != nil {
 				return ctrl.Result{}, getErr
@@ -464,26 +479,49 @@ func (r *ScalewayElasticMetalMachineReconciler) resolvePrivateNetwork(ctx contex
 	return r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZone(zone), machine.Spec.PrivateNetworkName, machine.Spec.PrivateNetworkCIDR)
 }
 
-// claimedServerIDs is the set of Elastic Metal server IDs already held by other
-// ScalewayElasticMetalMachines in the namespace, so adoption never double-claims
-// a pre-ordered box. Claim state lives in the CR status (not Scaleway-side),
-// matching the OVH kind.
-func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.ScalewayElasticMetalMachine) (map[string]bool, error) {
-	list := &infrav1.ScalewayElasticMetalMachineList{}
-	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
-		return nil, fmt.Errorf("list ScalewayElasticMetalMachines: %w", err)
+// reader is the uncached client for claim reads. The manager's client serves
+// reads from the informer cache, which trails a status write by enough to matter
+// here: sibling adoptions land seconds apart, so a cached list can report a box
+// as free after another Machine has already persisted its claim on it.
+func (r *ScalewayElasticMetalMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
 	}
-	claimed := make(map[string]bool, len(list.Items))
+	return r.Client
+}
+
+// elasticMetalClaimState is one uncached read of the namespace's claims: the
+// server this Machine has already persisted, and the set held by every other.
+type elasticMetalClaimState struct {
+	self    string
+	claimed map[string]bool
+	holders map[string]*infrav1.ScalewayElasticMetalMachine
+}
+
+// claimedServerIDs reads the Elastic Metal server IDs held across the namespace,
+// so adoption never double-claims a pre-ordered box. Claim state lives in the CR
+// status (not Scaleway-side), matching the OVH kind.
+func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.ScalewayElasticMetalMachine) (elasticMetalClaimState, error) {
+	list := &infrav1.ScalewayElasticMetalMachineList{}
+	if err := r.reader().List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+		return elasticMetalClaimState{}, fmt.Errorf("list ScalewayElasticMetalMachines: %w", err)
+	}
+	state := elasticMetalClaimState{
+		claimed: make(map[string]bool, len(list.Items)),
+		holders: make(map[string]*infrav1.ScalewayElasticMetalMachine, len(list.Items)),
+	}
 	for i := range list.Items {
 		m := &list.Items[i]
 		if m.UID == self.UID {
+			state.self = m.Status.ServerID
 			continue
 		}
 		if m.Status.ServerID != "" {
-			claimed[m.Status.ServerID] = true
+			state.claimed[m.Status.ServerID] = true
+			state.holders[m.Status.ServerID] = m
 		}
 	}
-	return claimed, nil
+	return state, nil
 }
 
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {

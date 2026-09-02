@@ -1005,6 +1005,45 @@ which the self-join refuses to join around). Do NOT `kubectl delete machine` to
 force a re-bootstrap: it wipes the box, and for a cache node it destroys the
 local state. Fix what the condition names and let the repair land.
 
+### Two Machines on one box
+
+A fleet parks at `Ready=False`/`WaitingForAvailableMachines` with one replica
+short, and the box's Machines carry `Failed to retrieve Node by ProviderID:
+unexpectedly found more than one Node matching the providerID`. List the
+providerIDs and look for the repeat:
+
+```bash
+kubectl -n tuist get machines -o json | jq -r '.items[] | [.spec.providerID, .metadata.name] | @tsv' | sort | uniq -D -w 60
+```
+
+The Machine that owns the box is the one whose Node exists and is heartbeating;
+the other's `status.nodeRef` points at a Node that is already gone. Check before
+touching either:
+
+```bash
+kubectl get node <machine-name> -o jsonpath='{.metadata.labels.kubernetes\.io/hostname} {.status.addresses}{"\n"}'
+```
+
+Clear the loser's claim BEFORE deleting it. `reconcileDelete` reinstalls
+`status.serviceName`, and the loser's still names the live box, so deleting it
+first wipes a running host:
+
+```bash
+kubectl -n tuist patch ovhdedicatedmachine <loser> --subresource=status --type=merge -p '{"status":{"serviceName":""}}'
+kubectl -n tuist annotate machine <loser> cluster.x-k8s.io/delete-machine=""
+```
+
+Then bring the MachineDeployment back to the number of boxes actually prepped
+for the env. A replica with no box to adopt parks on `NoAdoptableServer` and
+wedges the deploy exactly the same way, so scaling up to "replace" the loser
+only helps if a prepped box is free. `kubectl scale` takes `spec.replicas` away
+from Helm's field manager for good; put the chart's value back and check the
+values file still matches:
+
+```bash
+kubectl -n tuist get machinedeployment <fleet> --show-managed-fields -o json | jq -r '.metadata.managedFields[] | "\(.manager) replicas=\((.fieldsV1["f:spec"]["f:replicas"] // null) != null)"'
+```
+
 ### Make `kubectl logs`/`exec` work on a fleet node
 
 The apiserver dials the kubelet at the node's InternalIP:10250. When

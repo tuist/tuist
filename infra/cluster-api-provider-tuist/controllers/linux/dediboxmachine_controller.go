@@ -154,16 +154,21 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 
 		// Adopt: claim a free pre-ordered box in this project not already held by
 		// a sibling CR.
+		// The claim state is read uncached, so Status.ServerID here is what the API
+		// server holds rather than what the informer cache has caught up to.
+		claims, claimErr := r.claimedServerIDs(ctx, machine)
+		if claimErr != nil {
+			return ctrl.Result{}, claimErr
+		}
+		if machine.Status.ServerID == 0 && claims.self != 0 {
+			machine.Status.ServerID = int(claims.self)
+		}
 		if machine.Status.ServerID == 0 {
-			claimed, claimErr := r.claimedServerIDs(ctx, machine)
-			if claimErr != nil {
-				return ctrl.Result{}, claimErr
-			}
 			server, adoptErr := r.DediboxClient.FindAdoptableServer(ctx, dedibox.AdoptParams{
 				Tag:        machine.Spec.AdoptTag,
 				Datacenter: datacenter,
 				Offer:      machine.Spec.Offer,
-			}, claimed)
+			}, claims.claimed)
 			if adoptErr != nil {
 				return ctrl.Result{}, adoptErr
 			}
@@ -186,6 +191,18 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			// in-memory claim and let a sibling Machine adopt the same box. Requeue
 			// so the deferred patch flushes Status.ServerID now; the next reconcile
 			// resumes from the durable claim (re-fetching the box via GetServer).
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
+
+		// Confirm the claim is exclusive before the bootstrap that self-joins the
+		// box, so two Machines never register one host under two node names.
+		if holder := claims.holders[uint64(machine.Status.ServerID)]; holder != nil && yieldsDuplicateClaim(machine, holder) {
+			r.event(machine, "ClaimYielded", "Yielding Dedibox server %d to %s; re-adopting", machine.Status.ServerID, holder.Name)
+			logger.Info("yielding duplicate Dedibox claim", "id", machine.Status.ServerID, "to", holder.Name)
+			machine.Status.ServerID = 0
+			machine.Status.Zone = ""
+			machine.Status.Addresses = nil
+			machine.Status.Phase = "Adopting"
 			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 
@@ -341,24 +358,48 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 }
 
-// claimedServerIDs is the set of online.net server IDs already held by other
-// DediboxMachines in the namespace, so adoption never double-claims a box.
-func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.DediboxMachine) (map[uint64]bool, error) {
-	list := &infrav1.DediboxMachineList{}
-	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
-		return nil, fmt.Errorf("list DediboxMachines: %w", err)
+// reader is the uncached client for claim reads. The manager's client serves
+// reads from the informer cache, which trails a status write by enough to matter
+// here: sibling adoptions land seconds apart, so a cached list can report a box
+// as free after another Machine has already persisted its claim on it.
+func (r *DediboxMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
 	}
-	claimed := make(map[uint64]bool, len(list.Items))
+	return r.Client
+}
+
+// dediboxClaimState is one uncached read of the namespace's claims: the server
+// this Machine has already persisted, and the set held by every other Machine.
+type dediboxClaimState struct {
+	self    uint64
+	claimed map[uint64]bool
+	holders map[uint64]*infrav1.DediboxMachine
+}
+
+// claimedServerIDs reads the online.net server IDs held across the namespace, so
+// adoption never double-claims a box.
+func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.DediboxMachine) (dediboxClaimState, error) {
+	list := &infrav1.DediboxMachineList{}
+	if err := r.reader().List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+		return dediboxClaimState{}, fmt.Errorf("list DediboxMachines: %w", err)
+	}
+	state := dediboxClaimState{
+		claimed: make(map[uint64]bool, len(list.Items)),
+		holders: make(map[uint64]*infrav1.DediboxMachine, len(list.Items)),
+	}
 	for i := range list.Items {
 		m := &list.Items[i]
 		if m.UID == self.UID {
+			state.self = uint64(m.Status.ServerID)
 			continue
 		}
 		if m.Status.ServerID != 0 {
-			claimed[uint64(m.Status.ServerID)] = true
+			state.claimed[uint64(m.Status.ServerID)] = true
+			state.holders[uint64(m.Status.ServerID)] = m
 		}
 	}
-	return claimed, nil
+	return state, nil
 }
 
 // reconcileDelete returns the Machine's box to the pool. The Dedibox is a monthly

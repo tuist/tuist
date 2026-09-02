@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -165,16 +166,21 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		// Adopt: claim a free pre-ordered box not already held by a sibling CR.
+		// The claim state is read uncached, so Status.ServiceName here is what the
+		// API server holds rather than what the informer cache has caught up to.
+		claims, claimErr := r.claimedServiceNames(ctx, machine)
+		if claimErr != nil {
+			return ctrl.Result{}, claimErr
+		}
+		if machine.Status.ServiceName == "" && claims.self != "" {
+			machine.Status.ServiceName = claims.self
+		}
 		if machine.Status.ServiceName == "" {
-			claimed, claimErr := r.claimedServiceNames(ctx, machine)
-			if claimErr != nil {
-				return ctrl.Result{}, claimErr
-			}
 			server, adoptErr := r.OVHClient.FindAdoptableServer(ctx, ovh.AdoptParams{
 				Datacenter:        datacenter,
 				Offer:             machine.Spec.Offer,
 				DisplayNamePrefix: machine.Spec.AdoptDisplayNamePrefix,
-			}, claimed)
+			}, claims.claimed)
 			if adoptErr != nil {
 				return ctrl.Result{}, adoptErr
 			}
@@ -197,6 +203,21 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			// Machine adopt the same box. Requeue so the deferred patch flushes
 			// Status.ServiceName now; the next reconcile resumes from the durable
 			// claim (re-fetching the box via GetServer).
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
+
+		// Confirm the claim is exclusive before the bootstrap that self-joins the
+		// box. Two Machines that reached this point on the same box would each
+		// register it under their own node name, and the second join kills the
+		// first kubelet: one live host, two Nodes, one providerID, and CAPI stops
+		// resolving a nodeRef for either. The MachineDeployment then never reaches
+		// Ready and wedges the `helm --wait` the production deploy runs under.
+		if holder := claims.holders[machine.Status.ServiceName]; holder != nil && yieldsDuplicateClaim(machine, holder) {
+			r.event(machine, "ClaimYielded", "Yielding OVH server %s to %s; re-adopting", machine.Status.ServiceName, holder.Name)
+			logger.Info("yielding duplicate OVH claim", "service", machine.Status.ServiceName, "to", holder.Name)
+			machine.Status.ServiceName = ""
+			machine.Status.Addresses = nil
+			machine.Status.Phase = "Adopting"
 			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 
@@ -360,27 +381,68 @@ func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicate
 	}
 }
 
-// claimedServiceNames is the set of OVH service names already held by other
-// OVHDedicatedMachines in the namespace, so adoption never double-claims a box.
-// Claim state lives in the CR status rather than OVH-side because the cluster
-// is the durable record and OVH dedicated servers carry no operator-writable
-// claim marker the way Scaleway names do.
-func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context, self *infrav1.OVHDedicatedMachine) (map[string]bool, error) {
-	list := &infrav1.OVHDedicatedMachineList{}
-	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
-		return nil, fmt.Errorf("list OVHDedicatedMachines: %w", err)
+// reader is the uncached client for claim reads. The manager's client serves
+// reads from the informer cache, which trails a status write by enough to matter
+// here: sibling adoptions land seconds apart, so a cached list can report a box
+// as free after another Machine has already persisted its claim on it.
+func (r *OVHDedicatedMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
 	}
-	claimed := make(map[string]bool, len(list.Items))
+	return r.Client
+}
+
+// claimState is one uncached read of the namespace's claims: the service name
+// this Machine has already persisted, and the set held by every other Machine.
+// Both halves must bypass the cache. A stale sibling set double-claims a box; a
+// stale self value re-enters adoption for a box this Machine already holds.
+type claimState struct {
+	self    string
+	claimed map[string]bool
+	holders map[string]*infrav1.OVHDedicatedMachine
+}
+
+// claimedServiceNames reads the OVH service names held across the namespace, so
+// adoption never double-claims a box. Claim state lives in the CR status rather
+// than OVH-side because the cluster is the durable record and OVH dedicated
+// servers carry no operator-writable claim marker the way Scaleway names do.
+func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context, self *infrav1.OVHDedicatedMachine) (claimState, error) {
+	list := &infrav1.OVHDedicatedMachineList{}
+	if err := r.reader().List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+		return claimState{}, fmt.Errorf("list OVHDedicatedMachines: %w", err)
+	}
+	state := claimState{
+		claimed: make(map[string]bool, len(list.Items)),
+		holders: make(map[string]*infrav1.OVHDedicatedMachine, len(list.Items)),
+	}
 	for i := range list.Items {
 		m := &list.Items[i]
 		if m.UID == self.UID {
+			state.self = m.Status.ServiceName
 			continue
 		}
 		if m.Status.ServiceName != "" {
-			claimed[m.Status.ServiceName] = true
+			state.claimed[m.Status.ServiceName] = true
+			state.holders[m.Status.ServiceName] = m
 		}
 	}
-	return claimed, nil
+	return state, nil
+}
+
+// yieldsDuplicateClaim reports whether this Machine must drop a claim another
+// Machine also holds. Uncached reads close the window that produced the observed
+// double-claim, but they cannot make read-then-write atomic, so the claim is
+// confirmed once more on the reconcile that resumes from it -- before the
+// bootstrap that would join one box into the cluster twice. The tie-break is the
+// same on both sides so exactly one yields: oldest creationTimestamp wins, UID
+// breaks a same-timestamp tie. Only the loser's in-memory ServiceName is
+// cleared; it never bootstrapped the box, so there is nothing to reinstall.
+func yieldsDuplicateClaim(self metav1.Object, other metav1.Object) bool {
+	selfCreated, otherCreated := self.GetCreationTimestamp(), other.GetCreationTimestamp()
+	if !selfCreated.Equal(&otherCreated) {
+		return otherCreated.Before(&selfCreated)
+	}
+	return string(self.GetUID()) > string(other.GetUID())
 }
 
 // reconcileDelete returns the Machine's box to the pool. An OVH dedicated server
