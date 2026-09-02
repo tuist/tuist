@@ -52,6 +52,10 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
+// ByteStream downloads can keep the response vector, Tonic's encoded frame,
+// and the HTTP/2 send buffer live at the same time. The reader now fills the
+// response vector directly, so there is no fourth intermediate reader buffer.
+const BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -1737,9 +1741,11 @@ impl ByteStream for ReapiService {
         let inline_bytes = if manifest.inline { manifest.size } else { 0 };
         let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
         let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
-        let requested_bytes = u64::try_from(encoded_chunk_bytes.saturating_mul(4))
-            .unwrap_or(u64::MAX)
-            .saturating_add(inline_bytes);
+        let requested_bytes = u64::try_from(
+            encoded_chunk_bytes.saturating_mul(BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT),
+        )
+        .unwrap_or(u64::MAX)
+        .saturating_add(inline_bytes);
         let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
             Status::resource_exhausted("blob stream memory requirement is too large")
         })?;
@@ -5036,7 +5042,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
         let hash = hex::encode(Sha256::digest(&blob));
-        context
+        let manifest = context
             .state
             .store
             .persist_artifact_from_bytes(
@@ -5048,6 +5054,7 @@ mod tests {
             )
             .await
             .expect("CAS blob should persist");
+        assert!(!manifest.inline);
 
         let mut response = routes(context.state.clone())
             .oneshot(grpc_request(
@@ -5062,7 +5069,12 @@ mod tests {
             .expect("ByteStream route should respond");
         assert_eq!(response.status(), http::StatusCode::OK);
         let reserved_bytes = context.state.memory.transient_reserved_bytes();
-        assert!(reserved_bytes > 0);
+        assert_eq!(
+            reserved_bytes,
+            encoded_response_stream_chunk_bytes(blob.len() as u64)
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT) as u64,
+            "ByteStream admission should charge only its three remaining live buffers"
+        );
 
         let frame = response
             .body_mut()
