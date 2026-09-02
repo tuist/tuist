@@ -487,6 +487,23 @@ struct SetupCacheCommandService {
         // turn them on for a proxy running under launchd.
         if let logPath = Environment.current.variables["TUIST_CAS_LOG"] {
             environmentVariables["TUIST_CAS_LOG"] = logPath
+        } else if Environment.current.isCI {
+            // The counters that tell the CAS failure shapes apart are written ONLY
+            // to this file, so a variable nobody knew to set is off during every
+            // incident that needs it. What makes defaulting it acceptable is that
+            // the plugin bounds the file, truncating it in place past a cap.
+            //
+            // Only the PROXY's half is defaulted here. The plugin resolves the same
+            // path itself (`default_log_path`), which is what covers the compiler
+            // frontends however `xcodebuild` was invoked, including workflows that
+            // generate and then drive `xcodebuild` or Fastlane directly. The proxy
+            // cannot do the same because launchd hands it no CI markers to key on.
+            //
+            // CI only, and deliberately not on developer machines: the proxy there
+            // is a long-lived LaunchAgent, so even a bounded file is state we would
+            // create on every `tuist setup cache` for a reader who never asked for
+            // it. A CI machine is ephemeral and the job bounds it.
+            environmentVariables["TUIST_CAS_LOG"] = Environment.current.casLogPath().pathString
         }
         // Trunk ingestion pays for itself only where the machine can warm the CAS
         // BEFORE a build: it pulls the trunk closure in the background so the next

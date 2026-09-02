@@ -95,6 +95,10 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         "$HOME/cas-proxy.sock"
     }
 
+    public func casLogPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas.log")
+    }
+
     public func homeRelativePathString(_ path: AbsolutePath) -> String {
         guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
         let relativePath = path.relative(to: homeDirectory).pathString
