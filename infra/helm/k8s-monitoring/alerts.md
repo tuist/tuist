@@ -785,7 +785,7 @@ absent_over_time(up{cluster="tuist-canary", job="kura"}[15m])
 The paired telemetry rule for every Kura rule that reads a metric off the
 `kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
 `kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
-`kura_memory_pressure_state`, `kura_container_memory_*` and the
+`kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_container_memory_*` and the
 `kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
 configuration that stopped discovering the `kura` namespace altogether. The
@@ -1930,37 +1930,48 @@ in the fleet came close.
 ### Kura shedding cache writes by kind
 
 ```promql
-sum by (cluster, region, pod, kind) (
-  sum by (cluster, pod, kind) (rate(kura_capacity_sheds_total_total{kind!="response_stream"}[5m]))
+max by (cluster, region, pod, kind) (
+  (
+    increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
+    or
+    label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")
+  )
   * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
-- Threshold: `> 1` shed/s, as a separate threshold expression on `A`
-- Pending period: 10 minutes
+- Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
+  value is the number of writes refused in the last 15 minutes
+- Pending period: the same as the live outbox rule it replaces
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
   **Kura shedding cache writes from the replication outbox** (see **Retired
   rules**); preview it against the last 7 days for `kind="outbox"` and confirm
-  it matches before deleting that rule.
-- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} is shedding
-  {{ $values.A.Value | printf "%.1f" }} writes/s at the {{ $labels.kind }}
-  limit ({{ $labels.cluster }})`
-- Description: `The pod is refusing uploads at the named limit at more than one
-  per second for 10 minutes. Uploads are never retried by the client, so every
-  shed is an artifact lost and a future cache miss. outbox: the replication
-  outbox is at its cap, read kura_outbox_messages. upload_memory,
-  memory_pressure_write, reapi_write_decode, reapi_materialization: the
-  transient memory budget derived from the pod's ceiling is exhausted, the
-  lever is the account's memory profile. tmp_staging, multipart_storage,
-  multipart_uploads: staging disk or the fixed 128-upload cap; an orphaned
-  backlog can survive a restart for up to a day.`
+  it fires on the same samples before deleting that rule.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
+  least {{ $values.A.Value | printf "%.0f" }} cache writes at the
+  {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
+- Description: `The pod refused uploads at the named limit. On the HTTP path
+  every one is an artifact lost, not a slowdown: the cache client only retries
+  GET, so a refused upload becomes a future cache miss and no build fails. On
+  the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
+  which clients retry, so read a REAPI-heavy pod as sustained backpressure.
+  outbox: the replication outbox is at its cap, read kura_outbox_messages
+  (exactly 100000 is pinned); peers being unreachable is NOT the usual cause,
+  check kura_peer_connection_failures_total and
+  kura_replication_bandwidth_effective_limit_bytes_per_second first.
+  upload_memory, memory_pressure_write, reapi_write_decode,
+  reapi_materialization: the transient memory budget derived from the pod's
+  ceiling is exhausted, the lever is the account's memory profile.
+  tmp_staging, multipart_storage, multipart_uploads: staging disk or the fixed
+  128-upload cap; an orphaned backlog can survive a restart for up to a day.`
 
-Sibling to the read shed above, in a deliberately different shape: an absolute
-rate rather than a ratio, and one rule keyed on `kind` for every write-shed
-limit instead of one rule per limit.
+Sibling to the read shed above, in a deliberately different shape: a count
+rather than a ratio, and one rule keyed on `kind` for every write-shed limit
+instead of one rule per limit. The `outbox` kind is the retired rule, query,
+threshold and `or` term unchanged; the other kinds ride along at the same bar.
 
 #### Why a write shed is worse than a read shed
 
@@ -1972,13 +1983,34 @@ was dropped and becomes a future cache miss. No build fails, nobody notices,
 and the tenant quietly gets a worse hit rate, which is the whole reason the
 rule needs to exist.
 
-#### Why an absolute rate and not a ratio
+#### Why a count and not a rate, and not a ratio
 
-There is no usable denominator. `kura_http_requests_total` has no method label,
-and the routes serving both reads and writes cannot be split by route either,
-so "writes attempted" is not expressible. That is survivable here precisely
-because each shed is a discrete loss: the raw count already means something,
-where the read-shed ratio on its own would not.
+One shed is already a refused customer write, which is why the threshold is
+`> 0` on a 15-minute count rather than a rate. The earlier form of the outbox
+rule, `rate(...[5m]) > 1` for 10 minutes, needed roughly 600 dropped
+artifacts before saying anything, and stayed Normal on 2026-08-31 while one
+pod dropped 30 artifacts in a burst that peaked inside a single 5-minute
+window. A ratio is not available either: `kura_http_requests_total` has no
+method label, and the routes serving both reads and writes cannot be split by
+route, so "writes attempted" is not expressible. A discrete loss makes the raw
+count meaningful on its own.
+
+#### Why the query has an `or`
+
+Until the 2026-08-31 fix the gRPC outbox gate recorded only
+`kura_memory_actions_total{action="grpc_write_rejected_outbox"}` and never
+touched the shed counter, as did the three REAPI persistence sites. That gap
+hid a very large number of remote-execution rejections on one pod (seven
+figures in 7 days) against a few dozen HTTP-path rejections in a day. The
+second term keeps the rule honest on pods still running an image from before
+that fix; it is safe to drop once the fix is fleet-wide. `max`, not `sum`, so
+the two terms do not double count once both are recorded, and `label_replace`
+files the fallback under the `outbox` kind so it lands on the same row.
+
+The shed counter legitimately exceeds the gate's own rejection count: a write
+admitted at the gate still loses when the remaining room is smaller than the
+target count or another write wins the race, and each persistence path
+records that shed itself.
 
 #### One rule keyed on kind
 
@@ -1987,80 +2019,43 @@ one series per limit and every value a constant in `metrics::shed_kind`, so
 the label cannot grow with traffic. Grouping by it costs nothing and names the
 limit in the summary, which is what the on-call needs to pick the lever:
 
-- `outbox`: the replication outbox reached its 100,000 cap. Read
-  `kura_outbox_messages` for that pod; a pod sitting at exactly 100000 is
-  pinned against it. Do not assume the peers are unreachable: in the
-  2026-08-28 episode this kind was written from, both
+- `outbox`: the replication outbox reached its 100,000 cap. The drain is
+  serial and node-wide (one message per peer round-trip, on the order of tens
+  of messages per second), so a backlog is normally ingest outrunning it, not
+  peers being unreachable: in the 2026-08-28 episode both
   `kura_peer_connection_failures_total` and
   `kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
-  and bandwidth sat at its configured ceiling almost the whole time; the
-  backlog was ingest outrunning replication drain. It is also a rollout
-  signal: `Tuist.Kura.Rollouts.gate_checks/2` compares each canary's
-  `outboxMessages` against `baseline + 10%`, so the pod firing this is very
-  likely the one holding a runtime rollout in wave 0.
+  and bandwidth sat at its configured ceiling almost the whole time. It is
+  also a rollout signal: `Tuist.Kura.Rollouts.gate_checks/2` compares each
+  canary's `outboxMessages` against `baseline + 10%`, so the pod firing this
+  is very likely the one holding a runtime rollout in wave 0.
 - `upload_memory`, `memory_pressure_write`: the transient memory budget, which
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
 - `reapi_write_decode`, `reapi_materialization`: the same budget on the
   remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
-  Bazel retries, so this counter is the only place they show. Sustained
-  `reapi_write_decode` on a node whose builds still finish is backpressure from
-  a small floor, not a fault.
+  Bazel retries, so this counter is the only place they show, and a
+  REAPI-heavy pod firing on them continuously is backpressure from a small
+  floor rather than loss. If that proves to be steady state on an instance,
+  raise the floor or move those two kinds to a rate-based tier; do not raise
+  the bar for the HTTP kinds, which are loss.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
   the fixed 128-upload cap every instance runs regardless of size. An orphaned
   backlog can outlive the restart that caused it for up to a day, so a fresh
-  pod firing this is not clean (see **Kura cache read faults**).
+  pod firing this is not clean (see **Kura cache read faults**). One
+  production pod carries a standing trickle of `multipart_uploads` sheds
+  today, so this kind fires on creation; a pod resting at non-zero
+  `kura_multipart_uploads` while the fleet sits at 0 is leaking uploads toward
+  the cap, and that is a finding, not noise.
 
-A per-kind threshold is a later refinement, not a reason to split the rule.
-
-#### Threshold
-
-Same bar as the retired outbox rule, and the same backtest: over the 7 days to
-2026-08-31, samples above 1/s for the `outbox` kind belonged to a single pod,
-in contiguous runs comfortably longer than the 10m `for`, during one real
-incident; two other pods carried genuine but trickle-level outbox sheds
-(orders of magnitude below the bar across the whole week) and nothing else in
-the fleet was non-zero. In the 7 days to 2026-09-02 the only other kind with
-any sheds in production is `multipart_uploads`, well under 0.1/s averaged, so
-the rule is silent on creation.
-
-#### Not covered
-
-A trickle: a pod losing a third of an artifact per second never trips this
-rule and has lost a thousand uploads in an hour. That is the next rule.
-
-### Kura trickling cache write sheds
+#### Triage
 
 ```promql
-sum by (cluster, region, pod, kind) (
-  sum by (cluster, pod, kind) (increase(kura_capacity_sheds_total_total{kind!="response_stream"}[1h]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
-)
+sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
+max by (pod) (kura_outbox_messages)
 ```
-
-- Threshold: `> 1000` sheds in the last hour, as a separate threshold
-  expression on `A`
-- Pending period: 10 minutes
-- Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
-- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} shed
-  {{ $values.A.Value | printf "%.0f" }} writes at the {{ $labels.kind }} limit
-  in the last hour ({{ $labels.cluster }})`
-- Description: `The pod refused more than a thousand uploads at the named limit
-  in the last hour, below the per-second bar of "Kura shedding cache writes by
-  kind" but a thousand artifacts lost all the same, since uploads are never
-  retried. Same kinds and levers as that rule.`
-
-The slow arm of the rule above. A thousand sheds in an hour is about 0.28/s
-sustained, an order of magnitude above the trickles the 7-day backtest found
-and well below the fast arm's bar, so the two do not overlap on anything the
-fleet has produced so far. Group notifications for both with **Kura
-replication outbox approaching its cap** by `(cluster, pod)` so the cap warning
-and the shed are one incident.
 
 ### Kura replication outbox approaching its cap
 
@@ -3158,16 +3153,18 @@ creating rules from this document.**
 
 **Kura shedding cache writes from the replication outbox** (`efwtvv4wuspvkc`,
 warning, retired 2026-09-02) watched one write-shed kind:
-`sum by (cluster, pod) (rate(kura_capacity_sheds_total_total{kind="outbox"}[5m])) > 1`
-for 10 minutes. **Kura shedding cache writes by kind** is that query
-generalised to `kind!="response_stream"` and grouped by `(pod, kind)` at the
-same bar and pending period, so for the outbox kind it fires on exactly the
-same samples at the same grain, with a region label added and the other
-write-shed kinds the old rule explicitly left uncovered riding along. Its
-reasoning (why a write shed is worse than a read shed, why an absolute rate,
-the outbox cap, the rollout signal) moved into that section. Delete the old
-rule only after the new one has been previewed for `kind="outbox"` against the
-last 7 days and matches.
+`max by (cluster, pod) (increase(kura_capacity_sheds_total_total{kind="outbox"}[15m]) or increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m])) > 0`.
+(This document had recorded an earlier `rate(...[5m]) > 1` form for it; the
+live rule had moved to the count form on 2026-08-31 because the rate form
+missed a 30-artifact burst.) **Kura shedding cache writes by kind** is that
+query generalised to `kind!="response_stream"` and grouped by `(pod, kind)`,
+with the `or` fallback filed under the `outbox` kind, the same `> 0` threshold
+and pending period, and a region label added, so for the outbox kind it fires
+on exactly the same samples at the same grain while the other write-shed
+kinds the old rule left uncovered ride along. Its reasoning (count not rate,
+the `or` term, the triage queries) moved into that section. Delete the old
+rule only after the new one has been previewed for `kind="outbox"` against
+the last 7 days and matches.
 
 **Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
 2026-08-26) counted absolute failed scrapes:
