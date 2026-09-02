@@ -2,7 +2,7 @@
   "apiVersion": "dashboard.grafana.app/v2",
   "kind": "Dashboard",
   "metadata": {
-    "name": "tuist-kura-region-scalability"
+    "name": "dcfx32a3wucav4d"
   },
   "spec": {
     "title": "Tuist Kura / Region Scalability",
@@ -408,7 +408,7 @@
                       },
                       {
                         "id": "custom.width",
-                        "value": 150
+                        "value": 190
                       },
                       {
                         "id": "thresholds",
@@ -459,7 +459,7 @@
                       },
                       {
                         "id": "custom.width",
-                        "value": 150
+                        "value": 193
                       },
                       {
                         "id": "thresholds",
