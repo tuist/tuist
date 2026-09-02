@@ -33,6 +33,30 @@ defmodule TuistWeb.API.GradleControllerTest do
         git_commit_sha: "abc123",
         root_project_name: "my-app",
         requested_tasks: ["assembleDebug", "test"],
+        configuration_cache: %{
+          status: "invalid",
+          invalidation_reasons: ["an environment variable changed"]
+        },
+        configuration_operations: [
+          %{
+            phase: "project",
+            build_path: ":",
+            project_path: ":app",
+            duration_ms: 300,
+            started_at: "2026-08-31T12:00:00Z"
+          }
+        ],
+        artifact_transforms: [
+          %{
+            transformer_name: "JetifyTransform",
+            transform_action_class: "com.example.JetifyTransform",
+            subject_name: "example.jar",
+            artifact_name: "example.jar",
+            consumer_project_path: ":app",
+            duration_ms: 200,
+            started_at: "2026-08-31T12:00:01Z"
+          }
+        ],
         tasks: [
           %{
             task_path: ":app:compileKotlin",
@@ -40,7 +64,9 @@ defmodule TuistWeb.API.GradleControllerTest do
             outcome: "executed",
             cacheable: true,
             duration_ms: 5000,
-            cache_key: "key-123"
+            cache_key: "key-123",
+            remote_cache_miss: true,
+            remote_cache_stored: true
           },
           %{
             task_path: ":app:test",
@@ -61,6 +87,8 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       Buffer.flush()
       Gradle.Task.Buffer.flush()
+      Gradle.ConfigurationOperation.Buffer.flush()
+      Gradle.ArtifactTransform.Buffer.flush()
 
       {:ok, build} = Gradle.get_build(response["id"])
       assert build.project_id == project.id
@@ -73,6 +101,18 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
       assert build.cacheable_tasks_count == 2
+      assert build.configuration_cache_status == "invalid"
+      assert build.configuration_cache_invalidation_reasons == ["an environment variable changed"]
+
+      [task | _] = Gradle.list_tasks(response["id"])
+      assert task.remote_cache_miss == true
+      assert task.remote_cache_stored == true
+
+      [configuration_operation] = Gradle.list_configuration_operations(response["id"])
+      assert configuration_operation.project_path == ":app"
+
+      [artifact_transform] = Gradle.list_artifact_transforms(response["id"])
+      assert artifact_transform.transformer_name == "JetifyTransform"
     end
 
     test "creates a build with machine metrics", %{conn: conn, user: user, project: project} do
@@ -372,6 +412,8 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert task["cacheable"] == true
       assert task["duration_ms"] == 5000
       assert task["cache_key"] == "key-123"
+      assert task["remote_cache_miss"] == false
+      assert task["remote_cache_stored"] == nil
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do

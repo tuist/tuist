@@ -71,7 +71,7 @@ defmodule Tuist.Automations do
     Revision
     |> where(automation_alert_id: ^alert_id)
     |> before_alert_revision(Keyword.get(opts, :before))
-    |> order_by(desc: :inserted_at, desc: :id)
+    |> order_by(desc: :recorded_at, desc: :id)
     |> limit_alert_revisions(Keyword.get(opts, :limit))
     |> preload(actor: :account)
     |> Repo.all()
@@ -129,12 +129,12 @@ defmodule Tuist.Automations do
 
   defp before_alert_revision(query, nil), do: query
 
-  defp before_alert_revision(query, %Revision{inserted_at: inserted_at, id: id}) do
+  defp before_alert_revision(query, %Revision{recorded_at: recorded_at, id: id}) do
     where(
       query,
       [revision],
-      revision.inserted_at < ^inserted_at or
-        (revision.inserted_at == ^inserted_at and revision.id < ^id)
+      revision.recorded_at < ^recorded_at or
+        (revision.recorded_at == ^recorded_at and revision.id < ^id)
     )
   end
 
