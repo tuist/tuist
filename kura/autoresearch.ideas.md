@@ -1,6 +1,6 @@
 # Kura bounded-resource optimization ideas
 
-- Remove the private `SegmentReader` vector-to-caller copy by exposing owned chunks.
+- Avoid zero-filling segment read buffers before the operating system overwrites them.
 - Measure Tokio blocking-pool dispatch after copy removal before evaluating a ring-based file runtime.
 - Move accelerated-serving candidate fields instead of cloning the file handle, content type, namespace, analytics key, and tenant.
 - Move accelerated request headers and query parameters into authorization instead of cloning their complete maps.

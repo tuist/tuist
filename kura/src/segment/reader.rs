@@ -142,8 +142,21 @@ impl AsyncRead for SegmentReader {
 }
 
 fn read_chunk(handle: Arc<PersistentFile>, offset: u64, len: usize) -> Result<Vec<u8>, String> {
+    read_chunk_from_file(handle.as_std(), offset, len)
+}
+
+#[cfg(unix)]
+fn read_chunk_from_file(file: &std::fs::File, offset: u64, len: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::with_capacity(len);
+    rustix::io::pread(file, rustix::buffer::spare_capacity(&mut bytes), offset)
+        .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
+    Ok(bytes)
+}
+
+#[cfg(windows)]
+fn read_chunk_from_file(file: &std::fs::File, offset: u64, len: usize) -> Result<Vec<u8>, String> {
     let mut bytes = vec![0; len];
-    let read = read_at(handle.as_std(), &mut bytes, offset)
+    let read = read_at(file, &mut bytes, offset)
         .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
     bytes.truncate(read);
     Ok(bytes)
@@ -156,16 +169,93 @@ fn truncated_segment_error(remaining: u64) -> io::Error {
     )
 }
 
-#[cfg(unix)]
-fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
-    use std::os::unix::fs::FileExt;
-
-    file.read_at(bytes, offset)
-}
-
 #[cfg(windows)]
 fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
     use std::os::windows::fs::FileExt;
 
     file.seek_read(bytes, offset)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::{os::unix::fs::FileExt as _, time::Duration};
+
+    use super::*;
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn segment_reader_uninitialized_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 10;
+
+        fn initialized_read(
+            file: &std::fs::File,
+            offset: u64,
+            len: usize,
+        ) -> Result<Vec<u8>, String> {
+            let mut bytes = vec![0; len];
+            let read = file
+                .read_at(&mut bytes, offset)
+                .map_err(|error| format!("failed to read benchmark chunk: {error}"))?;
+            bytes.truncate(read);
+            Ok(bytes)
+        }
+
+        fn measure(file: &std::fs::File, uninitialized: bool) -> Duration {
+            let started_at = std::time::Instant::now();
+            let mut offset = 0_u64;
+            while offset < SAMPLE_BYTES {
+                let len = usize::try_from((SAMPLE_BYTES - offset).min(CHUNK_BYTES as u64))
+                    .expect("benchmark chunk length fits usize");
+                let bytes = if uninitialized {
+                    read_chunk_from_file(file, offset, len)
+                } else {
+                    initialized_read(file, offset, len)
+                }
+                .expect("benchmark chunk read");
+                assert_eq!(bytes.len(), len);
+                std::hint::black_box(bytes.as_ptr());
+                offset += bytes.len() as u64;
+            }
+            started_at.elapsed()
+        }
+
+        let file = tempfile::tempfile().expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(&file, false), measure(&file, true))
+            } else {
+                let candidate_elapsed = measure(&file, true);
+                let baseline_elapsed = measure(&file, false);
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_read_uninitialized_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
 }

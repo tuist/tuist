@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: interleaved owned segment-chunk speedup over the asynchronous reader copy path (ratio, higher is better)
-- Secondary: original and candidate throughput, blocking-dispatch cost, functional correctness, peak live buffer count, compile and lint status
+- Primary: interleaved uninitialized segment-read speedup over a zero-filled destination (ratio, higher is better)
+- Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
 
 ## How to Run
 
@@ -63,9 +63,11 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Plaintext accelerator audit: one request allocated a 16 kibibyte peek buffer and a second exact-size vector merely to consume those same headers. Keep one fixed-capacity buffer per connection, reuse it across keep-alive peeks and consumption, and move denial headers instead of cloning their map.
 - The connection-buffer change passed the socket-level peek/consume test, full and ranged accelerator tests, and capacity-shedding coverage. The paired ByteStream benchmark remained at 4.969 times the original copy path.
 - Tonic consumes each response vector while encoding it, then yields an owned encoded frame. Hyper can retain up to its configured 512 kibibyte per-stream send buffer while the next frame is encoded. The new peak therefore has three charged owners instead of the old path's four: response vector, encoded frame, and transport buffer. Reduce only ByteStream's admission multiplier from four to three; ordinary file streams retain their existing four-buffer model.
+- Owned segment chunks now feed ByteStream, public artifact responses, and single-artifact backfill responses directly. The paired disk-backed benchmark measured a 1.419 times median speedup, and each stream's response reservation fell from four chunks to three. Spool-file responses retain four because Tokio's file adapter still owns its private blocking-read buffer.
+- Rustix now passes vector spare capacity directly to the positional read and safely extends the vector by the returned byte count. The paired low-level benchmark measured a 1.162 times median speedup over zero-initializing the same bounded allocation before the read.
 
 ## Next Segment
 
-- Return the vector filled by the positional segment read directly to streaming callers.
-- Use the same owned chunks for ByteStream, ordinary artifact responses, backfill responses, and replication where their interfaces permit it.
-- Benchmark warm positional reads separately from transport so the result exposes both eliminated copy cost and remaining Tokio blocking-pool dispatch overhead.
+- Stop zero-filling each owned segment vector immediately before the positional read overwrites it.
+- Use Rustix's safe spare-capacity buffer interface so the operating system initializes the vector and its length without application `unsafe` code.
+- Benchmark the positional read in isolation against the previous initialized vector.
