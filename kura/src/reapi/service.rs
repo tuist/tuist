@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     pin::Pin,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use bazel_remote_apis::{
@@ -36,6 +36,7 @@ use super::protobuf_shape::*;
 use super::{admission::*, snapshot::*};
 
 use crate::{
+    analytics::ReapiCacheAnalyticsEvent,
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     auth::{AccessDecision, RequestContext},
     constants::{
@@ -58,6 +59,7 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
+const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
@@ -74,6 +76,14 @@ struct GrpcRequestSpec<'a> {
     producer: Option<&'a str>,
     artifact_key: Option<String>,
     artifact_hash: Option<String>,
+}
+
+struct ReapiCacheObservation<'a> {
+    operation: &'a str,
+    outcome: &'a str,
+    digest: &'a str,
+    size: u64,
+    duration: Duration,
 }
 
 pub(super) const REAPI_MAX_DECODING_MESSAGE_SIZE: usize = 64 << 20;
@@ -264,6 +274,43 @@ impl ReapiService {
         );
     }
 
+    fn record_reapi_cache_event(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        observation: ReapiCacheObservation<'_>,
+    ) {
+        let Some(analytics) = self.state.analytics.as_ref() else {
+            return;
+        };
+
+        let attribution = reapi_request_metadata(metadata);
+        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
+            account_handle: usage_tenant_id(metadata, &self.state.config.tenant_id),
+            project_handle: namespace_id.to_owned(),
+            client_kind: attribution.client_kind,
+            operation: observation.operation.into(),
+            outcome: observation.outcome.into(),
+            action_digest: observation.digest.to_owned(),
+            size: observation.size,
+            duration_ms: observation
+                .duration
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+            observed_at_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+            invocation_id: attribution.invocation_id,
+            action_mnemonic: attribution.action_mnemonic,
+            target_label: attribution.target_label,
+            configuration_id: attribution.configuration_id,
+        });
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
     // (write) removes temp_path on any error this returns, so this never cleans
     // up inline — which is what keeps transport/cancel/write/flush failures from
@@ -280,6 +327,7 @@ impl ReapiService {
         // project-scoped tokens authorize against the real project (not the
         // account) — matching the namespace the blob is ultimately stored under.
         let metadata = request.metadata().clone();
+        let analytics_started_at = Instant::now();
         let memory_admission = request
             .extensions()
             .get::<GrpcWriteAdmission>()
@@ -490,6 +538,17 @@ impl ReapiService {
         if !persisted.already_present {
             self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
         }
+        self.record_reapi_cache_event(
+            &metadata,
+            &resource.namespace_id,
+            ReapiCacheObservation {
+                operation: "cas",
+                outcome: "write",
+                digest: &resource.hash,
+                size: persisted.manifest.size,
+                duration: analytics_started_at.elapsed(),
+            },
+        );
         drop(memory_admission);
         Ok(response)
     }
@@ -1056,6 +1115,7 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         self.authorize_request(&request, auth.clone()).await?;
+        let analytics_started_at = Instant::now();
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
         // node table + per-key node lists), inlined into a single output
@@ -1108,7 +1168,7 @@ impl ActionCache for ReapiService {
         }
         let mut materialization_budget =
             std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
+        let (size_bytes, mut action_result) = match fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
@@ -1119,7 +1179,26 @@ impl ActionCache for ReapiService {
                     .expect("action-cache materialization budget lock poisoned"),
             ),
         )
-        .await?;
+        .await
+        {
+            Ok(result) => result,
+            Err(status) => {
+                if status.code() == tonic::Code::NotFound {
+                    self.record_reapi_cache_event(
+                        request.metadata(),
+                        namespace_id,
+                        ReapiCacheObservation {
+                            operation: "action_cache",
+                            outcome: "miss",
+                            digest: &digest.hash,
+                            size: 0,
+                            duration: analytics_started_at.elapsed(),
+                        },
+                    );
+                }
+                return Err(status);
+            }
+        };
         // Presence gate, the per-key counterpart of the snapshot reconcile's:
         // an entry whose output blobs were evicted is unserveable by
         // construction — the client replaying it hard-fails the build on the
@@ -1166,6 +1245,17 @@ impl ActionCache for ReapiService {
                     }
                 }
             }
+            self.record_reapi_cache_event(
+                request.metadata(),
+                namespace_id,
+                ReapiCacheObservation {
+                    operation: "action_cache",
+                    outcome: "miss",
+                    digest: &digest.hash,
+                    size: 0,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
             return Err(Status::not_found(
                 "action result references evicted output blobs",
             ));
@@ -1315,6 +1405,17 @@ impl ActionCache for ReapiService {
         // Book usage only after the response is fully built (headers applied),
         // matching the other handlers' success-arm convention.
         self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+        self.record_reapi_cache_event(
+            request.metadata(),
+            namespace_id,
+            ReapiCacheObservation {
+                operation: "action_cache",
+                outcome: "hit",
+                digest: &digest.hash,
+                size: served_bytes,
+                duration: analytics_started_at.elapsed(),
+            },
+        );
         Ok(response)
     }
 
@@ -1349,6 +1450,7 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         self.authorize_request(&request, auth.clone()).await?;
+        let analytics_started_at = Instant::now();
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
         let bytes = action_result.encode_to_vec();
@@ -1403,6 +1505,17 @@ impl ActionCache for ReapiService {
         // and bills nothing.
         if applied {
             self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+            self.record_reapi_cache_event(
+                request.metadata(),
+                namespace_id,
+                ReapiCacheObservation {
+                    operation: "action_cache",
+                    outcome: "write",
+                    digest: &digest.hash,
+                    size: manifest.size,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
         }
         Ok(response)
     }
@@ -1507,6 +1620,7 @@ impl ContentAddressableStorage for ReapiService {
         let mut stored_any = false;
 
         for item in &request.get_ref().requests {
+            let analytics_started_at = Instant::now();
             let digest = match &item.digest {
                 Some(digest) => digest.clone(),
                 None => {
@@ -1530,6 +1644,17 @@ impl ContentAddressableStorage for ReapiService {
                         stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
                         stored_any = true;
                     }
+                    self.record_reapi_cache_event(
+                        request.metadata(),
+                        namespace_id,
+                        ReapiCacheObservation {
+                            operation: "cas",
+                            outcome: "write",
+                            digest: &digest.hash,
+                            size: item.data.len() as u64,
+                            duration: analytics_started_at.elapsed(),
+                        },
+                    );
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: Some(digest),
                         status: Some(rpc_status(0, "")),
@@ -1576,35 +1701,67 @@ impl ContentAddressableStorage for ReapiService {
         // unchanged and response order matches request order.
         let budget = std::sync::Mutex::new(MaterializationBudget::new(&self.state));
         let digests: Vec<reapi::Digest> = request.get_ref().digests.clone();
-        let responses: Vec<reapi::batch_read_blobs_response::Response> =
+        let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> =
             futures_util::stream::iter(digests.into_iter().map(|digest| {
                 let budget = &budget;
                 async move {
-                    match batch_read_one(&self.state, namespace_id, &digest, budget).await {
-                        Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data,
-                            compressor: 0,
-                            status: Some(rpc_status(0, "")),
-                        },
-                        Ok(None) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data: Vec::new(),
-                            compressor: 0,
-                            status: Some(rpc_status(5, "blob not found")),
-                        },
-                        Err(status) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data: Vec::new(),
-                            compressor: 0,
-                            status: Some(rpc_status_from_grpc_status(&status)),
-                        },
-                    }
+                    let analytics_started_at = Instant::now();
+                    let response =
+                        match batch_read_one(&self.state, namespace_id, &digest, budget).await {
+                            Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
+                                digest: Some(digest.clone()),
+                                data,
+                                compressor: 0,
+                                status: Some(rpc_status(0, "")),
+                            },
+                            Ok(None) => reapi::batch_read_blobs_response::Response {
+                                digest: Some(digest.clone()),
+                                data: Vec::new(),
+                                compressor: 0,
+                                status: Some(rpc_status(5, "blob not found")),
+                            },
+                            Err(status) => reapi::batch_read_blobs_response::Response {
+                                digest: Some(digest.clone()),
+                                data: Vec::new(),
+                                compressor: 0,
+                                status: Some(rpc_status_from_grpc_status(&status)),
+                            },
+                        };
+
+                    (response, analytics_started_at.elapsed())
                 }
             }))
             .buffered(16)
             .collect()
             .await;
+        let mut responses = Vec::with_capacity(read_results.len());
+
+        for (response, duration) in read_results {
+            let outcome = response
+                .status
+                .as_ref()
+                .and_then(|status| match status.code {
+                    0 => Some("hit"),
+                    5 => Some("miss"),
+                    _ => None,
+                });
+
+            if let (Some(outcome), Some(digest)) = (outcome, response.digest.as_ref()) {
+                self.record_reapi_cache_event(
+                    request.metadata(),
+                    namespace_id,
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome,
+                        digest: &digest.hash,
+                        size: response.data.len() as u64,
+                        duration,
+                    },
+                );
+            }
+
+            responses.push(response);
+        }
         // Sum the bytes served so the whole batch books a single download usage
         // request, matching how ByteStream/HTTP count one request per call. A
         // successful read carries gRPC status code 0.
@@ -1680,6 +1837,7 @@ impl ByteStream for ReapiService {
             artifact_hash: Some(resource.hash.clone()),
         };
         self.authorize_request(&request, auth.clone()).await?;
+        let analytics_started_at = Instant::now();
         if request.get_ref().read_offset < 0 {
             return Err(Status::invalid_argument("read_offset must be non-negative"));
         }
@@ -1701,6 +1859,17 @@ impl ByteStream for ReapiService {
                 self.state
                     .metrics
                     .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+                self.record_reapi_cache_event(
+                    request.metadata(),
+                    &resource.namespace_id,
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "miss",
+                        digest: &resource.hash,
+                        size: 0,
+                        duration: analytics_started_at.elapsed(),
+                    },
+                );
                 return Err(Status::not_found("blob not found"));
             }
             Err(error) => {
@@ -1766,6 +1935,17 @@ impl ByteStream for ReapiService {
             self.state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            self.record_reapi_cache_event(
+                request.metadata(),
+                &resource.namespace_id,
+                ReapiCacheObservation {
+                    operation: "cas",
+                    outcome: "miss",
+                    digest: &resource.hash,
+                    size: 0,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
             return Err(Status::not_found("blob not found"));
         };
         self.state
@@ -1793,6 +1973,17 @@ impl ByteStream for ReapiService {
         // not have fired. Recorded before the body streams, mirroring the "ok"
         // read metric and the HTTP path's optimistic size accounting.
         self.record_reapi_download(request.metadata(), &resource.namespace_id, bytes_to_read);
+        self.record_reapi_cache_event(
+            request.metadata(),
+            &resource.namespace_id,
+            ReapiCacheObservation {
+                operation: "cas",
+                outcome: "hit",
+                digest: &resource.hash,
+                size: bytes_to_read,
+                duration: analytics_started_at.elapsed(),
+            },
+        );
         Ok(response)
     }
 
@@ -2427,6 +2618,48 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
+
+#[derive(Default)]
+struct ReapiRequestMetadata {
+    client_kind: String,
+    invocation_id: String,
+    action_mnemonic: String,
+    target_label: String,
+    configuration_id: String,
+}
+
+fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiRequestMetadata {
+    let Some(value) = metadata
+        .get_bin(REAPI_REQUEST_METADATA_HEADER)
+        .and_then(|value| value.to_bytes().ok())
+    else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let Ok(metadata) = reapi::RequestMetadata::decode(value) else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let client_kind = metadata
+        .tool_details
+        .map(|details| details.tool_name)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "unknown".into());
+
+    ReapiRequestMetadata {
+        client_kind,
+        invocation_id: metadata.tool_invocation_id,
+        action_mnemonic: metadata.action_mnemonic,
+        target_label: metadata.target_id,
+        configuration_id: metadata.configuration_id,
+    }
+}
 
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
@@ -3291,6 +3524,35 @@ mod tests {
             ref_metadata(&empty, "x-tuist-branch", "x-tuist-branch-bin"),
             None
         );
+    }
+
+    #[test]
+    fn extracts_request_metadata_for_cache_analytics() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            action_id: "action-1".into(),
+            tool_invocation_id: "invocation-1".into(),
+            correlated_invocations_id: "".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let extracted = reapi_request_metadata(request.metadata());
+
+        assert_eq!(extracted.client_kind, "bazel");
+        assert_eq!(extracted.invocation_id, "invocation-1");
+        assert_eq!(extracted.action_mnemonic, "SwiftCompile");
+        assert_eq!(extracted.target_label, "//app:app");
+        assert_eq!(extracted.configuration_id, "config-1");
     }
 
     #[tokio::test]

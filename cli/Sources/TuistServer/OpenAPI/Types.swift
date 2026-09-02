@@ -6680,6 +6680,7 @@ public enum Components {
             @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case xcode = "xcode"
                 case gradle = "gradle"
+                case bazel = "bazel"
             }
             /// The build system used by the project.
             ///
@@ -70011,6 +70012,7 @@ public enum Operations {
                     @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case xcode = "xcode"
                         case gradle = "gradle"
+                        case bazel = "bazel"
                     }
                     /// The build system used by the project.
                     ///

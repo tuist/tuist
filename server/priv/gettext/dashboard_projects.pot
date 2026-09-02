@@ -157,7 +157,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:109
+#: lib/tuist_web/live/create_project_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -456,7 +456,7 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.ex:17
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:15
-#: lib/tuist_web/live/projects_live.ex:495
+#: lib/tuist_web/live/projects_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -757,7 +757,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:909
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:503
-#: lib/tuist_web/live/projects_live.ex:426
+#: lib/tuist_web/live/projects_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -1780,4 +1780,59 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:787
 #, elixir-autogen, elixir-format
 msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:31
+#, elixir-autogen, elixir-format
+msgid "Action cache hit rate"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:20
+#, elixir-autogen, elixir-format
+msgid "Bazel remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "Bytes Kura accepted while storing action-cache results."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:68
+#, elixir-autogen, elixir-format
+msgid "Bytes Kura served while returning action-cache results."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:66
+#, elixir-autogen, elixir-format
+msgid "Downloaded from remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:101
+#, elixir-autogen, elixir-format
+msgid "Latest observation: %{timestamp}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Remote action-cache hits and misses observed by Kura."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "The share of action-cache lookups that Kura served from the remote cache."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "These are remote-cache observations from Kura. They do not include build or test results."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Uploaded to remote cache"
 msgstr ""
