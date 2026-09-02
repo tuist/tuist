@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{info, warn};
 
-use crate::state::SharedState;
+use crate::{request_observability::FailureLogThrottle, state::SharedState};
 
 const HEARTBEAT_PATH: &str = "/_internal/kura/mesh/heartbeat";
 const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
@@ -140,16 +140,18 @@ struct MeshPeersResponse {
 
 pub fn spawn(state: SharedState, config: MeshHeartbeatConfig) {
     info!(
-        "sending mesh heartbeats to control plane at {}",
-        config.heartbeat_url
+        event.name = "kura.mesh.heartbeat_started",
+        server.address = %config.heartbeat_url,
+        "mesh heartbeat started"
     );
     tokio::spawn(async move { run(state, config).await });
 }
 
 pub fn spawn_peers_sync(state: SharedState, config: MeshPeersSyncConfig) {
     info!(
-        "syncing mesh peer view from control plane at {}",
-        config.peers_url
+        event.name = "kura.mesh.peer_sync_started",
+        server.address = %config.peers_url,
+        "mesh peer synchronization started"
     );
     tokio::spawn(async move { run_peers_sync(state, config).await });
 }
@@ -157,10 +159,20 @@ pub fn spawn_peers_sync(state: SharedState, config: MeshPeersSyncConfig) {
 async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
     let client = http_client();
     let mut recovery = RecoveryBackoff::new();
+    let mut failure_logs =
+        FailureLogThrottle::new(Duration::from_millis(state.config.warning_log_interval_ms));
 
     loop {
         match send_heartbeat(&client, &config).await {
             Ok(payload) => {
+                if let Some((failures, suppressed)) = failure_logs.record_success() {
+                    info!(
+                        event.name = "kura.mesh.heartbeat_recovered",
+                        kura.failure.count = failures,
+                        kura.log.suppressed_count = suppressed,
+                        "mesh heartbeat recovered"
+                    );
+                }
                 apply_peers(&state, payload.peers);
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
@@ -176,7 +188,17 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                     config.interval = Duration::from_secs(seconds);
                 }
             }
-            Err(error) => warn!("mesh heartbeat failed: {error}"),
+            Err(error) => {
+                if let Some(suppressed) = failure_logs.record_failure() {
+                    warn!(
+                        event.name = "kura.mesh.heartbeat_failed",
+                        error = %error,
+                        kura.failure.consecutive_count = failure_logs.consecutive_failures(),
+                        kura.log.suppressed_count = suppressed,
+                        "mesh heartbeat failed"
+                    );
+                }
+            }
         }
         tokio::time::sleep(config.interval).await;
     }
@@ -184,10 +206,20 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
 
 async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
     let client = http_client();
+    let mut failure_logs =
+        FailureLogThrottle::new(Duration::from_millis(state.config.warning_log_interval_ms));
 
     loop {
         match fetch_peers(&client, &config).await {
             Ok(payload) => {
+                if let Some((failures, suppressed)) = failure_logs.record_success() {
+                    info!(
+                        event.name = "kura.mesh.peer_sync_recovered",
+                        kura.failure.count = failures,
+                        kura.log.suppressed_count = suppressed,
+                        "mesh peer synchronization recovered"
+                    );
+                }
                 apply_peers(&state, payload.peers);
                 // First successful fetch lifts the boot serving gate.
                 state.runtime.mark_peer_view_ready();
@@ -198,7 +230,17 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                     config.interval = Duration::from_secs(seconds);
                 }
             }
-            Err(error) => warn!("mesh peer view sync failed: {error}"),
+            Err(error) => {
+                if let Some(suppressed) = failure_logs.record_failure() {
+                    warn!(
+                        event.name = "kura.mesh.peer_sync_failed",
+                        error = %error,
+                        kura.failure.consecutive_count = failure_logs.consecutive_failures(),
+                        kura.log.suppressed_count = suppressed,
+                        "mesh peer synchronization failed"
+                    );
+                }
+            }
         }
         tokio::time::sleep(config.interval).await;
     }

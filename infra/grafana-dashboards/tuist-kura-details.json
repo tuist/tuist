@@ -5972,6 +5972,98 @@
           }
         }
       },
+      "panel-207": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod, version) (kura_build_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} · {{version}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Kura build version running in each pod. A missing series identifies an older Kura release that predates build metadata.\n\nPrometheus name: `kura_build_info` · label: version",
+          "id": 207,
+          "links": [],
+          "title": "build_info",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-155": {
         "kind": "Panel",
         "spec": {
@@ -23091,11 +23183,24 @@
                         "x": 16,
                         "y": 14
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-207"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Membership, readiness \u0026 node identity (9)"
+              "title": "Membership, readiness \u0026 node identity (10)"
             }
           },
           {

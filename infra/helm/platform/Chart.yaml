@@ -57,9 +57,9 @@ dependencies:
     condition: metrics-server.enabled
   - name: cloudnative-pg
     version: 0.28.3
-    repository: https://cloudnative-pg.github.io/charts
+    repository: oci://ghcr.io/cloudnative-pg/charts
     condition: cloudnative-pg.enabled
   - name: plugin-barman-cloud
     version: 0.7.0
-    repository: https://cloudnative-pg.github.io/charts
+    repository: oci://ghcr.io/cloudnative-pg/charts
     condition: plugin-barman-cloud.enabled
