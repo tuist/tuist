@@ -196,6 +196,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 size="large"
                 label={dgettext("dashboard_auth", "Sign up")}
                 tabindex={4}
+                disabled={@turnstile_required? and not @turnstile_ready?}
               />
             </.form>
           </div>
@@ -289,6 +290,8 @@ defmodule TuistWeb.UserRegistrationLive do
         |> assign(:turnstile_required?, Turnstile.required?())
         |> assign(:turnstile_site_key, Turnstile.site_key())
         |> assign(:turnstile_error, nil)
+        |> assign(:turnstile_ready?, false)
+        |> assign(:load_turnstile_script?, Turnstile.required?())
         |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
         |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
         |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
@@ -316,6 +319,15 @@ defmodule TuistWeb.UserRegistrationLive do
            |> assign(:turnstile_error, dgettext("dashboard_auth", "Too many sign-up attempts. Please try again later."))
            |> reset_turnstile()}
 
+        {:error, :missing_session} ->
+          {:noreply,
+           socket
+           |> assign(
+             :turnstile_error,
+             dgettext("dashboard_auth", "Your session has expired. Please reload the page and try again.")
+           )
+           |> reset_turnstile()}
+
         {:error, :turnstile_failed} ->
           {:noreply,
            socket
@@ -326,6 +338,27 @@ defmodule TuistWeb.UserRegistrationLive do
       {:noreply, redirect(socket, to: ~p"/users/log_in")}
     end
   end
+
+  def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
+    {:noreply, apply_turnstile_state(socket, state)}
+  end
+
+  defp apply_turnstile_state(socket, "ready"),
+    do: socket |> assign(:turnstile_ready?, true) |> assign(:turnstile_error, nil)
+
+  defp apply_turnstile_state(socket, "unavailable") do
+    socket
+    |> assign(:turnstile_ready?, false)
+    |> assign(
+      :turnstile_error,
+      dgettext(
+        "dashboard_auth",
+        "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
+      )
+    )
+  end
+
+  defp apply_turnstile_state(socket, _state), do: assign(socket, :turnstile_ready?, false)
 
   defp save_user(user_params, socket) do
     case user_params
@@ -381,7 +414,9 @@ defmodule TuistWeb.UserRegistrationLive do
 
   defp reset_turnstile(socket) do
     if socket.assigns.turnstile_required? do
-      push_event(socket, "turnstile:reset", %{id: "email-signup-turnstile"})
+      socket
+      |> assign(:turnstile_ready?, false)
+      |> push_event("turnstile:reset", %{id: "email-signup-turnstile"})
     else
       socket
     end

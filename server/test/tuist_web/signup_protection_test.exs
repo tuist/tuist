@@ -14,6 +14,14 @@ defmodule TuistWeb.SignupProtectionTest do
     assert {:error, :rate_limited} = SignupProtection.verify("session-token", %{}, "email_signup")
   end
 
+  test "surfaces a missing session token as its own reason so the caller can prompt a reload" do
+    stub(Turnstile, :required?, fn -> true end)
+    expect(Registration, :hit, fn nil -> {:error, :missing_session} end)
+    reject(&Turnstile.verify/2)
+
+    assert {:error, :missing_session} = SignupProtection.verify(nil, %{}, "email_signup")
+  end
+
   test "binds a successful verification to the registration action" do
     stub(Turnstile, :required?, fn -> true end)
     expect(Registration, :hit, fn "session-token" -> {:allow, 2} end)

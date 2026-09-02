@@ -3,7 +3,13 @@ defmodule TuistWeb.RateLimit.Registration do
 
   alias TuistWeb.RateLimit
 
-  @capacity 3
+  # A single-use Turnstile token still has to be solved per attempt, so replay
+  # protection stays tight even at a comfortable per-session capacity. The
+  # bucket is debited on every submit, and a first-try user often burns two
+  # or three slots to typos alone (weak password, taken handle, taken email),
+  # so the ceiling is picked to keep those recoverable without shipping a
+  # per-error refund path.
+  @capacity 10
   @refill_rate 1 / 300
 
   def hit(session_token) when is_binary(session_token) and session_token != "" do
@@ -17,5 +23,5 @@ defmodule TuistWeb.RateLimit.Registration do
     )
   end
 
-  def hit(_session_token), do: {:deny, 0}
+  def hit(_session_token), do: {:error, :missing_session}
 end

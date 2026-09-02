@@ -32,6 +32,8 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:turnstile_required?, Turnstile.required?())
           |> assign(:turnstile_site_key, Turnstile.site_key())
           |> assign(:turnstile_error, nil)
+          |> assign(:turnstile_ready?, false)
+          |> assign(:load_turnstile_script?, Turnstile.required?())
 
         {:ok, socket}
     end
@@ -92,6 +94,7 @@ defmodule TuistWeb.ChooseUsernameLive do
                   type="submit"
                   variant="primary"
                   label={dgettext("dashboard_auth", "Continue")}
+                  disabled={@turnstile_required? and not @turnstile_ready?}
                 />
               </div>
             </.form>
@@ -120,6 +123,15 @@ defmodule TuistWeb.ChooseUsernameLive do
          |> assign(:turnstile_error, dgettext("dashboard_auth", "Too many sign-up attempts. Please try again later."))
          |> reset_turnstile()}
 
+      {:error, :missing_session} ->
+        {:noreply,
+         socket
+         |> assign(
+           :turnstile_error,
+           dgettext("dashboard_auth", "Your session has expired. Please reload the page and try again.")
+         )
+         |> reset_turnstile()}
+
       {:error, :turnstile_failed} ->
         {:noreply,
          socket
@@ -127,6 +139,28 @@ defmodule TuistWeb.ChooseUsernameLive do
          |> reset_turnstile()}
     end
   end
+
+  @impl true
+  def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
+    {:noreply, apply_turnstile_state(socket, state)}
+  end
+
+  defp apply_turnstile_state(socket, "ready"),
+    do: socket |> assign(:turnstile_ready?, true) |> assign(:turnstile_error, nil)
+
+  defp apply_turnstile_state(socket, "unavailable") do
+    socket
+    |> assign(:turnstile_ready?, false)
+    |> assign(
+      :turnstile_error,
+      dgettext(
+        "dashboard_auth",
+        "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
+      )
+    )
+  end
+
+  defp apply_turnstile_state(socket, _state), do: assign(socket, :turnstile_ready?, false)
 
   defp choose_username(username, socket) do
     username = String.trim(username)
@@ -173,7 +207,9 @@ defmodule TuistWeb.ChooseUsernameLive do
 
   defp reset_turnstile(socket) do
     if socket.assigns.turnstile_required? do
-      push_event(socket, "turnstile:reset", %{id: "oauth-signup-turnstile"})
+      socket
+      |> assign(:turnstile_ready?, false)
+      |> push_event("turnstile:reset", %{id: "oauth-signup-turnstile"})
     else
       socket
     end

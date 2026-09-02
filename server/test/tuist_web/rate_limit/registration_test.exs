@@ -10,15 +10,16 @@ defmodule TuistWeb.RateLimit.RegistrationTest do
     session_key = :sha256 |> :crypto.hash(session_token) |> Base.url_encode64(padding: false)
     refill_rate = 1 / 300
 
-    expect(RateLimit, :hit, fn key, [algorithm: :token_bucket, refill_rate: ^refill_rate, capacity: 3] ->
+    expect(RateLimit, :hit, fn key, [algorithm: :token_bucket, refill_rate: ^refill_rate, capacity: 10] ->
       assert key == "registration:" <> session_key
-      {:allow, 2}
+      {:allow, 9}
     end)
 
-    assert Registration.hit(session_token) == {:allow, 2}
+    assert Registration.hit(session_token) == {:allow, 9}
   end
 
-  test "denies a missing session token" do
-    assert Registration.hit(nil) == {:deny, 0}
+  test "signals a missing session token distinctly from a rate-limit denial" do
+    assert Registration.hit(nil) == {:error, :missing_session}
+    assert Registration.hit("") == {:error, :missing_session}
   end
 end

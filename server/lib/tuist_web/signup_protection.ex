@@ -11,6 +11,7 @@ defmodule TuistWeb.SignupProtection do
         :ok
       else
         {:deny, _limit} -> {:error, :rate_limited}
+        {:error, :missing_session} -> {:error, :missing_session}
         {:error, _reason} -> {:error, :turnstile_failed}
       end
     else
