@@ -9483,37 +9483,16 @@
                     },
                     "refId": "B"
                   }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_beta_excluded_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "beta-excluded {{node}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
-                  }
                 }
               ],
               "queryOptions": {},
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_attached_pods, _skipped_pods (unresolvable device or malformed annotation), _beta_excluded_pods (BETA_POD_PREFIX gate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_attached_pods, _skipped_pods (unresolvable device or malformed annotation). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 184,
           "links": [],
-          "title": "Attached / skipped / beta-excluded pods",
+          "title": "Attached / skipped pods",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -9763,14 +9742,56 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid) ((sum by (cluster, pod, classid) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "sent {{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "instant": false,
+                        "legendFormat": "rate {{node}} · {{account}} · {{classid}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "instant": false,
+                        "legendFormat": "ceil {{node}} · {{account}} · {{classid}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "C"
                   }
                 }
               ],
@@ -9778,7 +9799,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_sent_bytes by classid — kernel counter exported as a gauge, rate() × 8. classid 1:\u003chex\u003e is allocated per account by kura-controller (kura.tuist.dev/egress-class-id annotation); no metric exports the classid→account mapping. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_sent_bytes by account and classid — kernel counter exported as a gauge, rate() × 8 — against the rate and ceiling the kernel is enforcing (_class_rate_bytes_per_second, _class_ceil_bytes_per_second, also × 8). A tenant riding its ceiling wants a larger floor; one far under its rate is reserving room it does not use. classid 1:\u003chex\u003e is allocated per account by kura-controller and freed when the account's last instance goes, so the account label is what identifies the tenant over time. Node-level agent series, shown for the node(s) hosting the selected pod(s) — every class on those nodes, neighbours included, since they are what the tenant contends with.",
           "id": 186,
           "links": [],
           "title": "Class throughput (bits/s)",
@@ -9876,9 +9897,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid) ((sum by (cluster, pod, classid) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
@@ -9891,7 +9912,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_drops by classid (kernel counter as gauge, rate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_drops by account and classid (kernel counter as gauge, rate). Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 187,
           "links": [],
           "title": "Class drops",
@@ -9989,9 +10010,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid) ((max by (cluster, pod, classid) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{node}} · {{classid}}",
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
@@ -10004,7 +10025,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_backlog_bytes by classid — bytes queued in a tenant class. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
+          "description": "kura_egress_tree_class_backlog_bytes by account and classid — bytes queued in a tenant class. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 188,
           "links": [],
           "title": "Class backlog",
@@ -19249,9 +19270,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (pod, region, country, subdivision) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{region}} · {{country}}/{{subdivision}}",
+                        "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
                       },
                       "version": "v0"
@@ -19264,48 +19285,82 @@
               "transformations": []
             }
           },
-          "description": "Where this node physically runs, from `kura_node_geo_info` (region id · ISO country / subdivision). Cross-check against the account's expected region before blaming latency on the mesh.",
+          "description": "kura_egress_tree_class_borrowed_packets / (borrowed + lended) — HTB's own accounting of where a class's traffic came from: a packet sent within the class's own rate counts as lended, one it could only send by taking tokens from the root class counts as borrowed. Near 1 means the tenant spends its time above the floor it reserves and is a candidate for a larger one; near 0 means the floor covers its demand. A class with no floor runs on the 1 Mbit trickle the agent gives it, so it borrows nearly everything by construction — read this against the rate on 'Class throughput'. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 193,
           "links": [],
-          "title": "Region",
+          "title": "Class borrow ratio",
           "vizConfig": {
-            "group": "stat",
+            "group": "timeseries",
             "kind": "VizConfig",
             "spec": {
               "fieldConfig": {
                 "defaults": {
                   "color": {
-                    "mode": "thresholds"
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
                   },
                   "thresholds": {
                     "mode": "absolute",
                     "steps": [
                       {
-                        "color": "blue",
+                        "color": "green",
                         "value": 0
                       }
                     ]
                   },
-                  "unit": "short"
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
                 },
                 "overrides": []
               },
               "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
+                "legend": {
                   "calcs": [
                     "lastNotNull"
                   ],
-                  "fields": "",
-                  "values": false
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
                 },
-                "showPercentChange": false,
-                "textMode": "name",
-                "wideLayout": true
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
               }
             },
             "version": "13.3.0-32457798232"
@@ -23637,6 +23692,19 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
+                        "y": 21
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-193"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
                         "y": 21
                       }
                     }

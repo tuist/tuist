@@ -84,6 +84,26 @@ dictate this shape — do not regress them:
   retune arrives on freshly created pods; this agent sees the new annotation
   when the pod informer reports the replacement and converges within about a
   second of it.
+- **Tenant identity (metrics only):** the `tuist.dev/account` pod label, set
+  by kura-controller on every kura pod. A classid is stable for a live
+  account but not unique over time — the controller frees a minor when an
+  account's last instance goes and hands the same one to another account
+  later — so a `classid`-only series splices two tenants together, and
+  nothing account-level can be built from it without joining the CR
+  annotation. Every `kura_egress_tree_class_*` series carries the handle
+  beside the classid. Reading it changes no enforcement: the annotation
+  remains the sole opt-in, and a pod without the label is shaped exactly the
+  same, with an empty `account`.
+  The agent trusts the classid-to-account mapping rather than policing it, and
+  deliberately exports no conflict counter: the controller allocates a minor
+  per account under one leader with one reconcile worker, and the probe reads
+  every existing claim through `APIReader` (a quorum read, not the informer
+  cache) before choosing, so that loop cannot give two accounts one minor.
+  Anything that does produce a duplicate — a hand-edited
+  `kura.tuist.dev/egress-class-id`, a KuraInstance outside the namespace the
+  probe scans — is a broken invariant to fix at the controller, not a steady
+  state for this agent to measure. A class that did change hands shows up as
+  `old_account` on the `updated tenant class` log line.
 - **Node budget:** `Node.status.capacity["tuist.dev/egress-mbps"]`
   (advertised by the CAPI provider, see
   `infra/cluster-api-provider-tuist/controllers/shared/node_egress.go`).
@@ -157,7 +177,38 @@ replaced, re-run the policy bypass experiments first.
 
 ## Metrics / alerts
 
-`:9469/metrics`. Alert on: `kura_egress_tree_direct_packets` growth,
+`:9469/metrics`. Per-class series are labelled `{classid, account}` (see
+Contracts) and carry, beside the byte and drop counters, HTB's own accounting
+of where a class's traffic came from: `kura_egress_tree_class_lended_packets`
+(sent within the class's own rate) and `..._borrowed_packets` (sent by taking
+tokens from the root class), plus `..._rate_bytes_per_second` and
+`..._ceil_bytes_per_second` read back from the kernel. The rates are read back
+rather than taken from the desired class so they describe what HTB is
+enforcing — clamps and hand edits included — and they are in bytes per second,
+the unit `rate(kura_egress_tree_class_sent_bytes[…])` is already in, so demand
+against the floor is one query with nothing to join:
+
+```
+rate(kura_egress_tree_class_sent_bytes[5m]) / kura_egress_tree_class_rate_bytes_per_second
+rate(kura_egress_tree_class_borrowed_packets[5m])
+  / rate(kura_egress_tree_class_lended_packets[5m])
+```
+
+A class sustaining either well above 1 wants a floor larger than it has; one
+that never borrows is not using the floor it reserves. Both are per account,
+which is what makes them usable for sizing an account's `/ops` override.
+
+The ratio only says something about a class that has a floor. A tenant
+without one runs on the 1 Mbit trickle `classRates` gives it, so it borrows
+nearly everything by construction; for those, the demand input is
+`rate(kura_egress_tree_class_sent_bytes[…])` per account on its own.
+
+Every class gauge is refreshed once per reconcile, not per scrape (the agent
+shells out to `tc`, which does not belong on the scrape path), so on a quiet
+node the values are up to `RECONCILE_INTERVAL` (default 2m) old and a scrape
+can repeat the previous value. Keep rate windows several multiples of that.
+
+Alert on: `kura_egress_tree_direct_packets` growth,
 `kura_egress_tree_return_dropped_packets` growth,
 `kura_egress_tree_return_attach_failures_total` growth (a failing return
 attach blackholes shaped pods until the detach threshold),
@@ -166,7 +217,8 @@ attach blackholes shaped pods until the detach threshold),
 `kura_egress_tree_sibling_overflow_total` growth (an account outgrew the
 16-entry sibling map; extra siblings run shaped instead of bypassed, with no
 log — the counter is the only signal), and per-class floor violations under
-contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
+contention (`kura_egress_tree_class_sent_bytes` rate vs
+`kura_egress_tree_class_rate_bytes_per_second`).
 
 A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
