@@ -3648,13 +3648,17 @@ impl Store {
         );
         let mut cache = self.segment_handles.lock().await;
         if let Some((retained_key, existing)) = cache.touch(&cache_key) {
-            self.set_segment_handle_fast_path(retained_key, existing.clone());
+            if cache.record_fast_path_miss(retained_key.clone()) {
+                self.set_segment_handle_fast_path(retained_key, existing.clone());
+            }
             return Ok(existing);
         }
         let (retained_key, evicted) = cache.insert(cache_key, handle.clone());
         if let Some(retained_key) = retained_key {
+            cache.reset_fast_path_candidate();
             self.set_segment_handle_fast_path(retained_key, handle.clone());
         } else {
+            cache.reset_fast_path_candidate();
             self.segment_handle_hot.store(None);
         }
         let cached = cache.len();
@@ -3678,6 +3682,7 @@ impl Store {
 
     async fn remove_cached_file_handle(&self, cache_key: &str, reason: &str) {
         let mut cache = self.segment_handles.lock().await;
+        cache.reset_fast_path_candidate();
         self.segment_handle_hot.store(None);
         let removed = cache.remove(cache_key);
         let cached = cache.len();
@@ -3699,12 +3704,15 @@ impl Store {
 
         let mut cache = self.segment_handles.lock().await;
         let (retained_key, handle) = cache.touch(cache_key)?;
-        self.set_segment_handle_fast_path(retained_key, handle.clone());
+        if cache.record_fast_path_miss(retained_key.clone()) {
+            self.set_segment_handle_fast_path(retained_key, handle.clone());
+        }
         Some(handle)
     }
 
     pub async fn trim_segment_handle_cache_to(&self, target_entries: usize, reason: &str) -> usize {
         let mut cache = self.segment_handles.lock().await;
+        cache.reset_fast_path_candidate();
         self.segment_handle_hot.store(None);
         let evicted = cache.trim_to(target_entries);
         let cached = cache.len();
@@ -7687,10 +7695,14 @@ struct SegmentLocation {
     offset: u64,
 }
 
+/// Amortizes atomic publication when concurrent traffic alternates between cached handles.
+const SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS: usize = 64;
+
 struct SegmentHandleCache {
     entries: HashMap<Arc<str>, CachedSegmentHandle>,
     access: AccessOrder,
     capacity: usize,
+    fast_path_candidate: Option<(Arc<str>, usize)>,
 }
 
 struct SegmentHandleFastPath {
@@ -7709,6 +7721,7 @@ impl SegmentHandleCache {
             entries: HashMap::new(),
             access: AccessOrder::new(),
             capacity,
+            fast_path_candidate: None,
         }
     }
 
@@ -7760,6 +7773,28 @@ impl SegmentHandleCache {
         } else {
             false
         }
+    }
+
+    fn record_fast_path_miss(&mut self, cache_key: Arc<str>) -> bool {
+        let hits = match &mut self.fast_path_candidate {
+            Some((candidate_key, hits)) if candidate_key.as_ref() == cache_key.as_ref() => {
+                *hits += 1;
+                *hits
+            }
+            candidate => {
+                *candidate = Some((cache_key, 1));
+                1
+            }
+        };
+        if hits < SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS {
+            return false;
+        }
+        self.fast_path_candidate = None;
+        true
+    }
+
+    fn reset_fast_path_candidate(&mut self) {
+        self.fast_path_candidate = None;
     }
 
     fn trim_to(&mut self, target_entries: usize) -> usize {
@@ -10822,6 +10857,105 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually during optimization"]
+    async fn segment_handle_alternating_cache_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(store: Arc<Store>, cache_keys: [Arc<str>; 2], fast_path: bool) -> f64 {
+            let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+            let mut workers = tokio::task::JoinSet::new();
+            for worker in 0..WORKERS {
+                let store = store.clone();
+                let cache_keys = cache_keys.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for lookup in 0..LOOKUPS_PER_WORKER {
+                        let cache_key = &cache_keys[(worker + lookup) % cache_keys.len()];
+                        let handle = if fast_path {
+                            store
+                                .segment_handle_cache_get(cache_key)
+                                .await
+                                .expect("benchmark handle should stay cached")
+                        } else {
+                            store
+                                .segment_handles
+                                .lock()
+                                .await
+                                .touch(cache_key)
+                                .expect("benchmark handle should stay cached")
+                                .1
+                        };
+                        std::hint::black_box(Arc::as_ptr(&handle));
+                    }
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let (_temp_dir, config, store) = temp_store();
+        let mut cache_keys = Vec::new();
+        for index in 0..2 {
+            let path = config
+                .data_dir
+                .join(format!("alternating-segment-handle-{index}"));
+            std::fs::write(&path, b"segment").expect("write benchmark segment");
+            let cache_key: Arc<str> = Arc::from(format!("segment:alternating-{index}"));
+            store
+                .persistent_file_handle(cache_key.to_string(), &path, "benchmark")
+                .await
+                .expect("open benchmark segment");
+            cache_keys.push(cache_key);
+        }
+        let cache_keys: [Arc<str>; 2] = cache_keys.try_into().expect("two benchmark keys");
+        let store = Arc::new(store);
+
+        let mut ratios = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (
+                    measure(store.clone(), cache_keys.clone(), false).await,
+                    measure(store.clone(), cache_keys.clone(), true).await,
+                )
+            } else {
+                let candidate = measure(store.clone(), cache_keys.clone(), true).await;
+                let baseline = measure(store.clone(), cache_keys.clone(), false).await;
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                ratios.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        ratios.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_handle_alternating_speedup_ratio={:.6}",
+            ratios[ratios.len() / 2]
+        );
+        println!(
+            "METRIC alternating_baseline_lookups_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC alternating_candidate_lookups_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+    }
+
     #[tokio::test]
     async fn segment_handle_cache_fast_path_preserves_recency_and_bounds() {
         let (_temp_dir, config, store) = temp_store_with(|config| {
@@ -10862,6 +10996,10 @@ mod tests {
         }
 
         assert_eq!(store.trim_segment_handle_cache_to(1, "test").await, 1);
+        assert!(store.segment_handle_hot.load().is_none());
+        for _ in 1..SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS {
+            assert!(store.segment_handle_cache_get("c").await.is_some());
+        }
         assert!(store.segment_handle_hot.load().is_none());
         assert!(store.segment_handle_cache_get("c").await.is_some());
         assert!(store.segment_handle_hot.load().is_some());
