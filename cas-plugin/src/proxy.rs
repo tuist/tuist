@@ -579,6 +579,27 @@ pub struct PathState {
     pub ms_fetch: AtomicU64,
     pub ms_decode: AtomicU64,
     pub ms_store: AtomicU64,
+    // The local half of a publication's cost, separated from the four RPCs it
+    // shares `write_duration` with. That one number covering both is why the
+    // 40x write regression of 2026-09-02 survived three incompatible
+    // explanations for a day: nothing said whether the time was network or
+    // disk. It is disk here, and it is small -- a rotated on-disk store makes
+    // the walk several times more expensive, but several times a number this
+    // size is still noise against one RPC.
+    //
+    // Microseconds, not the milliseconds the counters above use: a walk over a
+    // store that has not rotated is ~1.5us, and a millisecond counter reports a
+    // whole build of them as zero.
+    pub us_publish_walk: AtomicU64,
+    // llcas loads the walk actually made (memo misses). The per-node cost is
+    // what the generation chain changes, so the totals above are only readable
+    // against it.
+    pub stats_publish_nodes_loaded: AtomicU64,
+    // Publications skipped because the remote was inside its shed window. The
+    // companion to `us_publish_walk`: between them, a `write_duration` that
+    // moved says which half moved, and a `write_duration` that did not move
+    // says whether that is health or silence.
+    pub stats_publish_shed: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -1566,6 +1587,9 @@ impl Proxy {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_walk: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }));
         self.paths
             .lock()
@@ -2672,7 +2696,13 @@ impl Proxy {
                 );
             }
             Err(reason) => {
-                crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                // A shed is already reported once per window by the breaker that
+                // armed it, and every publication queued behind it fails for the
+                // same reason. Saying so per record buries the line that
+                // explains them in thousands of copies of itself.
+                if reason != "remote shedding writes" {
+                    crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                }
             }
         }
     }
@@ -2687,6 +2717,17 @@ impl Proxy {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<(), String> {
+        // Asked before anything else. A node shedding writes will refuse this
+        // publication at its last RPC whatever happens in between, so the probe,
+        // the closure walk and the missing-blob query would be three round trips
+        // and a pile of local reads spent to reach a refusal already known. The
+        // record stays on disk and the next sweep retries it, which is the same
+        // contract every other publication failure has.
+        if remote.shedding_writes() {
+            remote.record_shed_write();
+            state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
+            return Err("remote shedding writes".into());
+        }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
         // the wildcard inline hint the resolve path uses.
@@ -2710,41 +2751,11 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let mut entries: Vec<ManifestEntry> = Vec::new();
-        let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
-        let mut visited = HashSet::new();
-        let mut pending = VecDeque::from([record.value_digest.clone()]);
-        while let Some(digest) = pending.pop_front() {
-            if !visited.insert(digest.clone()) {
-                continue;
-            }
-            if let Some((blob_digest, children)) =
-                state.publish_cache.lock().unwrap().get(&digest).cloned()
-            {
-                entries.push(ManifestEntry {
-                    llcas_digest: digest,
-                    blob: blob_digest,
-                    contents: None,
-                });
-                blobs.push(None);
-                pending.extend(children);
-                continue;
-            }
-            let (blob, children) = unsafe { encode_node_blob(state, &digest)? };
-            let blob_digest = reapi::blob_digest(&blob);
-            state
-                .publish_cache
-                .lock()
-                .unwrap()
-                .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-            entries.push(ManifestEntry {
-                llcas_digest: digest,
-                blob: blob_digest,
-                contents: None,
-            });
-            blobs.push(Some(blob));
-            pending.extend(children);
-        }
+        let walk_start = Instant::now();
+        let (entries, blobs) = walk_closure(state, &record.value_digest)?;
+        state
+            .us_publish_walk
+            .fetch_add(walk_start.elapsed().as_micros() as u64, Ordering::Relaxed);
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -3779,7 +3790,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_walk={} nodes_loaded={} shed={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3798,6 +3809,9 @@ impl Proxy {
                 state.ms_fetch.load(Ordering::Relaxed),
                 state.ms_decode.load(Ordering::Relaxed),
                 state.ms_store.load(Ordering::Relaxed),
+                state.us_publish_walk.load(Ordering::Relaxed),
+                state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
+                state.stats_publish_shed.load(Ordering::Relaxed),
             ));
         }
         parts.join(" | ")
@@ -4086,6 +4100,69 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
         return Err("store".into());
     }
     Ok(())
+}
+
+/// The manifest for the value graph rooted at `root`, in visit order, plus the
+/// encoded blob for every node THIS walk had to read (a memo hit yields `None`,
+/// because the bytes are only needed for the nodes the remote turns out to be
+/// missing and re-reading them then is cheaper than holding every closure in
+/// memory).
+///
+/// Each node the memo does not already hold costs an `llcas_cas_load_object`,
+/// and what that load costs depends on the on-disk store's state: once the
+/// store crosses `COMPILATION_CACHE_LIMIT_SIZE` it enforces the limit by
+/// starting a new generation and demoting the old one, and a load resolving in
+/// a demoted generation copies the object forward. Measured on Xcode 26.5
+/// (`tests/graph_retention.rs`), the same 41-node walk is ~1.5us against a
+/// store that has not rotated and ~167us/key on the first pass after one.
+///
+/// Worth knowing and worth measuring (`us_publish_walk`), but worth keeping in
+/// proportion: 100x a number this size is still small against one RPC, and a
+/// publication makes four. A walk cost is not a candidate explanation for a
+/// `write_duration` regression measured in hundreds of milliseconds.
+fn walk_closure(
+    state: &'static PathState,
+    root: &[u8],
+) -> Result<(Vec<ManifestEntry>, Vec<Option<Vec<u8>>>), String> {
+    let mut entries: Vec<ManifestEntry> = Vec::new();
+    let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut visited = HashSet::new();
+    let mut pending = VecDeque::from([root.to_vec()]);
+    while let Some(digest) = pending.pop_front() {
+        if !visited.insert(digest.clone()) {
+            continue;
+        }
+        if let Some((blob_digest, children)) =
+            state.publish_cache.lock().unwrap().get(&digest).cloned()
+        {
+            entries.push(ManifestEntry {
+                llcas_digest: digest,
+                blob: blob_digest,
+                contents: None,
+            });
+            blobs.push(None);
+            pending.extend(children);
+            continue;
+        }
+        let (blob, children) = unsafe { encode_node_blob(state, &digest)? };
+        state
+            .stats_publish_nodes_loaded
+            .fetch_add(1, Ordering::Relaxed);
+        let blob_digest = reapi::blob_digest(&blob);
+        state
+            .publish_cache
+            .lock()
+            .unwrap()
+            .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+        entries.push(ManifestEntry {
+            llcas_digest: digest,
+            blob: blob_digest,
+            contents: None,
+        });
+        blobs.push(Some(blob));
+        pending.extend(children);
+    }
+    Ok((entries, blobs))
 }
 
 unsafe fn encode_node_blob(
@@ -5352,6 +5429,9 @@ mod tests {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_walk: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }))
     }
 
