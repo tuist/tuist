@@ -120,14 +120,13 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       stub(Turnstile, :required?, fn -> true end)
       stub(Turnstile, :site_key, fn -> "site-key" end)
       stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
-      stub(Turnstile, :verify, fn "invalid-token", [expected_action: "email_signup"] -> {:error, :rejected} end)
+      stub(Turnstile, :verify, fn _token, [expected_action: "email_signup"] -> {:error, :rejected} end)
 
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       html =
         lv
         |> form("#login_form", %{
-          "cf-turnstile-response" => "invalid-token",
           "user" => %{
             "email" => email,
             "password" => "StrongP@ssword!2028",

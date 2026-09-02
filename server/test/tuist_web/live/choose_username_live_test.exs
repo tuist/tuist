@@ -120,7 +120,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       stub(Turnstile, :required?, fn -> true end)
       stub(Turnstile, :site_key, fn -> "site-key" end)
       stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
-      stub(Turnstile, :verify, fn "invalid-token", [expected_action: "oauth_signup"] -> {:error, :rejected} end)
+      stub(Turnstile, :verify, fn _token, [expected_action: "oauth_signup"] -> {:error, :rejected} end)
 
       {:ok, lv, _html} =
         conn
@@ -129,10 +129,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
       html =
         lv
-        |> form("#choose-username-form", %{
-          "account" => %{"name" => "oauthrejected"},
-          "cf-turnstile-response" => "invalid-token"
-        })
+        |> form("#choose-username-form", %{"account" => %{"name" => "oauthrejected"}})
         |> render_submit()
 
       assert html =~ "Please complete the security check and try again."
