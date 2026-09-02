@@ -162,39 +162,90 @@ defmodule Tuist.Runners.Concurrency do
   def headroom_jobs(_account_id, _resources), do: 0
 
   @doc """
+  Limits and active-claim usage for `account_ids` on `platform`, read in
+  two queries, for callers that need headroom for several accounts or
+  several shapes over the same set.
+
+  Headroom depends on the shape being asked about, but the two reads
+  behind it do not, so a caller sizing many fleets takes this once and
+  answers each fleet from it. The queue gauges do exactly that: they run
+  every 30 seconds across every fleet, and resolving per fleet made the
+  cost scale with fleet count instead of platform count.
+  """
+  def usage_snapshot(account_ids, platform) when is_list(account_ids) and platform in @platforms do
+    account_ids = Enum.uniq(account_ids)
+
+    %{
+      platform: platform,
+      limits: limits_for_accounts(account_ids, platform),
+      usage: usage_for_accounts(account_ids, platform)
+    }
+  end
+
+  @doc """
+  How many more jobs of shape `resources` an account could claim, answered
+  from a `usage_snapshot/2` with no further reads.
+
+  Returns `{:ok, count}`, or `{:error, :missing_limit}` when the account
+  has no limit row for the platform. That distinction matters and is why
+  this exists alongside `headroom_jobs_by_account/2`: a missing row is not
+  a cap, it is a broken invariant. `Claims.attempt/5` fails it as
+  `:concurrency_limit_missing`, so *nothing* for that account can be
+  dispatched — treating it as "no headroom" would let a caller filter the
+  account's queued work away as though the system were behaving normally.
+
+  `{:error, :invalid_resources}` for a malformed shape or a platform that
+  does not match the snapshot, so a caller cannot silently answer from the
+  wrong platform's budget.
+  """
+  def headroom_from_snapshot(%{platform: platform} = snapshot, account_id, %{
+        platform: platform,
+        vcpus: vcpus,
+        memory_gb: memory_gb
+      })
+      when is_integer(account_id) and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and memory_gb > 0 do
+    case Map.fetch(snapshot.limits, account_id) do
+      {:ok, limit} ->
+        used = Map.get(snapshot.usage, account_id, %{vcpus: 0, memory_gb: 0})
+
+        headroom =
+          [div(limit.vcpus - used.vcpus, vcpus), div(limit.memory_gb - used.memory_gb, memory_gb)]
+          |> Enum.min()
+          |> max(0)
+
+        {:ok, headroom}
+
+      :error ->
+        {:error, :missing_limit}
+    end
+  end
+
+  def headroom_from_snapshot(_snapshot, _account_id, _resources), do: {:error, :invalid_resources}
+
+  @doc """
   `headroom_jobs/2` for many accounts at once, in two queries instead of
   two per account.
 
-  Both callers need every queued account's headroom on one pass — the
-  autoscaler's demand signal and the queue gauges' dispatchable age —
-  and asking per account put a limits read and a usage aggregate on a
-  poll path that runs every 30 seconds across every fleet.
+  Every non-`{:ok, _}` outcome flattens to 0, which is what the
+  autoscaler's demand signal wants: a missing limit row or a malformed
+  shape should size the pool for nothing rather than for work dispatch
+  will refuse. Callers that must tell those apart — anything whose zero
+  would *hide* a fault rather than merely under-provision — should use
+  `usage_snapshot/2` with `headroom_from_snapshot/3` instead.
 
-  An account with no limit row is present with 0 rather than absent, so
-  a caller can tell "no headroom" from "not asked about" without
-  carrying the input list alongside the result.
+  An account with no limit row is present with 0 rather than absent, so a
+  caller can tell "no headroom" from "not asked about" without carrying
+  the input list alongside the result.
   """
-  def headroom_jobs_by_account(account_ids, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
-      when is_list(account_ids) and platform in @platforms and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and
-             memory_gb > 0 do
+  def headroom_jobs_by_account(account_ids, %{platform: platform} = resources)
+      when is_list(account_ids) and platform in @platforms do
     account_ids = Enum.uniq(account_ids)
-    limits = limits_for_accounts(account_ids, platform)
-    usage = usage_for_accounts(account_ids, platform)
+    snapshot = usage_snapshot(account_ids, platform)
 
     Map.new(account_ids, fn account_id ->
-      case Map.fetch(limits, account_id) do
-        {:ok, limit} ->
-          used = Map.get(usage, account_id, %{vcpus: 0, memory_gb: 0})
-
-          headroom =
-            [div(limit.vcpus - used.vcpus, vcpus), div(limit.memory_gb - used.memory_gb, memory_gb)]
-            |> Enum.min()
-            |> max(0)
-
-          {account_id, headroom}
-
-        :error ->
-          {account_id, 0}
+      case headroom_from_snapshot(snapshot, account_id, resources) do
+        {:ok, headroom} -> {account_id, headroom}
+        {:error, _reason} -> {account_id, 0}
       end
     end)
   end

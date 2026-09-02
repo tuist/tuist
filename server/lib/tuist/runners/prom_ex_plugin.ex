@@ -416,6 +416,8 @@ defmodule Tuist.Runners.PromExPlugin do
       now = DateTime.utc_now()
       stats = Jobs.queue_stats_by_fleet()
       current_fleets = stats |> universe_fleets() |> MapSet.new()
+      fleet_resources = Map.new(current_fleets, &{&1, Catalog.resources_for_fleet(&1)})
+      snapshots = concurrency_snapshots(stats, fleet_resources)
 
       Enum.each(current_fleets, fn fleet ->
         %{count: count, oldest_enqueued_at: oldest_enqueued_at, by_account: by_account} =
@@ -426,7 +428,11 @@ defmodule Tuist.Runners.PromExPlugin do
           %{
             count: count,
             oldest_age_seconds: age_seconds(now, oldest_enqueued_at),
-            oldest_dispatchable_age_seconds: age_seconds(now, oldest_dispatchable_enqueued_at(fleet, by_account))
+            oldest_dispatchable_age_seconds:
+              age_seconds(
+                now,
+                oldest_dispatchable_enqueued_at(by_account, Map.get(fleet_resources, fleet), snapshots)
+              )
           },
           %{fleet: fleet}
         )
@@ -459,8 +465,37 @@ defmodule Tuist.Runners.PromExPlugin do
   # Clamped at 0 so clock skew between the pod that wrote `enqueued_at`
   # and the pod polling can't report a negative age, which would read as
   # a healthy queue. `nil` means the fleet has nothing queued.
+  # One limits+usage read per PLATFORM per poll, over every account queued
+  # anywhere on that platform's fleets.
+  #
+  # Headroom depends on the shape, but the two reads behind it depend only
+  # on the account and platform, so they are taken once here and every
+  # fleet is answered from them. Resolving per fleet instead made the cost
+  # scale with fleet count — this runs every 30 seconds on every replica,
+  # and a busy queue spans many fleets at once — while re-reading the same
+  # accounts for each fleet they are queued on.
+  defp concurrency_snapshots(stats, fleet_resources) do
+    fleet_resources
+    |> Enum.reduce(%{}, fn
+      {fleet, {:ok, %{platform: platform}}}, acc ->
+        accounts =
+          stats
+          |> Map.get(fleet, %{})
+          |> Map.get(:by_account, %{})
+          |> Map.keys()
+
+        Map.update(acc, platform, accounts, &(accounts ++ &1))
+
+      {_fleet, {:error, _reason}}, acc ->
+        acc
+    end)
+    |> Map.new(fn {platform, account_ids} ->
+      {platform, Concurrency.usage_snapshot(account_ids, platform)}
+    end)
+  end
+
   # The oldest arrival dispatch could actually hand out right now: the
-  # queue minus the accounts with no concurrency headroom left.
+  # queue minus the accounts measured to have no concurrency headroom.
   #
   # Per account, not per job, because headroom is an account-level
   # budget — an account with headroom can be handed its own oldest
@@ -470,20 +505,36 @@ defmodule Tuist.Runners.PromExPlugin do
   # matching `Tuist.Runners.dispatchable_queued_count/1`: an
   # unrecognised fleet should report the signal it has rather than read
   # zero and mask a genuine stall behind a catalog gap.
-  defp oldest_dispatchable_enqueued_at(_fleet, by_account) when map_size(by_account) == 0, do: nil
+  defp oldest_dispatchable_enqueued_at(by_account, _resources, _snapshots) when map_size(by_account) == 0, do: nil
 
-  defp oldest_dispatchable_enqueued_at(fleet, by_account) do
-    case Catalog.resources_for_fleet(fleet) do
-      {:ok, resources} ->
-        headrooms = Concurrency.headroom_jobs_by_account(Map.keys(by_account), resources)
-
+  defp oldest_dispatchable_enqueued_at(by_account, {:ok, resources}, snapshots) do
+    case Map.fetch(snapshots, resources.platform) do
+      {:ok, snapshot} ->
         by_account
-        |> Enum.filter(fn {account_id, _oldest} -> Map.get(headrooms, account_id, 0) > 0 end)
+        |> Enum.filter(fn {account_id, _oldest} -> dispatchable_account?(snapshot, account_id, resources) end)
         |> Enum.map(fn {_account_id, oldest} -> oldest end)
         |> earliest()
 
-      {:error, _reason} ->
+      :error ->
         by_account |> Map.values() |> earliest()
+    end
+  end
+
+  defp oldest_dispatchable_enqueued_at(by_account, _resources, _snapshots) do
+    by_account |> Map.values() |> earliest()
+  end
+
+  # Only a MEASURED cap filters an account out. A missing limit row is not
+  # a cap: `Claims.attempt/5` fails it as `:concurrency_limit_missing`, so
+  # nothing for that account can be dispatched at all. Reading that as "no
+  # headroom" would report a healthy zero for a queue that is entirely
+  # stuck, which is precisely the stall the queue-age alert exists to
+  # catch. Anything other than a real headroom figure keeps the account's
+  # wait visible.
+  defp dispatchable_account?(snapshot, account_id, resources) do
+    case Concurrency.headroom_from_snapshot(snapshot, account_id, resources) do
+      {:ok, headroom} -> headroom > 0
+      {:error, _reason} -> true
     end
   end
 

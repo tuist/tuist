@@ -830,7 +830,7 @@ was noticed by a person looking at the queue.
 
 ```promql
 max by (cluster, env, fleet) (
-  tuist_runners_queue_oldest_dispatchable_age_seconds
+  tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
 ) > 1800
 ```
 
@@ -838,9 +838,15 @@ max by (cluster, env, fleet) (
 - Severity: critical
 - `affected_service`: the runners component (customer-visible — a job
   that never starts is indistinguishable from CI being down)
-- Summary: `Workflow jobs on {{ $labels.fleet }} have been queued for
-  over 30 minutes in {{ $labels.cluster }}: the fleet is not draining
-  its queue`
+- Summary: `Runner fleet {{ $labels.fleet }} in {{ $labels.cluster }}:
+  oldest dispatchable queued job waiting {{ $values.A.Value |
+  humanizeDuration }}`
+
+Aggregate by `cluster, env, fleet`, not by `fleet` alone. Fleet names are
+identical across canary, staging and production, so collapsing to `fleet`
+takes the max across environments; the `env` selector makes that
+harmless today, but the labels also have to survive the aggregation for
+the summary to interpolate `{{ $labels.cluster }}` at all.
 
 **Dispatchable** age, not raw age. `tuist_runners_queue_oldest_age_seconds`
 counts every queued row, including work the server deliberately withholds
@@ -870,16 +876,27 @@ PromQL condition also avoids subtracting two gauges written by different
 code paths at different cadences — `queue_withheld` is emitted from the
 autoscaler's signal path, not this poll.
 
+**A missing limit row is not a cap, and is deliberately still counted.**
+`Claims.attempt/5` fails an account with no `runner_concurrency_limits`
+row for the platform as `:concurrency_limit_missing`, so *none* of its
+jobs can ever be claimed — a broken invariant, not admission control.
+`Concurrency.headroom_from_snapshot/3` returns `{:error, :missing_limit}`
+rather than a headroom of 0 so the gauge can tell the two apart and keep
+that account's wait visible; excluding it would report a healthy zero for
+a queue that is completely stuck, which is the exact failure this rule
+exists to catch. The autoscaler still flattens it to 0 and fails closed,
+because there under-provisioning is the safe direction.
+
 Keep `tuist_runners_queue_length` and `tuist_runners_queue_oldest_age_seconds`
 on the dashboard: they still report the truth about what customers are
-waiting on, which is what the companion rule below watches.
+waiting on.
 
 The deployed rule currently carries a transitional fallback:
 
 ```promql
-max by (fleet) (
+max by (cluster, env, fleet) (
   tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
-) or max by (fleet) (
+) or max by (cluster, env, fleet) (
   tuist_runners_queue_oldest_age_seconds{env="production"}
 )
 ```

@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.ConcurrencyTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Account
@@ -8,6 +9,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.ConcurrencySession
 
   test "returns the default platform limits and empty usage" do
@@ -379,6 +381,37 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
   end
 
+  describe "usage_snapshot/2 and headroom_from_snapshot/3" do
+    test "separates a missing limit row from a genuinely exhausted one" do
+      capped = account_fixture()
+      unlimited = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(11_401, capped.id, "macos-pool", "p1", shape)
+      assert {:ok, _} = Claims.attempt(11_402, capped.id, "macos-pool", "p2", shape)
+      Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^unlimited.id))
+
+      snapshot = Concurrency.usage_snapshot([capped.id, unlimited.id], :macos)
+
+      assert Concurrency.headroom_from_snapshot(snapshot, capped.id, shape) == {:ok, 0}
+      assert Concurrency.headroom_from_snapshot(snapshot, unlimited.id, shape) == {:error, :missing_limit}
+    end
+
+    test "one snapshot serves several shapes without re-reading" do
+      account = account_fixture()
+      snapshot = Concurrency.usage_snapshot([account.id], :macos)
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+               {:ok, 2}
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 1, memory_gb: 14}) ==
+               {:ok, 2}
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 12, memory_gb: 28}) ==
+               {:ok, 1}
+    end
+  end
+
   describe "headroom_jobs_by_account/2" do
     test "agrees with headroom_jobs/2 for every account" do
       first = account_fixture()
@@ -401,6 +434,18 @@ defmodule Tuist.Runners.ConcurrencyTest do
                account.id => 2,
                -1 => 0
              }
+    end
+
+    # `Claims.attempt/5` fails a missing limit row as
+    # `:concurrency_limit_missing` — admission cannot proceed at all — so
+    # callers that need to tell that apart from a real cap must not read
+    # the 0 this returns as "at the limit".
+    test "flattens a missing limit row to 0 so the autoscaler still fails closed" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id))
+
+      assert Concurrency.headroom_jobs_by_account([account.id], shape) == %{account.id => 0}
     end
 
     test "returns an empty map for no accounts and 0s for a malformed shape" do
