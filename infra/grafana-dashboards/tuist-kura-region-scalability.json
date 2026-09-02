@@ -6,7 +6,7 @@
   },
   "spec": {
     "title": "Tuist Kura / Region Scalability",
-    "description": "How far each Kura region is from the point where it needs another node, per resource: instances the scheduler can still place, reservations versus capacity, and real host memory. RAM and disk today; egress to follow. Thresholds match the region capacity alerts in infra/helm/k8s-monitoring/alerts.md.",
+    "description": "How far each Kura region is from the point where it needs another node, per resource: instances the scheduler can still place, reservations versus capacity, and real host memory. RAM, disk and egress. Thresholds match the region capacity alerts in infra/helm/k8s-monitoring/alerts.md.",
     "tags": [
       "tuist",
       "kura",
@@ -153,6 +153,21 @@
         }
       },
       {
+        "kind": "TextVariable",
+        "spec": {
+          "name": "instance_egress_mbps",
+          "label": "Instance egress floor (Mbps)",
+          "description": "Per-replica guaranteed egress floor of the profile to size for, requested as the tuist.dev/egress-mbps extended resource (Tuist.Kura.Regions egress_guaranteed_mbps, 25 on every governed region). Multiplied by two replicas.",
+          "query": "25",
+          "current": {
+            "text": "25",
+            "value": "25"
+          },
+          "hide": "dontHide",
+          "skipUrlSync": false
+        }
+      },
+      {
         "kind": "ConstantVariable",
         "spec": {
           "name": "node_region",
@@ -173,7 +188,7 @@
         "spec": {
           "id": 7,
           "title": "Instances that still fit",
-          "description": "How many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor) each region can still place, by placement constraint. A pod places only if the node satisfies both, so the lower of the two is the region's real headroom; 0 means the next provisioning is declined and the region needs a node. **no ceiling** = the region's boxes advertise no `tuist.dev/memory-ceiling-mib` budget, so memory and disk are its only constraints. Disk counts two replicas of `$instance_claim_gib` GiB ephemeral-storage claims against allocatable disk. The RAM and Disk sections below have the reservations, host usage and retention behind these counts.",
+          "description": "How many more instances of the largest profile (two replicas of `$instance_ceiling_mib` MiB ceiling / `$instance_floor_mib` MiB floor) each region can still place, by placement constraint. A pod places only if the node satisfies both, so the lower of the two is the region's real headroom; 0 means the next provisioning is declined and the region needs a node. **no ceiling** = the region's boxes advertise no `tuist.dev/memory-ceiling-mib` budget and **no budget** = no `tuist.dev/egress-mbps` budget (the private runner-cache pool), so those constraints do not apply there. Disk counts two replicas of `$instance_claim_gib` GiB ephemeral-storage claims against allocatable disk; egress counts two replicas of `$instance_egress_mbps` Mbps guaranteed floors against the advertised budget (the scheduler's arithmetic, per-replica double count included). The RAM, Disk and Egress sections below have the reservations, usage and customer-facing signals behind these counts.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -247,6 +262,29 @@
                       "version": "v0"
                     }
                   }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "D",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"})) / (2 * $instance_egress_mbps)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
                 }
               ],
               "queryOptions": {},
@@ -257,7 +295,7 @@
                   "spec": {
                     "options": {
                       "include": {
-                        "pattern": "^(region|Value #[ABC])$"
+                        "pattern": "^(region|Value #[ABCD])$"
                       }
                     }
                   }
@@ -280,7 +318,8 @@
                         "region": 0,
                         "Value #A": 1,
                         "Value #B": 2,
-                        "Value #C": 3
+                        "Value #C": 3,
+                        "Value #D": 4
                       }
                     }
                   }
@@ -457,6 +496,72 @@
                       {
                         "id": "displayName",
                         "value": "Fit (disk)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #D"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (egress)"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no budget",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
                       },
                       {
                         "id": "custom.cellOptions",
@@ -3666,6 +3771,2127 @@
             }
           }
         }
+      },
+      "panel-15": {
+        "kind": "Panel",
+        "spec": {
+          "id": 15,
+          "title": "Egress by region",
+          "description": "**Fit (egress)** counts how many more instances (two replicas of `$instance_egress_mbps` Mbps floors, requested as the `tuist.dev/egress-mbps` extended resource) the region's advertised budget still admits, `floor()` per node first; it is the `egress` row of **Kura region cannot place another instance**. **Floors reserved** is the scheduler's view. **Budget** is the provider's public cap for the boxes and the root of the egress-tree HTB tree; **Budget used** is the boxes' NIC transmit rate against it (5 m), **Peak** the highest 30 m rate over the dashboard range. A tenant above its own floor is fine, that is what ceilings are for; a region near its budget for a non-short period is not: above it every tenant is squeezed toward its floor at once (**Kura egress budget heavily used** warns at 75 %, pages at 85 %, 30 m sustained). **p95 TTFB** is the customer-facing symptom across every limit (**Kura public request latency high** at 1 s). Boxes without an advertised budget (the runner-cache pool) are out of scope by construction and read **no budget**.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"})) / (2 * $instance_egress_mbps)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "D",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~\"e(n|th).*\", env=\"$env\"}[5m])) * 8 / 1e6 * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "E",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max_over_time((sum by (cluster, region) (sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~\"e(n|th).*\", env=\"$env\"}[30m])) * 8 / 1e6 * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region))[$__range:5m])",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "F",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) (sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|Value #[ABCDEF])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "Value #A": 1,
+                        "Value #B": 2,
+                        "Value #C": 3,
+                        "Value #D": 4,
+                        "Value #E": 5,
+                        "Value #F": 6
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (egress)"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no budget",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Floors reserved"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.8
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Budget"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "Mbits"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #D"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Budget used"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.75
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.85
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #E"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Peak budget used (30 m, range)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.75
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.85
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #F"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "p95 TTFB"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "s"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 3
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "nan",
+                              "result": {
+                                "text": "idle",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.5
+                            },
+                            {
+                              "color": "red",
+                              "value": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Fit (egress)",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-16": {
+        "kind": "Panel",
+        "spec": {
+          "id": 16,
+          "title": "Egress by account",
+          "description": "One row per account per box: the HTB class the egress tree shapes for every replica the account has there. **Sent** is the class's 10 m transmit rate, **Ceiling** what HTB is enforcing (`egress_burst_mbps` or the per-account override, clamps included), **Ceiling share** the ratio. A burst to the ceiling is expected; an hour within 10 % of it (**Kura account at its egress ceiling**) means the ceiling is the account's bottleneck and the lever is its per-region egress override, unless the box is near its budget too, in which case the box is the bottleneck. Sorted by ceiling share, so the accounts driving a box are on top.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (cluster, region, account, node) (sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\"}) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (cluster, region, account, node) ((sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) / sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{env=\"$env\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|account|node|Value #[ABC])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "account": 1,
+                        "node": 2,
+                        "Value #A": 3,
+                        "Value #B": 4,
+                        "Value #C": 5
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "account"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Account"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "node"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Node"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 360
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Sent"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "Mbits"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Ceiling"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "Mbits"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Ceiling share"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.75
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.9
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Ceiling share",
+                    "desc": true
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-17": {
+        "kind": "Panel",
+        "spec": {
+          "id": 17,
+          "title": "Response streams by region and protocol",
+          "description": "The only capacity view of the ByteStream (REAPI) read path, since gRPC never answers 429. **Not immediate** is the share of response-stream admission attempts that had to wait, degrade, hit a full queue or time out for pool bytes; the pool is sized from each pod's memory ceiling at startup, so a rising share is the egress pool nearing its byte capacity while requests still succeed (**Kura response streams waiting or degraded** warns above 5 % with at least one attempt per second). Per protocol on purpose: HTTP attempts outnumber ByteStream by two orders of magnitude and would dilute a saturated ByteStream pool to nothing. Lever: the account's memory profile, unless the box is near its egress budget too. Attempts, not requests: one read can count twice.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, protocol) (sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"}))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, protocol) (sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{env=\"$env\", outcome=~\"waited|degraded|degraded_timeout|degraded_memory_unavailable|queue_full|timeout\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})) / sum by (cluster, region, protocol) (sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"}))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|protocol|Value #[AB])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "protocol": 1,
+                        "Value #A": 2,
+                        "Value #B": 3
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "protocol"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Protocol"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 140
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Attempts/s"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "reqps"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Not immediate"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "nan",
+                              "result": {
+                                "text": "idle",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.05
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.2
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Not immediate",
+                    "desc": true
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-18": {
+        "kind": "Panel",
+        "spec": {
+          "id": 18,
+          "title": "Egress by node",
+          "description": "The per-box breakdown of **Egress by region**. Every production region runs on one box today, so the rows read the same; once a region has boxes with different budgets, a single saturated box shapes its tenants whether or not the region total says so.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"})) / (2 * $instance_egress_mbps)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "B",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "C",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "D",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, node) (label_replace(sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~\"e(n|th).*\", env=\"$env\"}[5m])) * 8 / 1e6 * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\")) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "E",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max_over_time((sum by (cluster, region, node) (label_replace(sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~\"e(n|th).*\", env=\"$env\"}[30m])) * 8 / 1e6 * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"), \"node\", \"$1\", \"instance\", \"(.*)\")) / sum by (cluster, region, node) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region))[$__range:5m])",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "format": "table",
+                        "queryType": "instant"
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "pattern": "^(region|node|Value #[ABCDE])$"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "renameByName": {},
+                      "indexByName": {
+                        "region": 0,
+                        "node": 1,
+                        "Value #A": 2,
+                        "Value #B": 3,
+                        "Value #C": 4,
+                        "Value #D": 5,
+                        "Value #E": 6
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": []
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "region"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Region"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 180
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "node"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Node"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 360
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Fit (egress)"
+                      },
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "special",
+                            "options": {
+                              "match": "null",
+                              "result": {
+                                "text": "no budget",
+                                "color": "text"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "color-background",
+                          "mode": "basic"
+                        }
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "red",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 1
+                            },
+                            {
+                              "color": "green",
+                              "value": 2
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Floors reserved"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.8
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.95
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #C"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Budget"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "center"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "Mbits"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #D"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Budget used"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.75
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.85
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #E"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Peak budget used (30 m, range)"
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "gradient",
+                          "valueDisplayMode": "text"
+                        }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      },
+                      {
+                        "id": "unit",
+                        "value": "percentunit"
+                      },
+                      {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 1
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "orange",
+                              "value": 0.75
+                            },
+                            {
+                              "color": "red",
+                              "value": 0.85
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "showHeader": true,
+                "cellHeight": "md",
+                "sortBy": [
+                  {
+                    "displayName": "Fit (egress)",
+                    "desc": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-19": {
+        "kind": "Panel",
+        "spec": {
+          "id": 19,
+          "title": "Instances that still fit by egress",
+          "description": "Same count as **Fit (egress)** over time: placements the guaranteed floors still allow against the advertised budget. Each provisioning steps it down, a budget change or a new node moves it.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (floor((max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) - sum by (cluster, node) (kube_pod_container_resource_requests{resource=\"tuist_dev_egress_mbps\", env=\"$env\"})) / (2 * $instance_egress_mbps)) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 1
+                      },
+                      {
+                        "color": "green",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  "unit": "short",
+                  "min": 0,
+                  "decimals": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "Egress budget used",
+          "description": "NIC transmit rate of the region's boxes against the advertised `tuist.dev/egress-mbps` budget (5 m). Dashed lines at 75 % (warning) and 85 % (critical), both 30 m sustained in the alerts.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region) (sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~\"e(n|th).*\", env=\"$env\"}[5m])) * 8 / 1e6 * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region) (max by (cluster, node) (kube_node_status_capacity{resource=\"tuist_dev_egress_mbps\", env=\"$env\"}) * on (cluster, node) group_left(region) $node_region)",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.75
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.85
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-21": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Top accounts by egress",
+          "description": "The five accounts sending the most through their egress-tree classes (10 m rate), which is the \"who is driving it\" annotation behind the budget alerts.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "topk(5, max by (cluster, region, account, node) (sum by (cluster, account, pod) (rate(kura_egress_tree_class_sent_bytes{env=\"$env\"}[10m])) * 8 / 1e6 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}) * on (cluster, node) group_left(region) $node_region))",
+                        "legendFormat": "{{account}} on {{node}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Mbits",
+                  "min": 0,
+                  "decimals": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "p95 time to first byte",
+          "description": "p95 of time to first response byte for public cache requests (HTTP and gRPC) across each region's instances. Dashed lines at 0.5 s and 1 s (the alert bar, 30 m sustained). Not a diagnosis: the panels above say why, this one says the customer feels it.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) (sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
+                        "legendFormat": "{{region}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "dashed"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.5
+                      },
+                      {
+                        "color": "red",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  "unit": "s",
+                  "min": 0,
+                  "decimals": 3
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "min"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "asc"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "layout": {
@@ -3912,6 +6138,138 @@
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-14"
+                        },
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Egress",
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-15"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 24,
+                        "height": 9
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-16"
+                        },
+                        "x": 0,
+                        "y": 9,
+                        "width": 24,
+                        "height": 12
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-17"
+                        },
+                        "x": 0,
+                        "y": 21,
+                        "width": 24,
+                        "height": 9
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-18"
+                        },
+                        "x": 0,
+                        "y": 30,
+                        "width": 24,
+                        "height": 9
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Egress trends",
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-19"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-20"
+                        },
+                        "x": 12,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-21"
+                        },
+                        "x": 0,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-22"
                         },
                         "x": 12,
                         "y": 8,
