@@ -1772,17 +1772,7 @@ impl ByteStream for ReapiService {
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         self.state.metrics.record_artifact_serving_path("streaming");
-        let stream =
-            ReaderStream::with_capacity(reader, stream_chunk_bytes).map(
-                move |result| match result {
-                    Ok(bytes) => Ok(bytestream::ReadResponse {
-                        data: bytes.to_vec(),
-                    }),
-                    Err(error) => Err(Status::internal(format!(
-                        "failed to stream blob chunk: {error}"
-                    ))),
-                },
-            );
+        let stream = bytestream_read_response_stream(reader, stream_chunk_bytes);
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
         response
@@ -1863,6 +1853,23 @@ impl ByteStream for ReapiService {
             None => Err(Status::not_found("blob not found")),
         }
     }
+}
+
+fn bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Send,
+{
+    ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
+        Ok(bytes) => Ok(bytestream::ReadResponse {
+            data: bytes.to_vec(),
+        }),
+        Err(error) => Err(Status::internal(format!(
+            "failed to stream blob chunk: {error}"
+        ))),
+    })
 }
 
 async fn fetch_keyvalue_proto<T>(
@@ -2630,6 +2637,55 @@ mod tests {
         framed.extend_from_slice(&(encoded_message_bytes as u32).to_be_bytes());
         framed.extend(std::iter::repeat_n(byte, encoded_message_bytes));
         framed
+    }
+
+    #[tokio::test]
+    async fn bytestream_read_response_stream_preserves_bytes_and_chunk_bound() {
+        use tokio::io::AsyncReadExt as _;
+
+        let reader = tokio::io::repeat(0x5a).take(10_001);
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert_eq!(responses.len(), 10);
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, vec![0x5a; 10_001]);
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn bytestream_read_chunk_materialization_benchmark() {
+        use tokio::io::AsyncReadExt as _;
+
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 6;
+
+        let mut throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let reader = tokio::io::repeat(0x5a).take(SAMPLE_BYTES);
+            let stream = bytestream_read_response_stream(reader, CHUNK_BYTES);
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                throughputs.push(mebibytes / started_at.elapsed().as_secs_f64());
+            }
+        }
+        throughputs.sort_by(f64::total_cmp);
+        let median = throughputs[throughputs.len() / 2];
+        println!("METRIC bytestream_read_mebibytes_per_second={median:.3}");
     }
 
     fn grpc_request<T: Message>(path: &str, message: &T) -> http::Request<axum::body::Body> {

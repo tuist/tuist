@@ -1,0 +1,1 @@
+{"bestDirection": "higher", "maxIterations": 8, "metricName": "bytestream_read_mebibytes_per_second", "metricUnit": "MiB/s", "name": "Optimize Kura bounded-resource throughput", "timestamp": 1788379277200, "type": "config"}
