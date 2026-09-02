@@ -1333,6 +1333,11 @@ defmodule Tuist.Runners do
     # between hosted and self-hosted runs. The runner images
     # create a `runner` user with the corresponding HOME on each
     # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    #
+    # Linux Pods share this directory with the dockerd sidecar so
+    # `jobs.<id>.container` jobs work; the mount path is `workPath`
+    # in `infra/runners-controller/internal/podtemplate`, and the two
+    # have to move together.
     work_folder =
       if "macOS" in runner_labels do
         "/Users/runner/work"
