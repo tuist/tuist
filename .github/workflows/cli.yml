@@ -343,6 +343,32 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours. Forks skip this: they do not check out the EE submodule, so the
+      # suite that needs the plugin is not in the scheme there.
+      - uses: jdx/mise-action@v4.0.1
+        if: github.event.pull_request.head.repo.fork != true
+        with:
+          version: ${{ env.MISE_VERSION }}
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+      - uses: Swatinem/rust-cache@v2
+        if: github.event.pull_request.head.repo.fork != true
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        if: github.event.pull_request.head.repo.fork != true
+        working-directory: cas-plugin
+        run: |
+          mise run build
+          echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)

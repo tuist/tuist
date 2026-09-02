@@ -239,6 +239,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.cas.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),

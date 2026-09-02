@@ -7,6 +7,7 @@ import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistCacheCommand
+import TuistCAS
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
@@ -36,11 +37,19 @@ struct TuistCacheEECanaryAcceptanceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
 
-        // This test drives the legacy per-project cache daemon: it starts `cache-start`
-        // and points Xcode at that daemon's socket. The kura lane instead expects the
-        // machine-wide CAS proxy and the plugin dylib, neither of which this process
-        // has, so it is opted out explicitly rather than inherited from the default.
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
+        // `ResourceLocator` and `ProjectMapperFactory` resolve the plugin and the proxy
+        // from `Environment.current`, which is mocked here and inherits only `PATH`, so
+        // CI's overrides are copied in rather than inherited.
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try #require(
+            ProcessInfo.processInfo.environment["TUIST_CAS_PLUGIN_PATH"],
+            "TUIST_CAS_PLUGIN_PATH is unset. Build the plugin with `mise run build` in `cas-plugin` and export it."
+        )
+        let proxyPath = try AbsolutePath(
+            validating: try #require(
+                ProcessInfo.processInfo.environment["TUIST_CAS_PROXY_PATH"],
+                "TUIST_CAS_PROXY_PATH is unset. Build the proxy with `mise run build` in `cas-plugin` and export it."
+            )
+        )
 
         try await withShortStateDirectory(fileSystem: fileSystem) { stateDirectory in
             let previousStateDirectory = environment.stateDirectory
@@ -67,21 +76,30 @@ struct TuistCacheEECanaryAcceptanceTests {
                 options: Set([.overwrite])
             )
 
-            let remoteCacheServicePath = environment.stateDirectory
-                .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+            let proxySocketPath = environment.casProxySocketPath()
             try #require(
-                remoteCacheServicePath.pathString.utf8.count < 104,
-                "Unix-domain socket path is too long: \(remoteCacheServicePath.pathString)"
+                proxySocketPath.pathString.utf8.count < 104,
+                "Unix-domain socket path is too long: \(proxySocketPath.pathString)"
             )
+            // The plugin reads this inside the compiler frontends, and
+            // `XcodeBuildController` spawns xcodebuild with `Environment.current.variables`,
+            // so setting it here is what makes the frontends address the proxy this test
+            // starts instead of the machine-wide one.
+            environment.variables["TUIST_CAS_PROXY_SOCKET"] = proxySocketPath.pathString
 
-            try await withCacheServer(
+            try await withCacheProxy(
+                executablePath: proxyPath,
                 fullHandle: fixtureFullHandle,
-                socketPath: remoteCacheServicePath,
+                socketPath: proxySocketPath,
                 fileSystem: fileSystem
             ) {
                 try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
                 resetUI()
 
+                // No `COMPILATION_CACHE_REMOTE_SERVICE_PATH` override: on the kura lane
+                // `tuist generate` writes it into the project pointing at the proxy, and
+                // the plugin consumes that option rather than forwarding it to Xcode's own
+                // remote client.
                 let arguments = [
                     "-scheme", "App",
                     "-destination", "generic/platform=iOS Simulator",
@@ -90,7 +108,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                     "CODE_SIGN_IDENTITY=",
                     "CODE_SIGNING_REQUIRED=NO",
                     "CODE_SIGNING_ALLOWED=NO",
-                    "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
                 ]
                 try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
                 TuistTest.expectLogs("cacheable tasks (0%)")
@@ -308,7 +325,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         try await fileSystem.makeDirectory(at: directory)
     }
 
-    /// The cache server exposes a Unix-domain socket under the state directory. macOS limits the full
+    /// The cache proxy exposes a Unix-domain socket under the state directory. macOS limits the full
     /// socket path length, so acceptance tests use a short state directory to keep the socket path valid.
     private func makeShortStateDirectory(fileSystem: FileSysteming) async throws -> AbsolutePath {
         let directory = try AbsolutePath(validating: "/tmp")
@@ -333,46 +350,80 @@ struct TuistCacheEECanaryAcceptanceTests {
         try? await fileSystem.remove(directory)
     }
 
-    private func withCacheServer(
+    /// Runs the per-machine CAS proxy for the duration of `operation`.
+    ///
+    /// `cache-proxy` cannot serve here: it hands off with `execv`, which would replace
+    /// the test runner's process image. The proxy binary is spawned directly instead,
+    /// configured the way `CacheProxyCommandService` configures it, except that the
+    /// bearer is passed as `TUIST_CAS_TOKEN` because the proxy's other option is to
+    /// shell out to a `tuist` binary this process does not have.
+    private func withCacheProxy(
+        executablePath: AbsolutePath,
         fullHandle: String,
         socketPath: AbsolutePath,
         fileSystem: FileSysteming,
         operation: () async throws -> Void
     ) async throws {
-        let cacheServerTask = Task {
-            try await TuistTest.run(
-                CacheStartCommand.self,
-                [fullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
-            )
-        }
+        let serverURL = try #require(
+            URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
+        )
+        let accountHandle = String(fullHandle.split(separator: "/")[0])
+        let endpoint = try await CacheURLStore().getCacheURL(for: serverURL, accountHandle: accountHandle)
+        let token = try #require(
+            await ServerAuthenticationController().authenticationToken(serverURL: serverURL),
+            "The acceptance test is not authenticated against \(serverURL.absoluteString)"
+        )
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath.pathString)
+        process.environment = [
+            "TUIST_CAS_PROXY_SOCKET": socketPath.pathString,
+            "TUIST_CAS_REMOTE_GRPC_URL": endpoint.absoluteString,
+            "TUIST_CAS_SERVER_URL": serverURL.absoluteString,
+            "TUIST_CAS_TOKEN": token.value,
+            // The proxy and the build start together, so there is no window to warm a
+            // byte closure in. This is what `tuist setup cache` selects on CI.
+            "TUIST_CAS_PREFETCH": "keys",
+            // The proxy resolves the wrapped Apple plugin through `xcode-select`.
+            "PATH": Environment.current.variables["PATH"] ?? "",
+        ]
+        try process.run()
 
         do {
-            try await waitForCacheServer(at: socketPath, fileSystem: fileSystem)
+            try await waitForSocket(at: socketPath, fileSystem: fileSystem, process: process)
             try await operation()
         } catch {
-            await stopCacheServer(cacheServerTask)
+            stopCacheProxy(process)
             throw error
         }
 
-        await stopCacheServer(cacheServerTask)
+        stopCacheProxy(process)
     }
 
-    private func stopCacheServer(_ task: Task<Void, Error>) async {
-        task.cancel()
-        _ = await task.result
+    private func stopCacheProxy(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        process.waitUntilExit()
     }
 
-    private func waitForCacheServer(
+    private func waitForSocket(
         at socketPath: AbsolutePath,
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        process: Process
     ) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(30))
 
         while try await !fileSystem.exists(socketPath) {
+            // The proxy exits non-zero on a missing endpoint or a socket it cannot bind,
+            // and waiting out the deadline would report that as a timeout.
+            try #require(
+                process.isRunning,
+                "The cache proxy exited with status \(process.terminationStatus) before binding \(socketPath.pathString)"
+            )
             try #require(
                 clock.now < deadline,
-                "Cache server did not create socket at \(socketPath.pathString)"
+                "Cache proxy did not create socket at \(socketPath.pathString)"
             )
             try await Task.sleep(for: .milliseconds(100))
         }
