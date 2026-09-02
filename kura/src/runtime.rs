@@ -20,6 +20,9 @@ const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
 const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
 const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
+const PUBLIC_HTTP_INFLIGHT_SHIFT: u32 = 32;
+const HTTP_INFLIGHT_INCREMENT: u64 = 1;
+const PUBLIC_HTTP_INFLIGHT_INCREMENT: u64 = 1 << PUBLIC_HTTP_INFLIGHT_SHIFT;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrafficState {
@@ -57,8 +60,7 @@ pub struct RuntimeState {
     peer_view_required: AtomicBool,
     peer_view_ready: AtomicBool,
     writer_lock_owned: AtomicBool,
-    http_inflight: AtomicUsize,
-    public_http_inflight: AtomicUsize,
+    http_inflight: AtomicU64,
     grpc_inflight: AtomicUsize,
     public_request_latency_ewma_micros: AtomicU64,
     public_request_latency_sampled_at_ms: AtomicU64,
@@ -74,8 +76,7 @@ impl RuntimeState {
             peer_view_required: AtomicBool::new(false),
             peer_view_ready: AtomicBool::new(false),
             writer_lock_owned: AtomicBool::new(true),
-            http_inflight: AtomicUsize::new(0),
-            public_http_inflight: AtomicUsize::new(0),
+            http_inflight: AtomicU64::new(0),
             grpc_inflight: AtomicUsize::new(0),
             public_request_latency_ewma_micros: AtomicU64::new(0),
             public_request_latency_sampled_at_ms: AtomicU64::new(0),
@@ -132,11 +133,11 @@ impl RuntimeState {
     }
 
     pub fn http_inflight(&self) -> usize {
-        self.http_inflight.load(Ordering::SeqCst)
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).0
     }
 
     pub fn public_http_inflight(&self) -> usize {
-        self.public_http_inflight.load(Ordering::SeqCst)
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).1
     }
 
     pub fn grpc_inflight(&self) -> usize {
@@ -198,18 +199,19 @@ impl RuntimeState {
         metrics: &Metrics,
         traffic_class: HttpTrafficClass,
     ) -> InflightGuard {
-        let count = self.http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
-        metrics.update_http_inflight(count);
-        if traffic_class.contributes_to_public_load() {
-            let count = self.public_http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
-            metrics.update_public_http_inflight(count);
+        let public_load = traffic_class.contributes_to_public_load();
+        let increment =
+            HTTP_INFLIGHT_INCREMENT + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+        let counts = self.http_inflight.fetch_add(increment, Ordering::SeqCst) + increment;
+        let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+        metrics.update_http_inflight(http_inflight);
+        if public_load {
+            metrics.update_public_http_inflight(public_http_inflight);
         }
         InflightGuard::new(
             self.clone(),
             metrics.inflight_metrics(),
-            InflightKind::Http {
-                public_load: traffic_class.contributes_to_public_load(),
-            },
+            InflightKind::Http { public_load },
         )
     }
 
@@ -311,14 +313,17 @@ impl Drop for InflightGuard {
         self.active = false;
         match self.kind {
             InflightKind::Http { public_load } => {
-                let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
-                self.metrics.update_http(previous.saturating_sub(1));
+                let decrement = HTTP_INFLIGHT_INCREMENT
+                    + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+                let counts = self
+                    .runtime
+                    .http_inflight
+                    .fetch_sub(decrement, Ordering::SeqCst)
+                    .saturating_sub(decrement);
+                let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+                self.metrics.update_http(http_inflight);
                 if public_load {
-                    let previous = self
-                        .runtime
-                        .public_http_inflight
-                        .fetch_sub(1, Ordering::SeqCst);
-                    self.metrics.update_public_http(previous.saturating_sub(1));
+                    self.metrics.update_public_http(public_http_inflight);
                 }
             }
             InflightKind::Grpc => {
@@ -330,6 +335,13 @@ impl Drop for InflightGuard {
             self.runtime.inflight_changed.notify_waiters();
         }
     }
+}
+
+fn http_inflight_counts(counts: u64) -> (usize, usize) {
+    (
+        (counts as u32) as usize,
+        ((counts >> PUBLIC_HTTP_INFLIGHT_SHIFT) as u32) as usize,
+    )
 }
 
 fn now_ms() -> u64 {
@@ -484,10 +496,7 @@ mod tests {
                     scope.spawn(move || {
                         barrier.wait();
                         for _ in 0..REQUESTS_PER_WORKER {
-                            drop(runtime.start_http_request(
-                                &metrics,
-                                HttpTrafficClass::Public,
-                            ));
+                            drop(runtime.start_http_request(&metrics, HttpTrafficClass::Public));
                         }
                     });
                 }
