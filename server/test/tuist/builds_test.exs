@@ -486,31 +486,15 @@ defmodule Tuist.BuildsTest do
       assert Enum.map(builds, & &1.id) == [matching_build.id]
     end
 
-    test "ignores unsupported custom tag operators" do
-      project = ProjectsFixtures.project_fixture()
-      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        user_id: account_id,
-        custom_tags: ["nightly"]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        user_id: account_id,
-        custom_tags: ["release"]
-      )
-
-      {builds, _meta} =
+    test "rejects unsupported custom tag operators" do
+      assert_raise Flop.InvalidParamsError, fn ->
         Builds.list_build_runs(%{
           filters: [
-            %{field: :project_id, op: :==, value: project.id},
+            %{field: :project_id, op: :==, value: 1},
             %{field: :custom_tags, op: :==, value: "nightly"}
           ]
         })
-
-      assert length(builds) == 2
+      end
     end
   end
 

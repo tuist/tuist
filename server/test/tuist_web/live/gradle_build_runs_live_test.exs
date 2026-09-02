@@ -296,6 +296,27 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
     refute has_element?(lv, "span", "release-build")
   end
 
+  test "drops a tag filter with an unsupported operator", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "nightly-build",
+      custom_tags: ["nightly"]
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_custom_tags_op===&filter_custom_tags_val=nightly"
+      )
+
+    assert has_element?(lv, "span", "nightly-build")
+    refute has_element?(lv, "#custom_tags")
+  end
+
   test "filters build runs by java version", %{
     conn: conn,
     organization: organization,

@@ -174,30 +174,14 @@ defmodule Tuist.GradleTest do
       assert Enum.map(builds, & &1.id) == [matching_build_id]
     end
 
-    test "ignores unsupported custom tag operators" do
-      project = ProjectsFixtures.project_fixture()
-      account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        account_id: account.id,
-        custom_tags: ["nightly"]
-      )
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        account_id: account.id,
-        custom_tags: ["release"]
-      )
-
-      {builds, _meta} =
-        Gradle.list_builds(project.id, %{
+    test "rejects unsupported custom tag operators" do
+      assert_raise Flop.InvalidParamsError, fn ->
+        Gradle.list_builds(1, %{
           page_size: 10,
           page: 1,
           filters: [%{field: :custom_tags, op: :==, value: "nightly"}]
         })
-
-      assert length(builds) == 2
+      end
     end
   end
 
