@@ -1,1 +1,2 @@
 {"bestDirection": "higher", "maxIterations": 8, "metricName": "bytestream_read_mebibytes_per_second", "metricUnit": "MiB/s", "name": "Optimize Kura bounded-resource throughput", "timestamp": 1788379277200, "type": "config"}
+{"asi": {"baseline_mib_s": 17599.189, "finding": "ReaderStream plus Bytes::to_vec performs an avoidable full-chunk copy"}, "commit": "402303d", "confidence": null, "description": "benchmark(kura): establish ByteStream read materialization baseline", "metric": 17599.189, "metrics": {}, "run": 1, "segment": 0, "status": "keep", "timestamp": 1788380442550}

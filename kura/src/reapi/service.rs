@@ -2661,9 +2661,9 @@ mod tests {
     async fn bytestream_read_chunk_materialization_benchmark() {
         use tokio::io::AsyncReadExt as _;
 
-        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const SAMPLE_BYTES: u64 = 8 * 1_024 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
-        const SAMPLE_COUNT: usize = 6;
+        const SAMPLE_COUNT: usize = 8;
 
         let mut throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
         for sample in 0..SAMPLE_COUNT {
