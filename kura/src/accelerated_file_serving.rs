@@ -150,12 +150,16 @@ async fn serve_connection(
     if !config.enabled {
         return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
     }
+    let mut header_buffer = vec![0_u8; MAX_HEADER_BYTES];
     loop {
         // Bound the wait for the next request so idle keep-alive connections do
         // not pin a task and file descriptor forever, and close idle fast-path
         // connections promptly when the node drains.
         let classified = tokio::select! {
-            classified = tokio::time::timeout(KEEP_ALIVE_IDLE_TIMEOUT, classify_route(&stream, &state)) => {
+            classified = tokio::time::timeout(
+                KEEP_ALIVE_IDLE_TIMEOUT,
+                classify_route(&stream, &state, &mut header_buffer),
+            ) => {
                 match classified {
                     Ok(classified) => classified,
                     Err(_) => return Ok(()),
@@ -227,7 +231,7 @@ async fn serve_connection(
         .await;
         match classified {
             ClassifiedRequest::Accelerate(candidate) => {
-                consume_headers(&mut stream, candidate.header_len).await?;
+                consume_headers(&mut stream, candidate.header_len, &mut header_buffer).await?;
                 let reuse = serve_accelerated(
                     stream,
                     &state,
@@ -250,12 +254,12 @@ async fn serve_connection(
             }
             ClassifiedRequest::Deny(denial) => {
                 drop(permit);
-                consume_headers(&mut stream, denial.header_len).await?;
+                consume_headers(&mut stream, denial.header_len, &mut header_buffer).await?;
                 // The JSON body from main, with this denial's own headers: a
                 // 416 has to carry `Content-Range` so the client learns the
                 // artifact's real length rather than guessing at a new range.
                 let body = json_error_body(&denial.body);
-                let mut headers = denial.headers.clone();
+                let mut headers = denial.headers;
                 headers.insert(
                     REQUEST_ID_HEADER.to_owned(),
                     request_context.request_id().to_owned(),
@@ -489,11 +493,12 @@ struct ArtifactRequest {
 async fn classify_route(
     stream: &TcpStream,
     state: &SharedState,
+    header_buffer: &mut [u8],
 ) -> Option<(ParsedRequest, ArtifactRequest)> {
     if !cfg!(target_os = "linux") || state.runtime.is_draining() {
         return None;
     }
-    let parsed = match peek_request(stream).await {
+    let parsed = match peek_request(stream, header_buffer).await {
         Ok(Some(parsed)) => parsed,
         Ok(None) => return None,
         Err(error) => {
@@ -651,21 +656,23 @@ async fn open_and_authorize(
     })
 }
 
-async fn peek_request(stream: &TcpStream) -> std::io::Result<Option<ParsedRequest>> {
+async fn peek_request(
+    stream: &TcpStream,
+    header_buffer: &mut [u8],
+) -> std::io::Result<Option<ParsedRequest>> {
     let started_at = Instant::now();
-    let mut bytes = vec![0_u8; MAX_HEADER_BYTES];
     loop {
         if started_at.elapsed() > HEADER_TIMEOUT {
             return Ok(None);
         }
         stream.readable().await?;
-        let read = stream.peek(&mut bytes).await?;
+        let read = stream.peek(header_buffer).await?;
         if read == 0 {
             return Ok(None);
         }
-        match parse_request(&bytes[..read]) {
+        match parse_request(&header_buffer[..read]) {
             Ok(Some(request)) => return Ok(Some(request)),
-            Ok(None) if read == MAX_HEADER_BYTES => return Ok(None),
+            Ok(None) if read == header_buffer.len() => return Ok(None),
             Ok(None) => continue,
             Err(_) => return Ok(None),
         }
@@ -708,9 +715,15 @@ fn parse_request(bytes: &[u8]) -> Result<Option<ParsedRequest>, httparse::Error>
     }))
 }
 
-async fn consume_headers(stream: &mut TcpStream, header_len: usize) -> std::io::Result<()> {
-    let mut discard = vec![0_u8; header_len];
-    stream.read_exact(&mut discard).await.map(|_| ())
+async fn consume_headers(
+    stream: &mut TcpStream,
+    header_len: usize,
+    header_buffer: &mut [u8],
+) -> std::io::Result<()> {
+    stream
+        .read_exact(&mut header_buffer[..header_len])
+        .await
+        .map(|_| ())
 }
 
 async fn serve_accelerated(
@@ -1732,11 +1745,49 @@ mod tests {
     use crate::artifact::range::ServedRange;
 
     use super::{
-        AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, ParsedRequest,
-        RequestContext, RequestLogPolicy, TransferFailure, artifact_request, json_error_body,
-        parse_request, request_wants_keep_alive, sanitized_content_type, serve_accelerated,
-        system_page_bytes,
+        AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, MAX_HEADER_BYTES,
+        ParsedRequest, RequestContext, RequestLogPolicy, TransferFailure, artifact_request,
+        consume_headers, json_error_body, parse_request, peek_request, request_wants_keep_alive,
+        sanitized_content_type, serve_accelerated, system_page_bytes,
     };
+
+    #[tokio::test]
+    async fn request_peek_and_consumption_reuse_the_connection_buffer() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let client = tokio::spawn(async move {
+            let mut stream = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect test client");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut stream,
+                b"GET /api/cache/cas/key?tenant_id=tenant HTTP/1.1\r\nhost: localhost\r\ncontent-length: 4\r\n\r\nbody",
+            )
+            .await
+            .expect("write test request");
+        });
+        let (mut server, _) = listener.accept().await.expect("accept test client");
+        let mut header_buffer = vec![0_u8; MAX_HEADER_BYTES];
+        let allocation = header_buffer.as_ptr();
+
+        let request = peek_request(&server, &mut header_buffer)
+            .await
+            .expect("peek request")
+            .expect("complete request");
+        consume_headers(&mut server, request.header_len, &mut header_buffer)
+            .await
+            .expect("consume headers");
+
+        assert_eq!(header_buffer.as_ptr(), allocation);
+        let mut body = [0_u8; 4];
+        tokio::io::AsyncReadExt::read_exact(&mut server, &mut body)
+            .await
+            .expect("read unconsumed body");
+        assert_eq!(&body, b"body");
+        client.await.expect("test client task");
+    }
 
     fn test_request_context(request_id: &str, route: &str) -> Arc<RequestContext> {
         RequestContext::new(
