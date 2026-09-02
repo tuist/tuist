@@ -163,6 +163,45 @@ struct SupportCachePrunerTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func prune_sweepsForBytesPeriodicallyRatherThanOnEveryCommand() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let overBudget = try await seed(
+            .manifests, name: "1.abc", bytes: 1_000_000, lastUsed: now.addingTimeInterval(-2 * hour), in: cache
+        )
+
+        // A first command sweeps and finds nothing over budget.
+        try await subject(cache).prune(maxBytes: 10_000_000, now: now)
+        #expect(try await fileSystem.exists(overBudget))
+
+        // A second command moments later does not measure the cache again. Sizing every entry's
+        // tree costs an order of magnitude more than the age pass, and the answer barely moves
+        // between two commands seconds apart.
+        try await subject(cache).prune(maxBytes: 1, now: now.addingTimeInterval(60))
+        #expect(try await fileSystem.exists(overBudget))
+
+        // Once the interval is up it sweeps again, and the budget binds.
+        try await subject(cache).prune(maxBytes: 1, now: now.addingTimeInterval(16 * 60))
+        #expect(try await !fileSystem.exists(overBudget))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func prune_expiresEntriesOnEveryCommandEvenBetweenByteSweeps() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        try await subject(cache).prune(maxBytes: 10_000_000, now: now)
+
+        let staleRun = try await seed(
+            .runs, name: "run", bytes: 1000, lastUsed: now.addingTimeInterval(-2 * day), in: cache
+        )
+
+        // The age pass is what bounds the cache between sweeps, so it is not on the sweep's clock.
+        try await subject(cache).prune(maxBytes: 10_000_000, now: now.addingTimeInterval(60))
+
+        #expect(try await !fileSystem.exists(staleRun))
+    }
+
+    @Test(.inTemporaryDirectory)
     func prune_doesNotCountAnEntryItFailedToRemove() async throws {
         let cache = try #require(FileSystem.temporaryTestDirectory)
         let now = Date()
@@ -259,6 +298,7 @@ struct SupportCachePrunerTests {
 
     private func subject(_ cache: AbsolutePath) -> SupportCachePruner {
         let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider).cacheDirectory().willReturn(cache)
         for category in CacheCategory.allCases {
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(category))

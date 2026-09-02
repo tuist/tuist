@@ -12,9 +12,14 @@ import Path
 /// write. It now takes `CacheBudget.supportCaches`, the module cache's own budget less the share
 /// carved off it, so bounding these cannot push the volume past what the host sized it for.
 ///
-/// Retention runs in two passes. The per-category age pass drops what is no longer in use and runs
-/// everywhere, including on developer machines where there is no volume to fill. The byte pass
-/// arbitrates what is left, and only where a budget is staged.
+/// Retention runs in two passes, on different schedules because they cost very different amounts.
+/// The per-category age pass drops what is no longer in use, costs one stat per entry, and runs on
+/// every command everywhere, including on developer machines where there is no volume to fill. The
+/// byte pass arbitrates what the age pass left, runs only where a budget is staged, and has to
+/// measure each surviving entry's whole tree — against a warm runner cache that is ~0.3s where the
+/// age pass is ~0.02s, most of it in a plugin's git checkout. It is also arbitrating growth that
+/// accrues across runs rather than within one, so it sweeps periodically instead of charging every
+/// command for a measurement whose answer barely moves between them.
 ///
 /// The budget bounds the cache at the start of a command rather than admitting each write against
 /// it, which for these categories is a bound and not merely a prune: a command adds at most one
@@ -30,6 +35,16 @@ public struct SupportCachePruner {
     /// `tuist` process sharing the cache directory refreshes an entry when it resolves it, so the
     /// window is what keeps this process from reclaiming a path that one is building against.
     private static let evictionGracePeriod: TimeInterval = 60 * 60
+
+    /// How often the byte pass sweeps. Between sweeps the age pass is the only bound, which holds
+    /// because a command adds at most one entry to each category, so what accrues in a window is
+    /// bounded by the commands in it and fits the image's reserve.
+    private static let byteSweepInterval: TimeInterval = 15 * 60
+
+    /// Records when the byte pass last swept, beside the category directories rather than inside
+    /// one, so it is not an entry any category has to account for and does not reach the cache
+    /// inventory a runner promotes on.
+    private static let sweepStampName = ".support-cache-sweep"
 
     public init(
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
@@ -53,8 +68,22 @@ public struct SupportCachePruner {
             guard case let .support(maxAge) = category.budget else { continue }
             survivors += try await expire(category, olderThan: now.addingTimeInterval(-maxAge))
         }
-        guard let maxBytes else { return }
+        guard let maxBytes, await claimByteSweep(now: now) else { return }
         try await evict(survivors, toFit: maxBytes, notModifiedAfter: now.addingTimeInterval(-Self.evictionGracePeriod))
+    }
+
+    /// Whether the byte sweep is due, claiming it when it is. Best effort in both directions: a
+    /// cache directory that cannot hold the stamp sweeps on every command rather than on none.
+    private func claimByteSweep(now: Date) async -> Bool {
+        let stamp = cacheDirectoriesProvider.cacheDirectory().appending(component: Self.sweepStampName)
+        if let metadata = try? await fileSystem.fileMetadata(at: stamp),
+           now.timeIntervalSince(metadata.lastModificationDate) < Self.byteSweepInterval
+        {
+            return false
+        }
+        try? await fileSystem.touch(stamp)
+        try? await fileSystem.setFileTimes(of: stamp, lastAccessDate: nil, lastModificationDate: now)
+        return true
     }
 
     /// Removes the category's entries last used before `cutoff` and returns the ones that survived.
