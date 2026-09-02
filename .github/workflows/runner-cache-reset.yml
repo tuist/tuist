@@ -1,0 +1,79 @@
+name: Runner Cache Volume Reset
+
+# Reclaims space on this account's runner cache volume.
+#
+# Runner jobs mount a per-account cache image cloned from the account's master.
+# Only the binary cache and the folded compilation cache are bounded by a byte
+# budget; the rest of the volume grows against a fixed reserve. Once that reserve
+# is gone the image reaches ENOSPC, and because the CLI writes to the volume on
+# the load path of every command, jobs then fail at their first command rather
+# than merely running cold. Nothing on the job path reclaims those bytes, and a
+# failing job never promotes a replacement master, so the account stays wedged
+# until an image with headroom is promoted from a job that passed.
+#
+# This job is that job. It touches the volume with plain shell and never through
+# the Tuist CLI, which would itself fail on a full volume, then exits 0 so
+# teardown measures the smaller image, promotes it as the account's new master
+# and publishes the HEAD the rest of the fleet converges to. Hosts converge in
+# the background after materializing, so expect one more failed job per host that
+# is still holding the old master.
+
+on:
+  workflow_dispatch:
+    inputs:
+      drop-binaries:
+        description: "Also drop the binary cache. Only needed when dropping everything else did not free enough; the next builds recompile from source."
+        type: boolean
+        default: false
+  # Bootstrap trigger, and the self-test for edits to this file: workflow_dispatch
+  # is only offered for workflows that already exist on the default branch.
+  pull_request:
+    paths:
+      - ".github/workflows/runner-cache-reset.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Reset the cache volume
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    steps:
+      - name: Reclaim space on the cache volume
+        env:
+          DROP_BINARIES: ${{ inputs.drop-binaries }}
+        run: |
+          set -euo pipefail
+          volume="$HOME/.tuist-cache-volume"
+          if [ ! -d "$volume" ]; then
+            echo "No cache volume is mounted at $volume; nothing to reset."
+            exit 0
+          fi
+
+          echo "::group::Before"
+          df -h "$volume"
+          du -sh "$volume"/* "$volume"/tuist/* 2>/dev/null | sort -h || true
+          echo "::endgroup::"
+
+          # The folded Xcode compilation cache is the largest reclaimable subtree,
+          # and its contents are republished from the remote cache on the next build.
+          rm -rf "$volume/CompilationCache.noindex"
+          # Result bundles are deleted once their analytics upload succeeds, so what
+          # is left here leaked from runs that failed or were cancelled.
+          rm -rf "$volume/tuist/Runs"
+          # Memoized manifests, compiled helpers and generated projects, all of which
+          # the next command recomputes.
+          rm -rf "$volume/tuist/Manifests" \
+                 "$volume/tuist/ProjectDescriptionHelpers" \
+                 "$volume/tuist/EditProjects" \
+                 "$volume/tuist/Projects" \
+                 "$volume/tuist/GenerationMetadata"
+
+          if [ "${DROP_BINARIES:-false}" = "true" ]; then
+            rm -rf "$volume/tuist/Binaries"
+          fi
+
+          echo "::group::After"
+          df -h "$volume"
+          echo "::endgroup::"
