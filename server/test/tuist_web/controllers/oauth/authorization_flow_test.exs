@@ -9,7 +9,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   for four months, because the only OAuth test there stopped at the code
   exchange.
   """
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   alias Boruta.Ecto.Token
   alias Tuist.Repo
