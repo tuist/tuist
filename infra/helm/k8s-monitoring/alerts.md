@@ -2715,7 +2715,7 @@ or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_return_attach_
 or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_reconcile_errors_total{cluster="tuist-production"}[30m])) > 0, "signal", "reconcile_errors", "", "")
 or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_sibling_overflow_total{cluster="tuist-production"}[30m])) > 0, "signal", "sibling_overflow", "", "")
 or label_replace(sum by (cluster, pod) (increase(kura_egress_tree_link_reattach_total{cluster="tuist-production"}[1h])) > 5, "signal", "reattach_churn", "", "")
-or label_replace(max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster="tuist-production"}) > 0, "signal", "skipped_pods", "", "")
+or label_replace(max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster="tuist-production"}), "signal", "skipped_pods", "", "")
 or label_replace(
   (max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster="tuist-production"})
    * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"}))
@@ -2737,7 +2737,9 @@ or label_replace(
 - Pending period: 15 minutes
 - Severity: warning
 - Production only. Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  `Slack #notifications 2`; **No Data: Alerting** (see below: this rule always
+  returns a row per governed box, so an empty result means the agent is
+  gone), **Error: Alerting**.
 - Summary: `Kura egress shaping on {{ $labels.node }}{{ $labels.pod }} is not
   enforcing what it should: {{ $labels.signal }} ({{ $labels.cluster }})`
 - Description: `One of the egress-tree agent's tripwires fired on a governed
@@ -2762,6 +2764,18 @@ rule with a `signal` label so a single summary names the tripwire. Without
 them **Kura egress budget heavily used** measures a number the tree may not
 be enforcing, and **Kura account at its egress ceiling** reads a ceiling that
 may not be applied.
+
+**This rule always returns something, on purpose.** Every other arm is a
+filter and drops out while healthy, so the union alone would read as an empty
+result on a healthy fleet, indistinguishable from the agent having
+disappeared. The `skipped_pods` arm therefore carries no comparison:
+`kura_egress_tree_skipped_pods` is a gauge every agent always exports, so the
+query returns one row per governed box with value 0 while healthy, and the
+threshold expression `> 0` is what keeps that row from firing. That is why
+**No Data** is **Alerting** on this rule, the reverse of the document's
+default: a blank result here is the whole DaemonSet gone from the cluster,
+which no other arm can see (`no_agent` covers a single box, and only while the
+other boxes' agents still answer).
 
 Windows and bars: the tc/BPF counters are kernel counters exported as gauges,
 so every counting arm uses `increase()` over 30 minutes (a rebuild of the tree
