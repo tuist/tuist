@@ -6,7 +6,6 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.GradleInternal
-import org.gradle.api.internal.StartParameterInternal
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
@@ -53,11 +52,6 @@ import javax.inject.Inject
 // --- Data classes ---
 
 enum class CacheHitType { LOCAL, REMOTE, MISS }
-
-internal fun isConfigurationCacheRequested(project: Project): Boolean =
-    (project.gradle.startParameter as? StartParameterInternal)
-        ?.configurationCache
-        ?.get() == true
 
 enum class TaskOutcome(val value: String) {
     @SerializedName("local_hit") LOCAL_HIT("local_hit"),
@@ -163,13 +157,16 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
-        val configurationCacheRequested: Property<Boolean>
+        val gitBranch: Property<String>
+        val gitCommitSha: Property<String>
+        val gitRef: Property<String>
+        val gitRemoteUrlOrigin: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
     private val machineMetricsCollector = MachineMetricsCollector().also { it.start() }
 
-    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
 
@@ -548,11 +545,12 @@ abstract class TuistBuildInsightsService :
     }
 
     private fun reportGitInfoProvider(): GitInfoProvider =
-        if (parameters.configurationCacheRequested.getOrElse(false) && gitInfoProvider is ProcessGitInfoProvider) {
-            EmptyGitInfoProvider
-        } else {
-            gitInfoProvider
-        }
+        gitInfoProvider ?: GitInfo(
+            branch = parameters.gitBranch.orNull,
+            commitSha = parameters.gitCommitSha.orNull,
+            ref = parameters.gitRef.orNull,
+            remoteUrlOrigin = parameters.gitRemoteUrlOrigin.orNull
+        )
 }
 
 internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
@@ -626,7 +624,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
-        val configurationCacheRequested = isConfigurationCacheRequested(project)
+        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
@@ -638,7 +636,10 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
-            parameters.configurationCacheRequested.set(configurationCacheRequested)
+            parameters.gitBranch.set(gitInfo.branch())
+            parameters.gitCommitSha.set(gitInfo.commitSha())
+            parameters.gitRef.set(gitInfo.ref())
+            parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)
@@ -655,9 +656,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 .flatMap { it.args }
 
             val service = serviceProvider.get()
-            if (configurationCacheRequested) {
-                service.gitInfoProvider = EmptyGitInfoProvider
-            }
             service.setCacheableTasks(cacheablePaths)
             service.setRequestedTasks(requestedTasks)
             service.uploadInBackground = config.uploadInBackground

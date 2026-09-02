@@ -1,5 +1,12 @@
 package dev.tuist.gradle
 
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.process.ExecOperations
+import java.io.ByteArrayOutputStream
+import java.io.Serializable
+import javax.inject.Inject
+
 interface GitInfoProvider {
     fun branch(): String?
     fun commitSha(): String?
@@ -12,6 +19,51 @@ object EmptyGitInfoProvider : GitInfoProvider {
     override fun commitSha(): String? = null
     override fun ref(): String? = null
     override fun remoteUrlOrigin(): String? = null
+}
+
+data class GitInfo(
+    private val branch: String?,
+    private val commitSha: String?,
+    private val ref: String?,
+    private val remoteUrlOrigin: String?
+) : GitInfoProvider, Serializable {
+    override fun branch(): String? = branch
+    override fun commitSha(): String? = commitSha
+    override fun ref(): String? = ref
+    override fun remoteUrlOrigin(): String? = remoteUrlOrigin
+}
+
+abstract class GitInfoValueSource : ValueSource<GitInfo, ValueSourceParameters.None> {
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    override fun obtain(): GitInfo {
+        val provider = ProcessGitInfoProvider(gitCommandRunner = ::runGitCommand)
+
+        return GitInfo(
+            branch = provider.branch(),
+            commitSha = provider.commitSha(),
+            ref = provider.ref(),
+            remoteUrlOrigin = provider.remoteUrlOrigin()
+        )
+    }
+
+    private fun runGitCommand(args: List<String>): String {
+        val output = ByteArrayOutputStream()
+        val result = execOperations.exec {
+            commandLine(listOf("git") + args)
+            standardOutput = output
+            errorOutput = output
+            isIgnoreExitValue = true
+        }
+        val value = output.toString(Charsets.UTF_8).lineSequence().firstOrNull()?.trim()
+
+        if (result.exitValue != 0 || value.isNullOrBlank()) {
+            throw RuntimeException("git ${args.first()} failed (exit code ${result.exitValue})")
+        }
+
+        return value
+    }
 }
 
 class ProcessGitInfoProvider(

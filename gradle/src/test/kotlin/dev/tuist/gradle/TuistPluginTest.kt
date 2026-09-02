@@ -475,6 +475,18 @@ class TuistPluginTest {
             result.output.contains("Configuration cache entry stored"),
             "Gradle did not store a configuration cache entry:\n${result.output}"
         )
+
+        val reusedResult = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--configuration-cache")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, reusedResult.task(":hello")?.outcome)
+        assertTrue(
+            reusedResult.output.contains("Configuration cache entry reused"),
+            "Gradle did not reuse a configuration cache entry:\n${reusedResult.output}"
+        )
     }
 
     @Test

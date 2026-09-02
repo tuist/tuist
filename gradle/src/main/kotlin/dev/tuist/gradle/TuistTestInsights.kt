@@ -292,12 +292,15 @@ abstract class TuistTestInsightsService :
         val useEnvironmentProxy: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
-        val configurationCacheRequested: Property<Boolean>
+        val gitBranch: Property<String>
+        val gitCommitSha: Property<String>
+        val gitRef: Property<String>
+        val gitRemoteUrlOrigin: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
 
-    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
@@ -451,11 +454,12 @@ abstract class TuistTestInsightsService :
     }
 
     private fun reportGitInfoProvider(): GitInfoProvider =
-        if (parameters.configurationCacheRequested.getOrElse(false) && gitInfoProvider is ProcessGitInfoProvider) {
-            EmptyGitInfoProvider
-        } else {
-            gitInfoProvider
-        }
+        gitInfoProvider ?: GitInfo(
+            branch = parameters.gitBranch.orNull,
+            commitSha = parameters.gitCommitSha.orNull,
+            ref = parameters.gitRef.orNull,
+            remoteUrlOrigin = parameters.gitRemoteUrlOrigin.orNull
+        )
 }
 
 // --- Plugin ---
@@ -470,7 +474,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
-        val configurationCacheRequested = isConfigurationCacheRequested(project)
+        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistTestInsights",
@@ -481,7 +485,10 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
-            parameters.configurationCacheRequested.set(configurationCacheRequested)
+            parameters.gitBranch.set(gitInfo.branch())
+            parameters.gitCommitSha.set(gitInfo.commitSha())
+            parameters.gitRef.set(gitInfo.ref())
+            parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
@@ -563,9 +570,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
         project.gradle.taskGraph.whenReady {
             val service = serviceProvider.get()
-            if (configurationCacheRequested) {
-                service.gitInfoProvider = EmptyGitInfoProvider
-            }
             service.uploadInBackground = config.uploadInBackground
 
             val buildService = project.gradle.sharedServices.registrations
