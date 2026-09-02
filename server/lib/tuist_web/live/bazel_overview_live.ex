@@ -3,14 +3,28 @@ defmodule TuistWeb.BazelOverviewLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Time
+
   alias Tuist.ReapiCache
   alias Tuist.Utilities.ByteFormatter
+  alias TuistWeb.Helpers.DatePicker
 
-  def assign_mount(socket) do
+  def assign_handle_params(socket, params, uri_path) do
+    uri = URI.new!("?" <> URI.encode_query(params))
     project = socket.assigns.selected_project
 
-    assign_async(socket, :reapi_cache_summary, fn ->
-      {:ok, %{reapi_cache_summary: ReapiCache.summary(project.id)}}
+    %{preset: analytics_preset, period: analytics_period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    socket
+    |> assign(
+      uri: uri,
+      uri_path: uri_path,
+      analytics_preset: analytics_preset,
+      analytics_period: analytics_period
+    )
+    |> assign_async(:reapi_cache_summary, fn ->
+      {:ok, %{reapi_cache_summary: ReapiCache.summary(project.id, analytics_period)}}
     end)
   end
 
@@ -18,6 +32,55 @@ defmodule TuistWeb.BazelOverviewLive do
     ~H"""
     <div class="bazel-overview">
       <.card title={dgettext("dashboard_projects", "Bazel remote cache")} icon="server">
+        <:actions>
+          <.date_picker
+            id="analytics-date-range-picker"
+            name="analytics-date-range"
+            presets={[
+              %{
+                id: "last-24-hours",
+                label: dgettext("dashboard_projects", "Last 24 hours"),
+                period: {24, :hour}
+              },
+              %{
+                id: "last-7-days",
+                label: dgettext("dashboard_projects", "Last 7 days"),
+                period: {7, :day}
+              },
+              %{
+                id: "last-30-days",
+                label: dgettext("dashboard_projects", "Last 30 days"),
+                period: {30, :day}
+              },
+              %{
+                id: "last-12-months",
+                label: dgettext("dashboard_projects", "Last 12 months"),
+                period: {12, :month}
+              },
+              %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+            ]}
+            selected_preset={@analytics_preset}
+            period={@analytics_period}
+            on_period_change="analytics_period_changed"
+            max={Date.utc_today()}
+          >
+            <:actions>
+              <.button
+                label={dgettext("dashboard_projects", "Cancel")}
+                variant="secondary"
+                phx-click={
+                  JS.dispatch("phx:date-picker-cancel", detail: %{id: "analytics-date-range-picker"})
+                }
+              />
+              <.button
+                label={dgettext("dashboard_projects", "Apply")}
+                phx-click={
+                  JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
+                }
+              />
+            </:actions>
+          </.date_picker>
+        </:actions>
         <.card_section data-part="bazel-remote-cache">
           <span data-part="description">
             {dgettext(
@@ -67,7 +130,7 @@ defmodule TuistWeb.BazelOverviewLive do
               description={
                 dgettext(
                   "dashboard_projects",
-                  "Bytes Kura served while returning action-cache results."
+                  "Bytes Kura served from the remote cache."
                 )
               }
               value={
@@ -83,7 +146,7 @@ defmodule TuistWeb.BazelOverviewLive do
               description={
                 dgettext(
                   "dashboard_projects",
-                  "Bytes Kura accepted while storing action-cache results."
+                  "Bytes Kura accepted for the remote cache."
                 )
               }
               value={
@@ -98,17 +161,15 @@ defmodule TuistWeb.BazelOverviewLive do
             :if={@reapi_cache_summary.ok? && @reapi_cache_summary.result.last_observed_at}
             data-part="bazel-latest-observation"
           >
-            {dgettext("dashboard_projects", "Latest observation: %{timestamp}",
-              timestamp: format_observed_at(@reapi_cache_summary.result.last_observed_at)
-            )}
+            {dgettext("dashboard_projects", "Latest observation:")}
+            <.time
+              time={@reapi_cache_summary.result.last_observed_at}
+              show_time
+            />
           </p>
         </.card_section>
       </.card>
     </div>
     """
-  end
-
-  defp format_observed_at(observed_at) do
-    Calendar.strftime(observed_at, "%b %-d, %Y %H:%M UTC")
   end
 end

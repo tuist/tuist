@@ -285,6 +285,10 @@ impl ReapiService {
         };
 
         let attribution = reapi_request_metadata(metadata);
+        if attribution.client_kind != "bazel" {
+            return;
+        }
+
         analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
             account_handle: usage_tenant_id(metadata, &self.state.config.tenant_id),
             project_handle: namespace_id.to_owned(),
@@ -537,18 +541,18 @@ impl ReapiService {
         // only when the blob was newly stored, so a re-upload isn't billed twice.
         if !persisted.already_present {
             self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
+            self.record_reapi_cache_event(
+                &metadata,
+                &resource.namespace_id,
+                ReapiCacheObservation {
+                    operation: "cas",
+                    outcome: "write",
+                    digest: &resource.hash,
+                    size: persisted.manifest.size,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
         }
-        self.record_reapi_cache_event(
-            &metadata,
-            &resource.namespace_id,
-            ReapiCacheObservation {
-                operation: "cas",
-                outcome: "write",
-                digest: &resource.hash,
-                size: persisted.manifest.size,
-                duration: analytics_started_at.elapsed(),
-            },
-        );
         drop(memory_admission);
         Ok(response)
     }
@@ -1643,18 +1647,18 @@ impl ContentAddressableStorage for ReapiService {
                     if newly_stored {
                         stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
                         stored_any = true;
+                        self.record_reapi_cache_event(
+                            request.metadata(),
+                            namespace_id,
+                            ReapiCacheObservation {
+                                operation: "cas",
+                                outcome: "write",
+                                digest: &digest.hash,
+                                size: item.data.len() as u64,
+                                duration: analytics_started_at.elapsed(),
+                            },
+                        );
                     }
-                    self.record_reapi_cache_event(
-                        request.metadata(),
-                        namespace_id,
-                        ReapiCacheObservation {
-                            operation: "cas",
-                            outcome: "write",
-                            digest: &digest.hash,
-                            size: item.data.len() as u64,
-                            duration: analytics_started_at.elapsed(),
-                        },
-                    );
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: Some(digest),
                         status: Some(rpc_status(0, "")),
@@ -2649,8 +2653,8 @@ fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiReque
     let client_kind = metadata
         .tool_details
         .map(|details| details.tool_name)
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "unknown".into());
+        .filter(|name| name == "bazel")
+        .unwrap_or_else(|| "other".into());
 
     ReapiRequestMetadata {
         client_kind,
@@ -3553,6 +3557,27 @@ mod tests {
         assert_eq!(extracted.action_mnemonic, "SwiftCompile");
         assert_eq!(extracted.target_label, "//app:app");
         assert_eq!(extracted.configuration_id, "config-1");
+    }
+
+    #[test]
+    fn normalizes_non_bazel_request_metadata() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "xcode-compilation-cache".into(),
+                tool_version: "1.0.0".into(),
+            }),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        assert_eq!(
+            reapi_request_metadata(request.metadata()).client_kind,
+            "other"
+        );
     }
 
     #[tokio::test]

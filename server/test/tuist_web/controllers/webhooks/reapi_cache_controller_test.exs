@@ -47,7 +47,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
         |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
         |> post(~p"/webhooks/reapi-cache", body)
 
-      assert json_response(conn, 202) == %{}
+      assert json_response(conn, 202) == %{"accepted" => 0, "rejected" => 0}
     end
 
     test "creates action-cache and content-addressable-storage events with a valid signature", %{
@@ -104,7 +104,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
         |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
         |> post(~p"/webhooks/reapi-cache", body)
 
-      assert json_response(conn, 202) == %{}
+      assert json_response(conn, 202) == %{"accepted" => 3, "rejected" => 0}
 
       events =
         ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id, order_by: e.size))
@@ -126,6 +126,35 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       assert hit.invocation_id == "invocation-1"
       assert hit.target_label == "//App:App"
       assert hit.cache_endpoint == "cache.tuist.dev"
+    end
+
+    test "ignores non-Bazel cache events", %{conn: conn, project: project} do
+      events_params = %{
+        "events" => [
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "client_kind" => "xcode",
+            "operation" => "cas",
+            "outcome" => "hit",
+            "action_digest" => "content-digest",
+            "size" => 512,
+            "duration_ms" => 7
+          }
+        ]
+      }
+
+      {body, signature} = sign_request(events_params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(conn, 202) == %{"accepted" => 0, "rejected" => 0}
+      assert ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id)) == []
     end
 
     test "rejects requests with an invalid signature", %{conn: conn, project: project} do

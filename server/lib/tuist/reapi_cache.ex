@@ -7,8 +7,6 @@ defmodule Tuist.ReapiCache do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache.CacheEvent
 
-  def create_cache_events([]), do: {:ok, 0}
-
   def create_cache_events(events) when is_list(events) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     observed_now = DateTime.utc_now()
@@ -39,22 +37,21 @@ defmodule Tuist.ReapiCache do
     IngestRepo.insert_all(CacheEvent, entries)
   end
 
-  def summary(project_id) do
-    result =
+  def summary(project_id, {start_datetime, end_datetime}) do
+    summary =
       ClickHouseRepo.one(
         from(e in CacheEvent,
-          where: e.project_id == ^project_id and e.operation == "action_cache",
+          where: e.project_id == ^project_id and e.observed_at >= ^start_datetime and e.observed_at <= ^end_datetime,
           select: %{
-            hits: coalesce(sum(fragment("if(? = 'hit', 1, 0)", e.outcome)), 0),
-            misses: coalesce(sum(fragment("if(? = 'miss', 1, 0)", e.outcome)), 0),
+            hits: coalesce(sum(fragment("if(? = 'action_cache' AND ? = 'hit', 1, 0)", e.operation, e.outcome)), 0),
+            misses: coalesce(sum(fragment("if(? = 'action_cache' AND ? = 'miss', 1, 0)", e.operation, e.outcome)), 0),
             download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", e.outcome, e.size)), 0),
             upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", e.outcome, e.size)), 0),
-            last_observed_at: max(e.observed_at)
+            last_observed_at: fragment("maxOrNull(?)", e.observed_at)
           }
         )
       )
 
-    summary = result || %{hits: 0, misses: 0, download_bytes: 0, upload_bytes: 0, last_observed_at: nil}
     lookups = summary.hits + summary.misses
 
     Map.put(summary, :hit_rate, if(lookups == 0, do: nil, else: Float.round(summary.hits / lookups * 100, 1)))

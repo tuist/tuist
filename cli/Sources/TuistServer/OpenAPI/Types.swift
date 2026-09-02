@@ -2914,6 +2914,7 @@ public enum Components {
             @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case xcode = "xcode"
                 case gradle = "gradle"
+                case bazel = "bazel"
             }
             /// The build system used by the project.
             ///
@@ -19198,6 +19199,7 @@ public enum Operations {
                     @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case xcode = "xcode"
                         case gradle = "gradle"
+                        case bazel = "bazel"
                     }
                     /// The build system used by the project.
                     ///
@@ -23594,32 +23596,32 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
-                /// Page number for pagination.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
-                public var page: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
+                public var page: Swift.Int?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page_size: Number of items per page.
-                ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page: Page number for pagination.
+                ///   - page_size: Number of items per page.
                 public init(
-                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
-                    self.page_size = page_size
-                    self.page = page
                     self.git_branch = git_branch
+                    self.page = page
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query

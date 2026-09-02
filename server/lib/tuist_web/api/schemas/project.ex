@@ -3,7 +3,7 @@ defmodule TuistWeb.API.Schemas.Project do
   The schema for the project response.
   """
   alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.ProjectBuildSystem
+  alias TuistWeb.API.Schemas.BuildSystem
 
   require OpenApiSpex
 
@@ -39,7 +39,7 @@ defmodule TuistWeb.API.Schemas.Project do
         description: "The visibility of the project",
         enum: [:private, :public]
       },
-      build_system: ProjectBuildSystem.schema()
+      build_system: BuildSystem.schema()
     }
   })
 end

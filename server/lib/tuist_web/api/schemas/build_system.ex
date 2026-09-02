@@ -7,7 +7,7 @@ defmodule TuistWeb.API.Schemas.BuildSystem do
     %Schema{
       type: :string,
       description: "The build system used by the project.",
-      enum: ["xcode", "gradle"],
+      enum: ["xcode", "gradle", "bazel"],
       default: "xcode"
     }
   end

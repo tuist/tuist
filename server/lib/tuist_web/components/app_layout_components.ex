@@ -308,7 +308,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={!Project.bazel_project?(@selected_project)}
+        :if={Project.supports_previews?(@selected_project)}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -320,7 +320,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={!Project.bazel_project?(@selected_project)}
+        :if={Project.supports_bundles?(@selected_project)}
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}

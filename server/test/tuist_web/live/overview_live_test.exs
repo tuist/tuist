@@ -180,6 +180,18 @@ defmodule TuistWeb.OverviewLiveTest do
       refute has_element?(lv, "[data-part=analytics]")
     end
 
+    test "does not render a latest observation when the selected period has no events", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      render_async(lv, @render_async_timeout)
+
+      refute has_element?(lv, "[data-part=bazel-latest-observation]")
+      assert has_element?(lv, "#bazel-action-cache-lookups", "No data yet")
+    end
+
     test "hides previews and bundles from the project navigation", %{
       conn: conn,
       organization: organization,
@@ -198,6 +210,38 @@ defmodule TuistWeb.OverviewLiveTest do
       project: project
     } do
       ReapiCache.create_cache_events([
+        %{
+          client_kind: "bazel",
+          operation: "cas",
+          outcome: "hit",
+          action_digest: "content-hit",
+          size: 4_096,
+          duration_ms: 8,
+          invocation_id: "invocation-1",
+          action_mnemonic: "",
+          target_label: "",
+          configuration_id: "",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        },
+        %{
+          client_kind: "bazel",
+          operation: "cas",
+          outcome: "write",
+          action_digest: "content-write",
+          size: 2_048,
+          duration_ms: 9,
+          invocation_id: "invocation-1",
+          action_mnemonic: "",
+          target_label: "",
+          configuration_id: "",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        },
         %{
           client_kind: "bazel",
           operation: "action_cache",
@@ -253,8 +297,8 @@ defmodule TuistWeb.OverviewLiveTest do
 
       assert has_element?(lv, "#bazel-action-cache-hit-rate", "50.0%")
       assert has_element?(lv, "#bazel-action-cache-lookups", "2")
-      assert has_element?(lv, "#bazel-cache-downloads", "2.0 KB")
-      assert has_element?(lv, "#bazel-cache-uploads", "1.0 KB")
+      assert has_element?(lv, "#bazel-cache-downloads", "6.0 KB")
+      assert has_element?(lv, "#bazel-cache-uploads", "3.0 KB")
       assert has_element?(lv, "[data-part=bazel-latest-observation]", "Latest observation:")
     end
   end

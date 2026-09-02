@@ -127,6 +127,12 @@ defmodule Tuist.Projects.Project do
   def bazel_project?(%__MODULE__{build_system: :bazel}), do: true
   def bazel_project?(_), do: false
 
+  def supports_previews?(%__MODULE__{build_system: build_system}) when build_system in [:xcode, :gradle], do: true
+  def supports_previews?(_), do: false
+
+  def supports_bundles?(%__MODULE__{build_system: build_system}) when build_system in [:xcode, :gradle], do: true
+  def supports_bundles?(_), do: false
+
   defp validate_name(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
