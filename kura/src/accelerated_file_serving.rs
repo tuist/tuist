@@ -463,9 +463,27 @@ struct Denial {
 
 struct AcceleratedCandidate {
     header_len: usize,
-    artifact: ArtifactRequest,
+    transfer: AcceleratedTransferMetadata,
     file: AcceleratedArtifactFile,
     range: ServedRange,
+}
+
+struct AcceleratedTransferMetadata {
+    producer: ArtifactProducer,
+    namespace_id: String,
+    analytics_key: Option<String>,
+    route: &'static str,
+}
+
+impl From<ArtifactRequest> for AcceleratedTransferMetadata {
+    fn from(artifact: ArtifactRequest) -> Self {
+        Self {
+            producer: artifact.producer,
+            namespace_id: artifact.namespace_id,
+            analytics_key: artifact.analytics_key,
+            route: artifact.route,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -478,6 +496,7 @@ struct ParsedRequest {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Clone))]
 struct ArtifactRequest {
     producer: ArtifactProducer,
     tenant_id: String,
@@ -575,8 +594,8 @@ async fn open_and_authorize(
             return ClassifiedRequest::Fallback;
         }
     };
-    let access_context = request_context(state, &parsed, &artifact, None);
     if let Some(auth) = state.auth.as_ref() {
+        let access_context = request_context(state, &parsed, &artifact, None);
         let access_span = if trace_export_active() {
             tracing::info_span!(
                 "kura.auth.access",
@@ -650,7 +669,7 @@ async fn open_and_authorize(
 
     ClassifiedRequest::Accelerate(AcceleratedCandidate {
         header_len: parsed.header_len,
-        artifact,
+        transfer: artifact.into(),
         file,
         range,
     })
@@ -736,23 +755,28 @@ async fn serve_accelerated(
 ) -> std::io::Result<Option<TcpStream>> {
     let transfer_started_at = Instant::now();
     let _request_guard = state.start_http_request(HttpTrafficClass::Public);
-    let file = candidate.file.clone();
-    let producer = candidate.artifact.producer;
+    let AcceleratedCandidate {
+        transfer,
+        file,
+        range,
+        ..
+    } = candidate;
+    let AcceleratedTransferMetadata {
+        producer,
+        namespace_id,
+        analytics_key,
+        route,
+    } = transfer;
     // Accelerated requests are always for this node's tenant: cross-tenant
     // requests fall back to the Axum path during classification. Attribute
     // usage and analytics to the configured tenant so the numbers match the
     // Axum handlers, which key off the node tenant rather than the per-request
     // namespace tenant alias.
-    let tenant_id = state.config.tenant_id.clone();
-    let namespace_id = candidate.artifact.namespace_id.clone();
-    let analytics_key = candidate.artifact.analytics_key.clone();
-    let route = candidate.artifact.route.to_owned();
-    let content_type = sanitized_content_type(&file.content_type);
+    let tenant_id = &state.config.tenant_id;
     let mode = config.mode;
     let chunk_bytes = config.chunk_bytes;
     let memory = state.memory.clone();
     let metrics = state.metrics.clone();
-    let range = candidate.range;
     // Sized from the bytes this response will actually send, not the whole
     // artifact: a resume asks for the tail it is missing and should reserve
     // only that, so it is admitted under a budget a full re-send would be
@@ -800,7 +824,7 @@ async fn serve_accelerated(
                 .metrics
                 .record_capacity_shed(crate::metrics::shed_kind::RESPONSE_STREAM);
             state.metrics.record_http(
-                route,
+                route.to_owned(),
                 StatusCode::TOO_MANY_REQUESTS,
                 transfer_started_at.elapsed(),
             );
@@ -859,11 +883,12 @@ async fn serve_accelerated(
                 stream.set_nonblocking(false)?;
                 stream.set_write_timeout(Some(IO_TIMEOUT))?;
                 let (status, reason) = range.status();
+                let content_type = sanitized_content_type(&file.content_type);
                 write_headers(
                     &mut stream,
                     status,
                     reason,
-                    &content_type,
+                    content_type,
                     range.length,
                     range.content_range(artifact_size).as_deref(),
                     Some(etag.as_str()),
@@ -925,11 +950,11 @@ async fn serve_accelerated(
             state.runtime.record_public_request_latency(
                 &state.metrics,
                 "http",
-                &route,
+                route,
                 time_to_first_byte,
             );
             state.metrics.record_http(
-                route,
+                route.to_owned(),
                 StatusCode::from_u16(range.status().0).unwrap_or(StatusCode::OK),
                 time_to_first_byte,
             );
@@ -943,14 +968,14 @@ async fn serve_accelerated(
             record_usage(
                 state.usage.as_ref(),
                 producer,
-                &tenant_id,
+                tenant_id,
                 &namespace_id,
                 bytes,
             );
             record_analytics(
                 state.analytics.as_ref(),
                 producer,
-                &tenant_id,
+                tenant_id,
                 &namespace_id,
                 analytics_key.as_deref(),
                 bytes,
@@ -995,9 +1020,11 @@ async fn serve_accelerated(
                 total_duration.as_secs_f64() * 1_000.0,
             );
             body_span.record("kura.response.result", failure.result());
-            state
-                .metrics
-                .record_http(route, failure.status(), transfer_started_at.elapsed());
+            state.metrics.record_http(
+                route.to_owned(),
+                failure.status(),
+                transfer_started_at.elapsed(),
+            );
             // Carrying the byte count onto the failure result is what makes the
             // waste measurable: `kura_artifact_egress_bytes_total` split by
             // `result` separates link capacity that delivered an artifact from
@@ -1432,11 +1459,11 @@ fn append_headers(
     Ok(())
 }
 
-fn sanitized_content_type(content_type: &str) -> String {
+fn sanitized_content_type(content_type: &str) -> &str {
     if axum::http::HeaderValue::from_str(content_type).is_ok() {
-        content_type.to_owned()
+        content_type
     } else {
-        "application/octet-stream".to_owned()
+        "application/octet-stream"
     }
 }
 
@@ -1745,11 +1772,115 @@ mod tests {
     use crate::artifact::range::ServedRange;
 
     use super::{
-        AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, MAX_HEADER_BYTES,
-        ParsedRequest, RequestContext, RequestLogPolicy, TransferFailure, artifact_request,
-        consume_headers, json_error_body, parse_request, peek_request, request_wants_keep_alive,
-        sanitized_content_type, serve_accelerated, system_page_bytes,
+        AcceleratedCandidate, AcceleratedReadCacheDrop, AcceleratedTransferMetadata,
+        ArtifactRequest, MAX_HEADER_BYTES, ParsedRequest, RequestContext, RequestLogPolicy,
+        TransferFailure, artifact_request, consume_headers, json_error_body, parse_request,
+        peek_request, request_wants_keep_alive, sanitized_content_type, serve_accelerated,
+        system_page_bytes,
     };
+
+    fn benchmark_artifact_request() -> ArtifactRequest {
+        ArtifactRequest {
+            producer: ArtifactProducer::Xcode,
+            tenant_id: "account".into(),
+            namespace_id: "ios".into(),
+            key: "blob/0123456789abcdef".into(),
+            analytics_key: Some("0123456789abcdef".into()),
+            artifact_hash: Some("0123456789abcdef".into()),
+            route: "/api/cache/cas/{id}",
+            path: "/api/cache/cas/0123456789abcdef".into(),
+            query: BTreeMap::from([
+                ("tenant_id".into(), "account".into()),
+                ("namespace_id".into(), "ios".into()),
+            ]),
+        }
+    }
+
+    #[test]
+    fn accelerated_transfer_metadata_moves_owned_strings() {
+        let artifact = benchmark_artifact_request();
+        let namespace_allocation = artifact.namespace_id.as_ptr();
+        let analytics_allocation = artifact
+            .analytics_key
+            .as_ref()
+            .expect("benchmark request has analytics key")
+            .as_ptr();
+
+        let metadata = AcceleratedTransferMetadata::from(artifact);
+
+        assert_eq!(metadata.namespace_id.as_ptr(), namespace_allocation);
+        assert_eq!(
+            metadata
+                .analytics_key
+                .as_ref()
+                .expect("metadata keeps analytics key")
+                .as_ptr(),
+            analytics_allocation
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn accelerated_setup_ownership_benchmark() {
+        const ITERATIONS: usize = 200_000;
+        const SAMPLE_COUNT: usize = 9;
+
+        fn measure(template: &ArtifactRequest, move_owned: bool) -> Duration {
+            let file = Arc::new(());
+            let configured_tenant = "account";
+            let content_type = "application/octet-stream";
+            let started_at = Instant::now();
+            for _ in 0..ITERATIONS {
+                let candidate_file = file.clone();
+                let artifact = template.clone();
+                if move_owned {
+                    let metadata = AcceleratedTransferMetadata::from(artifact);
+                    std::hint::black_box(candidate_file);
+                    std::hint::black_box(configured_tenant.as_ptr());
+                    std::hint::black_box(metadata.namespace_id.as_ptr());
+                    std::hint::black_box(
+                        metadata.analytics_key.as_ref().map(|value| value.as_ptr()),
+                    );
+                    std::hint::black_box(metadata.route.as_ptr());
+                    std::hint::black_box(sanitized_content_type(content_type).as_ptr());
+                } else {
+                    let cloned_file = candidate_file.clone();
+                    let tenant_id = configured_tenant.to_owned();
+                    let namespace_id = artifact.namespace_id.clone();
+                    let analytics_key = artifact.analytics_key.clone();
+                    let route = artifact.route.to_owned();
+                    let content_type = sanitized_content_type(content_type).to_owned();
+                    std::hint::black_box(cloned_file);
+                    std::hint::black_box(tenant_id.as_ptr());
+                    std::hint::black_box(namespace_id.as_ptr());
+                    std::hint::black_box(analytics_key.as_ref().map(|value| value.as_ptr()));
+                    std::hint::black_box(route.as_ptr());
+                    std::hint::black_box(content_type.as_ptr());
+                }
+            }
+            started_at.elapsed()
+        }
+
+        let template = benchmark_artifact_request();
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&template, false), measure(&template, true))
+            } else {
+                let candidate = measure(&template, true);
+                let baseline = measure(&template, false);
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "accelerated setup ownership benchmark: speedup={:.6}",
+            speedups[speedups.len() / 2]
+        );
+    }
 
     #[tokio::test]
     async fn request_peek_and_consumption_reuse_the_connection_buffer() {
@@ -1874,7 +2005,7 @@ mod tests {
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
-            artifact: ArtifactRequest {
+            transfer: ArtifactRequest {
                 producer: ArtifactProducer::Module,
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".into(),
@@ -1884,7 +2015,8 @@ mod tests {
                 route: "/api/cache/module/{id}",
                 path: "/api/cache/module/hash".into(),
                 query: BTreeMap::new(),
-            },
+            }
+            .into(),
             file,
             range: ServedRange::full(size),
         };
@@ -2076,7 +2208,7 @@ mod tests {
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
             header_len: 0,
-            artifact: ArtifactRequest {
+            transfer: ArtifactRequest {
                 producer: ArtifactProducer::Xcode,
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".into(),
@@ -2086,7 +2218,8 @@ mod tests {
                 route: "/api/cache/cas/{id}",
                 path: "/api/cache/cas/hash".into(),
                 query: BTreeMap::new(),
-            },
+            }
+            .into(),
             file,
             range,
         };
@@ -2179,7 +2312,7 @@ mod tests {
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
-            artifact: ArtifactRequest {
+            transfer: ArtifactRequest {
                 producer: ArtifactProducer::Module,
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".into(),
@@ -2189,7 +2322,8 @@ mod tests {
                 route: "/api/cache/module/{id}",
                 path: "/api/cache/module/hash".into(),
                 query: BTreeMap::new(),
-            },
+            }
+            .into(),
             file,
             range,
         };
@@ -2263,7 +2397,7 @@ mod tests {
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
             header_len: 0,
-            artifact: ArtifactRequest {
+            transfer: ArtifactRequest {
                 producer: ArtifactProducer::Module,
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".into(),
@@ -2273,7 +2407,8 @@ mod tests {
                 route: "/api/cache/module/{id}",
                 path: "/api/cache/module/hash".into(),
                 query: BTreeMap::new(),
-            },
+            }
+            .into(),
             file,
             range,
         };

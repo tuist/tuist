@@ -6,8 +6,8 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 
 ## Metrics
 
-- Primary: paired whole-artifact positional-read speedup from letting the operating system initialize the admitted result vector (ratio, higher is better)
-- Secondary: original and candidate throughput, functional correctness, peak live buffer count, compile and lint status
+- Primary: paired accelerated-transfer setup speedup from moving the classified request's owned fields into their final consumers (ratio, higher is better)
+- Secondary: deterministic pointer identity, retained request fields, functional correctness, compile and lint status
 
 ## How to Run
 
@@ -72,8 +72,9 @@ Increase Kura's cache throughput and reduce tail latency without weakening its h
 - Inline byte-stream consumers now yield slices of the existing reference-counted value. Pointer identity proves no byte allocation or copy; the synthetic materialization benchmark measured 372.308 times the copied path because the candidate moves no payload bytes.
 - A paced benchmark staggers 32 concurrent streams across the fastest production node's 3-gigabit-per-second aggregate egress budget. Across three runs, the 95th-percentile Tokio blocking handoff was 31.083, 48.625, and 43.750 microseconds, with a median of 43.750 microseconds. That is 3.129 percent of a single chunk's 1.398-millisecond wire time; the complete cached positional read's median 95th percentile was 92.625 microseconds. Replacing Tokio would attack a small residual cost while introducing a second, Linux-specific runtime and file-resource model, so keep Tokio and optimize the remaining allocation work instead.
 - Whole-artifact materialization still allocated a zero-filled result vector before the positional read overwrote every byte. On Unix, pass the vector's spare capacity to Rustix and let the operating system initialize it while preserving the exact allocation, admission bound, short-read error, and Windows fallback. Three paired 512-mebibyte runs measured 1.099118, 1.097661, and 1.103675 times speedups, a median of 1.099118 times.
+- Accelerated requests previously built a complete owned authorization context even when authorization was disabled, then retained the full parsed artifact request through response admission and cloned the file handle, configured tenant, namespace, analytics key, route, and content type before transfer. Build the authorization context only when an engine exists, discard request-only fields after authorization and range resolution, move the remaining metadata and file into the transfer, borrow the configured tenant, and validate the file-owned content type inside the blocking closure. Pointer identity proves the namespace and analytics allocations move unchanged. Three paired setup runs measured 1.389168, 1.301090, and 1.386563 times speedups, a median of 1.386563 times.
 
 ## Next Segment
 
-- Continue the ownership audit in accelerated request classification and metadata caches.
-- Measure allocation counts around authorization-disabled accelerated requests before changing ownership.
+- Remove avoidable metric-label clones on the terminal accelerated response path.
+- Audit manifest and handle cache key ownership for duplicate strings retained across indexes.
