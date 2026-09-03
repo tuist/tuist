@@ -3,7 +3,7 @@ set -euo pipefail
 
 mise exec -- bazel test //:kura_lib_test \
   --cache_test_results=no \
-  --test_arg=streaming_write_buffer_uninitialized_benchmark \
+  --test_arg=digest_comparison_without_hex_allocation_benchmark \
   --test_arg=--ignored \
   --test_arg=--nocapture \
   --test_output=streamed

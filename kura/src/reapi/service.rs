@@ -424,8 +424,7 @@ impl ReapiService {
                 "uploaded blob size did not match digest",
             ));
         }
-        let actual_hash = hex::encode(hasher.finalize());
-        if actual_hash != resource.hash {
+        if !digest_matches_hex(hasher.finalize().as_ref(), &resource.hash) {
             return Err(Status::invalid_argument(
                 "uploaded blob digest did not match content",
             ));
@@ -2595,6 +2594,11 @@ struct BlobResource {
     hash: String,
     size_bytes: u64,
     key: String,
+}
+
+fn digest_matches_hex(actual: &[u8], expected_hex: &str) -> bool {
+    let mut expected = [0_u8; 32];
+    hex::decode_to_slice(expected_hex, &mut expected).is_ok() && actual == expected
 }
 
 fn parse_read_resource_name(resource_name: &str) -> Result<BlobResource, Status> {
@@ -6018,6 +6022,72 @@ mod tests {
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
+        );
+    }
+
+    #[test]
+    fn digest_comparison_accepts_exact_bytes_and_rejects_invalid_hashes() {
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        assert!(digest_matches_hex(&actual, &expected));
+        assert!(!digest_matches_hex(&[0xAC; 32], &expected));
+        assert!(!digest_matches_hex(&actual, "not-a-digest"));
+        assert!(!digest_matches_hex(&actual, &"ab".repeat(31)));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn digest_comparison_without_hex_allocation_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        let measure = |candidate| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let matches = if candidate {
+                    digest_matches_hex(std::hint::black_box(&actual), &expected)
+                } else {
+                    hex::encode(std::hint::black_box(actual)) == expected
+                };
+                std::hint::black_box(matches);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC digest_comparison_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 
