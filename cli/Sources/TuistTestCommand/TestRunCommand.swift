@@ -341,7 +341,7 @@
 
         @Option(
             name: .long,
-            help: "Rerun the test cases this branch adds, priced by duration, and flag any that disagree with themselves. 'report' warns; 'enforce' fails the run on a disagreement. Off when omitted.",
+            help: "Rerun the test cases this branch adds, priced by duration, and flag any that prove flaky. 'report' warns; 'enforce' fails the run on a flaky test case. Off when omitted.",
             envKey: .testStressNewTests
         )
         var stressNewTests: StressNewTestsMode?
