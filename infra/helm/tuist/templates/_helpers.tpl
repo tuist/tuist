@@ -705,6 +705,15 @@ the shadow writes inert everywhere else.
     secretKeyRef:
       name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
       key: url
+      # `optional` because the migration Job is a pre-upgrade hook and this
+      # Secret is an ordinary release resource, so on the deploy that first
+      # introduces the managed ClickHouse the Secret does not exist yet. A
+      # required reference makes that Job unable to start at all, which fails
+      # the whole deploy: without `optional` the pod stays Pending with
+      # `secret "…-clickhouse-credentials" not found` and `helm --wait` times
+      # out. Absent instead means the schema clone reads no destination and
+      # skips, and the next deploy has both the Secret and the server.
+      optional: true
 {{- end }}
 {{- end }}
 
