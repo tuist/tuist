@@ -527,23 +527,6 @@
       icon="square_rounded_arrow_down"
       data-part="invalidated-by-card"
     >
-      <:actions :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}>
-        <.dropdown
-          id="invalidated-by-sort-dropdown"
-          label={invalidated_by_sort_label(@invalidated_by_sort)}
-          secondary_text={dgettext("dashboard_cache", "Sort by:")}
-        >
-          <.dropdown_item
-            :for={column <- ~w(self_changes name)}
-            value={column}
-            label={invalidated_by_sort_label(column)}
-            patch={invalidated_by_sort_dropdown_patch(@uri, column)}
-            data-selected={@invalidated_by_sort == column}
-          >
-            <:right_icon :if={@invalidated_by_sort == column}><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-      </:actions>
       <.card_section
         :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}
         data-part="invalidated-by-section"
@@ -557,6 +540,23 @@
 
         pages = page_count(sorted)
         page = min(@invalidated_by_page, pages) %>
+        <div data-part="filters">
+          <.dropdown
+            id="invalidated-by-sort-dropdown"
+            label={invalidated_by_sort_label(@invalidated_by_sort)}
+            secondary_text={dgettext("dashboard_cache", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={column <- ~w(self_changes name)}
+              value={column}
+              label={invalidated_by_sort_label(column)}
+              patch={invalidated_by_sort_dropdown_patch(@uri, column)}
+              data-selected={@invalidated_by_sort == column}
+            >
+              <:right_icon :if={@invalidated_by_sort == column}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
         <.table id="invalidated-by-table" rows={page_of(sorted, page)}>
           <:col
             :let={dep}

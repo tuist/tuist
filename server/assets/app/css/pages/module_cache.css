@@ -196,6 +196,16 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
+
+    & > [data-part="filters"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
+      }
+    }
   }
 
   & > [data-part="analytics"] {
