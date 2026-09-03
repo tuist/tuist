@@ -600,7 +600,7 @@ msgstr ""
 msgid "Build duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:144
+#: lib/tuist_web/live/bazel_invocations_live.ex:138
 #: lib/tuist_web/live/project_notifications_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
@@ -1840,12 +1840,12 @@ msgstr ""
 msgid "Latest observation:"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:104
+#: lib/tuist_web/live/bazel_invocations_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "90th percentile duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:125
+#: lib/tuist_web/live/bazel_invocations_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
@@ -1860,17 +1860,17 @@ msgstr ""
 msgid "Completed Bazel commands reported through the Build Event Protocol. Cache totals include only remote-cache requests that Bazel attributed to the same invocation."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:138
+#: lib/tuist_web/live/bazel_invocations_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:133
+#: lib/tuist_web/live/bazel_invocations_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:150
+#: lib/tuist_web/live/bazel_invocations_live.ex:144
 #, elixir-autogen, elixir-format
 msgid "Finished"
 msgstr ""
@@ -1892,32 +1892,32 @@ msgstr ""
 msgid "Median duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:162
+#: lib/tuist_web/live/bazel_invocations_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "No Bazel invocations have been received yet. Run tuist bazel setup, then run a Bazel command."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:188
+#: lib/tuist_web/live/bazel_invocations_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "No cache lookups"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:147
+#: lib/tuist_web/live/bazel_invocations_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "Remote cache transfer"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:128
+#: lib/tuist_web/live/bazel_invocations_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:132
+#: lib/tuist_web/live/bazel_invocations_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:106
+#: lib/tuist_web/live/bazel_invocations_live.ex:103
 #, elixir-autogen, elixir-format
 msgid "The duration below which 90% of completed commands finished."
 msgstr ""
