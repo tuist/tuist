@@ -221,7 +221,7 @@ type RunnerPoolAutoscaling struct {
 }
 
 const (
-	defaultMaxConcurrentProvisioningPerNode int32 = 4
+	defaultMaxConcurrentProvisioningPerNode int32 = 6
 	defaultProvisioningStartTimeoutSeconds  int32 = 300
 )
 
@@ -234,8 +234,8 @@ type RunnerPoolProvisioning struct {
 	// node, across all sibling pools sharing the same operating system and
 	// FleetSelector. The controller multiplies it by the node count to get
 	// the shared fleet ceiling, and uses the lowest sibling value so one
-	// mismatched pool cannot weaken the fleet boundary. Default 4.
-	// +kubebuilder:default=4
+	// mismatched pool cannot weaken the fleet boundary. Default 6.
+	// +kubebuilder:default=6
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	MaxConcurrentPerNode *int32 `json:"maxConcurrentPerNode,omitempty"`

@@ -2216,8 +2216,18 @@ runnersFleetLinux:
   # raising start throughput. A cordoned or NotReady node takes its share
   # of the budget with it. Per-pool / per-shape values override these
   # defaults; the controller enforces the lowest sibling maximum.
+  #
+  # 6 per node. The fleet's fill rate is this budget divided by sandbox
+  # boot time, so it is what bounds how fast queued Linux work can start.
+  # Three per node ran saturated on 2026-09-03 (737 admission refusals in
+  # ten minutes) while the four hosts sat at 0-17% CPU and 1-37% memory,
+  # and boots completed in 82s to 3m37s with no start timeouts, so there
+  # was headroom on both the hosts and the 300s budget. Raise it further
+  # only against `tuist_runners_pool_pod_start_timeouts_total`: boot time
+  # climbing toward startTimeoutSeconds is the fleet saying a host is
+  # being asked to bring up too many microVMs at once.
   provisioning:
-    maxConcurrentPerNode: 4
+    maxConcurrentPerNode: 6
     # Starts after the scheduler binds the Pod to a node. 0 disables.
     startTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
@@ -2258,7 +2268,7 @@ runnersFleetLinux:
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
     #   provisioning:
-    #     maxConcurrentPerNode: 4
+    #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300
     #   autoscaling:
     #     enabled: true

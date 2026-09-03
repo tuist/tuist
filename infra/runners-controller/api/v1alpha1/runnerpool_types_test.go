@@ -119,8 +119,8 @@ func TestAutoscalingOrDefaultAccessors(t *testing.T) {
 
 func TestProvisioningOrDefaultAccessors(t *testing.T) {
 	unset := &RunnerPoolProvisioning{}
-	if got := unset.MaxConcurrentPerNodeOrDefault(); got != 4 {
-		t.Errorf("unset MaxConcurrentPerNode = %d, want 4", got)
+	if got := unset.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("unset MaxConcurrentPerNode = %d, want 6", got)
 	}
 	if got := unset.StartTimeoutSecondsOrDefault(); got != 300 {
 		t.Errorf("unset StartTimeoutSeconds = %d, want 300", got)
@@ -138,8 +138,8 @@ func TestProvisioningOrDefaultAccessors(t *testing.T) {
 	}
 
 	var nilProvisioning *RunnerPoolProvisioning
-	if got := nilProvisioning.MaxConcurrentPerNodeOrDefault(); got != 4 {
-		t.Errorf("nil MaxConcurrentPerNode = %d, want 4", got)
+	if got := nilProvisioning.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("nil MaxConcurrentPerNode = %d, want 6", got)
 	}
 }
 
