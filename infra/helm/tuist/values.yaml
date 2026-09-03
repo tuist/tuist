@@ -443,8 +443,10 @@ server:
     # ExternalName Service plus a dedicated Ingress that routes collectorUrl's
     # path at it, which is what keeps the collector same-origin with the site.
     # That Ingress rewrites to /collect, the only path Alloy's faro.receiver
-    # serves, so collectorUrl can be any path that does not collide with a
-    # route the server itself answers.
+    # serves. ingress-nginx rejects an Ingress that claims a host and path
+    # another Ingress already defines, so collectorUrl has to be a path no
+    # other Ingress on the host lists, and it cannot be moved onto or off the
+    # server Ingress in the same upgrade that renders it here.
     receiverHost: ""
     receiverPort: 12347
   # Refuse a new Kura instance before it can use the region's reserved storage

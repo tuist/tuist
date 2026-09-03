@@ -7,7 +7,9 @@ Ingress rather than another path on it: applied there it would rewrite "/" too
 and take the whole site down.
 
 ingress-nginx merges rules for a host across Ingress objects, so this adds the
-collector path to the same host the server Ingress already serves.
+collector path to the same host the server Ingress already serves. It also
+denies an Ingress whose host and path another Ingress already defines, so
+collectorUrl must differ from every path the server Ingress lists.
 */}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress

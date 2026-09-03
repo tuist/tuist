@@ -3897,20 +3897,22 @@ entries and never becomes a metric.
 
 **How the data gets here.** The Grafana Faro Web SDK is an npm dependency
 bundled into the server's own JavaScript, so there is no third-party script and
-no extra request origin. It posts to `https://tuist.dev/-/faro`, which the
-`tuist` chart routes at the `faro.receiver` on the `alloy-receiver` collector
-through an ExternalName Service (`server.faro` in `infra/helm/tuist`). Alloy
-forwards to Grafana Cloud Loki.
+no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which
+the `tuist` chart routes at the `faro.receiver` on the `alloy-receiver`
+collector through an ExternalName Service (`server.faro` in
+`infra/helm/tuist`). Alloy forwards to Grafana Cloud Loki.
 
 **The collector path is rewritten, and that is the fragile part.** Alloy's
 `faro.receiver` serves POST on `/collect` and nothing else, so a dedicated
-Ingress rewrites `/-/faro` to `/collect` before it reaches the receiver. It is a
-separate Ingress object from the server's on purpose: `rewrite-target` is a
-per-Ingress annotation, so putting the path on the main Ingress would rewrite
-`/` as well and take the whole site down. The first deploy of this pipeline
-shipped without the rewrite and every payload got a 404 from Alloy's router,
-which is why the triage below starts by reading the body of that 404 rather
-than only its status.
+Ingress rewrites `/-/faro/collect` to `/collect` before it reaches the receiver.
+It is a separate Ingress object from the server's on purpose: `rewrite-target`
+is a per-Ingress annotation, so putting the path on the main Ingress would
+rewrite `/` as well and take the whole site down. ingress-nginx denies an
+Ingress whose host and path another Ingress already defines, so the collector
+path must be one no other Ingress on `tuist.dev` lists. The first deploy of
+this pipeline shipped without the rewrite and every payload got a 404 from
+Alloy's router, which is why the triage below starts by reading the body of
+that 404 rather than only its status.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
@@ -4056,7 +4058,7 @@ Triage follows the payload:
 1. **Browser** — view source on tuist.dev and check `globalThis.analytics` has a
    `collector_url`. Empty means `TUIST_FARO_COLLECTOR_URL` is unset, i.e.
    `server.faro.collectorUrl` is empty in the chart.
-2. **Ingress** — `curl -sX POST https://tuist.dev/-/faro -H 'Content-Type: application/json' -d '{}'`
+2. **Ingress** — `curl -sX POST https://tuist.dev/-/faro/collect -H 'Content-Type: application/json' -d '{}'`
    should not 404. **Read the body, not just the status**, because the two 404s
    mean opposite things: a plain-text `404 page not found` is Go's, so the
    request reached Alloy and only the path is wrong (the rewrite Ingress is
