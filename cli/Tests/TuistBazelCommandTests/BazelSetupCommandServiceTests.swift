@@ -98,6 +98,8 @@ struct BazelSetupCommandServiceTests {
             build --bes_backend=grpcs://cache.tuist.dev
             build --bes_header=x-tuist-account-handle=my-account
             build --bes_header=x-tuist-project-handle=my-project
+            build --bes_timeout=30s
+            build --bes_upload_mode=fully_async
 
             """
         )

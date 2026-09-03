@@ -18,7 +18,7 @@ struct BazelrcFileTests {
         )
     }
 
-    @Test func points_both_host_bearing_flags_at_the_new_region() throws {
+    @Test func points_all_host_bearing_flags_at_the_new_region() throws {
         // The credential helper is keyed by host, so moving the cache without
         // moving it too leaves Bazel unable to authenticate against the
         // endpoint it was just given.
@@ -30,6 +30,7 @@ struct BazelrcFileTests {
                 "build --credential_helper=acme-ca-east-1.kura.tuist.dev=/Users/dev/.config/tuist/credentials/tuist-bazel-credential-helper"
             )
         )
+        #expect(rewritten.contains("build --bes_backend=grpcs://acme-ca-east-1.kura.tuist.dev"))
         #expect(!rewritten.contains("eu-central"))
     }
 

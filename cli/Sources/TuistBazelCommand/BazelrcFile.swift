@@ -17,6 +17,7 @@ enum BazelrcFile {
 
     private static let remoteCacheFlag = "build --remote_cache="
     private static let credentialHelperFlag = "build --credential_helper="
+    private static let buildEventServiceFlag = "build --bes_backend="
 
     static func render(
         endpoint: GRPCEndpoint,
@@ -29,9 +30,11 @@ enum BazelrcFile {
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
-        build --bes_backend=\(endpoint.url)
+        \(buildEventServiceFlag)\(endpoint.url)
         build --bes_header=x-tuist-account-handle=\(accountHandle)
         build --bes_header=x-tuist-project-handle=\(projectHandle)
+        build --bes_timeout=30s
+        build --bes_upload_mode=fully_async
 
         """
     }
@@ -46,7 +49,7 @@ enum BazelrcFile {
 
     /// `contents` pointed at `endpoint`, or `nil` when it already is.
     ///
-    /// The two lines naming the host are rewritten and everything else is left
+    /// The three lines naming the host are rewritten and everything else is left
     /// alone, so anything a developer added to the file survives a move. The
     /// credential helper's own path is carried across rather than recomputed:
     /// the file records where Bazel was told to find it, and that is not this
@@ -66,6 +69,9 @@ enum BazelrcFile {
                     guard let separator = value.firstIndex(of: "=") else { return String(line) }
                     let path = value[value.index(after: separator)...]
                     return "\(credentialHelperFlag)\(endpoint.host)=\(path)"
+                }
+                if line.hasPrefix(buildEventServiceFlag) {
+                    return "\(buildEventServiceFlag)\(endpoint.url)"
                 }
                 return String(line)
             }
