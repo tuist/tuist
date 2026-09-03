@@ -300,80 +300,6 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    // MARK: - Stress-testing new tests
-
-    private func stressNewTestsIfNeeded(
-        mode: StressNewTestsMode?,
-        summary: TestSummary?,
-        firstPassFailed: Bool,
-        config: Tuist,
-        mutedTests: [TestIdentifier],
-        stressPass: @escaping StressNewTestsPass
-    ) async -> StressNewTestsResult? {
-        guard let mode, let fullHandle = config.fullHandle,
-              let serverURL = try? serverEnvironmentService.url(configServerURL: config.url)
-        else { return nil }
-        return await stressNewTestsService.run(
-            mode: mode,
-            testSummary: summary,
-            firstPassFailed: firstPassFailed,
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            mutedTests: mutedTests,
-            stressPass: stressPass
-        )
-    }
-
-    private static let stressValueOptions: Set<String> = [
-        "-resultBundlePath",
-        "-test-iterations",
-        "-test-repetition-relaunch-enabled",
-        "-only-testing",
-        "-skip-testing",
-    ]
-
-    private static let stressFlagOptions: Set<String> = [
-        "-retry-tests-on-failure",
-        "-run-tests-until-failure",
-    ]
-
-    /// The xcodebuild invocation for one stress group: the caller's arguments with the action swapped
-    /// for `test-without-building`, their selection and repetition options dropped, and the group's
-    /// identifiers, repetition count and result bundle appended.
-    static func stressPassArguments(
-        from arguments: [String],
-        identifiers: [TestIdentifier],
-        repetitions: Int,
-        resultBundlePath: AbsolutePath
-    ) -> [String] {
-        var result: [String] = []
-        var iterator = arguments.makeIterator()
-        while let argument = iterator.next() {
-            if argument == "test" || argument == "test-without-building", result.isEmpty {
-                result.append("test-without-building")
-                continue
-            }
-            if stressValueOptions.contains(argument) {
-                _ = iterator.next()
-                continue
-            }
-            if stressFlagOptions.contains(argument) {
-                continue
-            }
-            if stressValueOptions.contains(where: { argument.hasPrefix("\($0):") }) {
-                continue
-            }
-            result.append(argument)
-        }
-        result += identifiers.flatMap { ["-only-testing", $0.description] }
-        result += [
-            "-test-iterations", "\(repetitions)",
-            "-test-repetition-relaunch-enabled", "YES",
-            "-resultBundlePath", resultBundlePath.pathString,
-        ]
-        return result
-    }
-
     private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?) async {
         if let testProductsPath {
             try? await fileSystem.remove(testProductsPath)
@@ -466,6 +392,91 @@ struct XcodeBuildTestCommandService {
         }
     }
 
+    private func rootDirectory() async -> AbsolutePath? {
+        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
+            return nil
+        }
+        return try? await rootDirectoryLocator.locate(from: workingDirectory)
+    }
+}
+
+/// The stress gate's own plumbing, kept out of the service's body: it is a
+/// self-contained concern, and an extension keeps the type readable.
+extension XcodeBuildTestCommandService {
+    private func stressNewTestsIfNeeded(
+        mode: StressNewTestsMode?,
+        summary: TestSummary?,
+        firstPassFailed: Bool,
+        config: Tuist,
+        mutedTests: [TestIdentifier],
+        stressPass: @escaping StressNewTestsPass
+    ) async -> StressNewTestsResult? {
+        guard let mode, let fullHandle = config.fullHandle,
+              let serverURL = try? serverEnvironmentService.url(configServerURL: config.url)
+        else { return nil }
+        return await stressNewTestsService.run(
+            mode: mode,
+            testSummary: summary,
+            firstPassFailed: firstPassFailed,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            mutedTests: mutedTests,
+            stressPass: stressPass
+        )
+    }
+
+    private static let stressValueOptions: Set<String> = [
+        "-resultBundlePath",
+        "-test-iterations",
+        "-test-repetition-relaunch-enabled",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    private static let stressFlagOptions: Set<String> = [
+        "-retry-tests-on-failure",
+        "-run-tests-until-failure",
+    ]
+
+    /// The xcodebuild invocation for one stress group: the caller's arguments with the action swapped
+    /// for `test-without-building`, their selection and repetition options dropped, and the group's
+    /// identifiers, repetition count and result bundle appended.
+    static func stressPassArguments(
+        from arguments: [String],
+        identifiers: [TestIdentifier],
+        repetitions: Int,
+        resultBundlePath: AbsolutePath
+    ) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "test" || argument == "test-without-building", result.isEmpty {
+                result.append("test-without-building")
+                continue
+            }
+            if stressValueOptions.contains(argument) {
+                _ = iterator.next()
+                continue
+            }
+            if stressFlagOptions.contains(argument) {
+                continue
+            }
+            if stressValueOptions.contains(where: { argument.hasPrefix("\($0):") }) {
+                continue
+            }
+            result.append(argument)
+        }
+        result += identifiers.flatMap { ["-only-testing", $0.description] }
+        result += [
+            "-test-iterations", "\(repetitions)",
+            "-test-repetition-relaunch-enabled", "YES",
+            "-resultBundlePath", resultBundlePath.pathString,
+        ]
+        return result
+    }
+}
+
+extension XcodeBuildTestCommandService {
     private func passedValue(
         for option: String,
         arguments: [String]
@@ -486,15 +497,6 @@ struct XcodeBuildTestCommandService {
         return result
     }
 
-    private func rootDirectory() async -> AbsolutePath? {
-        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
-            return nil
-        }
-        return try? await rootDirectoryLocator.locate(from: workingDirectory)
-    }
-}
-
-extension XcodeBuildTestCommandService {
     /// The identifiers the given option selects. xcodebuild accepts both `-only-testing ID` and
     /// `-only-testing:ID`.
     static func testIdentifiers(for option: String, in arguments: [String]) -> [String] {
