@@ -879,6 +879,15 @@ pub struct StagedArtifactPath<'a> {
     file_cache_policy: FileCachePolicy,
 }
 
+#[derive(Clone, Copy)]
+enum SegmentArtifactSource<'a> {
+    Path(StagedArtifactPath<'a>),
+    Memory {
+        bytes: &'a [u8],
+        file_cache_policy: FileCachePolicy,
+    },
+}
+
 impl<'a> StagedArtifactPath<'a> {
     pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
         Self {
@@ -1579,6 +1588,18 @@ impl Store {
         source_path: &Path,
         file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        self.persist_segment_artifact_with_version(
+            spec,
+            SegmentArtifactSource::Path(StagedArtifactPath::new(source_path, file_cache_policy)),
+        )
+        .await
+    }
+
+    async fn persist_segment_artifact_with_version(
+        &self,
+        spec: PersistArtifactSpec<'_>,
+        source: SegmentArtifactSource<'_>,
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -1594,7 +1615,10 @@ impl Store {
         // Whoever wins the lock commits the manifest; the rest re-read it here and
         // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
-        let size = self.io.metadata_len(source_path).await?;
+        let size = match source {
+            SegmentArtifactSource::Path(staged) => self.io.metadata_len(staged.path).await?,
+            SegmentArtifactSource::Memory { bytes, .. } => bytes.len() as u64,
+        };
 
         let (existing, already_present) =
             match self.segment_apply_precheck(&artifact_id, &spec).await? {
@@ -1602,7 +1626,9 @@ impl Store {
                     outcome,
                     already_present,
                 } => {
-                    self.io.remove_file_if_exists(source_path).await;
+                    if let SegmentArtifactSource::Path(staged) = source {
+                        self.io.remove_file_if_exists(staged.path).await;
+                    }
                     return Ok((outcome, already_present));
                 }
                 SegmentApplyPrecheck::Proceed {
@@ -1612,9 +1638,29 @@ impl Store {
             };
         let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
-        let (location, evicted_segments, _durability_seq) = self
-            .append_to_segment(source_path, size, file_cache_policy, ApplyDurability::Sync)
-            .await?;
+        let (location, evicted_segments, _durability_seq) = match source {
+            SegmentArtifactSource::Path(staged) => {
+                self.append_to_segment(
+                    staged.path,
+                    size,
+                    staged.file_cache_policy,
+                    ApplyDurability::Sync,
+                )
+                .await?
+            }
+            SegmentArtifactSource::Memory {
+                bytes,
+                file_cache_policy,
+            } => {
+                self.append_preloaded_to_segment(
+                    bytes,
+                    None,
+                    file_cache_policy,
+                    ApplyDurability::Sync,
+                )
+                .await?
+            }
+        };
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
@@ -4719,6 +4765,22 @@ impl Store {
     }
 
     async fn persist_artifact_from_bytes_with_version(
+        &self,
+        spec: PersistArtifactSpec<'_>,
+        bytes: &[u8],
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
+        self.persist_segment_artifact_with_version(
+            spec,
+            SegmentArtifactSource::Memory {
+                bytes,
+                file_cache_policy: FileCachePolicy::Adaptive,
+            },
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    async fn persist_artifact_from_bytes_via_temp_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
@@ -8941,6 +9003,169 @@ mod tests {
         println!(
             "METRIC positioned_artifact_write_p99_microseconds={}",
             candidate_median.3
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn direct_memory_artifact_write_benchmark() {
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+
+        async fn measure(
+            store: Arc<Store>,
+            bytes: Arc<Vec<u8>>,
+            direct: bool,
+            sample: usize,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                store: Arc<Store>,
+                bytes: Arc<Vec<u8>>,
+                key: String,
+                direct: bool,
+            ) {
+                writes.spawn(async move {
+                    let started_at = std::time::Instant::now();
+                    let spec = PersistArtifactSpec {
+                        producer: ArtifactProducer::Xcode,
+                        namespace_id: "direct-memory-write-benchmark",
+                        key: &key,
+                        content_type: "application/octet-stream",
+                        version_ms: now_ms(),
+                        replication_targets: &[],
+                        branch: None,
+                        trunk: None,
+                    };
+                    let result = if direct {
+                        store
+                            .persist_artifact_from_bytes_with_version(spec, &bytes)
+                            .await
+                    } else {
+                        store
+                            .persist_artifact_from_bytes_via_temp_with_version(spec, &bytes)
+                            .await
+                    };
+                    result.expect("benchmark artifact should persist");
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(
+                    &mut writes,
+                    store.clone(),
+                    bytes.clone(),
+                    format!(
+                        "{}-{sample}-{next}",
+                        if direct { "direct" } else { "staged" }
+                    ),
+                    direct,
+                );
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(
+                        &mut writes,
+                        store.clone(),
+                        bytes.clone(),
+                        format!(
+                            "{}-{sample}-{next}",
+                            if direct { "direct" } else { "staged" }
+                        ),
+                        direct,
+                    );
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let (_staged_temp, _staged_config, staged) = temp_store();
+        let staged = Arc::new(staged);
+        let (_direct_temp, _direct_config, direct) = temp_store();
+        let direct = Arc::new(direct);
+        let bytes = Arc::new(vec![0x5a; SEGMENT_COPY_BUFFER_BYTES]);
+        let mut staged_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut direct_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (staged_result, direct_result) = if sample % 2 == 0 {
+                (
+                    measure(staged.clone(), bytes.clone(), false, sample).await,
+                    measure(direct.clone(), bytes.clone(), true, sample).await,
+                )
+            } else {
+                let direct_result = measure(direct.clone(), bytes.clone(), true, sample).await;
+                (
+                    measure(staged.clone(), bytes.clone(), false, sample).await,
+                    direct_result,
+                )
+            };
+            if sample > 0 {
+                speedups.push(direct_result.0 / staged_result.0);
+                staged_samples.push(staged_result);
+                direct_samples.push(direct_result);
+            }
+        }
+        staged_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        direct_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let staged_median = staged_samples[median];
+        let direct_median = direct_samples[median];
+
+        println!(
+            "METRIC direct_memory_artifact_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC staged_artifact_writes_per_second={:.3}",
+            staged_median.0
+        );
+        println!(
+            "METRIC direct_memory_artifact_writes_per_second={:.3}",
+            direct_median.0
+        );
+        println!(
+            "METRIC staged_artifact_write_p50_microseconds={}",
+            staged_median.1
+        );
+        println!(
+            "METRIC staged_artifact_write_p95_microseconds={}",
+            staged_median.2
+        );
+        println!(
+            "METRIC staged_artifact_write_p99_microseconds={}",
+            staged_median.3
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p50_microseconds={}",
+            direct_median.1
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p95_microseconds={}",
+            direct_median.2
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p99_microseconds={}",
+            direct_median.3
         );
     }
 
