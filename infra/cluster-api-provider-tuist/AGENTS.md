@@ -31,8 +31,8 @@ detail the Apple Silicon kind.
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
-| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Left installed on release. |
-| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Left installed on release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
+| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
@@ -694,6 +694,21 @@ Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstall
 the box back into the pool**. It stays a monthly contract (release is not a contract
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
+
+**A reinstall already in flight is a completed release, not a failure.** All three
+kinds reach the provider before dropping the finalizer, so a controller restart
+between a successful install call and the finalizer patch — or two Machines on one
+box — has the release ask for a second wipe of a box already being wiped. Every
+provider rejects that for the whole ~30 minute install, and retrying on it holds
+the Machine in `Deleting`: the MachineDeployment stays a replica above spec and a
+`helm upgrade --atomic` rollback waiting on that count runs out its step ceiling
+(2026-09-03, 13 minutes on `ns3048220`). Each kind therefore reads the box's own
+install state and releases when a wipe is already running — OVH gates on
+`Client::BadRequest::TaskAlreadyExists` plus an install-function task in the task
+list, Dedibox and Elastic Metal on the install status the API reports, since
+neither names the collision. A failure that is not that retries on a bounded
+interval rather than controller-runtime's default backoff, which doubles to a
+1000s cap and idles the Machine long after the provider frees the box.
 
 ### Disk layout, and why it is an install-time decision
 

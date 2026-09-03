@@ -56,6 +56,15 @@ const (
 
 	// ovhSSHTimeout caps the per-attempt SSH dial + bootstrap run.
 	ovhSSHTimeout = 5 * time.Minute
+
+	// ovhReleaseRetryInterval bounds how long a failed release reinstall waits
+	// before retrying. Returning the error instead would hand the retry to
+	// controller-runtime's default backoff, which doubles to a 1000s cap: during
+	// the 2026-09-03 wedge it had already stretched to ~6 minutes and was heading
+	// for ~17, so the Machine would have idled in Deleting long after OVH freed
+	// the server. The reinstall POST is the only OVH call on this path, so
+	// retrying it every minute costs nothing worth backing off from.
+	ovhReleaseRetryInterval = 60 * time.Second
 )
 
 // OVHDedicatedMachineReconciler reconciles an OVHDedicatedMachine: it adopts a
@@ -455,17 +464,68 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 	// (Ubuntu + fleet key + ubuntu login) finishes after the Machine is gone,
 	// leaving a box the next claim self-joins.
 	if machine.Status.ServiceName != "" {
-		if err := r.reinstallToPool(ctx, machine); err != nil {
-			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
-			return ctrl.Result{}, err
+		err := r.reinstallToPool(ctx, machine)
+		switch {
+		case err == nil:
+			r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
+			logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
+		case r.reinstallAlreadyInFlight(ctx, machine, err):
+			r.event(machine, "ReleasedToPool", "OVH server %s is already being reinstalled; releasing without queueing a second install", machine.Status.ServiceName)
+			logger.Info("release found an OVH reinstall already in flight", "service", machine.Status.ServiceName)
+		default:
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (retrying in %s)", err, ovhReleaseRetryInterval)
+			logger.Error(err, "reinstall OVH box on release", "service", machine.Status.ServiceName)
+			return ctrl.Result{RequeueAfter: ovhReleaseRetryInterval}, nil
 		}
-		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
-		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
 	shared.ForgetEgressMetrics(machine.Name)
 	forgetKataRuntimeMetric(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// reinstallAlreadyInFlight reports whether a failed release reinstall can be
+// accepted as done because OVH is already reinstalling the box.
+//
+// OVH rejects a reinstall on a server that already has one queued with
+// Client::BadRequest::TaskAlreadyExists, and keeps rejecting it for the ~30
+// minutes the queued install runs. Treating that as retryable holds the
+// finalizer for the whole window: the Machine sits in Deleting, its
+// MachineDeployment stays a replica above spec, and a `helm upgrade --atomic`
+// rollback waiting on that replica count runs out its step ceiling. Two
+// Machines double-claimed one box on 2026-09-03 (fixed in #12779) and the loser
+// wedged for 13 minutes that way; a controller restart between a successful
+// POST and the finalizer patch reaches the same state with one Machine.
+//
+// reinstallToPool's postcondition is "this box is being returned to a clean,
+// claimable state", and an install already in flight meets it, so the release
+// drops the finalizer instead of queueing a second wipe of the same box.
+//
+// The task type is checked rather than assumed: TaskAlreadyExists says only that
+// SOME task is queued, and a reboot or a hardware intervention leaves the box in
+// whatever state the Machine left it. InstallState reads the task list and
+// reports Running only when the newest install-function task is unfinished.
+//
+// What is NOT verified is that the queued install carries this fleet's SSH key
+// and OS template. OVH's task resource exposes a function and a status, not the
+// install parameters, so the only in-band signal is the type. Requiring a
+// sibling Machine to vouch for the parameters would reject the single-Machine
+// restart case above — the more likely trigger, and the one this exists to
+// unwedge. The residual risk is an operator reinstalling, out of band, a box a
+// live Machine still holds: that already breaks the Machine, and its blast
+// radius is a box that fails to self-join on its next claim rather than one that
+// joins wrong.
+func (r *OVHDedicatedMachineReconciler) reinstallAlreadyInFlight(ctx context.Context, machine *infrav1.OVHDedicatedMachine, err error) bool {
+	if !ovh.IsTaskAlreadyExists(err) {
+		return false
+	}
+	state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName)
+	if stateErr != nil {
+		log.FromContext(ctx).Error(stateErr, "read OVH task list to classify a rejected release reinstall",
+			"service", machine.Status.ServiceName)
+		return false
+	}
+	return state == ovh.InstallRunning
 }
 
 // reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
