@@ -175,7 +175,16 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
-  defp month_chunks(column, from, to) do
+  @doc """
+  The half-open monthly intervals covering `from` through `to`.
+
+  Public because chunk boundaries are the part of this module that silently
+  loses or duplicates rows when wrong, and that is worth testing without a
+  ClickHouse to talk to. An overlap double counts; a gap drops rows that no
+  later run will look for, because the ledger will say the neighbouring chunks
+  are done.
+  """
+  def month_chunks(column, from, to) do
     from
     |> Stream.iterate(&add_month/1)
     |> Stream.take_while(&(Date.compare(&1, to) != :gt))
@@ -186,11 +195,17 @@ defmodule Tuist.ClickHouse.Backfill do
     date |> Date.beginning_of_month() |> Date.add(Date.days_in_month(date)) |> Date.beginning_of_month()
   end
 
-  defp predicate({:month, column, from, to}) do
+  @doc """
+  The `WHERE` clause selecting a chunk, used identically for the copy and for
+  both sides' row counts. One function on purpose: if the copy and the count
+  could disagree about which rows a chunk holds, the parity check would be
+  comparing different things and would pass while the data diverged.
+  """
+  def predicate({:month, column, from, to}) do
     "#{quote_ident(column)} >= toDateTime64('#{from} 00:00:00', 6) AND #{quote_ident(column)} < toDateTime64('#{to} 00:00:00', 6)"
   end
 
-  defp predicate({:hash, key, bucket, buckets}) do
+  def predicate({:hash, key, bucket, buckets}) do
     "cityHash64(#{key}) % #{buckets} = #{bucket}"
   end
 
