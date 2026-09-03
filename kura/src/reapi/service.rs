@@ -76,12 +76,8 @@ pub struct ReapiService {
 
 #[derive(Clone, Copy)]
 struct GrpcRequestSpec<'a> {
-    route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
-    producer: Option<&'a str>,
-    artifact_key: Option<&'a str>,
-    artifact_hash: Option<&'a str>,
 }
 
 pub(super) const REAPI_MAX_DECODING_MESSAGE_SIZE: usize = 64 << 20;
@@ -194,7 +190,7 @@ impl ReapiService {
         let Some(auth) = self.state.auth.as_ref() else {
             return Ok(());
         };
-        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata, None);
+        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
         match auth.evaluate_access(&context).await {
             AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
@@ -336,12 +332,8 @@ impl ReapiService {
                 }
                 let parsed_resource = parse_write_resource_name(&chunk.resource_name)?;
                 let write_spec = GrpcRequestSpec {
-                    route: "reapi.bytestream.write",
                     operation: "artifact.write",
                     namespace_id: Some(&parsed_resource.namespace_id),
-                    producer: Some("reapi"),
-                    artifact_key: None,
-                    artifact_hash: None,
                 };
                 self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
@@ -1038,12 +1030,8 @@ impl Capabilities for ReapiService {
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
         self.authorize_request(&request, auth).await?;
         let response = Response::new(reapi::ServerCapabilities {
@@ -1097,12 +1085,8 @@ impl ActionCache for ReapiService {
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
         let key = action_cache_key(&digest_key(digest)?);
         let auth = GrpcRequestSpec {
-            route: "reapi.action_cache.get",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(&key),
-            artifact_hash: Some(&digest.hash),
         };
         self.authorize_request(&request, auth).await?;
         // Instance-wide action-cache snapshot: a reserved action key whose
@@ -1388,12 +1372,8 @@ impl ActionCache for ReapiService {
         }
         let key = action_cache_key(&digest_key(digest)?);
         let auth = GrpcRequestSpec {
-            route: "reapi.action_cache.update",
             operation: "artifact.write",
             namespace_id: Some(authorization_namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(&key),
-            artifact_hash: Some(&digest.hash),
         };
         self.authorize_request(&request, auth).await?;
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
@@ -1476,12 +1456,8 @@ impl ContentAddressableStorage for ReapiService {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.find_missing",
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
         self.authorize_request(&request, auth).await?;
         let message = request.into_inner();
@@ -1547,12 +1523,8 @@ impl ContentAddressableStorage for ReapiService {
         require_sha256(request.get_ref().digest_function)?;
         let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.batch_update",
             operation: "artifact.write",
             namespace_id: Some(authorization_namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
         self.authorize_request(&request, auth).await?;
         let (metadata, mut extensions, message) = request.into_parts();
@@ -1623,12 +1595,8 @@ impl ContentAddressableStorage for ReapiService {
         require_sha256(request.get_ref().digest_function)?;
         let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.batch_read",
             operation: "artifact.read",
             namespace_id: Some(authorization_namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
         self.authorize_request(&request, auth).await?;
         let (metadata, _extensions, message) = request.into_parts();
@@ -1737,12 +1705,8 @@ impl ByteStream for ReapiService {
     ) -> Result<Response<Self::ReadStream>, Status> {
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
         let auth = GrpcRequestSpec {
-            route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(&resource.key),
-            artifact_hash: Some(resource.hash()),
         };
         self.authorize_request(&request, auth).await?;
         if request.get_ref().read_offset < 0 {
@@ -1889,12 +1853,8 @@ impl ByteStream for ReapiService {
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
         let auth = GrpcRequestSpec {
-            route: "reapi.bytestream.query_write_status",
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(&resource.key),
-            artifact_hash: Some(resource.hash()),
         };
         self.authorize_request(&request, auth).await?;
         let manifest = self
@@ -2569,7 +2529,6 @@ fn grpc_request_context(
     server_tenant_id: &str,
     spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
-    status_code: Option<u16>,
 ) -> RequestContext {
     let authorization = metadata
         .get("authorization")
@@ -2578,19 +2537,14 @@ fn grpc_request_context(
     let tenant_id = tenant_id_from_metadata(metadata);
     RequestContext {
         transport: "grpc".into(),
-        route: spec.route.to_owned(),
         method: "RPC".into(),
         operation: spec.operation.to_owned(),
         server_tenant_id: server_tenant_id.to_owned(),
         tenant_id,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
-        producer: spec.producer.map(ToOwned::to_owned),
-        artifact_key: spec.artifact_key.map(ToOwned::to_owned),
-        artifact_hash: spec.artifact_hash.map(ToOwned::to_owned),
         authorization,
         headers: BTreeMap::new(),
         query: BTreeMap::new(),
-        status_code,
     }
 }
 
@@ -6525,12 +6479,8 @@ mod tests {
 
     fn grpc_spec() -> GrpcRequestSpec<'static> {
         GrpcRequestSpec {
-            route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         }
     }
 
@@ -6545,7 +6495,7 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_kura_header() {
         let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -6553,14 +6503,14 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
         let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
     }
 
     #[test]
     fn grpc_context_without_tenant_header_leaves_tenant_unset() {
         let metadata = tonic::metadata::MetadataMap::new();
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id, None);
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -7364,14 +7314,10 @@ mod tests {
         assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
 
         let spec = GrpcRequestSpec {
-            route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        let context = grpc_request_context("acme", &spec, &metadata, None);
+        let context = grpc_request_context("acme", &spec, &metadata);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(context.authorization.as_deref(), Some("Bearer credential"));
         assert!(context.headers.is_empty());

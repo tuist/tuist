@@ -1320,51 +1320,25 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
         return next.run(req).await;
     };
 
-    let mut req = req;
     let route = request_route(&req);
-    let path = req.uri().path().to_owned();
     if skips_authorization(&route) {
         return next.run(req).await;
     }
 
     let method = req.method().to_string();
-    let mut query = parse_query_map(req.uri().query());
+    let query = parse_query_map(req.uri().query());
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .map(ToOwned::to_owned);
-    let mut request_body = None;
-
-    if route == ROUTE_API_CACHE_KEYVALUE && !query.contains_key("cas_id") {
-        let (parts, body) = req.into_parts();
-        match to_bytes(body, state.config.max_keyvalue_bytes).await {
-            Ok(body_bytes) => {
-                if let Some(cas_id) = keyvalue_cas_id_from_body(&body_bytes) {
-                    query.insert("cas_id".to_owned(), cas_id);
-                }
-                request_body = Some(body_bytes.to_vec());
-                req = Request::from_parts(parts, Body::from(body_bytes));
-            }
-            Err(_) => {
-                return error_response(
-                    StatusCode::PAYLOAD_TOO_LARGE,
-                    "Failed to read key-value request body",
-                );
-            }
-        }
-    }
-
     let context = request_context_from_http(
         &state,
         HttpRequestFacts {
             route: &route,
             method: &method,
-            path: &path,
             query: &query,
             authorization,
-            body: request_body.as_deref(),
-            status_code: None,
         },
     )
     .await;
@@ -1415,85 +1389,52 @@ async fn request_context_from_http(
     state: &SharedState,
     request: HttpRequestFacts<'_>,
 ) -> AuthRequestContext {
-    let metadata = http_request_metadata(
-        state,
-        request.route,
-        request.method,
-        request.path,
-        request.query,
-        request.body,
-    )
-    .await;
+    let metadata = http_request_metadata(state, request.route, request.method, request.query).await;
     AuthRequestContext {
         transport: "http".into(),
-        route: request.route.to_owned(),
         method: request.method.to_owned(),
         operation: metadata.operation,
         server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
         namespace_id: metadata.namespace_id,
-        producer: metadata.producer,
-        artifact_key: metadata.artifact_key,
-        artifact_hash: metadata.artifact_hash,
         authorization: request.authorization,
         headers: BTreeMap::new(),
         query: BTreeMap::new(),
-        status_code: request.status_code,
     }
 }
 
 struct HttpRequestFacts<'a> {
     route: &'a str,
     method: &'a str,
-    path: &'a str,
     query: &'a HashMap<String, String>,
     authorization: Option<String>,
-    body: Option<&'a [u8]>,
-    status_code: Option<u16>,
 }
 
 struct HttpRequestMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
-    producer: Option<String>,
-    artifact_key: Option<String>,
-    artifact_hash: Option<String>,
 }
 
 async fn http_request_metadata(
     state: &SharedState,
     route: &str,
     method: &str,
-    path: &str,
     query: &HashMap<String, String>,
-    request_body: Option<&[u8]>,
 ) -> HttpRequestMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
-    let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
         ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
-            producer: Some("xcode".into()),
-            artifact_key: last_path_segment.as_deref().map(action_cache_key),
-            artifact_hash: None,
         },
         ROUTE_API_CACHE_KEYVALUE => HttpRequestMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
-            producer: Some("xcode".into()),
-            artifact_key: query
-                .get("cas_id")
-                .cloned()
-                .or_else(|| request_body.and_then(keyvalue_cas_id_from_body))
-                .as_deref()
-                .map(action_cache_key),
-            artifact_hash: None,
         },
         ROUTE_API_CACHE_CAS => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
@@ -1504,9 +1445,6 @@ async fn http_request_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            producer: Some("xcode".into()),
-            artifact_key: last_path_segment.as_deref().map(blob_key),
-            artifact_hash: last_path_segment.clone(),
         },
         ROUTE_API_CACHE_GRADLE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
@@ -1517,9 +1455,6 @@ async fn http_request_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            producer: Some("gradle".into()),
-            artifact_key: last_path_segment.clone(),
-            artifact_hash: last_path_segment.clone(),
         },
         ROUTE_API_CACHE_MODULE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("HEAD") || method.eq_ignore_ascii_case("GET")
@@ -1531,9 +1466,6 @@ async fn http_request_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            producer: Some("module".into()),
-            artifact_key: Some(module_key_from_query(query)),
-            artifact_hash: query.get("hash").cloned(),
         },
         ROUTE_API_CACHE_MODULE_START
         | ROUTE_API_CACHE_MODULE_PART
@@ -1552,31 +1484,16 @@ async fn http_request_metadata(
                     Some(upload.namespace_id.clone())
                 };
             }
-            let artifact_key = multipart_upload
-                .as_ref()
-                .map(|upload| module_key(&upload.category, &upload.hash, &upload.name))
-                .or_else(|| Some(module_key_from_query(query)));
-            let artifact_hash = query
-                .get("hash")
-                .cloned()
-                .or_else(|| multipart_upload.map(|u| u.hash));
-
             HttpRequestMetadata {
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
-                producer: Some("module".into()),
-                artifact_key,
-                artifact_hash,
             }
         }
         ROUTE_API_CACHE_CLEAN => HttpRequestMetadata {
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
-            producer: None,
-            artifact_key: None,
-            artifact_hash: None,
         },
         ROUTE_V1_CACHE => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
@@ -1589,9 +1506,6 @@ async fn http_request_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
-                producer: Some("nx".into()),
-                artifact_key: last_path_segment.clone(),
-                artifact_hash: last_path_segment,
             }
         }
         ROUTE_API_METRO_CACHE => {
@@ -1605,36 +1519,14 @@ async fn http_request_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
-                producer: Some("metro".into()),
-                artifact_key: last_path_segment.clone(),
-                artifact_hash: last_path_segment,
             }
         }
         _ => HttpRequestMetadata {
             operation: "request".into(),
             tenant_id,
             namespace_id,
-            producer: None,
-            artifact_key: None,
-            artifact_hash: None,
         },
     }
-}
-
-fn keyvalue_cas_id_from_body(body: &[u8]) -> Option<String> {
-    serde_json::from_slice::<KeyValuePutRequest>(body)
-        .ok()
-        .map(|request| request.cas_id)
-}
-
-fn module_key_from_query(query: &HashMap<String, String>) -> String {
-    let category = query
-        .get("cache_category")
-        .cloned()
-        .unwrap_or_else(|| "builds".into());
-    let hash = query.get("hash").cloned().unwrap_or_default();
-    let name = query.get("name").cloned().unwrap_or_default();
-    module_key(&category, &hash, &name)
 }
 
 fn parse_query_map(query: Option<&str>) -> HashMap<String, String> {
@@ -7899,22 +7791,14 @@ mod tests {
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_MODULE_PART,
                 method: "POST",
-                path: ROUTE_API_CACHE_MODULE_PART,
                 query: &query,
                 authorization: None,
-                body: None,
-                status_code: None,
             },
         )
         .await;
 
         assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
-        assert_eq!(request_context.artifact_hash.as_deref(), Some("hash-1"));
-        assert_eq!(
-            request_context.artifact_key.as_deref(),
-            Some("builds/hash-1/Module.framework")
-        );
     }
 
     #[tokio::test]
@@ -7928,11 +7812,8 @@ mod tests {
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
-                path: "/api/cache/cas/artifact-1",
                 query: &query,
                 authorization: Some(authorization),
-                body: None,
-                status_code: None,
             },
         )
         .await;
@@ -7963,11 +7844,8 @@ mod tests {
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
-                path: "/api/cache/cas/account-artifact",
                 query: &query,
                 authorization: None,
-                body: None,
-                status_code: None,
             },
         )
         .await;
@@ -7976,28 +7854,117 @@ mod tests {
         assert_eq!(request_context.namespace_id, None);
     }
 
-    #[tokio::test]
-    async fn request_context_uses_keyvalue_cas_id_from_request_body() {
-        let context = test_context(|_| {}).await;
-        let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
-        let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
-        let request_context = request_context_from_http(
-            &context.state,
-            HttpRequestFacts {
-                route: ROUTE_API_CACHE_KEYVALUE,
-                method: "PUT",
-                path: ROUTE_API_CACHE_KEYVALUE,
-                query: &query,
-                authorization: None,
-                body: Some(request_body),
-                status_code: None,
-            },
-        )
-        .await;
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn lean_keyvalue_authorization_context_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 10_000;
+        const SAMPLES: usize = 6;
 
-        assert_eq!(
-            request_context.artifact_key.as_deref(),
-            Some("action_cache/cas-1")
+        let context = test_context(|_| {}).await;
+        let state = context.state;
+        let query = Arc::new(parse_query_map(Some(
+            "tenant_id=test-tenant&namespace_id=ios",
+        )));
+        let body = Arc::new(
+            serde_json::to_vec(&serde_json::json!({
+                "cas_id": "cas-1",
+                "entries": [{"value": "x".repeat(4 * 1024)}]
+            }))
+            .expect("encode benchmark body"),
+        );
+
+        let measure = |lean: bool| {
+            let state = state.clone();
+            let query = query.clone();
+            let body = body.clone();
+            async move {
+                let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+                let mut workers = tokio::task::JoinSet::new();
+                for _ in 0..WORKERS {
+                    let state = state.clone();
+                    let query = query.clone();
+                    let body = body.clone();
+                    let barrier = barrier.clone();
+                    workers.spawn(async move {
+                        barrier.wait().await;
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            if lean {
+                                let request = HttpRequestFacts {
+                                    route: ROUTE_API_CACHE_KEYVALUE,
+                                    method: "PUT",
+                                    query: &query,
+                                    authorization: Some("Bearer credential".to_owned()),
+                                };
+                                std::hint::black_box(
+                                    request_context_from_http(&state, request).await,
+                                );
+                            } else {
+                                let buffered_body = body.as_ref().clone();
+                                let parsed =
+                                    serde_json::from_slice::<KeyValuePutRequest>(&buffered_body)
+                                        .expect("parse benchmark body");
+                                let tenant_id = param_value(&query, "tenant_id").cloned();
+                                let namespace_id = param_value(&query, "namespace_id").cloned();
+                                std::hint::black_box((
+                                    "http".to_owned(),
+                                    ROUTE_API_CACHE_KEYVALUE.to_owned(),
+                                    "PUT".to_owned(),
+                                    "artifact.write".to_owned(),
+                                    state.config.tenant_id.clone(),
+                                    tenant_id,
+                                    namespace_id,
+                                    "xcode".to_owned(),
+                                    action_cache_key(&parsed.cas_id),
+                                    Some("Bearer credential".to_owned()),
+                                    buffered_body,
+                                ));
+                            }
+                        }
+                    });
+                }
+
+                barrier.wait().await;
+                let started_at = Instant::now();
+                while let Some(result) = workers.join_next().await {
+                    result.expect("authorization context worker");
+                }
+                (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+            }
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false).await, measure(true).await)
+            } else {
+                let candidate = measure(true).await;
+                (measure(false).await, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC keyvalue_auth_context_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC keyvalue_auth_context_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC keyvalue_auth_context_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 

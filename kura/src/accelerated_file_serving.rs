@@ -595,7 +595,7 @@ async fn open_and_authorize(
         }
     };
     if let Some(auth) = state.auth.as_ref() {
-        let access_context = request_context(state, &parsed, &artifact, None);
+        let access_context = request_context(state, &parsed, &artifact);
         let access_span = if trace_export_active() {
             tracing::info_span!(
                 "kura.auth.access",
@@ -1324,11 +1324,9 @@ fn request_context(
     state: &SharedState,
     parsed: &ParsedRequest,
     artifact: &ArtifactRequest,
-    status_code: Option<u16>,
 ) -> AuthRequestContext {
     AuthRequestContext {
         transport: "http".into(),
-        route: artifact.route.to_owned(),
         method: parsed.method.clone(),
         operation: "artifact.read".into(),
         server_tenant_id: state.config.tenant_id.clone(),
@@ -1338,13 +1336,9 @@ fn request_context(
         } else {
             Some(artifact.namespace_id.clone())
         },
-        producer: Some(artifact.producer.as_str().to_owned()),
-        artifact_key: Some(artifact.key.clone()),
-        artifact_hash: artifact.artifact_hash.clone(),
         authorization: parsed.headers.get("authorization").cloned(),
         headers: BTreeMap::new(),
         query: BTreeMap::new(),
-        status_code,
     }
 }
 

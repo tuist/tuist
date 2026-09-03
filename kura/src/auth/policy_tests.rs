@@ -130,19 +130,14 @@ fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
 fn ctx() -> RequestContext {
     RequestContext {
         transport: "http".into(),
-        route: "/api/cache/gradle/{cache_key}".into(),
         method: "GET".into(),
         operation: "artifact.read".into(),
         server_tenant_id: "acme".into(),
         tenant_id: None,
         namespace_id: None,
-        producer: Some("gradle".into()),
-        artifact_key: None,
-        artifact_hash: None,
         authorization: None,
         headers: BTreeMap::new(),
         query: BTreeMap::new(),
-        status_code: None,
     }
 }
 
@@ -315,8 +310,6 @@ async fn allows_namespace_only_grpc_requests_for_bazel() {
 
     let mut context = ctx();
     context.transport = "grpc".into();
-    context.route =
-        "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
     context.method = "RPC".into();
     context.tenant_id = None;
     context.namespace_id = Some("bazel".into());

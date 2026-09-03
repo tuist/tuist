@@ -255,19 +255,14 @@ mod tests {
     fn ctx() -> RequestContext {
         RequestContext {
             transport: "http".into(),
-            route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),
             operation: "artifact.read".into(),
             server_tenant_id: "acme".into(),
             tenant_id: Some("acme".into()),
             namespace_id: None,
-            producer: Some("xcode".into()),
-            artifact_key: None,
-            artifact_hash: None,
             authorization: None,
             headers: BTreeMap::new(),
             query: BTreeMap::new(),
-            status_code: None,
         }
     }
 
