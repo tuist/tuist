@@ -591,6 +591,14 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             null
         }
 
+        // Declared once, on the stress task, against the live collection of test tasks.
+        // Configuring the stress task through its provider from inside a test task's own
+        // configuration is refused once the task graph is being resolved, which is exactly
+        // when `gradle test` realizes that test task.
+        stressTaskProvider?.configure {
+            mustRunAfter(project.allprojects.map { it.tasks.withType(Test::class.java) })
+        }
+
         project.allprojects {
             val subproject = this
             subproject.tasks.withType(Test::class.java).configureEach {
@@ -626,7 +634,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
                 stressTaskProvider?.let { stressTask ->
                     testTask.finalizedBy(stressTask)
-                    stressTask.configure { mustRunAfter(testTask) }
                 }
 
                 if (quarantineServiceProvider != null) {
