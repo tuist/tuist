@@ -75,7 +75,10 @@ defmodule Tuist.Tests.StressNewTests do
       |> Map.put(:enabled, true)
       |> Map.put(:parameters, parameters)
     else
-      %{enabled: false, guard: nil, candidates: [], parameters: parameters}
+      # inventory_count is required by the response schema and non-optional in the
+      # generated client, so omitting it here turned "not entitled" into a decoding
+      # failure and a spurious warning on every unentitled run.
+      %{enabled: false, guard: nil, candidates: [], inventory_count: 0, parameters: parameters}
     end
   end
 

@@ -3,9 +3,11 @@ defmodule Tuist.Tests.StressNewTestsTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestRunStressRepetition
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -181,7 +183,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
 
   describe "repetitions_for/2" do
     test "returns the first bucket the duration fits in and zero past the curve" do
-      curve = StressNewTests.parameters(%Tuist.Projects.Project{}).repetition_curve
+      curve = StressNewTests.parameters(%Project{}).repetition_curve
 
       assert StressNewTests.repetitions_for(nil, curve) == 10
       assert StressNewTests.repetitions_for(5_000, curve) == 10
@@ -320,6 +322,109 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert stored.stress_mode == ""
       assert stored.stress_outcome == ""
       assert StressNewTests.list_candidates(test.id) == []
+    end
+  end
+
+  describe "changeset contracts" do
+    test "a candidate accepts a recorded outcome and rejects one the gate never assigns" do
+      attrs = %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        project_id: 1,
+        test_case_id: UUIDv7.generate(),
+        name: "testNew",
+        suite_name: "CheckoutTests",
+        module_name: "AppTests",
+        repetitions: 10,
+        failed_repetitions: 3,
+        outcome: "disagreed"
+      }
+
+      assert %{valid?: true} = TestRunStressCandidate.create_changeset(%TestRunStressCandidate{}, attrs)
+
+      changeset =
+        TestRunStressCandidate.create_changeset(
+          %TestRunStressCandidate{},
+          %{attrs | outcome: "flaky"}
+        )
+
+      refute changeset.valid?
+      assert %{outcome: ["is invalid"]} = errors_on(changeset)
+
+      changeset =
+        TestRunStressCandidate.create_changeset(
+          %TestRunStressCandidate{},
+          Map.delete(attrs, :test_case_id)
+        )
+
+      refute changeset.valid?
+      assert %{test_case_id: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "a repetition only accepts the two statuses the gate records" do
+      attrs = %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        project_id: 1,
+        test_case_id: UUIDv7.generate(),
+        repetition_number: 1,
+        status: "success"
+      }
+
+      assert %{valid?: true} =
+               TestRunStressRepetition.create_changeset(%TestRunStressRepetition{}, attrs)
+
+      changeset =
+        TestRunStressRepetition.create_changeset(
+          %TestRunStressRepetition{},
+          %{attrs | status: "skipped"}
+        )
+
+      refute changeset.valid?
+      assert %{status: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "a project accepts a curve and rejects parameters outside their bounds", %{project: project} do
+      curve = [%{"max_duration_ms" => 5_000, "repetitions" => 10}]
+
+      changeset =
+        Project.update_changeset(project, %{
+          stress_new_tests_repetition_curve: curve,
+          stress_new_tests_candidate_cap: 50,
+          stress_new_tests_wall_clock_ceiling_ms: 60_000,
+          stress_new_tests_bulk_change_ratio: 0.5,
+          stress_new_tests_bulk_change_floor: 0
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :stress_new_tests_repetition_curve) == curve
+
+      changeset =
+        Project.update_changeset(project, %{
+          stress_new_tests_candidate_cap: 0,
+          stress_new_tests_wall_clock_ceiling_ms: 0,
+          stress_new_tests_bulk_change_ratio: 1.5,
+          stress_new_tests_bulk_change_floor: -1
+        })
+
+      refute changeset.valid?
+      errors = errors_on(changeset)
+      assert errors[:stress_new_tests_candidate_cap]
+      assert errors[:stress_new_tests_wall_clock_ceiling_ms]
+      assert errors[:stress_new_tests_bulk_change_ratio]
+      assert errors[:stress_new_tests_bulk_change_floor]
+    end
+
+    test "the stored curve is what the verdict prices repetitions from", %{project: project, account: account} do
+      run_on_main(project, account, ["testOld"])
+      project = %{project | stress_new_tests_repetition_curve: [%{"max_duration_ms" => 100, "repetitions" => 2}]}
+
+      verdict = StressNewTests.verdict(project, account, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
+
+      assert Enum.map(verdict.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
+               {"testFast", 2, nil},
+               {"testSlow", 0, "too_slow"}
+             ]
     end
   end
 
