@@ -2479,7 +2479,8 @@ max by (cluster, region, pod, kind) (
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
   outbox: the replication outbox is at its cap, read kura_outbox_messages
-  (exactly 100000 is pinned); peers being unreachable is NOT the usual cause,
+  against kura_outbox_capacity (50000 per replication peer, ceiling 500000,
+  unless KURA_OUTBOX_MAX_DEPTH pins it); peers being unreachable is NOT the usual cause,
   check kura_peer_connection_failures_total and
   kura_replication_bandwidth_effective_limit_bytes_per_second first.
   upload_memory, memory_pressure_write, reapi_write_decode,
@@ -2643,13 +2644,23 @@ Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
 than the old threshold on each of the three pods that ever reach the cap, so
 the form is net quieter as well as earlier.
 
-#### Caveat: the cap is hardcoded
+#### Caveat: the cap is hardcoded, and it now scales with the mesh
 
-Both 100000 and 90000 are `DEFAULT_OUTBOX_MAX_DEPTH`. `KURA_OUTBOX_MAX_DEPTH`
-is configurable per instance, so if the cap is ever raised for a tenant (the
-standing interim mitigation for this exact problem) this rule fires early and
-continuously for that pod until the numbers are updated. Kura does not export
-the cap as a metric yet; when it does, divide by it.
+Both 100000 and 90000 were `DEFAULT_OUTBOX_MAX_DEPTH`, which no longer exists.
+The cap is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (50000) times the pod's
+replication target count, re-derived on every membership pass, so a two-peer
+mesh still caps at 100000 while a five-peer mesh caps at 250000 and a single
+peer at 50000. `KURA_OUTBOX_MAX_DEPTH` pins a fixed cap instead. Kura exports
+the effective value as `kura_outbox_capacity` (and as `outbox_capacity` on the
+rollout status endpoint); the rule should divide by it rather than carry the
+literals:
+
+```promql
+max by (pod) (kura_outbox_messages / kura_outbox_capacity) > 0.9
+```
+
+Until the live rule is updated, its static terms are only right for pods with
+exactly two peers.
 
 #### Why the drain falls behind
 

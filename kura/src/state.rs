@@ -179,6 +179,7 @@ pub struct RolloutStatusReport {
     pub http_inflight: usize,
     pub grpc_inflight: usize,
     pub outbox_messages: u64,
+    pub outbox_capacity: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
@@ -397,7 +398,22 @@ impl AppState {
             .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
+        self.refresh_outbox_capacity().await;
         membership_update
+    }
+
+    /// Re-derives the outbox cap from every peer whose messages may occupy
+    /// the queue: the current replication targets (what a write enqueues for)
+    /// plus the discovered-only history, whose messages `process_outbox`
+    /// never prunes within a process lifetime. Counting that history keeps a
+    /// departed sibling's share — and a sibling's share through a status-probe
+    /// blip, which empties the discovered set the same way — for as long as
+    /// its messages can sit in the queue, so the cap only shrinks behind a
+    /// departure whose messages are actually dropped.
+    pub async fn refresh_outbox_capacity(&self) {
+        let mut peers: BTreeSet<String> = self.replication_targets().await.into_iter().collect();
+        peers.extend(self.discovered_only_peer_history().await);
+        self.store.set_replication_peer_count(peers.len());
     }
 
     pub async fn initial_discovery_completed(&self) -> bool {
@@ -564,6 +580,7 @@ impl AppState {
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
             outbox_messages: metrics.outbox_messages,
+            outbox_capacity: self.store.outbox_max_depth() as u64,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
             peer_connection_failure_count: metrics.peer_connection_failure_count,
@@ -736,6 +753,74 @@ mod tests {
         assert!(observed.initial_discovery_completed);
         assert!(observed.generation_changed);
         assert_eq!(readiness.generation, 1);
+    }
+
+    /// The membership pass is what re-derives the outbox cap: the store
+    /// cannot see the peer set, and the cap has to count every target a write
+    /// would enqueue for, so it is read from `replication_targets` rather
+    /// than from the discovered set alone.
+    #[tokio::test]
+    async fn membership_view_rederives_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            // Only the node itself is a static seed: one share to start.
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 10);
+
+        context
+            .state
+            .dynamic_peers
+            .store(std::sync::Arc::new(vec!["http://peer-c:7443".to_string()]));
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            30,
+            "two discovered peers plus one dynamic peer"
+        );
+
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([("http://peer-a:7443".to_string(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost peer gives its share back"
+        );
+
+        // A discovered-only peer's messages are never pruned, so its share
+        // survives its absence from the view — whether it left or its status
+        // probe merely failed this pass.
+        context
+            .state
+            .note_discovered_only_peers(vec!["http://peer-a:7443".to_string()])
+            .await;
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "an empty view keeps the discovered-only share and the dynamic peer"
+        );
     }
 
     #[tokio::test]

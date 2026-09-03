@@ -109,6 +109,7 @@ pub struct MetricsInner {
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
+    outbox_capacity: Gauge,
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
@@ -661,6 +662,7 @@ impl Metrics {
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
+        let outbox_capacity = Gauge::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
@@ -1183,6 +1185,11 @@ impl Metrics {
             "kura_outbox_messages",
             "Replication outbox messages waiting to be processed",
             outbox_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_capacity",
+            "Replication outbox depth at which cache writes are shed",
+            outbox_capacity.clone(),
         );
         registry.register(
             "kura_outbox_lane_messages",
@@ -1764,6 +1771,7 @@ impl Metrics {
                 manifest_index_rebuilds,
                 manifest_index_rebuild_duration,
                 outbox_messages,
+                outbox_capacity,
                 outbox_lane_messages,
                 multipart_uploads,
                 tmp_dir_bytes,
@@ -2447,6 +2455,10 @@ impl Metrics {
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
+    }
+
+    pub fn update_outbox_capacity(&self, max_depth: usize) {
+        self.outbox_capacity.set(max_depth as i64);
     }
 
     pub fn update_segment_fsyncs(&self, total: u64) {

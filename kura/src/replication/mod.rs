@@ -227,7 +227,8 @@ async fn outbox_task_loop(state: SharedState) {
 
         // Replication delivery runs at every pressure tier. It is not
         // sheddable background work: the outbox is depth-capped
-        // (`KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
+        // (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per peer, or a fixed
+        // `KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
         // write once that cap is reached, so a paused drain does not defer
         // work — it strands the queue and ends up rejecting writes. Both
         // write gates test only `pressure() == Critical` and test it *before*

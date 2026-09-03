@@ -252,6 +252,12 @@
           "expr": "kura_outbox_messages",
           "legendFormat": "{{region}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_outbox_capacity",
+          "legendFormat": "{{region}} capacity",
+          "refId": "B"
         }
       ],
       "title": "Outbox Depth",

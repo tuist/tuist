@@ -235,7 +235,8 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | No | Auto-derived | `extraEnv` |
-| `KURA_OUTBOX_MAX_DEPTH` | Maximum replication outbox depth before public writes return backpressure. | No | `100000` | `extraEnv` |
+| `KURA_OUTBOX_MAX_DEPTH_PER_PEER` | Replication outbox capacity per peer. The effective cap is this times the number of replication peers, so it follows the mesh as nodes join and leave. | No | `50000` | `extraEnv` |
+| `KURA_OUTBOX_MAX_DEPTH` | A fixed replication outbox cap that replaces the per-peer scaling when set. | No | Unset | `extraEnv` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before expiring. | No | `86400000` | `extraEnv` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often Kura scans for stale multipart uploads. | No | `600000` | `extraEnv` |
 | `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring, counted from the newest, that bounds how far back a backfill pass reaches. | No | `40` | `config.backfill.marginPercent` |

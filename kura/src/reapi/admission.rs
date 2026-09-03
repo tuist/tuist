@@ -383,7 +383,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
             "server is shedding writes due to memory pressure; retry the write",
         ));
     }
-    if state.store.outbox_depth() >= state.config.outbox_max_depth {
+    if state.store.outbox_depth() >= state.store.outbox_max_depth() {
         state
             .metrics
             .record_memory_action("grpc_write_rejected_outbox");

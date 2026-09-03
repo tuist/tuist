@@ -3523,7 +3523,7 @@ mod tests {
     #[tokio::test]
     async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
         let context = crate::test_support::test_context(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         })
         .await;
         context

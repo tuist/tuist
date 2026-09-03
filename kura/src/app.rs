@@ -295,6 +295,7 @@ async fn run_with_config(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.refresh_outbox_capacity().await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),

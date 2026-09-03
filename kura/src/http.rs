@@ -1226,7 +1226,7 @@ async fn reject_overloaded_public_writes(
                 "server is shedding writes due to memory pressure",
             );
         }
-        if state.store.outbox_depth() >= state.config.outbox_max_depth {
+        if state.store.outbox_depth() >= state.store.outbox_max_depth() {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(
                 &state.metrics,
@@ -1687,6 +1687,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
         "outbox_messages": status.outbox_messages,
+        "outbox_capacity": status.outbox_capacity,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
         "peer_connection_failure_count": status.peer_connection_failure_count,
@@ -7650,7 +7651,7 @@ mod tests {
         // on `router` it would stay green even if the middleware regressed to
         // answering 503.
         let context = test_context(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
             config.peers = vec![
                 "http://127.0.0.1:7101".into(),
                 "http://127.0.0.1:7102".into(),
@@ -7660,7 +7661,7 @@ mod tests {
         let app = public_router(context.state.clone());
 
         assert!(
-            context.state.store.outbox_depth() < context.state.config.outbox_max_depth,
+            context.state.store.outbox_depth() < context.state.store.outbox_max_depth(),
             "the pre-check must admit this write, or the test is not exercising the gap"
         );
 

@@ -48,7 +48,20 @@ pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;
 pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
-pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
+// Outbox capacity per replication target. Every cache write enqueues one
+// message per peer, so a fixed cap fills in proportion to the mesh: the ingest
+// that leaves a two-node mesh at half capacity saturates a six-node one. The
+// cap therefore scales with the peer count, which keeps the backlog a node may
+// hold *per peer* constant as the mesh grows or shrinks. A message costs about
+// half a KiB of RocksDB (key plus JSON body), so this is ~25 MiB of outbox per
+// peer on disk; the in-memory cost is the depth counter. KURA_OUTBOX_MAX_DEPTH
+// pins a fixed, peer-independent cap instead.
+pub const DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER: usize = 50_000;
+// Ceiling on the derived outbox capacity, whatever the peer count. The depth
+// cap is the only bound on the outbox's RocksDB footprint (the free-space
+// guard covers segment rotation, not metadata), so it must not grow without
+// limit with the mesh: ten shares, ~250 MiB.
+pub const OUTBOX_MAX_DEPTH_CEILING: usize = 500_000;
 // Outbox deliveries dispatched before the drain waits for one to finish, and
 // the only throughput knob the bulk lane has: the drain moves roughly this many
 // messages per per-delivery latency. Every artifact enqueues one message per
@@ -63,8 +76,9 @@ pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 // write-primary replicating to two peers one region away runs at hundreds of
 // milliseconds per delivery, so the ceiling this sets has to be read against
 // ingest measured in tens of messages per second. A ceiling below ingest does
-// not shave the peak, it fills the outbox to `DEFAULT_OUTBOX_MAX_DEPTH` and
-// starts refusing public writes.
+// not shave the peak, it fills the outbox to its capacity
+// (`DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER` per peer) and starts refusing public
+// writes.
 //
 // The cost is per-delivery body residency: one `RESPONSE_STREAM_CHUNK_BYTES`
 // chunk for a segment-backed artifact, or up to

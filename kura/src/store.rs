@@ -36,9 +36,9 @@ use crate::{
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
+        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -174,7 +174,13 @@ pub struct Store {
     // attributed to the lane that is actually deep, which decides whether the
     // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`.
     outbox_bulk_depth: AtomicUsize,
-    outbox_max_depth: usize,
+    // The depth at which `reserve_outbox_slots` refuses. Either the fixed
+    // `outbox_max_depth_fixed`, or `outbox_max_depth_per_peer` times the
+    // replication target count, re-derived by `set_replication_peer_count`
+    // on every membership pass.
+    outbox_max_depth: AtomicUsize,
+    outbox_max_depth_fixed: Option<usize>,
+    outbox_max_depth_per_peer: usize,
     multipart_uploads: AtomicUsize,
     multipart_stored_bytes: AtomicU64,
     multipart_max_active_uploads: usize,
@@ -1184,7 +1190,17 @@ impl Store {
             rocksdb_write_buffer_manager,
             outbox_depth: AtomicUsize::new(0),
             outbox_bulk_depth: AtomicUsize::new(0),
-            outbox_max_depth: config.outbox_max_depth,
+            outbox_max_depth: AtomicUsize::new(outbox_max_depth_for(
+                config.outbox_max_depth,
+                config.outbox_max_depth_per_peer,
+                config
+                    .peers
+                    .iter()
+                    .filter(|peer| **peer != config.node_url)
+                    .count(),
+            )),
+            outbox_max_depth_fixed: config.outbox_max_depth,
+            outbox_max_depth_per_peer: config.outbox_max_depth_per_peer,
             multipart_uploads: AtomicUsize::new(0),
             multipart_stored_bytes: AtomicU64::new(0),
             multipart_max_active_uploads: config.multipart_max_active_uploads,
@@ -1245,6 +1261,10 @@ impl Store {
         let (outbox_depth, outbox_bulk_depth) = store.count_outbox_entries_exact()?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
         store
+            .io
+            .metrics()
+            .update_outbox_capacity(store.outbox_max_depth());
+        store
             .outbox_bulk_depth
             .store(outbox_bulk_depth, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
@@ -1285,6 +1305,34 @@ impl Store {
             .min(self.outbox_depth())
     }
 
+    /// The outbox depth at which cache writes are shed.
+    pub fn outbox_max_depth(&self) -> usize {
+        self.outbox_max_depth.load(Ordering::Acquire)
+    }
+
+    /// Re-derives the outbox cap for a peer count. Every write enqueues one
+    /// message per target, so the cap tracks the mesh: a peer joining grows
+    /// the room by one per-peer share, a peer leaving shrinks it. The caller
+    /// (`AppState::refresh_outbox_capacity`) counts every peer whose messages
+    /// may still occupy the queue, so a shrink only follows a departure whose
+    /// messages are actually pruned; it sheds nothing itself, reservations
+    /// fail until the drain makes room. Zero peers keeps one share so a mesh
+    /// of one still enqueues.
+    pub fn set_replication_peer_count(&self, peers: usize) {
+        let max_depth = outbox_max_depth_for(
+            self.outbox_max_depth_fixed,
+            self.outbox_max_depth_per_peer,
+            peers,
+        );
+        let previous = self.outbox_max_depth.swap(max_depth, Ordering::AcqRel);
+        if previous != max_depth {
+            self.io.metrics().update_outbox_capacity(max_depth);
+            tracing::debug!(
+                "replication outbox capacity is now {max_depth} messages for {peers} peer(s) (was {previous})"
+            );
+        }
+    }
+
     fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
         if slots == 0 {
             return Ok(OutboxReservation {
@@ -1295,13 +1343,13 @@ impl Store {
             });
         }
 
+        let max_depth = self.outbox_max_depth();
         let mut current = self.outbox_depth.load(Ordering::Acquire);
         loop {
             let requested = current.saturating_add(slots);
-            if requested > self.outbox_max_depth {
+            if requested > max_depth {
                 return Err(format!(
-                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {} allowed",
-                    self.outbox_max_depth
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
                 ));
             }
             match self.outbox_depth.compare_exchange_weak(
@@ -8693,6 +8741,14 @@ fn persisted_version_ms(version_ms: u64) -> u64 {
 /// of cross-pod snapshot staleness during a cache populate.
 pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
 
+fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> usize {
+    fixed.unwrap_or_else(|| {
+        per_peer
+            .saturating_mul(peers.max(1))
+            .min(OUTBOX_MAX_DEPTH_CEILING)
+    })
+}
+
 /// Whether an outbox key belongs to the bulk lane. The lane is the key's first
 /// byte, so this reads it without decoding the message.
 pub fn is_bulk_outbox_key(key: &[u8]) -> bool {
@@ -9738,7 +9794,8 @@ mod tests {
             rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
-            outbox_max_depth: 100_000,
+            outbox_max_depth: None,
+            outbox_max_depth_per_peer: 50_000,
             replication_bandwidth_limit_bytes_per_second: 0,
             replication_public_latency_target_ms: 100,
             replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
@@ -16943,7 +17000,7 @@ mod tests {
     #[tokio::test]
     async fn outbox_capacity_is_enforced_atomically_across_writers() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 5;
+            config.outbox_max_depth = Some(5);
         });
         let store = Arc::new(store);
         let mut writers = Vec::new();
@@ -16984,7 +17041,7 @@ mod tests {
     #[tokio::test]
     async fn deleting_an_outbox_message_releases_capacity() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         });
         let message = OutboxMessage {
             target: "http://peer".into(),
@@ -17012,7 +17069,7 @@ mod tests {
     #[test]
     fn reopening_the_store_rebuilds_exact_outbox_depth() {
         let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         });
         let message = OutboxMessage {
             target: "http://peer".into(),
@@ -17044,6 +17101,75 @@ mod tests {
                 .enqueue(message)
                 .expect_err("reopened store must enforce persisted depth")
         ));
+    }
+
+    fn outbox_delete(target: &str) -> OutboxMessage {
+        OutboxMessage {
+            target: target.into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        }
+    }
+
+    /// Every write enqueues one message per peer, so the cap is a per-peer
+    /// share times the target count: it grows when a peer joins and shrinks
+    /// when one leaves, and a shrink below the queued depth only refuses new
+    /// reservations rather than dropping anything.
+    #[test]
+    fn outbox_capacity_follows_the_replication_peer_count() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 2;
+            // The only static seed is the node itself, so the store starts on
+            // the single-share floor.
+            config.peers = vec![config.node_url.clone()];
+        });
+        assert_eq!(store.outbox_max_depth(), 2);
+
+        store.set_replication_peer_count(3);
+        assert_eq!(store.outbox_max_depth(), 6);
+        for _ in 0..6 {
+            store
+                .enqueue(outbox_delete("http://peer"))
+                .expect("within capacity");
+        }
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://peer"))
+                .expect_err("the seventh message must exceed three shares")
+        ));
+
+        store.set_replication_peer_count(1);
+        assert_eq!(store.outbox_max_depth(), 2);
+        assert_eq!(store.outbox_depth(), 6, "shrinking the cap drops nothing");
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://peer"))
+                .expect_err("a queue above the shrunk cap refuses new work")
+        ));
+
+        store.set_replication_peer_count(0);
+        assert_eq!(store.outbox_max_depth(), 2, "zero peers keeps one share");
+
+        store.set_replication_peer_count(usize::MAX);
+        assert_eq!(
+            store.outbox_max_depth(),
+            OUTBOX_MAX_DEPTH_CEILING,
+            "the derived cap never outgrows the ceiling"
+        );
+    }
+
+    #[test]
+    fn a_fixed_outbox_cap_ignores_the_peer_count() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = Some(3);
+            config.outbox_max_depth_per_peer = 100;
+        });
+        assert_eq!(store.outbox_max_depth(), 3);
+        store.set_replication_peer_count(5);
+        assert_eq!(store.outbox_max_depth(), 3);
     }
 
     #[test]
