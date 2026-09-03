@@ -56,9 +56,6 @@ registry:
 server:
   replicaCount: 2
 
-  turnstile:
-    enabled: true
-
   kuraCapacityAdmission:
     enabled: true
 

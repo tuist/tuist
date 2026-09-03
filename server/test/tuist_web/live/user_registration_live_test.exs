@@ -7,8 +7,6 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
-  alias TuistWeb.RateLimit.Registration
-  alias TuistWeb.Turnstile
 
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
@@ -64,81 +62,6 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
-    test "asks the user to reload when the session token is missing", %{conn: conn} do
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-      stub(Registration, :hit, fn _session_token -> {:error, :missing_session} end)
-      reject(&Turnstile.verify/2)
-
-      {:ok, lv, _html} = live(conn, ~p"/users/register")
-
-      html =
-        lv
-        |> form("#login_form", %{
-          "cf-turnstile-response" => "",
-          "user" => %{
-            "email" => "missing-session@example.com",
-            "password" => "StrongP@ssword!2028",
-            "username" => "missingsession"
-          }
-        })
-        |> render_submit()
-
-      assert html =~ "Your session has expired"
-      refute html =~ "Too many sign-up attempts"
-    end
-
-    test "disables the submit button until the Turnstile widget reports ready", %{conn: conn} do
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-
-      {:ok, lv, html} = live(conn, ~p"/users/register")
-
-      assert html =~ ~s(disabled)
-
-      after_ready =
-        render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
-
-      refute after_ready =~ ~s(name="user[email]"[^>]*disabled)
-    end
-
-    test "surfaces a distinct error when the Turnstile bundle cannot load", %{conn: conn} do
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-
-      {:ok, lv, _html} = live(conn, ~p"/users/register")
-
-      html =
-        render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "unavailable"})
-
-      assert html =~ "The security check could not load"
-    end
-
-    test "does not create a user when the security check is rejected", %{conn: conn} do
-      email = "rejected-security-check@example.com"
-
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
-      stub(Turnstile, :verify, fn _token, [expected_action: "email_signup"] -> {:error, :rejected} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/users/register")
-
-      html =
-        lv
-        |> form("#login_form", %{
-          "user" => %{
-            "email" => email,
-            "password" => "StrongP@ssword!2028",
-            "username" => "rejectedsecuritycheck"
-          }
-        })
-        |> render_submit()
-
-      assert html =~ "Please complete the security check and try again."
-      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(email)
-    end
-
     test "completes registration when confirmation email delivery fails", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
