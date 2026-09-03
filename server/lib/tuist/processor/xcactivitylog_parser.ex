@@ -7,13 +7,17 @@ defmodule Tuist.Processor.XCActivityLogParser do
   trap — an out-of-range integer conversion on a malformed log, say — and there
   is no way to catch that from the calling code. In-process, that killed the
   BEAM and every job the pod had in flight; out of process it costs the one job
-  and comes back as `{:error, {:parser_crashed, status, output}}`.
+  and comes back as `{:error, {:parser_crashed, status, output}}`, with `output`
+  carrying the Swift backtrace that names the frame that trapped.
 
   Build the executable with: `cd server/native/xcactivitylog_nif && ./build.sh`
-  (the server Dockerfile does this as part of the image build).
+  (the server Dockerfile does this as part of the image build). The Dockerfile
+  additionally ships the Swift backtracer beside it; `build.sh` does not,
+  because the helper is Linux-only.
   """
 
   @executable "xcactivitylog-parser"
+  @backtracer "swift-backtrace"
 
   # Below `ProcessBuildWorker`'s 5 minute wall-time limit so a wedged parse
   # returns a structured error before Oban kills the job.
@@ -59,7 +63,8 @@ defmodule Tuist.Processor.XCActivityLogParser do
     case MuonTrap.cmd(executable, arguments,
            timeout: @timeout,
            delay_to_sigkill: @delay_to_sigkill,
-           stderr_to_stdout: true
+           stderr_to_stdout: true,
+           env: backtracer_env()
          ) do
       {_output, 0} ->
         :ok
@@ -76,6 +81,26 @@ defmodule Tuist.Processor.XCActivityLogParser do
 
       {output, _status} ->
         {:error, String.trim(output)}
+    end
+  end
+
+  # Optimized Swift compiles an out-of-range integer conversion to a bare trap
+  # instruction, so the crash carries no message and `output` arrives empty —
+  # which leaves nothing to tell one trap site from another. The runtime's
+  # backtracer would print the crashing frame, but it looks for its helper in
+  # the toolchain layout that the runtime image does not carry, so the shipped
+  # copy has to be named outright. Registers and the image list are suppressed
+  # to keep the frames small enough to travel in the error tuple.
+  defp backtracer_env do
+    path = Path.join([:code.priv_dir(:tuist), "native", @backtracer])
+
+    if File.exists?(path) do
+      [
+        {"SWIFT_BACKTRACE",
+         "enable=yes,interactive=no,color=no,registers=none,images=none,threads=crashed,swift-backtrace=#{path}"}
+      ]
+    else
+      []
     end
   end
 
