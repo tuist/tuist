@@ -1,0 +1,394 @@
+<%!-- Redesigned tests page (styles in css/new/routes/tests.css). Same frame
+recipe as the cache and compute pages: left-aligned hero card, features
+frame (intro text + four full-width showcase cards), CTA between dithered
+dividers. All four showcase cards carry their illustrations. --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-tests">
+    <%!-- Hero card: same left-aligned 600px frame as the cache and compute
+    heroes. The background is the home page's test-grid canvas (TestGrid
+    hook) sized to tile the whole 1200x600 frame, with flaky cells recolored
+    purple-400 and an alpha mask melting it away toward the copy. --%>
+    <header data-part="header">
+      <div data-part="illustration" aria-hidden="true">
+        <canvas
+          data-part="grid"
+          id="tests-hero-grid"
+          phx-hook="TestGrid"
+          data-cell="15"
+          data-gap="8"
+          data-radius="2"
+          data-cols="63"
+          data-rows="26"
+          data-flaky="purple"
+          data-once
+        ></canvas>
+      </div>
+      <h1 data-part="title">
+        <span data-part="line">{dgettext("marketing", "Faster tests you can")}</span>
+        <span data-part="line">{dgettext("marketing", "actually trust.")}</span>
+      </h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+        )}
+      </p>
+      <.button
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/selective-testing"
+          )
+        }
+        variant="secondary"
+        label={dgettext("marketing", "Read docs")}
+      />
+    </header>
+
+    <section data-part="features" aria-labelledby="tests-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="tests-features-title">
+          {dgettext("marketing", "Faster tests, fewer surprises")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Skip unnecessary tests, distribute the rest efficiently, and keep your test suite healthy with built-in insights."
+          )}
+        </p>
+      </div>
+      <%!-- Four full-width showcase cards, stacked flush so the hairlines
+      read as one continuous frame. --%>
+      <div data-part="showcase">
+        <div data-part="cell">
+          <figure data-part="illustration" data-illustration="selective" aria-hidden="true">
+            <%!-- Marquee of test targets wired together on one line. Neutral
+            chips are skipped; the purple ones are the targets the diff below
+            touches, so they're the only ones that run. The track holds two
+            identical groups so scrolling half its width loops seamlessly. --%>
+            <div data-part="marquee">
+              <div data-part="track" style="--marquee-chip-count: 12">
+                <div :for={_group <- 1..2} data-part="group">
+                  <span
+                    :for={
+                      {name, state} <- [
+                        {"TuistAppleArchiveTests", "skip"},
+                        {"TuistAuthCommandTests", "run"},
+                        {"TuistAutomationTests", "skip"},
+                        {"TuistCASTests", "skip"},
+                        {"TuistCITests", "skip"},
+                        {"TuistCacheEETests", "skip"},
+                        {"TuistCoreTests", "skip"},
+                        {"TuistGeneratorTests", "skip"},
+                        {"TuistKitTests", "run"},
+                        {"TuistLoaderTests", "skip"},
+                        {"TuistServerTests", "run"},
+                        {"TuistSupportTests", "skip"}
+                      ]
+                    }
+                    data-part="chip"
+                    data-state={state}
+                  >
+                    {name}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <%!-- The change that decides which targets run: a Swift diff in a
+            code window that runs past the slot's bottom edge and fades out. --%>
+            <div data-part="window">
+              <ol data-part="lines" phx-no-curly-interpolation>
+                <li data-part="line">
+                  <span data-part="number">41</span><pre data-part="code"><span data-token="keyword">final class</span> <span data-token="type">AuthSessionStore</span> {</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">42</span><pre data-part="code">    <span data-token="keyword">private let</span> keychain: <span data-token="type">KeychainClient</span></pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">43</span><pre data-part="code"></pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">44</span><pre data-part="code">    <span data-token="keyword">func</span> restore() <span data-token="keyword">throws</span> -> <span data-token="type">AuthSession</span>? {</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">45</span><pre data-part="code">        <span data-token="keyword">guard let</span> data = <span data-token="keyword">try</span> keychain.read(.session) <span data-token="keyword">else</span> {</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">46</span><pre data-part="code">            <span data-token="keyword">return nil</span></pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">47</span><pre data-part="code">        }</pre>
+                </li>
+                <li data-part="line" data-change="removed">
+                  <span data-part="number">48</span><pre data-part="code">        <span data-token="keyword">return try</span> decoder.decode(<span data-token="type">AuthSession</span>.self, from: data)</pre>
+                </li>
+                <li data-part="line" data-change="removed">
+                  <span data-part="number">49</span><pre data-part="code">    }</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">50</span><pre data-part="code">        <span data-token="keyword">let</span> session = <span data-token="keyword">try</span> decoder.decode(<span data-token="type">AuthSession</span>.self, from: data)</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">51</span><pre data-part="code">        <span data-token="keyword">guard</span> session.expiresAt > <span data-token="type">Date</span>.now <span data-token="keyword">else</span> {</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">52</span><pre data-part="code">            <span data-token="keyword">try</span> keychain.delete(.session)</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">53</span><pre data-part="code">            <span data-token="keyword">return nil</span></pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">54</span><pre data-part="code">        }</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">55</span><pre data-part="code">        <span data-token="keyword">return</span> session</pre>
+                </li>
+                <li data-part="line" data-change="added">
+                  <span data-part="number">56</span><pre data-part="code">    }</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">57</span><pre data-part="code"></pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">58</span><pre data-part="code">    <span data-token="keyword">func</span> persist(_ session: <span data-token="type">AuthSession</span>) <span data-token="keyword">throws</span> {</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">59</span><pre data-part="code">        <span data-token="keyword">let</span> data = <span data-token="keyword">try</span> encoder.encode(session)</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">60</span><pre data-part="code">        <span data-token="keyword">try</span> keychain.write(data, for: .session)</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">61</span><pre data-part="code">    }</pre>
+                </li>
+                <li data-part="line">
+                  <span data-part="number">62</span><pre data-part="code">}</pre>
+                </li>
+              </ol>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Run only what changed")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Skip tests that don't need to run. Tuist uses project hashing to identify what changed since the last successful run and executes only the affected tests."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure
+            data-part="illustration"
+            data-illustration="sharding"
+            id="tests-sharding-timeline"
+            phx-hook="ShardingTimeline"
+            aria-hidden="true"
+          >
+            <%!-- Four runner lanes on a timeline: each bar is a test bundle
+            sized by its historical duration, packed so every runner finishes
+            at about the same time. Bar widths are the comp's pixel values
+            (6px gaps); tones 1–3 are the comp's three purple tints. The
+            ShardingTimeline hook reads the widths to schedule the fill
+            animation against the axis (72px = 5ms). --%>
+            <div data-part="scene">
+              <div data-part="grid"></div>
+              <div
+                :for={
+                  {icon, bars} <- [
+                    {"apple", [{189, 1}, {116, 2}, {280, 1}, {157, 2}, {74, 3}]},
+                    {"ring", [{116, 2}, {189, 1}, {93, 2}, {136, 3}, {258, 1}]},
+                    {"apple", [{116, 2}, {189, 1}, {157, 2}, {74, 3}, {266, 1}]},
+                    {"apple", [{189, 1}, {116, 2}, {280, 1}, {157, 2}, {91, 3}]}
+                  ]
+                }
+                data-part="lane"
+              >
+                <span data-part="runner">
+                  <svg
+                    :if={icon == "apple"}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M 4 12.93 C 4 10.24 5.07 7.01 8.29 7.01 C 9.46 7.01 10.77 8.09 11.5 8.09 C 12.22 8.09 13.71 6.89 15.25 7.01 C 15.84 7.05 17.9 7.55 19 9.16 C 18.91 9.21 16.3 10.05 16.32 12.39 C 16.35 15.18 18.97 15.61 19 15.62 C 19 17.77 16.32 21 14.71 21 C 13.11 21 12.91 20.46 11.5 20.46 C 10.09 20.46 9.45 20.95 8.29 21 C 6.14 21 4 16.16 4 12.93 Z" />
+                    <path d="M 13.41 3.41 C 13.04 3.79 12.53 4 12 4 C 12 3.47 12.21 2.96 12.59 2.59 C 12.96 2.21 13.47 2 14 2 C 14 2.53 13.79 3.04 13.41 3.41 Z" />
+                  </svg>
+                  <svg
+                    :if={icon == "ring"}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M 17.72 7.41 C 16.7 6.36 15.4 5.61 13.98 5.25 M 10.01 5.25 C 8.57 5.62 7.25 6.39 6.22 7.46 M 4.34 10.68 C 4.11 11.43 4 12.21 4 13 C 4 13.74 4.1 14.45 4.29 15.13 M 6.25 18.56 C 7.27 19.62 8.57 20.38 10.01 20.75 M 14.01 20.75 C 15.43 20.38 16.73 19.62 17.75 18.56 M 19.71 15.13 C 19.91 14.44 20 13.72 20 13 C 20 12.24 19.89 11.5 19.69 10.8 M 10 5 C 10 5.53 10.21 6.04 10.58 6.41 C 10.96 6.79 11.47 7 12 7 C 12.53 7 13.04 6.79 13.41 6.41 C 13.79 6.04 14 5.53 14 5 C 14 4.47 13.79 3.96 13.41 3.59 C 13.04 3.21 12.53 3 12 3 C 11.47 3 10.96 3.21 10.58 3.59 C 10.21 3.96 10 4.47 10 5 Z M 3 17 C 3 17.53 3.21 18.04 3.59 18.41 C 3.96 18.79 4.47 19 5 19 C 5.53 19 6.04 18.79 6.41 18.41 C 6.79 18.04 7 17.53 7 17 C 7 16.47 6.79 15.96 6.41 15.59 C 6.04 15.21 5.53 15 5 15 C 4.47 15 3.96 15.21 3.59 15.59 C 3.21 15.96 3 16.47 3 17 Z M 17 17 C 17 17.53 17.21 18.04 17.59 18.41 C 17.96 18.79 18.47 19 19 19 C 19.53 19 20.04 18.79 20.42 18.41 C 20.79 18.04 21 17.53 21 17 C 21 16.47 20.79 15.96 20.42 15.59 C 20.04 15.21 19.53 15 19 15 C 18.47 15 17.96 15.21 17.59 15.59 C 17.21 15.96 17 16.47 17 17 Z" />
+                  </svg>
+                </span>
+                <span
+                  :for={{width, tone} <- bars}
+                  data-part="bar"
+                  data-tone={tone}
+                  style={"--bar-width: #{width}"}
+                ></span>
+              </div>
+              <div data-part="axis">
+                <span :for={tick <- 0..11} data-part="tick" style={"--tick: #{tick}"}>
+                  {tick * 5}ms
+                </span>
+              </div>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Split tests intelligently")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Run large test suites across multiple CI runners without creating one slow shard. Tuist uses historical test timings to balance tests so each runner finishes at roughly the same time."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure data-part="illustration" data-illustration="insights" aria-hidden="true">
+            <%!-- Test analytics: four floating stat cards over faint step-line
+            series (one per metric colour) that scroll continuously, drawn by
+            the InsightsChart hook. The scene is the comp's 1200x400 frame;
+            cards sit at its pixel positions, the chart covers it. --%>
+            <div data-part="scene">
+              <canvas data-part="chart" id="tests-insights-chart" phx-hook="InsightsChart"></canvas>
+              <div data-part="card" data-color="purple" style="--x: 103; --y: 34">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Test runs")}
+                </span>
+                <span data-part="value">75</span>
+              </div>
+              <div data-part="card" data-color="yellow" style="--x: 354; --y: 116">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Skipped tests")}
+                </span>
+                <span data-part="value">5</span>
+              </div>
+              <div data-part="card" data-color="red" style="--x: 604; --y: 196">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "Failed test runs")}
+                </span>
+                <span data-part="value">15</span>
+              </div>
+              <div data-part="card" data-color="blue" style="--x: 854; --y: 82">
+                <span data-part="label">
+                  <span data-part="swatch"></span>
+                  {dgettext("marketing", "p90 test run duration")}
+                  <svg
+                    data-part="chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 9l6 6l6 -6" />
+                  </svg>
+                </span>
+                <span data-part="value">1m 40s</span>
+              </div>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Know what's slowing you down")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Track test performance over time, uncover slow tests, and understand failed runs without digging through CI logs."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure data-part="illustration" data-illustration="flaky" aria-hidden="true">
+            <%!-- Flaky-test quarantine: the FlakyQuarantine hook draws the
+            test-suite grid and the quarantine grid, sweeps a crosshair onto
+            each flake and flies it into quarantine. The label is positioned
+            over the quarantine grid by the hook. --%>
+            <div data-part="scene">
+              <canvas data-part="grid" id="tests-flaky-quarantine" phx-hook="FlakyQuarantine"></canvas>
+              <span data-part="label">{dgettext("marketing", "Quarantined tests")}</span>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Stop flakes from blocking CI")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Automatically detect flaky tests, track them over time, and quarantine them so unreliable tests don't keep blocking CI while you fix them."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the cache and
+    compute pages' closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="tests-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="17.4"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="tests-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="24.8"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

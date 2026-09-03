@@ -1043,6 +1043,38 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:compute_new, layout: false)
   end
 
+  # The tests page only exists in the redesign, so instead of falling back
+  # to a legacy template when the flag is off, it stays hidden behind a 404
+  # until :new_marketing_tests flips.
+  def tests(conn, _params) do
+    if !Design.new?(conn, :tests) do
+      raise NotFoundError, dgettext("errors", "Page not found")
+    end
+
+    conn
+    |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Tests")))
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+      )
+    )
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
+      ])
+    )
+    |> assign(:new_design, true)
+    |> render(:tests_new, layout: false)
+  end
+
   def page(conn, _params) do
     request_path = Localization.path_without_locale(conn.request_path)
 

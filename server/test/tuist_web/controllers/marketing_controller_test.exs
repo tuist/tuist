@@ -191,6 +191,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /tests" do
+    test "is hidden behind a 404 while the page flag is off", %{conn: conn} do
+      assert_error_sent :not_found, fn ->
+        get(conn, "/tests")
+      end
+    end
+
+    test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_tests -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/tests")
+
+      html = html_response(conn, 200)
+      assert html =~ "marketing-tests"
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given
