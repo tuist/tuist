@@ -139,6 +139,7 @@ fn ctx() -> RequestContext {
         producer: Some("gradle".into()),
         artifact_key: None,
         artifact_hash: None,
+        authorization: None,
         headers: BTreeMap::new(),
         query: BTreeMap::new(),
         status_code: None,
@@ -1281,9 +1282,7 @@ fn project_request(authorization: &str) -> RequestContext {
     let mut context = ctx();
     context.tenant_id = Some("acme".into());
     context.namespace_id = Some("ios".into());
-    context
-        .headers
-        .insert("authorization".into(), authorization.to_owned());
+    context.authorization = Some(authorization.to_owned());
     context
 }
 

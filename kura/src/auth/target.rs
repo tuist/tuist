@@ -11,7 +11,7 @@ use crate::auth::{DenyDecision, RequestContext};
 
 /// What a request names. A request that names no project is asking about the
 /// account's own cache, which is a different thing from any project in it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Scope {
     Account,
     Project,
@@ -161,6 +161,7 @@ mod tests {
             producer: Some("xcode".into()),
             artifact_key: None,
             artifact_hash: None,
+            authorization: None,
             headers: BTreeMap::new(),
             query: BTreeMap::new(),
             status_code: None,

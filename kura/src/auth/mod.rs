@@ -65,6 +65,8 @@ pub struct RequestContext {
     pub artifact_key: Option<String>,
     pub artifact_hash: Option<String>,
     #[serde(default)]
+    pub authorization: Option<String>,
+    #[serde(default)]
     pub headers: BTreeMap<String, String>,
     #[serde(default)]
     pub query: BTreeMap<String, String>,

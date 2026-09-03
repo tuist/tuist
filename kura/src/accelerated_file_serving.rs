@@ -1341,8 +1341,9 @@ fn request_context(
         producer: Some(artifact.producer.as_str().to_owned()),
         artifact_key: Some(artifact.key.clone()),
         artifact_hash: artifact.artifact_hash.clone(),
-        headers: parsed.headers.clone(),
-        query: artifact.query.clone(),
+        authorization: parsed.headers.get("authorization").cloned(),
+        headers: BTreeMap::new(),
+        query: BTreeMap::new(),
         status_code,
     }
 }

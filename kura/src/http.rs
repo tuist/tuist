@@ -1329,7 +1329,11 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
 
     let method = req.method().to_string();
     let mut query = parse_query_map(req.uri().query());
-    let request_headers = header_map_to_btree(req.headers());
+    let authorization = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
     let mut request_body = None;
 
     if route == ROUTE_API_CACHE_KEYVALUE && !query.contains_key("cas_id") {
@@ -1358,7 +1362,7 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
             method: &method,
             path: &path,
             query: &query,
-            headers: &request_headers,
+            authorization,
             body: request_body.as_deref(),
             status_code: None,
         },
@@ -1431,12 +1435,9 @@ async fn request_context_from_http(
         producer: metadata.producer,
         artifact_key: metadata.artifact_key,
         artifact_hash: metadata.artifact_hash,
-        headers: request.headers.clone(),
-        query: request
-            .query
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect(),
+        authorization: request.authorization,
+        headers: BTreeMap::new(),
+        query: BTreeMap::new(),
         status_code: request.status_code,
     }
 }
@@ -1446,7 +1447,7 @@ struct HttpRequestFacts<'a> {
     method: &'a str,
     path: &'a str,
     query: &'a HashMap<String, String>,
-    headers: &'a BTreeMap<String, String>,
+    authorization: Option<String>,
     body: Option<&'a [u8]>,
     status_code: Option<u16>,
 }
@@ -1644,18 +1645,6 @@ fn parse_query_map(query: Option<&str>) -> HashMap<String, String> {
         .map(|pair| match pair.split_once('=') {
             Some((key, value)) => (key.to_string(), value.to_string()),
             None => (pair.to_string(), String::new()),
-        })
-        .collect()
-}
-
-fn header_map_to_btree(headers: &axum::http::HeaderMap) -> BTreeMap<String, String> {
-    headers
-        .iter()
-        .filter_map(|(name, value)| {
-            value
-                .to_str()
-                .ok()
-                .map(|value| (name.as_str().to_ascii_lowercase(), value.to_string()))
         })
         .collect()
 }
@@ -7904,7 +7893,6 @@ mod tests {
             .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
         let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
-        let headers = BTreeMap::new();
 
         let request_context = request_context_from_http(
             &context.state,
@@ -7913,7 +7901,7 @@ mod tests {
                 method: "POST",
                 path: ROUTE_API_CACHE_MODULE_PART,
                 query: &query,
-                headers: &headers,
+                authorization: None,
                 body: None,
                 status_code: None,
             },
@@ -7933,6 +7921,8 @@ mod tests {
     async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
+        let authorization = "Bearer credential".to_owned();
+        let authorization_allocation = authorization.as_ptr();
         let request_context = request_context_from_http(
             &context.state,
             HttpRequestFacts {
@@ -7940,7 +7930,7 @@ mod tests {
                 method: "GET",
                 path: "/api/cache/cas/artifact-1",
                 query: &query,
-                headers: &BTreeMap::new(),
+                authorization: Some(authorization),
                 body: None,
                 status_code: None,
             },
@@ -7949,6 +7939,19 @@ mod tests {
 
         assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(
+            request_context.authorization.as_deref(),
+            Some("Bearer credential")
+        );
+        assert_eq!(
+            request_context
+                .authorization
+                .as_ref()
+                .map(|value| value.as_ptr()),
+            Some(authorization_allocation)
+        );
+        assert!(request_context.headers.is_empty());
+        assert!(request_context.query.is_empty());
     }
 
     #[tokio::test]
@@ -7962,7 +7965,7 @@ mod tests {
                 method: "GET",
                 path: "/api/cache/cas/account-artifact",
                 query: &query,
-                headers: &BTreeMap::new(),
+                authorization: None,
                 body: None,
                 status_code: None,
             },
@@ -7985,7 +7988,7 @@ mod tests {
                 method: "PUT",
                 path: ROUTE_API_CACHE_KEYVALUE,
                 query: &query,
-                headers: &BTreeMap::new(),
+                authorization: None,
                 body: Some(request_body),
                 status_code: None,
             },

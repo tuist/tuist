@@ -137,11 +137,15 @@ fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
     Some((expires_at, now))
 }
 
-fn authorization_header(ctx: &RequestContext) -> Option<&str> {
-    ctx.headers
-        .get("authorization")
-        .or_else(|| ctx.headers.get("Authorization"))
-        .map(String::as_str)
+pub(super) fn authorization_header(ctx: &RequestContext) -> Option<&str> {
+    ctx.authorization
+        .as_deref()
+        .or_else(|| {
+            ctx.headers
+                .get("authorization")
+                .or_else(|| ctx.headers.get("Authorization"))
+                .map(String::as_str)
+        })
         .filter(|header| !header.is_empty())
 }
 
@@ -419,6 +423,7 @@ mod tests {
             producer: None,
             artifact_key: None,
             artifact_hash: None,
+            authorization: None,
             headers: BTreeMap::new(),
             query: BTreeMap::new(),
             status_code: None,

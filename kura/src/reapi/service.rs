@@ -2571,7 +2571,10 @@ fn grpc_request_context(
     metadata: &tonic::metadata::MetadataMap,
     status_code: Option<u16>,
 ) -> RequestContext {
-    let headers = metadata_to_btree(metadata);
+    let authorization = metadata
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
     let tenant_id = tenant_id_from_metadata(metadata);
     RequestContext {
         transport: "grpc".into(),
@@ -2584,23 +2587,11 @@ fn grpc_request_context(
         producer: spec.producer.map(ToOwned::to_owned),
         artifact_key: spec.artifact_key.map(ToOwned::to_owned),
         artifact_hash: spec.artifact_hash.map(ToOwned::to_owned),
-        headers,
+        authorization,
+        headers: BTreeMap::new(),
         query: BTreeMap::new(),
         status_code,
     }
-}
-
-fn metadata_to_btree(metadata: &tonic::metadata::MetadataMap) -> BTreeMap<String, String> {
-    metadata
-        .iter()
-        .filter_map(|entry| match entry {
-            tonic::metadata::KeyAndValueRef::Ascii(key, value) => value
-                .to_str()
-                .ok()
-                .map(|value| (key.as_str().to_ascii_lowercase(), value.to_string())),
-            tonic::metadata::KeyAndValueRef::Binary(_, _) => None,
-        })
-        .collect()
 }
 
 /// gRPC has no code for payment required, so an exhausted plan would arrive as
@@ -7364,6 +7355,8 @@ mod tests {
         let mut metadata = tonic::metadata::MetadataMap::new();
         metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
         metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
+        metadata.insert("authorization", "Bearer credential".parse().unwrap());
+        metadata.insert("x-unrelated", "not copied".parse().unwrap());
 
         // The authorization path (grpc_request_context) and the billing path
         // (usage_tenant_id) read the same value.
@@ -7380,6 +7373,8 @@ mod tests {
         };
         let context = grpc_request_context("acme", &spec, &metadata, None);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(context.authorization.as_deref(), Some("Bearer credential"));
+        assert!(context.headers.is_empty());
     }
 
     fn test_usage_config() -> crate::config::UsageConfig {
