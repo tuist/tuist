@@ -2600,6 +2600,7 @@ impl Metrics {
             .observe(duration.as_secs_f64());
     }
 
+    #[cfg(test)]
     pub fn update_analytics_queue(&self, capacity: usize, depth: usize) {
         self.analytics_queue_capacity.set(capacity as i64);
         self.analytics_queue_depth.set(depth as i64);
