@@ -108,7 +108,6 @@
 
       & > [data-part="description"] {
         margin-top: var(--noora-spacing-4);
-        max-width: 720px;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
@@ -122,38 +121,1407 @@
         }
       }
 
-      & > .noora-neutral-button {
-        margin-top: var(--noora-spacing-8);
+      & > .noora-button {
+        margin-top: var(--noora-spacing-7);
       }
     }
 
-    /* iOS section stanza: three lines fading from primary to tertiary. */
+    /* iOS section stanza: three steps in tertiary, the active one lifted
+       to primary. The colour eases so stepping between lines later reads
+       as a highlight moving rather than a swap. */
     & > [data-part="lines"] {
       display: flex;
       flex-direction: column;
       padding: 0 var(--noora-spacing-4);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
 
-      & > [data-part="line"]:nth-child(1) {
-        color: var(--noora-surface-label-primary);
-      }
-
-      & > [data-part="line"]:nth-child(2) {
-        color: var(--noora-surface-label-secondary);
-      }
-
-      & > [data-part="line"]:nth-child(3) {
+      & > [data-part="line"] {
         color: var(--noora-surface-label-tertiary);
+        transition: color 320ms ease;
+
+        &[data-active] {
+          color: var(--noora-surface-label-primary);
+        }
       }
     }
 
-    /* Illustration placeholder: reserves the artwork's slot (full-bleed
-       within the frame) until the real illustrations land. */
+    /* Demo artwork runs edge to edge in the frame at Figma's 1200×760. It
+       is a picture, so its text can't be selected or dragged. */
     & > [data-part="illustration"] {
       margin: 0;
-      aspect-ratio: 1198 / 620;
       width: 100%;
+      height: 760px;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
     }
+
+    /* The iOS illustration: a 1200×500 frame on its own purple seascape,
+       the phone (Figma "Home Screen", 298.97×650 at 451/34) centred and
+       running off the bottom edge so roughly the top 70% shows. The bezel
+       and status bar are the macOS demo's phone scaled by 298.97/275.973;
+       the app UI is Figma's design rounded to whole pixels at the rendered
+       size (Figma's values are fractional only because the mock was scaled
+       by hand). Under the status bar two pages stack: the Previews list and
+       the detail page, which DownloadIosDemo pushes in from the right. */
+    &[data-section="ios"] > [data-part="illustration"] {
+      position: relative;
+      height: 500px;
+      overflow: hidden;
+      background-image: url("/marketing/images/download/ios-wallpaper.webp");
+
+      & img {
+        -webkit-user-drag: none;
+      }
+
+      & > [data-part="phone"] {
+        position: absolute;
+        top: 34px;
+        left: 50%;
+        width: 298.97px;
+        height: 650px;
+        transform: translateX(-50%);
+        filter: drop-shadow(0 5px 20px rgba(0, 0, 0, 0.3));
+
+        & > [data-part="bezel"] {
+          position: absolute;
+          top: -17.106px;
+          left: -17.853px;
+          width: 334.668px;
+          height: 684.21px;
+          pointer-events: none;
+        }
+
+        /* Runs 1px under the bezel on every side so the wallpaper can't
+           show through the seam between them. */
+        & > [data-part="screen"] {
+          position: absolute;
+          top: -1px;
+          left: -0.37px;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          box-sizing: border-box;
+          border-radius: 24.78px;
+          background: var(--noora-surface-background-primary);
+          padding: 1px;
+          width: 300.73px;
+          height: 651.48px;
+          overflow: hidden;
+          color: var(--noora-surface-label-primary);
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+
+          /* The home screen sits underneath at the macOS phone's size,
+             scaled about its centre to this bezel (298.73 / 275.752). While
+             the app is open it is zoomed a touch further and blurred, the
+             way iOS pushes the home screen back behind a running app; the
+             transition to and from that is what plays under the app's
+             open and close. */
+          & > [data-part="home-screen"] {
+            position: absolute;
+            top: 25.98px;
+            left: 12.49px;
+            box-sizing: border-box;
+            border-radius: 21.95px;
+            width: 275.752px;
+            height: 599.52px;
+            overflow: hidden;
+            transform: scale(1.14833);
+            transform-origin: 50% 50%;
+            filter: blur(8px);
+            transition:
+              transform 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              filter 560ms cubic-bezier(0.4, 0.05, 0.1, 1);
+          }
+
+          &[data-app="closed"] > [data-part="home-screen"] {
+            transform: scale(1.08333);
+            filter: none;
+            transition:
+              transform 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              filter 520ms cubic-bezier(0.4, 0.05, 0.1, 1);
+          }
+
+          /* The app itself: status bar and page stack on the light
+             surface. It opens and closes like an iOS app: a live,
+             proportionally scaled window clipped to a squircle the size
+             of the Tuist tile, sitting on the tile's spot (--open-x/-y/
+             -scale come from the hook), growing into the full screen; the
+             clip stays square-ish at the tile end, so the window shows its
+             top portion, as in iOS. Closing is the reverse, with a last-
+             moment fade where the tile takes over. It covers the screen's
+             1px bleed ring too, so the zoomed home screen can't peek out
+             at the edges. */
+          & > [data-part="app-shell"] {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            box-sizing: border-box;
+            background: var(--noora-surface-background-primary);
+            padding: 1px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            clip-path: inset(0 0 0 0 round 24.78px);
+            transition:
+              transform 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              clip-path 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              opacity 0s linear;
+          }
+
+          /* The icon layer: covers whatever the clip shows, stretched.
+             Crossfades with the UI while the window is still small:
+             in over the last part of the close, out over the first part of
+             the open. */
+          & > [data-part="app-shell"] > [data-part="shell-icon"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1;
+            transition:
+              height 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              opacity 220ms ease 60ms;
+          }
+
+          /* Its height tracks the clip on the same curve, so the icon is
+             stretched over exactly the window that shows — elongated
+             mid-way, a true square on the tile — never a half icon. */
+          &[data-app="closed"] > [data-part="app-shell"] > [data-part="shell-icon"] {
+            height: 300.73px;
+            opacity: 1;
+            transition:
+              height 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              opacity 220ms ease 240ms;
+          }
+
+          &[data-app="closed"] > [data-part="app-shell"] {
+            transform: translate(var(--open-x, 50%), var(--open-y, 40%)) scale(var(--open-scale, 0.16));
+            clip-path: inset(0 0 350.75px 0 round 67px);
+            opacity: 0;
+            transition:
+              transform 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              clip-path 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
+              opacity 120ms linear 460ms;
+            pointer-events: none;
+          }
+
+          & > [data-part="app-shell"] > [data-part="status-bar"] {
+            display: flex;
+            flex: none;
+            gap: 114.44px;
+            box-sizing: border-box;
+            padding: 15.605px 11.889px 14.119px;
+            width: 100%;
+
+            & > [data-part="status-time"] {
+              display: flex;
+              flex: 1 0 0;
+              align-items: center;
+              justify-content: center;
+              box-sizing: border-box;
+              padding-top: 1.486px;
+              height: 16.349px;
+              font: var(--noora-font-weight-semibold) 12.632px/16.349px var(--noora-font-body);
+            }
+
+            & > [data-part="status-levels"] {
+              display: flex;
+              flex: 1 0 0;
+              align-items: center;
+              justify-content: center;
+              gap: 5.202px;
+              box-sizing: border-box;
+              padding-top: 0.743px;
+              height: 16.349px;
+
+              & > [data-part="status-icon"] {
+                display: block;
+                background: currentColor;
+                mask: var(--status-icon) center / contain no-repeat;
+                -webkit-mask: var(--status-icon) center / contain no-repeat;
+
+                &[data-icon="cellular"] {
+                  --status-icon: url("/marketing/images/download/iphone/cellular.svg");
+                  width: 14.268px;
+                  height: 9.085px;
+                }
+
+                &[data-icon="wifi"] {
+                  --status-icon: url("/marketing/images/download/iphone/wifi.svg");
+                  width: 12.738px;
+                  height: 9.161px;
+                }
+
+                &[data-icon="battery"] {
+                  --status-icon: url("/marketing/images/download/iphone/battery.svg");
+                  width: 20.308px;
+                  height: 9.66px;
+                }
+              }
+            }
+          }
+
+          /* Page stack under the status bar. The detail page waits off the
+             right edge; data-screen="detail" on the stack pushes it in
+             with iOS's navigation ease while the list slides a quarter of
+             the way out and dims beneath it. The state rules sit here, after
+             the page rules and one attribute more specific, so they win. */
+          & > [data-part="app-shell"] > [data-part="pages"] {
+            position: relative;
+            flex: 1 0 0;
+            width: 100%;
+            min-height: 0;
+            overflow: hidden;
+
+            /* While the app is closed the hook resets the stack to the
+               list without the slide. */
+            &[data-instant] > [data-part="page"] {
+              transition: none;
+            }
+
+            & > [data-part="page"] {
+              position: absolute;
+              inset: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: flex-start;
+              background: var(--noora-surface-background-primary);
+              overflow: hidden;
+              transition: transform 520ms cubic-bezier(0.32, 0.72, 0, 1);
+
+              &[data-page="list"]::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.08);
+                opacity: 0;
+                transition: opacity 520ms cubic-bezier(0.32, 0.72, 0, 1);
+                pointer-events: none;
+              }
+
+              /* Parked a shadow's width beyond the edge so its blur can't
+                 creep into the list while it waits. */
+              &[data-page="detail"] {
+                transform: translateX(calc(100% + 32px));
+                box-shadow: -6px 0 24px rgba(0, 0, 0, 0.14);
+              }
+            }
+
+            &[data-screen="detail"] > [data-part="page"][data-page="list"] {
+              transform: translateX(-25%);
+
+              &::after {
+                opacity: 1;
+              }
+            }
+
+            &[data-screen="detail"] > [data-part="page"][data-page="detail"] {
+              transform: translateX(0);
+            }
+          }
+        }
+      }
+
+      /* Shared: the tinted "Run" capsule (39×21; Figma exports the
+         button's component padding, so its box is sized from the
+         instance instead). */
+      & [data-part="preview-run"] {
+        flex: none;
+        box-sizing: border-box;
+        border-radius: 40px;
+        transition: filter 140ms ease;
+
+        &[data-pressed] {
+          filter: brightness(0.9);
+        }
+      }
+
+      & [data-part="preview-run"] {
+        background: color-mix(in srgb, var(--noora-purple-500) 15%, transparent);
+        padding: 5px 11px;
+        height: 21px;
+        color: var(--noora-purple-500);
+        font: var(--noora-font-weight-semibold) 8.5px/11px var(--noora-font-body);
+        letter-spacing: -0.17px;
+        white-space: nowrap;
+      }
+
+      /* ---- Previews list page ---- */
+
+      /* Large title: 24/28 medium. */
+      & [data-part="previews-title"] {
+        margin: 22px 0 0 18px;
+        height: 28px;
+        font: var(--noora-font-weight-medium) 24px/28px var(--noora-font-heading);
+      }
+
+      /* iOS search field: 266×33 grey capsule, glyph, placeholder,
+         dictation mic on the right; the glyphs sit 11px in from the
+         capsule's ends (Figma). */
+      & [data-part="search"] {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        box-sizing: border-box;
+        margin: 10px 0 0 16px;
+        border-radius: 100px;
+        background: rgba(120, 120, 128, 0.16);
+        padding: 8px 11px;
+        width: 266px;
+        height: 33px;
+        color: #999;
+        font: var(--noora-font-weight-regular) 13px/17px var(--noora-font-body);
+        letter-spacing: -0.06px;
+        white-space: nowrap;
+
+        & > [data-part="search-label"] {
+          flex: 1 0 0;
+        }
+
+        & > svg {
+          display: block;
+          flex: none;
+          height: 13px;
+          width: auto;
+        }
+      }
+
+      /* "Apps in" + project picker pill: 24px row, 18/24 medium; pill on
+         the tertiary surface with 12px corners, Noora's light default border
+         (ring plus drop), 6px sides, and Noora's chevron. */
+      & [data-part="scope"] {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 10px 0 0 18px;
+        height: 24px;
+        font: var(--noora-font-weight-medium) 18px/24px var(--noora-font-heading);
+        white-space: nowrap;
+
+        & > [data-part="scope-picker"] {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          box-sizing: border-box;
+          border-radius: 12px;
+          background: var(--noora-surface-background-tertiary);
+          padding: 0 6px;
+          height: 24px;
+          box-shadow: var(--noora-border-light-default);
+
+          & > svg {
+            display: block;
+            flex: none;
+            width: 15px;
+            height: 15px;
+          }
+        }
+      }
+
+      /* Preview rows: 57px tall, 9px padding, 12px gaps, hairline
+         dividers. The list is 9px wider than the 18px column on each
+         side so the rows' padding puts the icons on the title's left
+         edge and the Run buttons on the matching right edge; 36px icon,
+         7.5/9 secondary metadata lines around the 10.5/15 medium name.
+         The demo taps a row, which tints it like a touch. */
+      & [data-part="previews"] {
+        display: flex;
+        flex-direction: column;
+        margin: 12px 0 0 9px;
+        padding: 0;
+        width: 281px;
+        list-style: none;
+
+        & > [data-part="preview"] {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-sizing: border-box;
+          padding: 9px;
+          height: 57px;
+          transition: background-color 140ms ease;
+
+          & + [data-part="preview"] {
+            border-top: 0.5px solid var(--marketing-stroke-default);
+          }
+
+          &[data-pressed] {
+            background: var(--noora-surface-background-tertiary);
+          }
+
+          & > [data-part="preview-icon"] {
+            display: block;
+            flex: none;
+            border-radius: 8px;
+            width: 36px;
+            height: 36px;
+          }
+
+          & > [data-part="preview-info"] {
+            display: flex;
+            flex: 1 0 0;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+            min-width: 0;
+
+            & > [data-part="preview-meta"] {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              height: 9px;
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) 7.5px/9px var(--noora-font-body);
+              white-space: nowrap;
+
+              & > span {
+                display: flex;
+                align-items: center;
+                gap: 1.5px;
+              }
+
+              & img {
+                display: block;
+                width: 9px;
+                height: 9px;
+              }
+            }
+
+            & > [data-part="preview-name"] {
+              font: var(--noora-font-weight-medium) 10.5px/15px var(--noora-font-body);
+            }
+          }
+        }
+      }
+
+      /* ---- Preview detail page ---- */
+
+      /* The detail page runs on a 275px column with 12px margins (Figma),
+         wider than the list's. Nav: 30px glass circles for back and share
+         sitting 6px under the status bar. */
+      & [data-part="nav"] {
+        display: flex;
+        justify-content: space-between;
+        box-sizing: border-box;
+        margin: 6px 0 0 12px;
+        width: 275px;
+
+        & > [data-part="nav-button"] {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: var(--noora-surface-background-tertiary);
+          width: 30px;
+          height: 30px;
+          box-shadow:
+            0 2px 10px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.4)),
+            var(--noora-border-light-default);
+          transition: filter 140ms ease;
+
+          &[data-pressed] {
+            filter: brightness(0.92);
+          }
+
+          & > svg {
+            display: block;
+            width: 16px;
+            height: 16px;
+          }
+        }
+      }
+
+      /* App header: 60px icon, the 18/22 name over the 11/14 version
+         centred against it, and the standard Run capsule (Figma:
+         37.85×20.95) pushed to the right edge, also centred. */
+      & [data-part="app-header"] {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 15px 0 0 12px;
+        width: 275px;
+
+        & > [data-part="app-icon"] {
+          display: block;
+          flex: none;
+          border-radius: 13px;
+          width: 60px;
+          height: 60px;
+        }
+
+        & > [data-part="app-meta"] {
+          display: flex;
+          flex: 1 0 0;
+          flex-direction: column;
+          align-items: flex-start;
+          min-width: 0;
+
+          & > [data-part="app-name"] {
+            font: var(--noora-font-weight-medium) 18px/22px var(--noora-font-heading);
+          }
+
+          & > [data-part="app-version"] {
+            margin-top: 4px;
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) 11px/14px var(--noora-font-body);
+          }
+        }
+      }
+
+      /* Section titles share the "Apps in" style: 18/24 medium. */
+      & [data-part="section-title"] {
+        margin: 20px 0 0 12px;
+        font: var(--noora-font-weight-medium) 18px/24px var(--noora-font-heading);
+      }
+
+      /* Platform chips: 21px capsules on the secondary surface, 10px apart,
+         wrapping (macOS drops to a second line like the mock). */
+      & [data-part="platforms"] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 12px 0 0 12px;
+        padding: 0;
+        width: 275px;
+        list-style: none;
+
+        & > li {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          box-sizing: border-box;
+          border-radius: 10.5px;
+          background: var(--noora-surface-background-secondary);
+          padding: 0 8px;
+          height: 21px;
+          font: var(--noora-font-weight-medium) 10px/14px var(--noora-font-body);
+          white-space: nowrap;
+
+          & > svg {
+            display: block;
+            flex: none;
+            width: 11px;
+            height: 11px;
+          }
+        }
+      }
+
+      /* Details: 38px rows, label left in secondary, value right, hairline
+         dividers; the creator is a blue badge. */
+      & [data-part="details"] {
+        margin: 8px 0 0 12px;
+        width: 275px;
+
+        & > div {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          border-bottom: 0.5px solid var(--marketing-stroke-default);
+          height: 38px;
+          font: var(--noora-font-weight-regular) 10.5px/14px var(--noora-font-body);
+          white-space: nowrap;
+
+          &:last-child {
+            border-bottom: 0;
+          }
+
+          & > dt {
+            color: var(--noora-surface-label-secondary);
+          }
+
+          & > dd {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            margin: 0;
+            font-weight: var(--noora-font-weight-medium);
+
+            & > svg {
+              display: block;
+              width: 11px;
+              height: 11px;
+            }
+          }
+        }
+
+        & [data-part="user-badge"] {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          border-radius: 10px;
+          background: light-dark(rgba(0, 122, 255, 0.12), rgba(10, 132, 255, 0.22));
+          padding: 0 8px;
+          height: 22px;
+          color: light-dark(#0a6fd6, #6fb3ff);
+
+          & > svg {
+            display: block;
+            width: 11px;
+            height: 11px;
+          }
+        }
+      }
+
+      /* Destructive action: full-width 31px capsule, red label and bin. */
+      & [data-part="delete"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        box-sizing: border-box;
+        margin: 15px 0 0 12px;
+        border-radius: 16px;
+        background: var(--noora-surface-background-tertiary);
+        width: 275px;
+        height: 31px;
+        color: var(--noora-red-500);
+        font: var(--noora-font-weight-semibold) 11px/14px var(--noora-font-body);
+        white-space: nowrap;
+
+        & > svg {
+          display: block;
+          width: 12px;
+          height: 12px;
+        }
+      }
+
+    }
+
+    /* ---- iOS home screen, shared by the macOS demo's phone and the iOS
+       demo's device (which scales it to its larger bezel). 275.752×599.52
+       at the macOS phone's size: status bar, app grid, spotlight pill,
+       dock, all at Figma's fractional values. ---- */
+    & [data-part="home-screen"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.12)),
+        url("/marketing/images/download/iphone/wallpaper.webp") center / cover no-repeat;
+      color: #fff;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+
+      /* Status bar: the time and the signal levels centred in their
+         own halves. */
+      & > [data-part="status-bar"] {
+        display: flex;
+        gap: 105.636px;
+        box-sizing: border-box;
+        padding: 14.405px 10.975px 13.033px;
+        width: 100%;
+
+        & > [data-part="status-time"] {
+          display: flex;
+          flex: 1 0 0;
+          align-items: center;
+          justify-content: center;
+          box-sizing: border-box;
+          padding-top: 1.372px;
+          height: 15.091px;
+          font: var(--noora-font-weight-semibold) 11.66px/15.091px var(--noora-font-body);
+        }
+
+        & > [data-part="status-levels"] {
+          display: flex;
+          flex: 1 0 0;
+          align-items: center;
+          justify-content: center;
+          gap: 4.802px;
+          box-sizing: border-box;
+          padding-top: 0.686px;
+          height: 15.091px;
+
+          & > img {
+            display: block;
+            height: auto;
+
+            &:nth-child(1) {
+              width: 13.17px;
+            }
+
+            &:nth-child(2) {
+              width: 11.758px;
+            }
+
+            &:nth-child(3) {
+              width: 18.746px;
+            }
+          }
+        }
+      }
+
+      /* Home screen grid: four 49.388px cells spread across the row,
+         17.333px between rows; a 43.901px icon over an 8.23px label. */
+      & > [data-part="apps"] {
+        display: grid;
+        flex: 1 0 0;
+        grid-template-columns: repeat(4, 49.388px);
+        justify-content: space-between;
+        align-content: start;
+        row-gap: 17.333px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 19.663px 17.835px 0;
+        width: 100%;
+        min-height: 0;
+        list-style: none;
+
+        & > [data-part="app"] {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3.43px;
+
+          & > img {
+            display: block;
+            width: 43.901px;
+            height: 43.901px;
+          }
+
+          & > [data-part="app-label"] {
+            font: var(--noora-font-weight-medium) 8.23px/normal var(--noora-font-body);
+            text-shadow: 0 1.372px 17.149px #000;
+            white-space: nowrap;
+          }
+        }
+      }
+
+      /* Search pill and dock share iOS 26's glass. In Figma the tint
+         layer is masked down to a ~1.4px rim at the bottom, so the
+         material is really the blurred wallpaper with a faint wash, a
+         light hairline rim on top and that darker rim underneath. */
+      & > [data-part="spotlight"] {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 1.372px;
+        box-sizing: border-box;
+        border-radius: 68.595px;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow:
+          inset 0 0.686px 0 rgba(255, 255, 255, 0.4),
+          inset 0 0 0 0.686px rgba(255, 255, 255, 0.22),
+          inset 0 -1.372px 0 rgba(0, 0, 0, 0.18),
+          0 1.372px 4.116px rgba(0, 0, 0, 0.12);
+        padding: 4.802px 8.231px;
+        height: 20.578px;
+        font: var(--noora-font-weight-semibold) 7.888px/10.975px var(--noora-font-body);
+        white-space: nowrap;
+        backdrop-filter: blur(20.578px);
+        -webkit-backdrop-filter: blur(20.578px);
+
+        & > svg {
+          display: block;
+          width: 8px;
+          height: 8px;
+        }
+      }
+
+      & > [data-part="dock"] {
+        flex: none;
+        box-sizing: border-box;
+        padding: 13.719px 11.661px 11.661px;
+        width: 100%;
+
+        & > [data-part="dock-tray"] {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-sizing: border-box;
+          border-radius: 28.812px;
+          background: rgba(255, 255, 255, 0.06);
+          padding: 13.033px 11.661px 11.661px;
+          height: 69.967px;
+          box-shadow:
+            inset 0 0.686px 0 rgba(255, 255, 255, 0.4),
+            inset 0 0 0 0.686px rgba(255, 255, 255, 0.22),
+            inset 0 -1.372px 0 rgba(0, 0, 0, 0.18),
+            0 1.372px 4.116px rgba(0, 0, 0, 0.12);
+          backdrop-filter: blur(20.578px);
+          -webkit-backdrop-filter: blur(20.578px);
+
+          & > img {
+            display: block;
+            width: 45.273px;
+            height: 45.273px;
+            filter: drop-shadow(0 1.372px 2.744px rgba(0, 0, 0, 0.25));
+          }
+        }
+      }
+            }
+
+    /* Install tile choreography (both demos): the tile pops onto the home
+       screen and installs behind iOS's progress pie. */
+    & [data-part="illustration"] {
+      & [data-part="app"][data-installable] {
+        position: relative;
+
+        /* Progress overlay over the icon: a dim wash, a dark disc, and the
+           wedge the hook sweeps from 0 to 100 via stroke-dashoffset. */
+        & > [data-part="app-progress"] {
+          position: absolute;
+          top: 0;
+          left: 50%;
+          width: 43.901px;
+          height: 43.901px;
+          translate: -50% 0;
+          opacity: 0;
+          transition: opacity 220ms ease;
+          pointer-events: none;
+
+          & > svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+          }
+
+          & [data-part="app-progress-dim"] {
+            fill: rgba(0, 0, 0, 0.42);
+          }
+
+          & [data-part="app-progress-disc"] {
+            fill: rgba(0, 0, 0, 0.55);
+          }
+
+          & [data-part="app-progress-pie"] {
+            stroke: rgba(255, 255, 255, 0.38);
+          }
+        }
+
+        &[data-install="installing"] > [data-part="app-progress"] {
+          opacity: 1;
+        }
+      }
+
+      /* Wikipedia's tile only exists for the demo: without the hook it stays
+         out of sight in its (empty, per Figma) grid cell. */
+      & [data-part="app"][data-demo-only]:not([data-install]) {
+        opacity: 0;
+      }
+
+      /* The hook takes the app that isn't installing this round out of
+         the grid, so the active one sits in the first free cell. */
+      &[data-animated] [data-part="app"][data-installable][hidden] {
+        display: none;
+      }
+
+      /* The iOS demo places the tile under the closing app window, where
+         its pop-in would be wasted: data-instant skips the transitions. */
+      &[data-animated] [data-part="app"][data-installable][data-instant],
+      &[data-animated] [data-part="app"][data-installable][data-instant] > [data-part="app-progress"] {
+        transition: none;
+      }
+
+      &[data-animated] [data-part="app"][data-installable] {
+        opacity: 0;
+        scale: 0.6;
+        transition:
+          opacity 280ms cubic-bezier(0.32, 0.72, 0, 1),
+          scale 420ms cubic-bezier(0.32, 0.72, 0, 1);
+
+        &[data-install] {
+          opacity: 1;
+          scale: 1;
+        }
+      }
+    }
+
+    /* The macOS demo sits on a desktop: the wallpaper fills the whole box
+       and the app chrome layers on top of it. */
+    &[data-section="macos"] > [data-part="illustration"] {
+      position: relative;
+      overflow: hidden;
+      background-image: url("/marketing/images/download/macos-wallpaper.webp");
+
+      /* Simulator window title bar (Figma "Utility Panel": 364×51 at 418/45,
+         13px corners, 1px #B6B6B6 stroke, 8px/12px padding). Window
+         controls sit in their own 3px-padded 50px block, the device text
+         12px after it; the three 44×29 tool slots butt together on the
+         right. */
+      & > [data-part="simulator-bar"] {
+        position: absolute;
+        top: 45px;
+        left: 50%;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        border: 1px solid light-dark(#b6b6b6, var(--noora-neutral-dark-700));
+        border-radius: 13px;
+        background: var(--noora-surface-background-primary);
+        padding: 8px 12px 11px;
+        width: 364px;
+        height: 51px;
+        transform: translateX(-50%);
+        box-shadow: 0 5px 20px light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
+
+        & > [data-part="simulator-lights"] {
+          display: flex;
+          gap: 7px;
+          box-sizing: border-box;
+          padding: 3px;
+          width: 50px;
+
+          & > [data-part="simulator-light"] {
+            box-sizing: border-box;
+            border: 0.5px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            width: 10px;
+            height: 10px;
+
+            &[data-color="red"] {
+              background: #ff736a;
+            }
+
+            &[data-color="yellow"] {
+              background: #febc2e;
+            }
+
+            &[data-color="green"] {
+              background: #19c332;
+            }
+          }
+        }
+
+        & > [data-part="simulator-device"] {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          margin: 0 auto 0 12px;
+          white-space: nowrap;
+
+          & > [data-part="simulator-name"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-bold) 11px/13px var(--noora-font-body);
+          }
+
+          & > [data-part="simulator-os"] {
+            color: var(--noora-surface-label-tertiary);
+            font: var(--noora-font-weight-medium) 8px/10px var(--noora-font-body);
+          }
+        }
+
+        & > [data-part="simulator-tools"] {
+          display: flex;
+
+          & > [data-part="simulator-tool"] {
+            width: 44px;
+            height: 29px;
+            background-color: light-dark(#4d4d4d, var(--noora-neutral-dark-200));
+            mask: var(--simulator-tool-icon) center / contain no-repeat;
+            -webkit-mask: var(--simulator-tool-icon) center / contain no-repeat;
+
+            &[data-tool="home"] {
+              --simulator-tool-icon: url("/marketing/images/download/simulator/home.svg");
+            }
+
+            &[data-tool="capture"] {
+              --simulator-tool-icon: url("/marketing/images/download/simulator/capture.svg");
+            }
+
+            &[data-tool="rotate"] {
+              --simulator-tool-icon: url("/marketing/images/download/simulator/rotate.svg");
+            }
+          }
+        }
+      }
+
+      /* iPhone (Figma "Home Screen" group): 275.973×600 centred at y 116,
+         one soft drop shadow around the whole device. The bezel PNG is the
+         "iPhone 16 Pro" image at Figma's offset; the display underneath is
+         a 21.95px-rounded, clipped column: status bar, app grid, search
+         pill, dock. Figma's fractional sizes are kept verbatim. */
+      & > [data-part="phone"] {
+        position: absolute;
+        top: 116px;
+        left: 50%;
+        width: 275.973px;
+        height: 600px;
+        transform: translateX(-50%);
+        filter: drop-shadow(0 5px 20px rgba(0, 0, 0, 0.3));
+
+        & > [data-part="bezel"] {
+          position: absolute;
+          top: -15.79px;
+          left: -16.48px;
+          width: 308.924px;
+          height: 631.579px;
+          pointer-events: none;
+        }
+
+        /* The display runs 1px under the bezel on every side so the
+           desktop can't show through the seam between them. The home
+           screen itself is styled once for both phones further up. */
+        & > [data-part="home-screen"] {
+          position: absolute;
+          top: -1px;
+          left: -0.42px;
+          box-sizing: border-box;
+          border-radius: 22.95px;
+          padding: 1px;
+          width: 277.752px;
+          height: 601.52px;
+          overflow: hidden;
+        }
+      }
+
+      /* Demo choreography (see DownloadMacDemo). Server-rendered, the
+         finished comp shows: simulator, phone, Tuist installed. Once the
+         hook takes over (data-animated) the simulator and phone wait
+         hidden until the popover starts installing, then rise in together
+         (data-device), then the whole device fades away again between
+         rounds. The install tile itself is styled with the shared home
+         screen further up. */
+      &[data-animated] > [data-part="simulator-bar"],
+      &[data-animated] > [data-part="phone"] {
+        opacity: 0;
+        translate: 0 12px;
+        transition:
+          opacity 640ms cubic-bezier(0.32, 0.72, 0, 1),
+          translate 640ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+
+      &[data-animated][data-device] > [data-part="simulator-bar"],
+      &[data-animated][data-device] > [data-part="phone"] {
+        opacity: 1;
+        translate: 0 0;
+      }
+
+      /* Demo cursor: 14×20 arrow, tip at its origin, driven by transform
+         from the hook. Hidden until the hook takes over. */
+      & > [data-part="cursor"] {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 14px;
+        height: 20px;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      &[data-animated] > [data-part="cursor"] {
+        opacity: 1;
+      }
+
+      /* Off-screen: the spinner freezes with the rest of the demo. */
+      &[data-paused] [data-part="popover-spinner"] {
+        animation-play-state: paused;
+      }
+
+      /* macOS menu bar: 34px tall (Figma), black at 20% over the wallpaper,
+         white glyphs and text. The exported glyphs carry 24px slots and sit
+         centred in the bar. Grayscale smoothing keeps the white-on-purple
+         clock at its true weight instead of the heavier subpixel rendering
+         light-on-dark text gets by default. */
+      & img {
+        -webkit-user-drag: none;
+      }
+
+      & > [data-part="menubar"] {
+        position: absolute;
+        inset: 0 0 auto 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 34px;
+        padding: 0 var(--noora-spacing-4);
+        background: rgba(0, 0, 0, 0.2);
+        color: #fff;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+
+        & [data-part="menubar-item"] {
+          display: block;
+          height: 24px;
+        }
+
+        & > [data-part="menubar-status"] {
+          display: flex;
+          align-items: center;
+
+          /* Wrapper for the open item and its popover: full bar height so
+             the popover can hang from the bar's bottom edge. */
+          & > [data-part="menubar-app"] {
+            position: relative;
+            display: flex;
+            align-items: center;
+            height: 34px;
+          }
+
+          /* The open Tuist item: a 38×25 pill, black at 16% on top of the
+             bar's 20% with a backdrop blur, the 15px mark centred in it. */
+          & > [data-part="menubar-app"] > [data-part="menubar-item"][data-selected] {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 25px;
+            border-radius: 12.5px;
+            background: rgba(0, 0, 0, 0.16);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+
+            & > svg {
+              width: 15px;
+              height: 15px;
+            }
+          }
+
+          /* Tabular figures so the live clock ticking over doesn't nudge
+             the items (and the popover anchored to the pill) sideways. */
+          & > [data-part="menubar-clock"] {
+            display: flex;
+            gap: var(--noora-spacing-4);
+            padding: 0 var(--noora-spacing-4);
+            font: var(--noora-font-weight-semibold) 13px/16px var(--noora-font-body);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+          }
+
+          /* Tuist menu bar popover: 286×256, its left edge on the open pill's
+             left edge and its top 3px below the 34px menu bar (Figma: 846/37 in
+             the 1200×760 frame). Anchored to the pill so it stays aligned however
+             wide the live clock renders. macOS-style menu shell: 12px sides, 5px
+             top and bottom, Inter in place of SF Pro. Figma: 1px inside stroke #B7B7B7
+             plus the tray's two centred drop shadows (2px at 10%, 25px at 16%).
+             Colours come from the Noora surface tokens so the menu follows the
+             page theme; the shadows deepen in dark mode to stay visible. */
+          & > [data-part="menubar-app"] > [data-part="popover"] {
+            position: absolute;
+            top: calc(100% + 3px);
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 286px;
+            height: 256px;
+            border-radius: 15px;
+            background: var(--noora-surface-background-secondary);
+            padding: 5px 12px;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) 13px/16px var(--noora-font-body);
+            box-shadow:
+              inset 0 0 0 1px light-dark(#b7b7b7, var(--noora-neutral-dark-700)),
+              0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3)),
+              0 0 25px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5));
+            white-space: nowrap;
+
+            /* Account name over handle on the left, install status centred on
+               the right. */
+            & > [data-part="popover-header"] {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-top: 7px;
+
+              & > [data-part="popover-account"] {
+                display: flex;
+                flex-direction: column;
+
+                & > [data-part="popover-title"] {
+                  font-weight: var(--noora-font-weight-semibold);
+                }
+
+                & > [data-part="popover-handle"] {
+                  color: var(--noora-surface-label-tertiary);
+                  font-size: 11px;
+                  line-height: 13px;
+                }
+              }
+
+              & > [data-part="popover-status"] {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                color: var(--noora-surface-label-secondary);
+
+                /* Ring loader after the text: a faint full track with a
+                   brighter arc sweeping round it. */
+                & > [data-part="popover-spinner"] {
+                  display: none;
+                  width: 14px;
+                  height: 14px;
+                  animation: marketing-download-spin 1s linear infinite;
+
+                  & > [data-part="spinner-track"] {
+                    opacity: 0.25;
+                  }
+                }
+
+                &[data-stage="installing"] > [data-part="popover-spinner"] {
+                  display: block;
+                }
+
+                /* The hook rolls this between stages via the Web Animations
+                   API. */
+                & > [data-part="popover-status-text"] {
+                  display: block;
+                }
+              }
+            }
+
+            /* Installed previews tray: a raised 10px card with 45px icons in a
+               row, labels centred under each icon. Each tile hugs its label
+               (Figma: "Hug" tiles, 16px between them) so long names never
+               run into the neighbour's. Figma stacks two centred drop
+               shadows: 2px blur at 10% and 25px blur at 16%. */
+            & > [data-part="popover-tray"] {
+              display: flex;
+              gap: var(--noora-spacing-6);
+              margin: 6px 0 0;
+              border-radius: 10px;
+              background: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-900));
+              padding: 10px 12px;
+              height: 95px;
+              box-sizing: border-box;
+              list-style: none;
+              box-shadow:
+                0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3)),
+                0 0 25px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5));
+
+              & > [data-part="popover-app"] {
+                display: flex;
+                flex: none;
+                flex-direction: column;
+                align-items: center;
+                min-width: 45px;
+                text-align: center;
+                white-space: nowrap;
+
+                /* The demo's cursor darkens the tile on hover and a touch
+                   more on press. */
+                & > img {
+                  display: block;
+                  width: 45px;
+                  height: 45px;
+                  transition: filter 160ms ease;
+                }
+
+                &[data-hover] > img {
+                  filter: brightness(0.8);
+                }
+
+                &[data-pressed] > img {
+                  filter: brightness(0.64);
+                }
+
+                & > [data-part="popover-app-name"] {
+                  margin-top: 3px;
+                  font: var(--noora-font-weight-medium) 12px/15px var(--noora-font-body);
+                }
+
+                & > [data-part="popover-app-platform"] {
+                  margin-top: 1px;
+                  color: var(--noora-surface-label-tertiary);
+                  font-size: 11px;
+                  line-height: 13px;
+                }
+              }
+            }
+
+            /* Menu rows: 24px each; the submenu row carries the chevron on its
+               right edge, and an 8px separator (1px rule in illustration
+               neutral 4, centred) sits before the actions. */
+            & > [data-part="popover-menu"] {
+              display: flex;
+              flex-direction: column;
+              margin: 5px 0 0;
+              padding: 0;
+              list-style: none;
+
+              & > [data-part="popover-row"] {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 24px;
+
+                &[data-submenu] {
+                  font-weight: var(--noora-font-weight-medium);
+                }
+
+                & > svg {
+                  display: block;
+                  width: 6px;
+                  height: 10px;
+                }
+              }
+
+              & > [data-part="popover-separator"] {
+                display: flex;
+                align-items: center;
+                height: 8px;
+
+                &::before {
+                  content: "";
+                  width: 100%;
+                  height: 1px;
+                  background: var(--marketing-illustration-neutral-4);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      /* Below the desktop frame the popover (hung off the right of the
+         menu bar) would land on the phone, so the simulator moves to the
+         left edge. On mobile only the menu bar app is shown and the desktop
+         shrinks to fit the popover. */
+      @media (max-width: 1023px) {
+        & > [data-part="simulator-bar"] {
+          left: 28px;
+          transform: none;
+        }
+
+        & > [data-part="phone"] {
+          left: 72px;
+          transform: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        height: 380px;
+
+        & > [data-part="simulator-bar"],
+        & > [data-part="phone"] {
+          display: none;
+        }
+
+        /* Only the Tuist item and the clock stay in the menu bar; the wifi,
+           search, user and control-centre glyphs go. */
+        & > [data-part="menubar"] > [data-part="menubar-status"] > img[data-part="menubar-item"] {
+          display: none;
+        }
+
+        /* The 286px popover no longer fits hanging from the pill's left
+           edge, so it hangs from the status group instead, flush with the
+           clock's right edge. */
+        & > [data-part="menubar"] > [data-part="menubar-status"] {
+          position: relative;
+
+          & > [data-part="menubar-app"] {
+            position: static;
+          }
+
+          & > [data-part="menubar-app"] > [data-part="popover"] {
+            right: 0;
+            left: auto;
+          }
+        }
+      }
+}
   }
 
   /* Full-width dithered divider bands framing the CTA — same Bayer texture
@@ -221,5 +1589,12 @@
       gap: var(--noora-spacing-4);
       margin-top: var(--noora-spacing-9);
     }
+  }
+}
+
+/* The popover's install spinner. */
+@keyframes marketing-download-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
