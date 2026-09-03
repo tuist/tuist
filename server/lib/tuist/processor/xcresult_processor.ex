@@ -357,25 +357,49 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp find_xcresult(temp_dir) do
-    case temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first() do
-      # Some archives extract directly to bundle contents without a wrapping
-      # `.xcresult` directory (e.g. AppleArchive payloads compressed without
-      # the base directory preserved). Treat the temp dir as the bundle when
-      # `Info.plist` is present at its root.
-      nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")) do
-          temp_dir
-        else
-          Logger.error(
-            "xcresult bundle not found after extraction in #{temp_dir}: " <>
-              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
-          )
+    # Three shapes to accept, in the order they appear in practice:
+    #   1. `<temp_dir>/**/*.xcresult` — the CLI archived with `preservesBaseDirectory: true`
+    #      and the source bundle was named with a `.xcresult` suffix.
+    #   2. `<temp_dir>/Info.plist` — the archive was written without preserving a base
+    #      directory, so bundle contents extract at the temp-dir root.
+    #   3. `<temp_dir>/<any name>/Info.plist` — the CLI archived with
+    #      `preservesBaseDirectory: true` but the source bundle's directory name did not
+    #      end in `.xcresult`. Xcode 26 stopped creating the `result-bundle` →
+    #      `result-bundle.xcresult` symlink for `-resultBundlePath` targets without an
+    #      extension, so a per-scheme run writes to `result-bundle-<Scheme>/` and the
+    #      CLI archives that exact directory. Info.plist inside a first-level subdir is
+    #      enough to identify it — the file uniquely marks a populated xcresult bundle.
+    with nil <- xcresult_wrapped(temp_dir),
+         nil <- xcresult_at_root(temp_dir),
+         nil <- xcresult_in_nested_dir(temp_dir) do
+      Logger.error(
+        "xcresult bundle not found after extraction in #{temp_dir}: " <>
+          "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+      )
 
-          nil
-        end
+      nil
+    end
+  end
 
-      path ->
-        path
+  defp xcresult_wrapped(temp_dir) do
+    temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first()
+  end
+
+  defp xcresult_at_root(temp_dir) do
+    if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+  end
+
+  defp xcresult_in_nested_dir(temp_dir) do
+    case File.ls(temp_dir) do
+      {:ok, entries} ->
+        Enum.find_value(entries, fn entry ->
+          candidate = Path.join(temp_dir, entry)
+          if File.dir?(candidate) and File.exists?(Path.join(candidate, "Info.plist")),
+            do: candidate
+        end)
+
+      _ ->
+        nil
     end
   end
 
