@@ -3528,8 +3528,7 @@ mod tests {
                     });
                 }
                 barrier.wait();
-                let started_at = std::time::Instant::now();
-                started_at
+                std::time::Instant::now()
             });
             let operations = (WORKERS * ITERATIONS_PER_WORKER) as f64;
             operations / started_at.elapsed().as_secs_f64()
