@@ -477,10 +477,7 @@ where
 
     fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
         let started_at = Instant::now();
-        let route = match request.uri().path() {
-            BYTESTREAM_READ_PATH => Cow::Borrowed(BYTESTREAM_READ_PATH),
-            path => Cow::Owned(path.to_owned()),
-        };
+        let route = grpc_accounting_route(request.uri().path());
         let guard = self.state.start_grpc_request();
         let state = self.state.clone();
         let future = self.inner.call(request);
@@ -506,9 +503,30 @@ where
     }
 }
 
+fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
+    match path {
+        BYTESTREAM_READ_PATH => Cow::Borrowed(BYTESTREAM_READ_PATH),
+        BYTESTREAM_WRITE_PATH => Cow::Borrowed(BYTESTREAM_WRITE_PATH),
+        path => Cow::Owned(path.to_owned()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bytestream_accounting_routes_are_borrowed() {
+        assert!(matches!(
+            grpc_accounting_route(BYTESTREAM_READ_PATH),
+            Cow::Borrowed(BYTESTREAM_READ_PATH)
+        ));
+        assert!(matches!(
+            grpc_accounting_route(BYTESTREAM_WRITE_PATH),
+            Cow::Borrowed(BYTESTREAM_WRITE_PATH)
+        ));
+        assert!(matches!(grpc_accounting_route("/unknown"), Cow::Owned(_)));
+    }
 
     // The remote-execution shed has to reach `kura_capacity_sheds_total`, the
     // counter operators are told to reach for before the per-subsystem ones.

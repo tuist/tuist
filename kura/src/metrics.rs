@@ -236,6 +236,7 @@ struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
     reapi_write_size_bytes: Histogram,
+    bytestream_public_latency: Histogram,
 }
 
 impl ResponseStreamReservationMetrics {
@@ -601,6 +602,12 @@ impl Metrics {
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
+                },
+            ),
+            bytestream_public_latency: public_request_latency.get_or_create_owned(
+                &PublicRequestLatencyLabels {
+                    transport: "grpc".to_owned(),
+                    route: "/google.bytestream.ByteStream/Write".to_owned(),
                 },
             ),
         });
@@ -1801,11 +1808,20 @@ impl Metrics {
     }
 
     pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
-        if transport == "grpc" && route == "/google.bytestream.ByteStream/Read" {
-            self.hot_read
-                .bytestream_public_latency
-                .observe(duration.as_secs_f64());
-            return;
+        if transport == "grpc" {
+            let histogram = match route {
+                "/google.bytestream.ByteStream/Read" => {
+                    Some(&self.hot_read.bytestream_public_latency)
+                }
+                "/google.bytestream.ByteStream/Write" => {
+                    Some(&self.hot_write.bytestream_public_latency)
+                }
+                _ => None,
+            };
+            if let Some(histogram) = histogram {
+                histogram.observe(duration.as_secs_f64());
+                return;
+            }
         }
         self.public_request_latency
             .get_or_create(&PublicRequestLatencyLabels {
@@ -3251,6 +3267,85 @@ mod tests {
         );
         println!(
             "METRIC reapi_write_metrics_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    fn bytestream_write_latency_uses_the_registered_metric_series() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.observe_public_request_latency(
+            "grpc",
+            "/google.bytestream.ByteStream/Write",
+            Duration::from_millis(3),
+        );
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_public_request_latency_seconds_count")
+                && line.contains("transport=\"grpc\"")
+                && line.contains("route=\"/google.bytestream.ByteStream/Write\"")
+                && line.ends_with(" 1")
+        }));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn bytestream_write_latency_direct_handle_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const ROUTE: &str = "/google.bytestream.ByteStream/Write";
+
+        let measure = |direct_handle: bool| {
+            let metrics = Metrics::new("benchmark".into(), "benchmark".into());
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if direct_handle {
+                    metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
+                } else {
+                    metrics
+                        .public_request_latency
+                        .get_or_create(&PublicRequestLatencyLabels {
+                            transport: "grpc".to_owned(),
+                            route: ROUTE.to_owned(),
+                        })
+                        .observe(0.0);
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC bytestream_write_latency_metrics_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC bytestream_write_latency_metrics_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC bytestream_write_latency_metrics_speedup_ratio={:.6}",
             speedups[median]
         );
     }
