@@ -181,7 +181,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
         <.sidebar_item
           label={dgettext("dashboard", "Modules")}
-          icon="git_branch"
+          icon="apps"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/modules"}
           selected={
             String.starts_with?(
