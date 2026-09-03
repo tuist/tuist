@@ -66,8 +66,8 @@ defmodule Tuist.ClickHouse.SchemaClone do
         "Cloning #{length(objects.tables)} table(s) and #{length(objects.views)} view(s) from #{source.database} into #{target.database}"
       )
 
-      tables = Enum.map(objects.tables, &clone_object(target, &1, source.database, target.database))
-      views = Enum.map(objects.views, &clone_object(target, &1, source.database, target.database))
+      tables = Enum.map(objects.tables, &clone_object(source, target, &1))
+      views = Enum.map(objects.views, &clone_object(source, target, &1))
 
       report = %{
         tables: summarize(tables),
@@ -155,16 +155,73 @@ defmodule Tuist.ClickHouse.SchemaClone do
     rest ++ migrations
   end
 
-  defp clone_object(target, %{name: name, ddl: ddl}, source_database, target_database) do
-    statement = rewrite(ddl, source_database, target_database)
+  defp clone_object(source, target, %{name: name, ddl: ddl}) do
+    statement = rewrite(ddl, source.database, target.database)
 
+    case execute(target, statement) do
+      :ok ->
+        Logger.info("Cloned #{name}")
+        {:ok, name}
+
+      {:error, message} ->
+        retry_with_pinned_projection(source, target, name, statement, message)
+    end
+  end
+
+  # A materialized view defined as `SELECT *` is validated against its target
+  # when it is created and never again, so the source table can grow columns
+  # afterwards and the view keeps working while its stored definition stops
+  # being reproducible. Production has one: `test_case_runs_by_inserted_at`
+  # declares 20 columns and `test_case_runs` now has 24, so replaying its own
+  # DDL fails with `THERE_IS_NO_COLUMN`.
+  #
+  # Pinning the projection to the columns the view actually declares
+  # reproduces exactly what the live view writes, which is the whole point:
+  # the destination should end up with the view the source has, not the one
+  # its definition would produce today.
+  defp retry_with_pinned_projection(source, target, name, statement, message) do
+    with true <- String.contains?(message, "THERE_IS_NO_COLUMN"),
+         true <- Regex.match?(~r/\bAS\s+SELECT\s+\*/i, statement),
+         [_ | _] = columns <- declared_columns(source, name) do
+      projection = Enum.map_join(columns, ", ", &Endpoints.quote_ident/1)
+      pinned = Regex.replace(~r/(\bAS\s+SELECT\s+)\*/i, statement, "\\1#{projection}", global: false)
+
+      case execute(target, pinned) do
+        :ok ->
+          Logger.info("Cloned #{name} with its projection pinned to #{length(columns)} declared column(s)")
+          {:ok, name}
+
+        {:error, retry_message} ->
+          Logger.error("Failed to clone #{name} even with a pinned projection: #{retry_message}")
+          {:error, name, retry_message}
+      end
+    else
+      _ ->
+        Logger.error("Failed to clone #{name}: #{message}")
+        {:error, name, message}
+    end
+  end
+
+  defp declared_columns(source, name) do
+    %{rows: rows} =
+      source.repo.query!(
+        """
+        SELECT name FROM system.columns
+        WHERE database = {database:String} AND table = {table:String}
+        ORDER BY position
+        """,
+        %{"database" => source.database, "table" => name},
+        log: false
+      )
+
+    List.flatten(rows)
+  end
+
+  defp execute(target, statement) do
     target.repo.query!(statement, [], log: false)
-    Logger.info("Cloned #{name}")
-    {:ok, name}
+    :ok
   rescue
-    error ->
-      Logger.error("Failed to clone #{name}: #{Exception.message(error)}")
-      {:error, name, Exception.message(error)}
+    error -> {:error, Exception.message(error)}
   end
 
   # Without this the destination looks like an empty database to

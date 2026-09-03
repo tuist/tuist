@@ -109,6 +109,24 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
     end
   end
 
+  describe "pinning a drifted SELECT * projection" do
+    # `test_case_runs_by_inserted_at` in production is defined as
+    # `SELECT * FROM test_case_runs`. It declares 20 columns; the source table
+    # has since grown to 24. ClickHouse validates a materialized view against
+    # its target only when the view is created, so the live view keeps working
+    # while its own stored definition no longer reproduces it: replaying the
+    # DDL fails with THERE_IS_NO_COLUMN.
+    test "the rewrite leaves a star projection alone, so the retry is what handles it" do
+      ddl =
+        "CREATE MATERIALIZED VIEW default.mv (`id` UUID, `name` String) ENGINE = SharedMergeTree ORDER BY id AS SELECT * FROM default.source"
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "AS SELECT * FROM tuist.source"
+      assert rewritten =~ "ENGINE = ReplicatedMergeTree"
+    end
+  end
+
   describe "run/1" do
     test "does nothing when no destination is configured" do
       # `TUIST_CLICKHOUSE_BARE_METAL_URL` is unset in test, so this must not
