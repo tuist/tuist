@@ -46,7 +46,10 @@ use crate::{
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
-    store::{ArtifactReader, RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
+    store::{
+        ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
+        is_outbox_full_error, try_allocate_exact_vec,
+    },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
@@ -270,10 +273,10 @@ impl ReapiService {
     }
 
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
-    // (write) removes temp_path on any error this returns, so this never cleans
-    // up inline — which is what keeps transport/cancel/write/flush failures from
-    // leaking partial temp files.
-    async fn write_to_temp(
+    // (write) removes a staged path on any error this returns. Small uploads stay
+    // in their admitted memory and disarm that cleanup before any suspension can
+    // observe them as file-backed.
+    async fn write_stream(
         &self,
         temp_path: &std::path::Path,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
@@ -288,12 +291,8 @@ impl ReapiService {
         let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
-        let mut temp_file = self
-            .state
-            .io
-            .create_file(temp_path)
-            .await
-            .map_err(Status::internal)?;
+        let mut temp_file = None;
+        let mut memory_payload = None;
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
         let mut file_cache_policy = FileCachePolicy::Adaptive;
@@ -347,16 +346,43 @@ impl ReapiService {
                 self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
-                let disk_reservation = self
-                    .state
-                    .tmp_staging_budget
-                    .try_reserve(parsed_resource.size_bytes)
-                    .map_err(|error| {
-                        Status::resource_exhausted(format!(
-                            "temporary storage budget exhausted: {error}"
-                        ))
-                    })?;
-                cleanup.set_reservation(disk_reservation);
+                memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
+                    && matches!(file_cache_policy, FileCachePolicy::Foreground { .. })
+                    && self.state.store.direct_small_uploads_enabled())
+                .then(|| {
+                    usize::try_from(parsed_resource.size_bytes)
+                        .ok()
+                        .and_then(try_allocate_exact_vec)
+                })
+                .flatten();
+                if memory_payload.is_some() {
+                    cleanup.disarm();
+                } else {
+                    let disk_reservation = self
+                        .state
+                        .tmp_staging_budget
+                        .try_reserve(parsed_resource.size_bytes)
+                        .map_err(|error| {
+                            Status::resource_exhausted(format!(
+                                "temporary storage budget exhausted: {error}"
+                            ))
+                        })?;
+                    cleanup.set_reservation(disk_reservation);
+                    if let Some(parent) = temp_path.parent() {
+                        self.state
+                            .io
+                            .create_dir_all(parent)
+                            .await
+                            .map_err(Status::internal)?;
+                    }
+                    temp_file = Some(
+                        self.state
+                            .io
+                            .create_file(temp_path)
+                            .await
+                            .map_err(Status::internal)?,
+                    );
+                }
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk.resource_name);
             }
@@ -373,33 +399,46 @@ impl ReapiService {
                 ));
             }
             if !chunk.data.is_empty() {
-                for data in chunk
-                    .data
-                    .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
-                {
-                    tokio::io::AsyncWriteExt::write_all(&mut temp_file, data)
-                        .await
-                        .map_err(|error| {
-                            Status::internal(format!("failed to write temp blob: {error}"))
-                        })?;
-                    hasher.update(data);
-                    written = written.saturating_add(data.len() as u64);
-                    if file_cache_policy.should_drop(
-                        self.state.memory.should_reclaim_file_cache(),
-                        self.state.memory.transient_reserved_bytes(),
-                    ) && written.saturating_sub(advised_through)
-                        >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                if let Some(payload) = memory_payload.as_mut() {
+                    payload.extend_from_slice(&chunk.data);
+                    hasher.update(&chunk.data);
+                    written = written.saturating_add(chunk.data.len() as u64);
+                } else {
+                    for data in chunk
+                        .data
+                        .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
                     {
-                        temp_file = drop_staging_cache_range(
-                            temp_file,
-                            temp_path,
-                            advised_through,
-                            written - advised_through,
-                            &self.state.io,
-                        )
-                        .await
-                        .map_err(Status::internal)?;
-                        advised_through = written;
+                        let file = temp_file
+                            .as_mut()
+                            .expect("file-backed uploads initialize their staging file");
+                        tokio::io::AsyncWriteExt::write_all(file, data)
+                            .await
+                            .map_err(|error| {
+                                Status::internal(format!("failed to write temp blob: {error}"))
+                            })?;
+                        hasher.update(data);
+                        written = written.saturating_add(data.len() as u64);
+                        if file_cache_policy.should_drop(
+                            self.state.memory.should_reclaim_file_cache(),
+                            self.state.memory.transient_reserved_bytes(),
+                        ) && written.saturating_sub(advised_through)
+                            >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                        {
+                            temp_file = Some(
+                                drop_staging_cache_range(
+                                    temp_file.take().expect(
+                                        "file-backed uploads initialize their staging file",
+                                    ),
+                                    temp_path,
+                                    advised_through,
+                                    written - advised_through,
+                                    &self.state.io,
+                                )
+                                .await
+                                .map_err(Status::internal)?,
+                            );
+                            advised_through = written;
+                        }
                     }
                 }
                 // Only real byte progress extends the deadline, so a client
@@ -430,17 +469,14 @@ impl ReapiService {
             ));
         }
 
-        // Flush tokio's internal write buffer to the OS and close the write handle before
-        // the blob is persisted. persist_artifact_from_path re-opens this path on a
-        // separate descriptor to stat and copy it into a segment; without an explicit
-        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
-        // append fails with "appended N bytes, expected M" — which silently breaks remote
-        // caching of any action that uploads many blobs concurrently (e.g. cargo build
-        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
-        tokio::io::AsyncWriteExt::flush(&mut temp_file)
-            .await
-            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
-        drop(temp_file);
+        // Flush a file-backed upload before the store opens that path on another
+        // descriptor. Memory-backed uploads already expose their complete bytes.
+        if let Some(mut file) = temp_file.take() {
+            tokio::io::AsyncWriteExt::flush(&mut file)
+                .await
+                .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+            drop(file);
+        }
 
         let targets = replication_targets(&self.state).await;
         // The persist reports `already_present` from under the store's
@@ -449,31 +485,45 @@ impl ReapiService {
         // billed twice — matching the HTTP upload path's `artifact_exists`
         // short-circuit — and concurrent uploads of the same missing blob
         // resolve to exactly one billed writer.
-        let persisted = self
-            .state
-            .store
-            .persist_artifact_from_path_and_enqueue(
-                ArtifactProducer::Reapi,
-                &resource.namespace_id,
-                &resource.key,
-                "application/octet-stream",
-                StagedArtifactPath::new(temp_path, file_cache_policy),
-                &targets,
-            )
-            .await
-            .map_err(|error| {
-                if is_outbox_full_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "replication backlog is full while persisting CAS blob: {error}"
-                    ))
-                } else if is_fd_pool_exhausted_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "file descriptor pool exhausted while persisting CAS blob: {error}"
-                    ))
-                } else {
-                    Status::internal(format!("failed to persist CAS blob: {error}"))
-                }
-            })?;
+        let persisted = if let Some(payload) = memory_payload.as_deref() {
+            self.state
+                .store
+                .persist_admitted_artifact_from_bytes_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    payload,
+                    file_cache_policy,
+                    &targets,
+                )
+                .await
+        } else {
+            self.state
+                .store
+                .persist_artifact_from_path_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    StagedArtifactPath::new(temp_path, file_cache_policy),
+                    &targets,
+                )
+                .await
+        }
+        .map_err(|error| {
+            if is_outbox_full_error(&error) {
+                Status::resource_exhausted(format!(
+                    "replication backlog is full while persisting CAS blob: {error}"
+                ))
+            } else if is_fd_pool_exhausted_error(&error) {
+                Status::resource_exhausted(format!(
+                    "file descriptor pool exhausted while persisting CAS blob: {error}"
+                ))
+            } else {
+                Status::internal(format!("failed to persist CAS blob: {error}"))
+            }
+        })?;
         self.state.notify.notify_one();
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
@@ -1814,19 +1864,12 @@ impl ByteStream for ReapiService {
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         let temp_path = temp_file_path(&self.state.config.tmp_dir.join("uploads"), "reapi-write");
-        if let Some(parent) = temp_path.parent() {
-            self.state
-                .io
-                .create_dir_all(parent)
-                .await
-                .map_err(Status::internal)?;
-        }
         let mut cleanup = TempFileCleanup::new_unreserved(temp_path.clone());
 
         // The owned cleanup guard removes the partial even when transport
         // cancellation drops this future at an await point. On success the
         // persist step already unlinks the temp file, so its drop is a no-op.
-        let result = self.write_to_temp(&temp_path, request, &mut cleanup).await;
+        let result = self.write_stream(&temp_path, request, &mut cleanup).await;
         cleanup.remove_and_disarm(&self.state.io).await;
         if let Err(status) = &result {
             // The success path records "ok" inside write_to_temp; meter the
@@ -5355,6 +5398,227 @@ mod tests {
         let _ = axum::serve(listener, routes(state).into_make_service())
             .with_graceful_shutdown(shutdown)
             .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn direct_memory_bytestream_write_benchmark() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        const CONNECTIONS: usize = 4;
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+        const BLOB_BYTES: usize = SEGMENT_COPY_BUFFER_BYTES;
+        const CHUNK_BYTES: usize = 64 * 1024;
+
+        struct BenchmarkServer {
+            _context: TestContext,
+            channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+            shutdown: tokio::sync::oneshot::Sender<()>,
+            task: tokio::task::JoinHandle<()>,
+        }
+
+        async fn start_server(direct: bool) -> BenchmarkServer {
+            let context = test_context(|_| {}).await;
+            context.state.store.set_direct_small_uploads_enabled(direct);
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind benchmark listener");
+            let address = listener.local_addr().expect("benchmark listener address");
+            let (shutdown, stopped) = tokio::sync::oneshot::channel();
+            let state = context.state.clone();
+            let task = tokio::spawn(async move {
+                serve_routes(listener, state, async move {
+                    let _ = stopped.await;
+                })
+                .await;
+            });
+            let endpoint = format!("http://{address}");
+            let mut channels = Vec::with_capacity(CONNECTIONS);
+            for _ in 0..CONNECTIONS {
+                let mut channel = None;
+                for _ in 0..50 {
+                    match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                        .expect("valid benchmark endpoint")
+                        .connect()
+                        .await
+                    {
+                        Ok(connected) => {
+                            channel = Some(connected);
+                            break;
+                        }
+                        Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+                    }
+                }
+                channels.push(channel.expect("benchmark server should accept connections"));
+            }
+            BenchmarkServer {
+                _context: context,
+                channels: std::sync::Arc::new(channels),
+                shutdown,
+                task,
+            }
+        }
+
+        async fn stop_server(server: BenchmarkServer) {
+            let BenchmarkServer {
+                _context,
+                channels,
+                shutdown,
+                task,
+            } = server;
+            drop(channels);
+            let _ = shutdown.send(());
+            tokio::time::timeout(Duration::from_secs(10), task)
+                .await
+                .expect("benchmark server should stop")
+                .expect("benchmark server should not panic");
+        }
+
+        async fn measure(
+            server: &BenchmarkServer,
+            sample: usize,
+            label: &'static str,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+                sample: usize,
+                index: usize,
+                label: &'static str,
+            ) {
+                writes.spawn(async move {
+                    let mut blob = vec![0x5a; BLOB_BYTES];
+                    blob[..8].copy_from_slice(&((sample * WRITES + index) as u64).to_le_bytes());
+                    let hash = hex::encode(Sha256::digest(&blob));
+                    let resource = format!(
+                        "ios/uploads/{label}-{sample}-{index}/blobs/{hash}/{}",
+                        blob.len()
+                    );
+                    let mut requests = Vec::with_capacity(blob.len().div_ceil(CHUNK_BYTES));
+                    for (chunk_index, data) in blob.chunks(CHUNK_BYTES).enumerate() {
+                        let offset = chunk_index * CHUNK_BYTES;
+                        requests.push(bytestream::WriteRequest {
+                            resource_name: if offset == 0 {
+                                resource.clone()
+                            } else {
+                                String::new()
+                            },
+                            write_offset: offset as i64,
+                            finish_write: offset + data.len() == blob.len(),
+                            data: data.to_vec(),
+                        });
+                    }
+                    drop(blob);
+                    let request = Request::new(tokio_stream::iter(requests));
+                    let mut client =
+                        ByteStreamClient::new(channels[index % channels.len()].clone());
+                    let started_at = std::time::Instant::now();
+                    let committed = client
+                        .write(request)
+                        .await
+                        .expect("benchmark ByteStream write should persist")
+                        .into_inner()
+                        .committed_size;
+                    assert_eq!(committed as usize, BLOB_BYTES);
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let staged = start_server(false).await;
+        let direct = start_server(true).await;
+        let mut staged_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut direct_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (staged_result, direct_result) = if sample % 2 == 0 {
+                (
+                    measure(&staged, sample, "staged").await,
+                    measure(&direct, sample, "direct").await,
+                )
+            } else {
+                let direct_result = measure(&direct, sample, "direct").await;
+                (measure(&staged, sample, "staged").await, direct_result)
+            };
+            if sample > 0 {
+                speedups.push(direct_result.0 / staged_result.0);
+                staged_samples.push(staged_result);
+                direct_samples.push(direct_result);
+            }
+        }
+        stop_server(staged).await;
+        stop_server(direct).await;
+
+        staged_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        direct_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let staged_median = staged_samples[median];
+        let direct_median = direct_samples[median];
+        println!(
+            "METRIC direct_memory_bytestream_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC staged_bytestream_writes_per_second={:.3}",
+            staged_median.0
+        );
+        println!(
+            "METRIC direct_memory_bytestream_writes_per_second={:.3}",
+            direct_median.0
+        );
+        println!(
+            "METRIC staged_bytestream_write_p50_microseconds={}",
+            staged_median.1
+        );
+        println!(
+            "METRIC staged_bytestream_write_p95_microseconds={}",
+            staged_median.2
+        );
+        println!(
+            "METRIC staged_bytestream_write_p99_microseconds={}",
+            staged_median.3
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p50_microseconds={}",
+            direct_median.1
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p95_microseconds={}",
+            direct_median.2
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p99_microseconds={}",
+            direct_median.3
+        );
     }
 
     #[tokio::test]

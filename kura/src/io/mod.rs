@@ -449,6 +449,7 @@ impl IoController {
         .await
     }
 
+    #[cfg(test)]
     pub async fn write(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
         let path = self.validate_path(path)?;
         self.run("write", bytes.len() as u64, async {

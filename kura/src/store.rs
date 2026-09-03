@@ -98,7 +98,7 @@ const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
-const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+pub(crate) const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
 const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
@@ -183,6 +183,8 @@ pub struct Store {
     segment_positioned_write_slots: Semaphore,
     #[cfg(test)]
     positioned_segment_writes_enabled: AtomicBool,
+    #[cfg(test)]
+    direct_small_uploads_enabled: AtomicBool,
     segment_writers_ahead_of_durability: AtomicU64,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
@@ -1175,6 +1177,8 @@ impl Store {
             segment_positioned_write_slots: Semaphore::new(SEGMENT_POSITIONED_WRITE_SLOTS),
             #[cfg(test)]
             positioned_segment_writes_enabled: AtomicBool::new(true),
+            #[cfg(test)]
+            direct_small_uploads_enabled: AtomicBool::new(true),
             segment_writers_ahead_of_durability: AtomicU64::new(0),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
@@ -2823,14 +2827,20 @@ impl Store {
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        let drop_cached_pages = file_cache_policy.should_drop(
+            self.memory.should_reclaim_file_cache(),
+            self.memory.transient_reserved_bytes(),
+        );
         if self.positioned_segment_writes_enabled()
-            && !file_cache_policy.should_drop(
-                self.memory.should_reclaim_file_cache(),
-                self.memory.transient_reserved_bytes(),
-            )
+            && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
+            && (!drop_cached_pages || durability == ApplyDurability::Sync)
         {
             return self
-                .append_preloaded_to_reserved_segment(bytes, durability)
+                .append_preloaded_to_reserved_segment(
+                    bytes,
+                    durability,
+                    drop_cached_pages.then_some(file_cache_policy),
+                )
                 .await;
         }
 
@@ -2858,10 +2868,28 @@ impl Store {
         }
     }
 
+    pub(crate) fn direct_small_uploads_enabled(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.direct_small_uploads_enabled.load(Ordering::Acquire)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_direct_small_uploads_enabled(&self, enabled: bool) {
+        self.direct_small_uploads_enabled
+            .store(enabled, Ordering::Release);
+    }
+
     async fn append_preloaded_to_reserved_segment(
         &self,
         bytes: &[u8],
         durability: ApplyDurability,
+        drop_cached_pages: Option<FileCachePolicy>,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
         let pending_writer =
             PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
@@ -2912,11 +2940,11 @@ impl Store {
                 )?;
                 let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
                 drop(range_guard);
-                Ok::<_, String>((location, Vec::new(), durability_seq))
+                Ok::<_, String>((location, Vec::new(), durability_seq, file))
             })
         };
 
-        let (location, evicted_segments, durability_seq) = match fast_write {
+        let (location, evicted_segments, durability_seq, file) = match fast_write {
             Some(result) => result?,
             None => {
                 let _exclusive = self.segment_write_barrier.write().await;
@@ -2947,7 +2975,7 @@ impl Store {
                     },
                 )?;
                 let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
-                (location, evicted_segments, durability_seq)
+                (location, evicted_segments, durability_seq, file)
             }
         };
         drop(pending_writer);
@@ -2955,6 +2983,31 @@ impl Store {
 
         if durability == ApplyDurability::Sync {
             self.ensure_segment_durable(durability_seq).await?;
+        }
+
+        if let Some(file_cache_policy) = drop_cached_pages {
+            let path = self.segment_path(&location.segment_id);
+            if let Err(error) =
+                run_segment_file_operation(|| file.drop_cached_pages(location.offset, size))
+            {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop_failed");
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to release positioned segment file cache: {error}"
+                );
+                if file_cache_policy.drop_failure_is_fatal() {
+                    return Err(format!(
+                        "failed to bound positioned segment file cache for {}: {error}",
+                        path.display()
+                    ));
+                }
+            } else {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop");
+            }
         }
 
         Ok((location, evicted_segments, durability_seq))
@@ -4224,6 +4277,29 @@ impl Store {
         bytes: &[u8],
         replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
+        self.persist_admitted_artifact_from_bytes_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            FileCachePolicy::Adaptive,
+            replication_targets,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn persist_admitted_artifact_from_bytes_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        file_cache_policy: FileCachePolicy,
+        replication_targets: &[String],
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -4235,7 +4311,13 @@ impl Store {
             trunk: None,
         };
         let (outcome, already_present) = self
-            .persist_artifact_from_bytes_with_version(spec, bytes)
+            .persist_segment_artifact_with_version(
+                spec,
+                SegmentArtifactSource::Memory {
+                    bytes,
+                    file_cache_policy,
+                },
+            )
             .await?;
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
@@ -4764,6 +4846,7 @@ impl Store {
         Ok(true)
     }
 
+    #[cfg(test)]
     async fn persist_artifact_from_bytes_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
@@ -8413,7 +8496,7 @@ fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> boo
     incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
 }
 
-fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
+pub(crate) fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(size).ok()?;
     Some(bytes)
@@ -17024,20 +17107,36 @@ mod tests {
             let path = config.tmp_dir.join(format!("artifact-{i}"));
             let mut body = vec![i as u8; 64 * 1024];
             body[..8].copy_from_slice(&i.to_le_bytes());
-            std::fs::write(&path, &body).expect("write artifact body");
+            if i % 2 == 0 {
+                std::fs::write(&path, &body).expect("write artifact body");
+            }
             handles.push(tokio::spawn(async move {
-                let manifest = store
-                    .persist_artifact_from_path_and_enqueue(
-                        ArtifactProducer::Xcode,
-                        "ns",
-                        &format!("key-{i}"),
-                        "application/octet-stream",
-                        StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
-                        &[],
-                    )
-                    .await
-                    .expect("artifact should persist")
-                    .manifest;
+                let key = format!("key-{i}");
+                let persisted = if i % 2 == 0 {
+                    store
+                        .persist_artifact_from_path_and_enqueue(
+                            ArtifactProducer::Xcode,
+                            "ns",
+                            &key,
+                            "application/octet-stream",
+                            StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
+                            &[],
+                        )
+                        .await
+                } else {
+                    store
+                        .persist_admitted_artifact_from_bytes_and_enqueue(
+                            ArtifactProducer::Xcode,
+                            "ns",
+                            &key,
+                            "application/octet-stream",
+                            &body,
+                            FileCachePolicy::Bounded,
+                            &[],
+                        )
+                        .await
+                };
+                let manifest = persisted.expect("artifact should persist").manifest;
                 (manifest, body)
             }));
         }
