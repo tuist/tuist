@@ -75,7 +75,6 @@ data class StressVerdictTestCase(
 )
 
 data class StressVerdictResponse(
-    val enabled: Boolean,
     val guard: StressGuard?,
     @SerializedName("inventory_count") val inventoryCount: Int,
     val candidates: List<StressVerdictCandidate>,
@@ -285,8 +284,6 @@ internal class StressNewTestsGate(
             logger.warn("Tuist: Failed to fetch the stress gate verdict: ${e.message}. Nothing was stressed.")
             return skipped("verdict_unavailable", newCount = 0, inventoryCount = 0)
         }
-
-        if (!response.enabled) return null
 
         response.guard?.let { guard ->
             heading()

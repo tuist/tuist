@@ -21,7 +21,6 @@ defmodule Tuist.Tests.StressNewTests do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Test
@@ -70,20 +69,12 @@ defmodule Tuist.Tests.StressNewTests do
   Decides which of `test_cases` (maps with `name`, `suite_name`, `module_name`
   and `duration` in milliseconds) the gate should stress for `project`.
   """
-  def verdict(project, account, test_cases) do
+  def verdict(project, test_cases) do
     parameters = parameters(project)
 
-    if FeatureFlags.stress_new_tests_enabled?(account) do
-      project
-      |> compute(dedupe(test_cases), parameters)
-      |> Map.put(:enabled, true)
-      |> Map.put(:parameters, parameters)
-    else
-      # inventory_count is required by the response schema and non-optional in the
-      # generated client, so omitting it here turned "not entitled" into a decoding
-      # failure and a spurious warning on every unentitled run.
-      %{enabled: false, guard: nil, candidates: [], inventory_count: 0, parameters: parameters}
-    end
+    project
+    |> compute(dedupe(test_cases), parameters)
+    |> Map.put(:parameters, parameters)
   end
 
   defp compute(project, test_cases, parameters) do

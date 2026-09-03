@@ -6085,11 +6085,6 @@ components:
           type: array
           x-struct:
           x-validate:
-        enabled:
-          description: Whether the account is entitled to the gate. When false the client runs nothing and prints nothing.
-          type: boolean
-          x-struct:
-          x-validate:
         guard:
           description: The guard that kept the gate from producing candidates, if one fired.
           nullable: true
@@ -6181,7 +6176,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - enabled
         - candidates
         - parameters
         - inventory_count

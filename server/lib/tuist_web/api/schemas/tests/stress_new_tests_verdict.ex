@@ -14,10 +14,6 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsVerdict do
     description:
       "Which of the reported test cases have not run in CI on the project's default branch in the trailing ninety days, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.",
     properties: %{
-      enabled: %Schema{
-        type: :boolean,
-        description: "Whether the account is entitled to the gate. When false the client runs nothing and prints nothing."
-      },
       guard: %Schema{
         type: :object,
         nullable: true,
@@ -105,6 +101,6 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsVerdict do
         required: [:repetition_curve, :candidate_cap, :wall_clock_ceiling_ms, :bulk_change_ratio, :bulk_change_floor]
       }
     },
-    required: [:enabled, :candidates, :parameters, :inventory_count]
+    required: [:candidates, :parameters, :inventory_count]
   })
 end

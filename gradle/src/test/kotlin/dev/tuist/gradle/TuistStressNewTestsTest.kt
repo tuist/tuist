@@ -49,16 +49,10 @@ class StressNewTestsGateTest {
     private fun candidate(name: String, repetitions: Int = 10, excluded: String? = null) =
         StressVerdictCandidate(name, "com.example.CheckoutTest", ":app", repetitions, excluded)
 
-    private fun response(vararg candidates: StressVerdictCandidate, guard: StressGuard? = null, enabled: Boolean = true) =
-        StressVerdictResponse(enabled, guard, 40, candidates.toList(), StressParameters(200, 600_000))
+    private fun response(vararg candidates: StressVerdictCandidate, guard: StressGuard? = null) =
+        StressVerdictResponse(guard, 40, candidates.toList(), StressParameters(200, 600_000))
 
     private val taskPaths = mapOf(":app" to listOf(":app:test"))
-
-    @Test
-    fun `returns null when the account is not entitled`() {
-        val gate = StressNewTestsGate("report", { response(enabled = false) }, { _, _, _ -> emptyList() }, logger)
-        assertNull(gate.run(listOf(executed("testNew")), taskPaths))
-    }
 
     @Test
     fun `skips when the first pass failed`() {
@@ -158,7 +152,7 @@ class StressNewTestsGateTest {
         var now = 0L
         val gate = StressNewTestsGate(
             "report",
-            { StressVerdictResponse(true, null, 40, listOf(candidate("testA()", 10), candidate("testB()", 3)), StressParameters(200, 1_000)) },
+            { StressVerdictResponse(null, 40, listOf(candidate("testA()", 10), candidate("testB()", 3)), StressParameters(200, 1_000)) },
             { filters, _, _ ->
                 now += 2_000_000_000L
                 filters.values.flatten().map { StressRepetitionResult(":app", "com.example.CheckoutTest", it.substringAfterLast('.') + "()", "success") }
@@ -222,7 +216,7 @@ class TuistStressNewTestsVerdictServiceTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
                 """
-                {"enabled":true,"guard":null,"inventory_count":40,
+                {"guard":null,"inventory_count":40,
                  "candidates":[{"name":"testNew()","suite_name":"com.example.FooTest","module_name":":app","repetitions":10,"excluded_reason":null}],
                  "parameters":{"candidate_cap":200,"wall_clock_ceiling_ms":600000,"bulk_change_ratio":0.3,"bulk_change_floor":50,"repetition_curve":[]}}
                 """.trimIndent()
@@ -236,7 +230,6 @@ class TuistStressNewTestsVerdictServiceTest {
         assertEquals("/api/projects/tuist/app/tests/stress-new-tests/verdict", request.path)
         assertEquals("Bearer test-token", request.getHeader("Authorization"))
         assertTrue(request.body.readUtf8().contains("\"module_name\":\":app\""))
-        assertTrue(verdict.enabled)
         assertEquals(10, verdict.candidates.single().repetitions)
         assertEquals(600_000, verdict.parameters.wallClockCeilingMs)
     }

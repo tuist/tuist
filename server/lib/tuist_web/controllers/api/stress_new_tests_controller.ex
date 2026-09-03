@@ -79,7 +79,7 @@ defmodule TuistWeb.API.StressNewTestsController do
   )
 
   def verdict(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    verdict = StressNewTests.verdict(selected_project, selected_project.account, body_params.test_cases)
+    verdict = StressNewTests.verdict(selected_project, body_params.test_cases)
 
     conn
     |> put_status(:ok)

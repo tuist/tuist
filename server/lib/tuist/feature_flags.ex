@@ -25,18 +25,6 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether the account may run the stress gate for newly added tests
-  (`--stress-new-tests` on the CLI, `stressNewTests` on the Gradle plugin).
-  Canary and production require an explicit `:stress_new_tests` FunWithFlags
-  toggle for the account; development, test, and staging default to enabled.
-  An unentitled account gets a verdict with nothing to stress, so the client
-  stays silent and the feature stays dark until it is generally available.
-  """
-  def stress_new_tests_enabled?(account) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:stress_new_tests, for: account)
-  end
-
-  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited

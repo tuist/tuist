@@ -288,8 +288,6 @@ public struct StressNewTestsService: StressNewTestsServicing {
             )
         }
 
-        guard verdict.enabled else { return nil }
-
         if let guardSignal = verdict._guard {
             printHeading()
             Logger.current.notice("\(Self.guardDescription(guardSignal))")

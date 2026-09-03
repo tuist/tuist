@@ -97,7 +97,6 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
         })
 
       response = json_response(conn, :ok)
-      assert response["enabled"] == true
       assert response["guard"] == nil
       assert response["inventory_count"] == 1
 
@@ -129,14 +128,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
       assert response["guard"] == %{"kind" => "no_default_branch_history", "new_count" => 1, "inventory_count" => 0}
     end
 
-    test "answers the full response shape when the account is not entitled", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      stub(Tuist.Environment, :env, fn -> :prod end)
-      expect(FunWithFlags, :enabled?, fn :stress_new_tests, _ -> false end)
-
+    test "answers the full response shape when a guard fires", %{conn: conn, user: user, project: project} do
       conn =
         post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/verdict", %{
           test_cases: [%{name: "testNew", module_name: "AppTests"}]
@@ -145,13 +137,13 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
       response = json_response(conn, :ok)
 
       # Every key the schema marks required has to be present, or the generated client
-      # cannot decode the response and an unentitled run warns instead of staying quiet.
-      assert response["enabled"] == false
+      # cannot decode the response and a guarded run warns instead of staying quiet.
       assert response["candidates"] == []
       assert response["inventory_count"] == 0
       assert is_map(response["parameters"])
+      assert response["guard"]["kind"] == "no_default_branch_history"
 
-      for key <- ["enabled", "candidates", "inventory_count", "parameters"] do
+      for key <- ["candidates", "inventory_count", "parameters"] do
         assert Map.has_key?(response, key)
       end
     end

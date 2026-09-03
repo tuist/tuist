@@ -62,12 +62,10 @@ struct StressNewTestsServiceTests {
     private func verdict(
         candidates: [Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload],
         guardSignal: Components.Schemas.StressNewTestsVerdict._guardPayload? = nil,
-        enabled: Bool = true,
         ceiling: Int = 600_000
     ) -> Components.Schemas.StressNewTestsVerdict {
         .init(
             candidates: candidates,
-            enabled: enabled,
             _guard: guardSignal,
             inventory_count: 40,
             parameters: .init(
@@ -116,25 +114,6 @@ struct StressNewTestsServiceTests {
         #expect(result?.skipReason == .firstPassFailed)
         #expect(result?.blocks == false)
         verify(verdictService).createVerdict(fullHandle: .any, serverURL: .any, testCases: .any).called(0)
-    }
-
-    @Test(.withMockedDependencies())
-    func returnsNothingWhenTheAccountIsNotEntitled() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
-            .willReturn(verdict(candidates: [candidate("testNew()")], enabled: false))
-
-        let result = await subject.run(
-            mode: .report,
-            testSummary: summary([testCase("testNew()")]),
-            firstPassFailed: false,
-            fullHandle: "tuist/app",
-            serverURL: serverURL,
-            mutedTests: [],
-            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
-        )
-
-        #expect(result == nil)
     }
 
     @Test(.withMockedDependencies())

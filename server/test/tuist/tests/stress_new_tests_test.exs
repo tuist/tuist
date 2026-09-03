@@ -2,7 +2,6 @@ defmodule Tuist.Tests.StressNewTestsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
@@ -50,25 +49,12 @@ defmodule Tuist.Tests.StressNewTestsTest do
     %{name: name, suite_name: "CheckoutTests", module_name: "AppTests", duration: duration}
   end
 
-  describe "verdict/3" do
-    test "returns nothing when the account is not entitled", %{project: project, account: account} do
-      stub(Environment, :env, fn -> :prod end)
-      expect(FunWithFlags, :enabled?, fn :stress_new_tests, [for: ^account] -> false end)
-
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testNew")])
-
-      assert verdict.enabled == false
-      assert verdict.candidates == []
-      assert verdict.guard == nil
-      assert verdict.parameters.candidate_cap == 200
-    end
-
-    test "fires the premise guard when the project has no default branch", %{project: project, account: account} do
+  describe "verdict/2" do
+    test "fires the premise guard when the project has no default branch", %{project: project} do
       project = %{project | default_branch: nil}
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testNew")])
+      verdict = StressNewTests.verdict(project, [case_attrs("testNew")])
 
-      assert verdict.enabled == true
       assert verdict.candidates == []
       assert verdict.guard == %{kind: "no_default_branch", new_count: 1, inventory_count: 0}
     end
@@ -77,7 +63,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"], is_ci: false)
       run_on_main(project, account, ["testOld"], git_branch: "feature")
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testNew"), case_attrs("testOld")])
+      verdict = StressNewTests.verdict(project, [case_attrs("testNew"), case_attrs("testOld")])
 
       assert verdict.candidates == []
       assert verdict.guard == %{kind: "no_default_branch_history", new_count: 2, inventory_count: 0}
@@ -90,7 +76,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld", "testOlder"])
 
       verdict =
-        StressNewTests.verdict(project, account, [
+        StressNewTests.verdict(project, [
           case_attrs("testOld"),
           case_attrs("testSlow", 400_000),
           case_attrs("testMedium", 20_000),
@@ -130,7 +116,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"])
       project = %{project | stress_new_tests_candidate_cap: 1}
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testB"), case_attrs("testA")])
+      verdict = StressNewTests.verdict(project, [case_attrs("testB"), case_attrs("testA")])
 
       assert Enum.map(verdict.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
                {"testA", 10, nil},
@@ -142,12 +128,12 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"])
       new_cases = Enum.map(1..3, &case_attrs("testNew#{&1}"))
 
-      below_floor = StressNewTests.verdict(project, account, new_cases)
+      below_floor = StressNewTests.verdict(project, new_cases)
       assert below_floor.guard == nil
       assert length(below_floor.candidates) == 3
 
       project = %{project | stress_new_tests_bulk_change_floor: 3}
-      above_floor = StressNewTests.verdict(project, account, new_cases)
+      above_floor = StressNewTests.verdict(project, new_cases)
       assert above_floor.guard == %{kind: "bulk_change", new_count: 3, inventory_count: 1}
       assert above_floor.candidates == []
     end
@@ -301,7 +287,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
     test "a test case last seen inside the window is not new", %{project: project, account: account} do
       run_on_main(project, account, ["testOld"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -89, :day))
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testOld")])
+      verdict = StressNewTests.verdict(project, [case_attrs("testOld")])
 
       assert verdict.candidates == []
       assert verdict.inventory_count == 1
@@ -311,7 +297,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testDormant"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -91, :day))
       run_on_main(project, account, ["testRecent"])
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testDormant"), case_attrs("testRecent")])
+      verdict = StressNewTests.verdict(project, [case_attrs("testDormant"), case_attrs("testRecent")])
 
       assert Enum.map(verdict.candidates, & &1.name) == ["testDormant"]
 
@@ -415,7 +401,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"])
       project = %{project | stress_new_tests_repetition_curve: [%{"max_duration_ms" => 100, "repetitions" => 2}]}
 
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
+      verdict = StressNewTests.verdict(project, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
 
       assert Enum.map(verdict.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
                {"testFast", 2, nil},

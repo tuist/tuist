@@ -11237,10 +11237,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsVerdict/candidates`.
             public var candidates: Components.Schemas.StressNewTestsVerdict.candidatesPayload
-            /// Whether the account is entitled to the gate. When false the client runs nothing and prints nothing.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StressNewTestsVerdict/enabled`.
-            public var enabled: Swift.Bool
             /// The guard that kept the gate from producing candidates, if one fired.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsVerdict/guard`.
@@ -11386,26 +11382,22 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - candidates: The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
-            ///   - enabled: Whether the account is entitled to the gate. When false the client runs nothing and prints nothing.
             ///   - _guard: The guard that kept the gate from producing candidates, if one fired.
             ///   - inventory_count: How many test cases have run in CI on the default branch.
             ///   - parameters: The project's stress parameters, so the client can report which bound bit.
             public init(
                 candidates: Components.Schemas.StressNewTestsVerdict.candidatesPayload,
-                enabled: Swift.Bool,
                 _guard: Components.Schemas.StressNewTestsVerdict._guardPayload? = nil,
                 inventory_count: Swift.Int,
                 parameters: Components.Schemas.StressNewTestsVerdict.parametersPayload
             ) {
                 self.candidates = candidates
-                self.enabled = enabled
                 self._guard = _guard
                 self.inventory_count = inventory_count
                 self.parameters = parameters
             }
             public enum CodingKeys: String, CodingKey {
                 case candidates
-                case enabled
                 case _guard = "guard"
                 case inventory_count
                 case parameters
