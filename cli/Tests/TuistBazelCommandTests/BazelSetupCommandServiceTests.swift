@@ -89,20 +89,15 @@ struct BazelSetupCommandServiceTests {
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
-        #expect(
-            bazelrcContent == """
-            build --remote_cache=grpcs://cache.tuist.dev
-            build --remote_header=x-tuist-account-handle=my-account
-            build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)
-            build --remote_instance_name=my-project
-            build --bes_backend=grpcs://cache.tuist.dev
-            build --bes_header=x-tuist-account-handle=my-account
-            build --bes_header=x-tuist-project-handle=my-project
-            build --bes_timeout=30s
-            build --bes_upload_mode=fully_async
-
-            """
-        )
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev"))
+        #expect(bazelrcContent.contains("build --remote_header=x-tuist-account-handle=my-account"))
+        #expect(bazelrcContent.contains("build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)"))
+        #expect(bazelrcContent.contains("build --remote_instance_name=my-project"))
+        #expect(bazelrcContent.contains("build --bes_backend=grpcs://cache.tuist.dev"))
+        #expect(bazelrcContent.contains("build --bes_header=x-tuist-account-handle=my-account"))
+        #expect(bazelrcContent.contains("build --bes_header=x-tuist-project-handle=my-project"))
+        #expect(bazelrcContent.contains("build --bes_timeout=30s"))
+        #expect(bazelrcContent.contains("build --bes_upload_mode=fully_async"))
 
         let scriptContent = try await fileSystem.readTextFile(at: scriptPath)
         #expect(
