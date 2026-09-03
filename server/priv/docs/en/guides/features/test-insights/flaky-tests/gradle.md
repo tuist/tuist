@@ -122,7 +122,7 @@ The gate runs nothing, and says so, when the first pass already failed, when the
 
 Muted tests are stressed and recorded but cannot fail the gate, skipped tests never become candidates, and a test that fails the gate is never auto-quarantined. Repetitions the gate solicits are recorded apart from organic flakiness, so they never mark a test flaky, trigger alerts, or feed the flaky-test aggregates.
 
-In the dashboard, every stressed test case is badged in the run's test case list. A test case that disagreed with itself is flaky, so it appears with the run's flaky tests, expandable to each repetition and the failure it produced.
+In the dashboard, every stressed test case is badged in the run's test case list. A test case that disagreed with itself is flaky, so it appears with the run's flaky tests, expandable to each repetition and the failure it produced. Opening any stressed test case run shows the same repetitions in full.
 
 ## Slack notifications {#slack-notifications}
 

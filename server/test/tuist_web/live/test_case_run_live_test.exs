@@ -47,6 +47,78 @@ defmodule TuistWeb.TestCaseRunLiveTest do
       assert html =~ "Run Details"
     end
 
+    test "shows the repetitions the stress gate ran for the test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 100,
+          status: "success",
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 10,
+              test_cases: [
+                %{name: "testNew", test_suite_name: "CheckoutTests", status: "success", duration: 5}
+              ]
+            }
+          ],
+          stress_new_tests: %{
+            mode: "report",
+            outcome: "disagreed",
+            new_count: 1,
+            stressed_count: 1,
+            excluded_count: 0,
+            inventory_count: 5,
+            test_cases: [
+              %{
+                name: "testNew",
+                suite_name: "CheckoutTests",
+                module_name: "AppTests",
+                repetitions: 2,
+                failed_repetitions: 1,
+                outcome: "disagreed",
+                is_quarantined: false,
+                repetition_results: [
+                  %{repetition_number: 1, status: "success", duration: 4},
+                  %{
+                    repetition_number: 2,
+                    status: "failure",
+                    duration: 5,
+                    failure: %{
+                      message: "Bool.random()",
+                      issue_type: "assertion_failure",
+                      line_number: 0
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      assert html =~ "Repetitions"
+      assert html =~ "Repetition 1"
+      assert html =~ "Repetition 2"
+      assert html =~ "Bool.random()"
+    end
+
     test "shows link to test case when test_case_id exists", %{
       conn: conn,
       account: account,

@@ -14,6 +14,8 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.StressNewTests
+  alias Tuist.Tests.TestRunStressRepetition
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -71,6 +73,13 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_run, test_run)
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
+      |> assign(
+        :stress_repetitions,
+        StressNewTests.repetitions_for_test_case(
+          test_case_run.test_run_id,
+          test_case_run.test_case_id
+        )
+      )
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
       |> assign_text_attachment_urls(test_case_run)
 

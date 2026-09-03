@@ -364,6 +364,21 @@ defmodule Tuist.Tests.StressNewTests do
   end
 
   @doc """
+  The repetitions the gate ran for one test case in one test run, in order.
+  """
+  def repetitions_for_test_case(_test_run_id, nil), do: []
+
+  def repetitions_for_test_case(test_run_id, test_case_id) do
+    from(r in TestRunStressRepetition,
+      where: r.test_run_id == ^test_run_id,
+      where: r.test_case_id == ^test_case_id,
+      order_by: [asc: r.repetition_number, asc: r.inserted_at]
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.repetition_number)
+  end
+
+  @doc """
   The candidates the gate holds against the run, with their repetitions attached,
   so the dashboard can render them beside the run's own failures.
   """

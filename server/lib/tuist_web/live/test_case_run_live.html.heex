@@ -226,6 +226,48 @@
     </.card>
 
     <.card
+      :if={@stress_repetitions != []}
+      title={dgettext("dashboard_tests", "Repetitions")}
+      icon="history"
+      data-part="repetitions-card"
+    >
+      <.card_section data-part="repetitions-card-section">
+        <div data-part="repetitions">
+          <div :for={repetition <- @stress_repetitions} data-part="repetition-wrapper">
+            <div data-part="repetition-item">
+              <.badge
+                :if={repetition.status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="light-fill"
+                size="small"
+              />
+              <.badge
+                :if={repetition.status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="light-fill"
+                size="small"
+              />
+              <span data-part="repetition-name">
+                {dgettext("dashboard_tests", "Repetition %{number}",
+                  number: repetition.repetition_number
+                )}
+              </span>
+            </div>
+            <.failure_message_span
+              :if={TestRunStressRepetition.failure(repetition)}
+              failure={TestRunStressRepetition.failure(repetition)}
+              context={
+                %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+              }
+            />
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
       :if={Enum.any?(@test_case_run.failures)}
       title={dgettext("dashboard_tests", "Failures")}
       icon="alert_circle"
