@@ -39,7 +39,8 @@ use crate::{
     auth::{AccessDecision, RequestContext},
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
-        encoded_response_stream_chunk_bytes, response_stream_chunk_bytes,
+        RESPONSE_STREAM_SEND_BUFFER_BYTES, encoded_response_stream_chunk_bytes,
+        response_stream_chunk_bytes,
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
@@ -52,10 +53,11 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
-// ByteStream downloads can keep the response vector, Tonic's encoded frame,
-// and the HTTP/2 send buffer live at the same time. The reader now fills the
-// response vector directly, so there is no fourth intermediate reader buffer.
-const BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
+// ByteStream downloads can keep the response vector and Tonic's encoded frame
+// live while Hyper retains up to its separately capped per-stream send buffer.
+// The reader fills the response vector directly, so there is no intermediate
+// reader buffer.
+const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -1742,7 +1744,9 @@ impl ByteStream for ReapiService {
         let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
         let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
         let requested_bytes = u64::try_from(
-            encoded_chunk_bytes.saturating_mul(BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT),
+            encoded_chunk_bytes
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES),
         )
         .unwrap_or(u64::MAX)
         .saturating_add(inline_bytes);
@@ -5442,8 +5446,9 @@ mod tests {
         assert_eq!(
             reserved_bytes,
             encoded_response_stream_chunk_bytes(blob.len() as u64)
-                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_BUFFER_COUNT) as u64,
-            "ByteStream admission should charge only its three remaining live buffers"
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
+            "ByteStream admission should charge two chunks plus the capped send buffer"
         );
 
         let frame = response

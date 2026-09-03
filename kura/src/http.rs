@@ -36,7 +36,8 @@ use crate::{
         MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
         MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
         MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, REPLICATION_BATCH_MAX_BYTES,
-        REPLICATION_BATCH_MAX_ITEMS, RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
+        REPLICATION_BATCH_MAX_ITEMS, RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        RESPONSE_STREAM_SEND_BUFFER_BYTES, response_stream_chunk_bytes,
     },
     io::is_fd_pool_exhausted_error,
     memory::{
@@ -3838,9 +3839,13 @@ async fn serve_file_reader(
         Ok(permit) => (permit, stream_chunk_bytes),
         Err(_) => {
             let degraded_bytes = usize::try_from(
-                u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(live_buffer_count))
-                    .unwrap_or(u64::MAX)
-                    .saturating_add(inline_bytes),
+                u64::try_from(
+                    RESPONSE_STREAM_MIN_CHUNK_BYTES
+                        .saturating_mul(live_buffer_count.saturating_sub(1))
+                        .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES),
+                )
+                .unwrap_or(u64::MAX)
+                .saturating_add(inline_bytes),
             )
             .unwrap_or(usize::MAX);
             match state
