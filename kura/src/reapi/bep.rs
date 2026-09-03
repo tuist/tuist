@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -11,6 +11,7 @@ use prost_types::Timestamp;
 use tokio::sync::{Mutex, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
+use tracing::warn;
 
 use crate::{analytics::BazelInvocationAnalyticsEvent, state::SharedState};
 
@@ -36,6 +37,7 @@ const LIFECYCLE_EVENT_SERVICE_ROUTE: &str =
 const PROJECT_HANDLE_HEADER: &str = "x-tuist-project-handle";
 const BAZEL_BUILD_EVENT_TYPE_URL: &str = "type.googleapis.com/build_event_stream.BuildEvent";
 const MAX_IN_FLIGHT_INVOCATIONS: usize = 4_096;
+const MAX_IN_FLIGHT_INVOCATIONS_PER_PROJECT: usize = 256;
 const MAX_INVOCATION_LIFETIME: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Clone)]
@@ -145,8 +147,6 @@ impl PublishBuildEvent for BuildEventService {
         let (sender, receiver) = mpsc::channel(64);
 
         tokio::spawn(async move {
-            let mut invocation_keys = HashSet::new();
-
             loop {
                 let request = match requests.message().await {
                     Ok(Some(request)) => request,
@@ -170,19 +170,14 @@ impl PublishBuildEvent for BuildEventService {
                     stream_id: event.stream_id.clone(),
                     sequence_number: event.sequence_number,
                 };
-                if let Some(invocation_key) = service
+                service
                     .process_event(&account_handle, &project_handle, event)
-                    .await
-                {
-                    invocation_keys.insert(invocation_key);
-                }
+                    .await;
 
                 if sender.send(Ok(response)).await.is_err() {
                     break;
                 }
             }
-
-            service.remove_invocations(&invocation_keys).await;
         });
 
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
@@ -195,27 +190,27 @@ impl BuildEventService {
         account_handle: &str,
         project_handle: &str,
         ordered_event: OrderedBuildEvent,
-    ) -> Option<String> {
+    ) {
         let Some(BuildEventServiceEvent::BazelEvent(bazel_event)) = ordered_event
             .event
             .as_ref()
             .and_then(|event| event.event.as_ref())
         else {
-            return None;
+            return;
         };
 
         if bazel_event.type_url != BAZEL_BUILD_EVENT_TYPE_URL {
-            return None;
+            return;
         }
 
         let Ok(event) = BazelBuildEvent::decode(bazel_event.value.as_slice()) else {
-            return None;
+            return;
         };
 
         if let Some(started) = event.started {
             let invocation_id = invocation_id(&ordered_event, &started.uuid);
             if invocation_id.is_empty() {
-                return None;
+                return;
             }
 
             let start = InvocationStart {
@@ -230,30 +225,59 @@ impl BuildEventService {
             let mut invocations = self.invocations.lock().await;
             evict_expired_invocations(&mut invocations);
 
-            if !invocations.contains_key(&key) && invocations.len() >= MAX_IN_FLIGHT_INVOCATIONS {
-                remove_oldest_invocation(&mut invocations);
+            let project_invocation_count = invocations
+                .values()
+                .filter(|invocation| {
+                    invocation.account_handle == account_handle
+                        && invocation.project_handle == project_handle
+                })
+                .count();
+            if !invocations.contains_key(&key)
+                && (invocations.len() >= MAX_IN_FLIGHT_INVOCATIONS
+                    || project_invocation_count >= MAX_IN_FLIGHT_INVOCATIONS_PER_PROJECT)
+            {
+                warn!(
+                    account_handle,
+                    project_handle,
+                    "dropping Bazel invocation start because the in-flight state limit was reached"
+                );
+                return;
             }
 
-            invocations.insert(key.clone(), start);
-            return Some(key);
+            invocations.insert(key, start);
+            return;
         }
 
         if let Some(finished) = event.finished {
             let invocation_id = invocation_id(&ordered_event, "");
             if invocation_id.is_empty() {
-                return None;
+                return;
             }
+
+            let finished_at_ms =
+                timestamp_millis(finished.finish_time, finished.finish_time_millis);
 
             let start = self.invocations.lock().await.remove(&invocation_key(
                 account_handle,
                 project_handle,
                 &invocation_id,
             ));
-            let Some(start) = start else {
-                return None;
-            };
-            let finished_at_ms =
-                timestamp_millis(finished.finish_time, finished.finish_time_millis);
+            let start = start.unwrap_or_else(|| {
+                warn!(
+                    account_handle,
+                    project_handle,
+                    invocation_id,
+                    "received a Bazel invocation finish without a local start event"
+                );
+                InvocationStart {
+                    account_handle: account_handle.to_owned(),
+                    project_handle: project_handle.to_owned(),
+                    invocation_id: invocation_id.clone(),
+                    command: "bazel".into(),
+                    started_at_ms: finished_at_ms,
+                    inserted_at: Instant::now(),
+                }
+            });
             let exit_code = finished.exit_code.map(|exit_code| exit_code.code);
             let status = invocation_status(finished.overall_success, exit_code);
 
@@ -264,24 +288,11 @@ impl BuildEventService {
                     invocation_id: start.invocation_id,
                     command: start.command,
                     status: status.into(),
-                    exit_code: exit_code.unwrap_or_default(),
+                    exit_code: exit_code.unwrap_or(if status == "success" { 0 } else { 1 }),
                     started_at_ms: start.started_at_ms,
                     finished_at_ms,
                 });
             }
-        }
-
-        None
-    }
-
-    async fn remove_invocations(&self, invocation_keys: &HashSet<String>) {
-        if invocation_keys.is_empty() {
-            return;
-        }
-
-        let mut invocations = self.invocations.lock().await;
-        for invocation_key in invocation_keys {
-            invocations.remove(invocation_key);
         }
     }
 }
@@ -327,17 +338,6 @@ fn evict_expired_invocations(invocations: &mut HashMap<String, InvocationStart>)
     invocations.retain(|_, invocation| invocation.inserted_at.elapsed() < MAX_INVOCATION_LIFETIME);
 }
 
-fn remove_oldest_invocation(invocations: &mut HashMap<String, InvocationStart>) {
-    let oldest_key = invocations
-        .iter()
-        .min_by_key(|(_, invocation)| invocation.inserted_at)
-        .map(|(key, _)| key.clone());
-
-    if let Some(oldest_key) = oldest_key {
-        invocations.remove(&oldest_key);
-    }
-}
-
 fn timestamp_millis(timestamp: Option<Timestamp>, legacy_millis: i64) -> u64 {
     if let Some(timestamp) = timestamp
         && timestamp.seconds >= 0
@@ -346,7 +346,7 @@ fn timestamp_millis(timestamp: Option<Timestamp>, legacy_millis: i64) -> u64 {
         return timestamp.seconds as u64 * 1_000 + timestamp.nanos as u64 / 1_000_000;
     }
 
-    if legacy_millis >= 0 {
+    if legacy_millis > 0 {
         legacy_millis as u64
     } else {
         now_millis()
