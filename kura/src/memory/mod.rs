@@ -656,15 +656,15 @@ impl MemoryController {
             return None;
         }
         let permits = u32::try_from(requested_bytes).ok()?;
+        // Mapped bytes are clean, resident page cache with their own try-only
+        // pool; the transient budget covers unreclaimable anonymous work and is
+        // charged separately by the response-stream admission. Charging the
+        // mapped span there as well exhausted transient once the mmap pool
+        // filled, and the degraded response pool, which needs a small transient
+        // reservation per stream, could then admit nothing.
         let concurrency = self.inner.pools.try_acquire_mmap_serving(permits)?;
-        let transient = self
-            .try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)
-            .ok()?;
-        // The caller releases this reservation with the response body. Sampled
-        // container usage does not enter transient admission arithmetic.
         Some(MmapMemoryPermit {
             _concurrency: concurrency,
-            _transient: transient,
         })
     }
 
@@ -1425,7 +1425,9 @@ mod tests {
         let permit = controller
             .try_acquire_mmap_serving(64 * 1024 * 1024)
             .expect("permit should be available");
-        assert_eq!(controller.transient_reserved_bytes(), 64 * 1024 * 1024);
+        // Mapped pages are bounded by the mmap pool alone; they never consume
+        // the transient budget that anonymous response buffers draw from.
+        assert_eq!(controller.transient_reserved_bytes(), 0);
         assert!(
             controller
                 .try_acquire_mmap_serving(65 * 1024 * 1024)
@@ -1436,6 +1438,47 @@ mod tests {
         controller.observe(128 * 1024 * 1024);
         assert_eq!(controller.transient_reserved_bytes(), 0);
         assert!(controller.try_acquire_mmap_serving(1).is_none());
+    }
+
+    #[tokio::test]
+    async fn degraded_reads_stay_admissible_while_mmap_serving_holds_its_pool() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            4 * 1024 * 1024 * 1024,
+            2_576_351_232,
+            3_650_093_056,
+        );
+        controller.observe(0);
+
+        let mapped = controller
+            .try_acquire_mmap_serving(controller.mmap_serving_pool_bytes())
+            .expect("the whole mmap pool should be available");
+        let mut streams = Vec::new();
+        while let Ok(stream) =
+            controller.try_acquire_response_stream_memory(4 * 1024 * 1024, "http")
+        {
+            streams.push(stream);
+        }
+        assert!(!streams.is_empty());
+
+        // With the fixed and elastic response pools exhausted and the mmap pool
+        // fully lent out, a public read must still find transient headroom for
+        // its degraded reservation instead of being shed.
+        let degraded_stream_bytes =
+            RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        let degraded = match controller
+            .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
+            .await
+        {
+            Ok(permit) => permit,
+            Err(error) => panic!("degraded admission failed: {error:?}"),
+        };
+
+        drop(degraded);
+        drop(streams);
+        drop(mapped);
+        assert_eq!(controller.transient_reserved_bytes(), 0);
     }
 
     #[test]

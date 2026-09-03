@@ -47,7 +47,6 @@ impl MemoryPermit {
 
 pub struct MmapMemoryPermit {
     pub(super) _concurrency: OwnedSemaphorePermit,
-    pub(super) _transient: TransientMemoryReservation,
 }
 
 pub struct ResponseStreamMemoryPermit {
