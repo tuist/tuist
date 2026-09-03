@@ -5106,6 +5106,9 @@ defmodule Tuist.AccountsTest do
     test "reports provisioning while the account's instance is not serving yet" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5133,6 +5136,9 @@ defmodule Tuist.AccountsTest do
       # would answer `false` on the request where it matters most and leave the
       # client caching a stand-in lane for its full interval.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5167,6 +5173,9 @@ defmodule Tuist.AccountsTest do
       # These accounts used to be refused a region outright, which left them on
       # a stand-in lane indefinitely with the client told nothing was coming.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5218,6 +5227,9 @@ defmodule Tuist.AccountsTest do
     test "records cache demand for the account when a Kura client resolves endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
