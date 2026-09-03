@@ -2370,6 +2370,72 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              repetition_results:
+                description: Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                items:
+                  properties:
+                    duration:
+                      description: Duration of this repetition in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    failure:
+                      description: The failure this repetition produced, when it failed.
+                      nullable: true
+                      properties:
+                        issue_type:
+                          description: The kind of failure.
+                          enum:
+                            - assertion_failure
+                            - error_thrown
+                            - issue_recorded
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        line_number:
+                          description: The line the failure points at.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        message:
+                          description: The failure message.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The source file the failure points at.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    repetition_number:
+                      description: The 1-based position of this repetition.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The result of this repetition.
+                      enum:
+                        - success
+                        - failure
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - repetition_number
+                    - status
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
               repetitions:
                 description: How many times the gate ran the test case.
                 type: integer

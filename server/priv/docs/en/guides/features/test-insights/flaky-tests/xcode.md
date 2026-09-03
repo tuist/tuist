@@ -119,7 +119,9 @@ Each new test case is rerun according to its own duration: up to 5 seconds earns
 
 The gate runs nothing, and says so, when the first pass already failed, when the project has no default branch or no CI history on it yet, or when more than 30% of the project's test inventory reads as new (a renamed module, for example). A branch that adds no tests prints nothing and costs one request. If the server cannot be reached, the run's own result stands: the gate never blocks a merge because Tuist was down.
 
-Muted tests are stressed and recorded but cannot fail the gate, skipped tests never become candidates, and a test that fails the gate is never auto-quarantined. Repetitions the gate solicits are recorded apart from organic flakiness, so they never mark a test flaky, trigger alerts, or feed the flaky-test aggregates. The verdict shows up on the test run in the dashboard, including which guard fired and which candidates disagreed.
+Muted tests are stressed and recorded but cannot fail the gate, skipped tests never become candidates, and a test that fails the gate is never auto-quarantined. Repetitions the gate solicits are recorded apart from organic flakiness, so they never mark a test flaky, trigger alerts, or feed the flaky-test aggregates.
+
+In the dashboard, the test run carries the gate's verdict beside its branch and commit, every stressed test case is badged in the run's test case list, and a test case that disagreed with itself appears in the run's failures alongside the failures the run produced itself. Expanding it shows each repetition and the failure it produced.
 
 ## Slack notifications {#slack-notifications}
 

@@ -6166,6 +6166,117 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/outcome`.
                 public var outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload`.
+                public struct repetition_resultsPayloadPayload: Codable, Hashable, Sendable {
+                    /// Duration of this repetition in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/duration`.
+                    public var duration: Swift.Int?
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public struct failurePayload: Codable, Hashable, Sendable {
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case assertion_failure = "assertion_failure"
+                            case error_thrown = "error_thrown"
+                            case issue_recorded = "issue_recorded"
+                        }
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        public var issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload?
+                        /// The line the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/line_number`.
+                        public var line_number: Swift.Int?
+                        /// The failure message.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/message`.
+                        public var message: Swift.String?
+                        /// The source file the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/path`.
+                        public var path: Swift.String?
+                        /// Creates a new `failurePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - issue_type: The kind of failure.
+                        ///   - line_number: The line the failure points at.
+                        ///   - message: The failure message.
+                        ///   - path: The source file the failure points at.
+                        public init(
+                            issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload? = nil,
+                            line_number: Swift.Int? = nil,
+                            message: Swift.String? = nil,
+                            path: Swift.String? = nil
+                        ) {
+                            self.issue_type = issue_type
+                            self.line_number = line_number
+                            self.message = message
+                            self.path = path
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case issue_type
+                            case line_number
+                            case message
+                            case path
+                        }
+                    }
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public var failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload?
+                    /// The 1-based position of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/repetition_number`.
+                    public var repetition_number: Swift.Int
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                    }
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    public var status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    /// Creates a new `repetition_resultsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: Duration of this repetition in milliseconds.
+                    ///   - failure: The failure this repetition produced, when it failed.
+                    ///   - repetition_number: The 1-based position of this repetition.
+                    ///   - status: The result of this repetition.
+                    public init(
+                        duration: Swift.Int? = nil,
+                        failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload? = nil,
+                        repetition_number: Swift.Int,
+                        status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    ) {
+                        self.duration = duration
+                        self.failure = failure
+                        self.repetition_number = repetition_number
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case failure
+                        case repetition_number
+                        case status
+                    }
+                }
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public typealias repetition_resultsPayload = [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload]
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public var repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload?
                 /// How many times the gate ran the test case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetitions`.
@@ -6182,6 +6293,7 @@ public enum Components {
                 ///   - module_name: The module (target or Gradle project) of the test case.
                 ///   - name: The name of the test case.
                 ///   - outcome: What the gate concluded for this candidate.
+                ///   - repetition_results: Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
                 ///   - repetitions: How many times the gate ran the test case.
                 ///   - suite_name: The suite (class) of the test case.
                 public init(
@@ -6190,6 +6302,7 @@ public enum Components {
                     module_name: Swift.String,
                     name: Swift.String,
                     outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload,
+                    repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload? = nil,
                     repetitions: Swift.Int,
                     suite_name: Swift.String? = nil
                 ) {
@@ -6198,6 +6311,7 @@ public enum Components {
                     self.module_name = module_name
                     self.name = name
                     self.outcome = outcome
+                    self.repetition_results = repetition_results
                     self.repetitions = repetitions
                     self.suite_name = suite_name
                 }
@@ -6207,6 +6321,7 @@ public enum Components {
                     case module_name
                     case name
                     case outcome
+                    case repetition_results
                     case repetitions
                     case suite_name
                 }

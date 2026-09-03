@@ -127,7 +127,8 @@ data class StressNewTestsCandidateReport(
     val repetitions: Int,
     @SerializedName("failed_repetitions") val failedRepetitions: Int,
     val outcome: String,
-    @SerializedName("is_quarantined") val isQuarantined: Boolean
+    @SerializedName("is_quarantined") val isQuarantined: Boolean,
+    @SerializedName("repetition_results") val repetitionResults: List<StressRepetitionReport> = emptyList()
 ) {
     val identifier: String
         get() = listOfNotNull(moduleName, suiteName?.takeIf { it.isNotBlank() }, name).joinToString("/")
@@ -150,7 +151,22 @@ internal data class StressRepetitionResult(
     @SerializedName("module_name") val moduleName: String,
     @SerializedName("class_name") val className: String?,
     @SerializedName("test_name") val testName: String,
-    val status: String
+    val status: String,
+    val duration: Long = 0,
+    @SerializedName("failure_message") val failureMessage: String? = null
+)
+
+/** One repetition as it is reported with the test run. */
+data class StressRepetitionReport(
+    @SerializedName("repetition_number") val repetitionNumber: Int,
+    val status: String,
+    val duration: Long,
+    val failure: StressRepetitionFailure?
+)
+
+data class StressRepetitionFailure(
+    val message: String?,
+    @SerializedName("issue_type") val issueType: String
 )
 
 // --- Verdict client ---
@@ -218,7 +234,8 @@ internal class StressNewTestsGate(
         var repetitions: Int,
         var failedRepetitions: Int = 0,
         var outcome: String,
-        val isQuarantined: Boolean
+        val isQuarantined: Boolean,
+        var repetitionResults: List<StressRepetitionReport> = emptyList()
     ) {
         val identifier: String
             get() = listOfNotNull(moduleName, suiteName.takeIf { it.isNotBlank() }, name).joinToString("/")
@@ -233,7 +250,8 @@ internal class StressNewTestsGate(
             repetitions = repetitions,
             failedRepetitions = failedRepetitions,
             outcome = outcome,
-            isQuarantined = isQuarantined
+            isQuarantined = isQuarantined,
+            repetitionResults = repetitionResults
         )
     }
 
@@ -330,7 +348,7 @@ internal class StressNewTestsGate(
                 continue
             }
 
-            val observed = mutableMapOf<Triple<String, String, String>, MutableList<String>>()
+            val observed = mutableMapOf<Triple<String, String, String>, MutableList<StressRepetitionResult>>()
             var failedToRun = false
             for (repetition in 1..repetitions) {
                 if (nanoTime() - start >= ceilingNanos) break
@@ -343,23 +361,35 @@ internal class StressNewTestsGate(
                 }
                 for (result in results) {
                     observed.getOrPut(Triple(result.moduleName, result.className ?: "", result.testName)) { mutableListOf() }
-                        .add(result.status)
+                        .add(result)
                 }
             }
 
             for (candidate in group) {
-                val statuses = observed[Triple(candidate.moduleName, candidate.suiteName, candidate.name)]
+                val runs = observed[Triple(candidate.moduleName, candidate.suiteName, candidate.name)]
+                if (runs != null) {
+                    candidate.repetitionResults = runs.mapIndexed { index, run ->
+                        StressRepetitionReport(
+                            repetitionNumber = index + 1,
+                            status = run.status,
+                            duration = run.duration,
+                            failure = run.failureMessage?.let {
+                                StressRepetitionFailure(message = it, issueType = "assertion_failure")
+                            }
+                        )
+                    }
+                }
                 when {
-                    statuses.isNullOrEmpty() && failedToRun -> candidate.outcome = "not_stressed_error"
-                    statuses.isNullOrEmpty() -> candidate.outcome = "not_stressed_ceiling"
-                    statuses.size < candidate.repetitions && !failedToRun && nanoTime() - start >= ceilingNanos -> {
-                        candidate.repetitions = statuses.size
-                        candidate.failedRepetitions = statuses.count { it == "failure" }
+                    runs.isNullOrEmpty() && failedToRun -> candidate.outcome = "not_stressed_error"
+                    runs.isNullOrEmpty() -> candidate.outcome = "not_stressed_ceiling"
+                    runs.size < candidate.repetitions && !failedToRun && nanoTime() - start >= ceilingNanos -> {
+                        candidate.repetitions = runs.size
+                        candidate.failedRepetitions = runs.count { it.status == "failure" }
                         candidate.outcome = if (candidate.failedRepetitions > 0) "disagreed" else "not_stressed_ceiling"
                     }
                     else -> {
-                        candidate.repetitions = maxOf(candidate.repetitions, statuses.size)
-                        candidate.failedRepetitions = statuses.count { it == "failure" }
+                        candidate.repetitions = maxOf(candidate.repetitions, runs.size)
+                        candidate.failedRepetitions = runs.count { it.status == "failure" }
                         candidate.outcome = if (candidate.failedRepetitions > 0) "disagreed" else "passed"
                     }
                 }

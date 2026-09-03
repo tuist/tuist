@@ -26,6 +26,7 @@ defmodule Tuist.Tests.StressNewTests do
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestRunStressCandidate
+  alias Tuist.Tests.TestRunStressRepetition
 
   @modes ~w(report enforce)
   @run_outcomes ~w(passed disagreed skipped no_candidates)
@@ -268,11 +269,10 @@ defmodule Tuist.Tests.StressNewTests do
 
   def insert_candidates(%Test{id: test_run_id, project_id: project_id}, stress) do
     now = NaiveDateTime.utc_now()
+    test_cases = Map.get(stress, :test_cases, [])
 
     rows =
-      stress
-      |> Map.get(:test_cases, [])
-      |> Enum.map(fn test_case ->
+      Enum.map(test_cases, fn test_case ->
         name = Map.fetch!(test_case, :name)
         suite_name = Map.get(test_case, :suite_name) || ""
         module_name = Map.fetch!(test_case, :module_name)
@@ -297,7 +297,47 @@ defmodule Tuist.Tests.StressNewTests do
       IngestRepo.insert_all(TestRunStressCandidate, rows)
     end
 
+    insert_repetitions(test_run_id, project_id, test_cases, now)
+
     :ok
+  end
+
+  defp insert_repetitions(test_run_id, project_id, test_cases, now) do
+    rows =
+      Enum.flat_map(test_cases, fn test_case ->
+        test_case_id =
+          Tests.generate_test_case_id(
+            project_id,
+            Map.fetch!(test_case, :name),
+            Map.fetch!(test_case, :module_name),
+            Map.get(test_case, :suite_name) || ""
+          )
+
+        test_case
+        |> Map.get(:repetition_results, [])
+        |> Enum.map(fn repetition ->
+          failure = Map.get(repetition, :failure) || %{}
+
+          %{
+            id: UUIDv7.generate(),
+            test_run_id: test_run_id,
+            project_id: project_id,
+            test_case_id: test_case_id,
+            repetition_number: Map.fetch!(repetition, :repetition_number),
+            status: Map.fetch!(repetition, :status),
+            duration: Map.get(repetition, :duration) || 0,
+            failure_message: Map.get(failure, :message) || "",
+            failure_path: Map.get(failure, :path) || "",
+            failure_line_number: Map.get(failure, :line_number) || 0,
+            failure_issue_type: Map.get(failure, :issue_type) || "",
+            inserted_at: now
+          }
+        end)
+      end)
+
+    if rows != [] do
+      IngestRepo.insert_all(TestRunStressRepetition, rows)
+    end
   end
 
   def list_candidates(test_run_id) do
@@ -307,6 +347,48 @@ defmodule Tuist.Tests.StressNewTests do
     )
     |> ClickHouseRepo.all()
     |> Enum.uniq_by(&{&1.module_name, &1.suite_name, &1.name})
+  end
+
+  @doc """
+  Every repetition the gate ran for `test_run_id`, grouped by test case id and
+  ordered, so a candidate can be rendered with its own pass/fail sequence.
+  """
+  def repetitions_by_test_case(test_run_id) do
+    from(r in TestRunStressRepetition,
+      where: r.test_run_id == ^test_run_id,
+      order_by: [asc: r.test_case_id, asc: r.repetition_number, asc: r.inserted_at]
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(&{&1.test_case_id, &1.repetition_number})
+    |> Enum.group_by(& &1.test_case_id)
+  end
+
+  @doc """
+  The candidates the gate holds against the run, with their repetitions attached,
+  so the dashboard can render them beside the run's own failures.
+  """
+  def blocking_candidates_with_repetitions(test_run_id) do
+    candidates = test_run_id |> list_candidates() |> Enum.filter(&blocking_candidate?/1)
+
+    if candidates == [] do
+      []
+    else
+      repetitions = repetitions_by_test_case(test_run_id)
+
+      Enum.map(candidates, fn candidate ->
+        Map.put(candidate, :stress_repetitions, Map.get(repetitions, candidate.test_case_id, []))
+      end)
+    end
+  end
+
+  @doc """
+  Every candidate the gate examined for `test_run_id`, keyed by the identity the
+  test case runs share, so a run's test case list can be badged without a join.
+  """
+  def candidates_by_identity(test_run_id) do
+    test_run_id
+    |> list_candidates()
+    |> Map.new(&{{&1.module_name, &1.suite_name, &1.name}, &1})
   end
 
   @doc """

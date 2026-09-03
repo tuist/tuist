@@ -213,7 +213,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@failures_count > 0}
+      :if={@failures_count > 0 or @stress_failures != []}
       label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
@@ -323,6 +323,17 @@
                 data-part="value"
               />
             </div>
+            <div :if={@run.stress_mode != ""} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Stress gate")}</div>
+              <span data-part="value">
+                <.badge
+                  label={stress_verdict_label(@run)}
+                  color={stress_verdict_color(@run)}
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </div>
             <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
@@ -375,8 +386,13 @@
           />
           <.widget
             title={dgettext("dashboard_tests", "Failed test cases")}
-            description={dgettext("dashboard_tests", "Number of test cases that failed.")}
-            value={@test_metrics.failed_count}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that failed, including those the stress gate caught failing under repetition."
+              )
+            }
+            value={@test_metrics.failed_count + length(@stress_failures)}
             id="widget-failed-test-cases"
           />
           <.widget
@@ -450,193 +466,6 @@
       :if={@ci_context}
       context={@ci_context}
     />
-
-    <.card
-      :if={@run.stress_mode != ""}
-      title={dgettext("dashboard_tests", "Stress-testing new tests")}
-      icon="history"
-      data-part="stress-new-tests"
-    >
-      <.card_section data-part="stress-new-tests-section">
-        <div data-part="summary">
-          <.badge
-            label={
-              if(@run.stress_mode == "enforce",
-                do: dgettext("dashboard_tests", "Enforce mode"),
-                else: dgettext("dashboard_tests", "Report mode")
-              )
-            }
-            color="neutral"
-            style="light-fill"
-            size="large"
-          />
-          <.badge
-            :if={@run.stress_outcome == "passed"}
-            label={dgettext("dashboard_tests", "Passed")}
-            color="success"
-            style="fill"
-            size="large"
-          />
-          <.badge
-            :if={@run.stress_outcome == "disagreed"}
-            label={
-              if(@run.stress_mode == "enforce",
-                do: dgettext("dashboard_tests", "Blocked"),
-                else: dgettext("dashboard_tests", "Would have blocked")
-              )
-            }
-            color={if(@run.stress_mode == "enforce", do: "destructive", else: "attention")}
-            style="fill"
-            size="large"
-          />
-          <.badge
-            :if={@run.stress_outcome == "skipped"}
-            label={dgettext("dashboard_tests", "Skipped")}
-            color="warning"
-            style="fill"
-            size="large"
-          />
-          <.badge
-            :if={@run.stress_outcome == "no_candidates"}
-            label={dgettext("dashboard_tests", "No new tests")}
-            color="neutral"
-            style="fill"
-            size="large"
-          />
-          <span data-part="counts">
-            {dgettext(
-              "dashboard_tests",
-              "%{new_count} new test cases, %{stressed_count} stressed, %{excluded_count} excluded",
-              new_count: @run.stress_new_count,
-              stressed_count: @run.stress_stressed_count,
-              excluded_count: @run.stress_excluded_count
-            )}
-          </span>
-        </div>
-        <span :if={@run.stress_outcome == "skipped"} data-part="reason">
-          {case @run.stress_skip_reason do
-            "first_pass_failed" ->
-              dgettext(
-                "dashboard_tests",
-                "The first pass already failed, so the gate ran nothing."
-              )
-
-            "no_default_branch" ->
-              dgettext(
-                "dashboard_tests",
-                "The project has no default branch, so no test case can be new. Set one in the project settings."
-              )
-
-            "no_default_branch_history" ->
-              dgettext(
-                "dashboard_tests",
-                "No test case has run in CI on the default branch yet, so every test case would read as new."
-              )
-
-            "bulk_change" ->
-              dgettext(
-                "dashboard_tests",
-                "%{new_count} of the run's test cases were new against %{inventory_count} on the default branch, so the bulk-change guard ran nothing.",
-                new_count: @run.stress_new_count,
-                inventory_count: @run.stress_inventory_count
-              )
-
-            "verdict_unavailable" ->
-              dgettext(
-                "dashboard_tests",
-                "The server could not be reached for a verdict, so the gate ran nothing."
-              )
-
-            _ ->
-              ""
-          end}
-        </span>
-        <span
-          :for={
-            candidate <- Enum.filter(@stress_candidates, &StressNewTests.blocking_candidate?/1)
-          }
-          data-part="reason"
-        >
-          {if @run.stress_mode == "enforce",
-            do:
-              dgettext(
-                "dashboard_tests",
-                "%{name} failed %{failed} of %{repetitions} repetitions and blocked this run.",
-                name: candidate.name,
-                failed: candidate.failed_repetitions,
-                repetitions: candidate.repetitions
-              ),
-            else:
-              dgettext(
-                "dashboard_tests",
-                "%{name} failed %{failed} of %{repetitions} repetitions and would have blocked this run. Pass --stress-new-tests enforce to make it blocking.",
-                name: candidate.name,
-                failed: candidate.failed_repetitions,
-                repetitions: candidate.repetitions
-              )}
-        </span>
-        <.table
-          :if={@stress_candidates != []}
-          id="stress-new-tests-table"
-          rows={@stress_candidates}
-        >
-          <:col :let={candidate} label={dgettext("dashboard_tests", "Test case")}>
-            <.text_cell label={
-              Enum.join(
-                Enum.reject(
-                  [candidate.module_name, candidate.suite_name, candidate.name],
-                  &(&1 == "")
-                ),
-                "/"
-              )
-            } />
-          </:col>
-          <:col :let={candidate} label={dgettext("dashboard_tests", "Repetitions")}>
-            <.text_cell label={"#{candidate.repetitions}"} />
-          </:col>
-          <:col :let={candidate} label={dgettext("dashboard_tests", "Failed")}>
-            <.text_cell label={"#{candidate.failed_repetitions}"} />
-          </:col>
-          <:col :let={candidate} label={dgettext("dashboard_tests", "Outcome")}>
-            <.status_badge_cell
-              :if={candidate.outcome == "passed"}
-              label={dgettext("dashboard_tests", "Passed")}
-              status="success"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "disagreed" and not candidate.is_quarantined}
-              label={dgettext("dashboard_tests", "Disagreed")}
-              status="error"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "disagreed" and candidate.is_quarantined}
-              label={dgettext("dashboard_tests", "Disagreed (muted)")}
-              status="warning"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "excluded_too_slow"}
-              label={dgettext("dashboard_tests", "Too slow")}
-              status="disabled"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "excluded_candidate_cap"}
-              label={dgettext("dashboard_tests", "Beyond candidate cap")}
-              status="disabled"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "not_stressed_ceiling"}
-              label={dgettext("dashboard_tests", "Wall-clock ceiling reached")}
-              status="disabled"
-            />
-            <.status_badge_cell
-              :if={candidate.outcome == "not_stressed_error"}
-              label={dgettext("dashboard_tests", "Stress pass failed to run")}
-              status="warning"
-            />
-          </:col>
-        </.table>
-      </.card_section>
-    </.card>
 
     <.card
       :if={@is_sharded}
@@ -752,7 +581,7 @@
     </.card>
 
     <.card
-      :if={@failures_count > 0}
+      :if={@failures_count > 0 or @stress_failures != []}
       title={dgettext("dashboard_tests", "Test Failures")}
       icon="alert_circle"
       data-part="failures-overview-card"
@@ -766,7 +595,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {@failures_count}
+            {@failures_count + length(@stress_failures)}
           </span>
           <.button
             variant="secondary"
@@ -776,6 +605,12 @@
           />
         </div>
         <div data-part="failures-list">
+          <.stress_failure_card
+            :for={candidate <- @stress_failures}
+            candidate={candidate}
+            run={@run}
+            id_prefix="overview"
+          />
           <div
             :for={test_case_run <- Enum.take(@failed_test_case_runs, 4)}
             id={"test-failure-overview-#{test_case_run.id}"}
@@ -1394,6 +1229,17 @@
                     size="large"
                   />
                   <.badge
+                    :for={
+                      candidate <-
+                        [stress_candidate_for(@stress_candidates_by_identity, test_case)]
+                        |> Enum.reject(&is_nil/1)
+                    }
+                    label={stress_badge_label(candidate)}
+                    color={stress_badge_color(candidate)}
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
                     :if={test_case.is_quarantined}
                     label={dgettext("dashboard_tests", "Quarantined")}
                     color="information"
@@ -1958,10 +1804,16 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@failures_count}
+          {@failures_count + length(@stress_failures)}
         </span>
       </div>
       <div data-part="failures-list">
+        <.stress_failure_card
+          :for={candidate <- @stress_failures}
+          candidate={candidate}
+          run={@run}
+          id_prefix="failures"
+        />
         <div
           :for={test_case_run <- @failed_test_case_runs}
           id={"test-failure-#{test_case_run.id}"}
@@ -2161,7 +2013,10 @@
           </div>
         </div>
       </div>
-      <div :if={Enum.empty?(@failed_test_case_runs)} data-part="empty-state">
+      <div
+        :if={Enum.empty?(@failed_test_case_runs) and @stress_failures == []}
+        data-part="empty-state"
+      >
         <span data-part="title">{dgettext("dashboard_tests", "No failures detected")}</span>
         <span data-part="subtitle">{dgettext("dashboard_tests", "All tests passed!")}</span>
       </div>

@@ -83,25 +83,45 @@ defmodule TuistWeb.TestRunLiveTest do
               repetitions: 10,
               failed_repetitions: 2,
               outcome: "disagreed",
-              is_quarantined: false
+              is_quarantined: false,
+              repetition_results: [
+                %{repetition_number: 1, status: "success", duration: 4},
+                %{
+                  repetition_number: 2,
+                  status: "failure",
+                  duration: 5,
+                  failure: %{
+                    message: "Bool.random()",
+                    issue_type: "assertion_failure",
+                    line_number: 0
+                  }
+                }
+              ]
             }
           ]
         }
       })
 
+    test_case_id =
+      Tuist.Tests.generate_test_case_id(project.id, "testAppliesDiscount", "AppTests", "CheckoutTests")
+
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-    assert has_element?(lv, "[data-part='stress-new-tests']")
-    assert has_element?(lv, "[data-part='counts']", "1 new test cases, 1 stressed, 0 excluded")
+    # The verdict is one line in the run's details, not a panel of its own.
+    assert has_element?(lv, "[data-part='metadata']", "Stress gate")
+    assert has_element?(lv, "[data-part='metadata']", "Would have blocked the run")
 
-    assert has_element?(
-             lv,
-             "[data-part='reason']",
-             "testAppliesDiscount failed 2 of 10 repetitions and would have blocked this run"
-           )
+    # A gate finding counts as a failure, so the widget and the failures card agree.
+    assert has_element?(lv, "#widget-failed-test-cases", "1")
 
-    assert has_element?(lv, "#stress-new-tests-table", "AppTests/CheckoutTests/testAppliesDiscount")
-    assert has_element?(lv, "#stress-new-tests-table", "Disagreed")
+    # The candidate is badged where the reader already reads the test cases.
+    assert has_element?(lv, "#test-cases-table", "2 of 10 repetitions failed")
+
+    # And the finding sits in the run's failures, expandable to its repetitions.
+    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "testAppliesDiscount")
+    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Stress gate")
+    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Repetition 2")
+    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Bool.random()")
   end
 
   test "does not show the stress gate for a run that did not carry it", %{
@@ -113,7 +133,7 @@ defmodule TuistWeb.TestRunLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-    refute has_element?(lv, "[data-part='stress-new-tests']")
+    refute has_element?(lv, "[data-part='metadata']", "Stress gate")
   end
 
   test "surfaces linked runner CI context when test run came from a Tuist runner job", %{

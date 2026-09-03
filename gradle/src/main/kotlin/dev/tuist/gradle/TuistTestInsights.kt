@@ -148,7 +148,9 @@ internal class TestReportCollector {
                     moduleName = moduleName,
                     className = it.className,
                     testName = it.testName,
-                    status = if (it.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
+                    status = if (it.resultType == TestResult.ResultType.SUCCESS) "success" else "failure",
+                    duration = it.endTime - it.startTime,
+                    failureMessage = it.exception?.message
                 )
             }
         }

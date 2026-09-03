@@ -6,6 +6,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
+  alias Tuist.Tests.TestRunStressRepetition
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -227,7 +228,21 @@ defmodule Tuist.Tests.StressNewTestsTest do
                 repetitions: 10,
                 failed_repetitions: 2,
                 outcome: "disagreed",
-                is_quarantined: false
+                is_quarantined: false,
+                repetition_results: [
+                  %{repetition_number: 1, status: "success", duration: 5},
+                  %{
+                    repetition_number: 2,
+                    status: "failure",
+                    duration: 6,
+                    failure: %{
+                      message: "Bool.random()",
+                      path: "AppTests.swift",
+                      line_number: 7,
+                      issue_type: "assertion_failure"
+                    }
+                  }
+                ]
               },
               %{
                 name: "testSlow",
@@ -261,6 +276,36 @@ defmodule Tuist.Tests.StressNewTestsTest do
 
       [candidate | _] = candidates
       assert candidate.test_case_id == Tests.generate_test_case_id(project.id, "testNew", "AppTests", "CheckoutTests")
+
+      # The repetitions are stored so the dashboard can render the finding like a failure,
+      # and are keyed on the same identity the test case runs use.
+      repetitions = StressNewTests.repetitions_by_test_case(test.id)
+      stored_repetitions = Map.fetch!(repetitions, candidate.test_case_id)
+
+      assert Enum.map(stored_repetitions, &{&1.repetition_number, &1.status}) == [
+               {1, "success"},
+               {2, "failure"}
+             ]
+
+      failed = Enum.find(stored_repetitions, &(&1.status == "failure"))
+
+      assert TestRunStressRepetition.failure(failed) == %{
+               message: "Bool.random()",
+               path: "AppTests.swift",
+               line_number: 7,
+               issue_type: "assertion_failure"
+             }
+
+      assert TestRunStressRepetition.failure(Enum.find(stored_repetitions, &(&1.status == "success"))) == nil
+
+      [blocking] = StressNewTests.blocking_candidates_with_repetitions(test.id)
+      assert blocking.name == "testNew"
+      assert length(blocking.stress_repetitions) == 2
+
+      by_identity = StressNewTests.candidates_by_identity(test.id)
+
+      assert by_identity |> Map.fetch!({"AppTests", "CheckoutTests", "testNew"}) |> Map.get(:outcome) ==
+               "disagreed"
 
       # The pass is never recorded as organic evidence.
       {:ok, stored_with_runs} = Tests.get_test(test.id, preload: [:test_case_runs])

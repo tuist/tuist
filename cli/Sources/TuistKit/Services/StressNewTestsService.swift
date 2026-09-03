@@ -21,18 +21,64 @@ public struct StressNewTestsCandidate: Equatable, Sendable {
         case notStressedError = "not_stressed_error"
     }
 
+    /// The failure one repetition produced, flattened so a candidate stays comparable.
+    public struct Failure: Equatable, Sendable {
+        public let message: String?
+        public let path: String?
+        public let lineNumber: Int
+        public let issueType: String
+
+        public init(message: String?, path: String?, lineNumber: Int, issueType: String) {
+            self.message = message
+            self.path = path
+            self.lineNumber = lineNumber
+            self.issueType = issueType
+        }
+
+        init(_ failure: TestCaseFailure) {
+            message = failure.message
+            path = failure.path?.pathString
+            lineNumber = failure.lineNumber
+            issueType = failure.issueType?.rawValue ?? "issue_recorded"
+        }
+    }
+
+    /// One execution of the candidate during the stress pass, in order.
+    public struct Repetition: Equatable, Sendable {
+        public let number: Int
+        public let passed: Bool
+        public let duration: Int
+        public let failure: Failure?
+
+        public init(number: Int, passed: Bool, duration: Int, failure: Failure?) {
+            self.number = number
+            self.passed = passed
+            self.duration = duration
+            self.failure = failure
+        }
+    }
+
     public let identifier: TestIdentifier
     public var repetitions: Int
     public var failedRepetitions: Int
     public var outcome: Outcome
     public let isQuarantined: Bool
+    public var repetitionResults: [Repetition]
 
-    public init(identifier: TestIdentifier, repetitions: Int, failedRepetitions: Int, outcome: Outcome, isQuarantined: Bool) {
+    public init(
+        identifier: TestIdentifier,
+        repetitions: Int,
+        failedRepetitions: Int,
+        outcome: Outcome,
+        isQuarantined: Bool,
+        repetitionResults: [Repetition] = []
+    ) {
         self.identifier = identifier
         self.repetitions = repetitions
         self.failedRepetitions = failedRepetitions
         self.outcome = outcome
         self.isQuarantined = isQuarantined
+        self.repetitionResults = repetitionResults
     }
 
     /// A muted candidate is stressed and recorded, but the gate inherits the mute and cannot fail on it.
@@ -87,6 +133,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
 
     public var blockingCandidates: [StressNewTestsCandidate] { candidates.filter(\.blocks) }
 
+
     /// Whether the run must fail: only in `enforce`, and only on a disagreement the gate holds against the run.
     public var blocks: Bool { mode == .enforce && !blockingCandidates.isEmpty }
 
@@ -106,6 +153,21 @@ public struct StressNewTestsResult: Equatable, Sendable {
                     module_name: candidate.identifier.target,
                     name: candidate.identifier.method ?? "",
                     outcome: .init(rawValue: candidate.outcome.rawValue) ?? .not_stressed_error,
+                    repetition_results: candidate.repetitionResults.map { repetition in
+                        .init(
+                            duration: repetition.duration,
+                            failure: repetition.failure.map { failure in
+                                .init(
+                                    issue_type: .init(rawValue: failure.issueType),
+                                    line_number: failure.lineNumber,
+                                    message: failure.message,
+                                    path: failure.path
+                                )
+                            },
+                            repetition_number: repetition.number,
+                            status: repetition.passed ? .success : .failure
+                        )
+                    },
                     repetitions: candidate.repetitions,
                     suite_name: candidate.identifier.class
                 )
@@ -300,6 +362,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 if let observed = outcomes[identifier] {
                     candidates[index].repetitions = max(repetitions, observed.repetitions)
                     candidates[index].failedRepetitions = observed.failed
+                    candidates[index].repetitionResults = observed.results
                     candidates[index].outcome = observed.failed > 0 ? .disagreed : .passed
                 } else {
                     candidates[index].outcome = .notStressedError
@@ -324,6 +387,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
     private struct ObservedRepetitions {
         let repetitions: Int
         let failed: Int
+        let results: [StressNewTestsCandidate.Repetition]
     }
 
     private func stress(
@@ -359,10 +423,34 @@ public struct StressNewTestsService: StressNewTestsServicing {
                   let identifier = try? TestIdentifier(target: module, class: testCase.testSuite, method: testCase.name),
                   identifiers.contains(identifier)
             else { continue }
-            let statuses = testCase.repetitions.isEmpty ? [testCase.status] : testCase.repetitions.map(\.status)
+            // A single-iteration pass produces no repetition nodes, so the test case's own
+            // result is repetition one.
+            let results: [StressNewTestsCandidate.Repetition]
+            if testCase.repetitions.isEmpty {
+                results = [
+                    StressNewTestsCandidate.Repetition(
+                        number: 1,
+                        passed: testCase.status != .failed,
+                        duration: testCase.duration ?? 0,
+                        failure: testCase.failures.first.map(StressNewTestsCandidate.Failure.init)
+                    ),
+                ]
+            } else {
+                results = testCase.repetitions
+                    .sorted { $0.repetitionNumber < $1.repetitionNumber }
+                    .map { repetition in
+                        StressNewTestsCandidate.Repetition(
+                            number: repetition.repetitionNumber,
+                            passed: repetition.status != .failed,
+                            duration: repetition.duration,
+                            failure: repetition.failures.first.map(StressNewTestsCandidate.Failure.init)
+                        )
+                    }
+            }
             observed[identifier] = ObservedRepetitions(
-                repetitions: statuses.count,
-                failed: statuses.filter { $0 == .failed }.count
+                repetitions: results.count,
+                failed: results.filter { !$0.passed }.count,
+                results: results
             )
         }
         return observed

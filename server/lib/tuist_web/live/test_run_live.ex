@@ -25,6 +25,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunStressRepetition
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
@@ -93,7 +94,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
-      |> assign(:stress_candidates, stress_candidates(run))
+      |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -119,8 +120,111 @@ defmodule TuistWeb.TestRunLive do
     {:ok, socket}
   end
 
-  defp stress_candidates(%{stress_mode: ""}), do: []
-  defp stress_candidates(run), do: StressNewTests.list_candidates(run.id)
+  # The gate's findings ride the surfaces a reader already reads: a badge on each
+  # stressed test case, and a card per disagreement in the run's failures, beside
+  # the failures the run produced itself.
+  defp assign_stress_gate(socket, %{stress_mode: ""}) do
+    socket
+    |> assign(:stress_candidates_by_identity, %{})
+    |> assign(:stress_failures, [])
+  end
+
+  defp assign_stress_gate(socket, run) do
+    socket
+    |> assign(:stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
+    |> assign(:stress_failures, StressNewTests.blocking_candidates_with_repetitions(run.id))
+  end
+
+  @doc false
+  def stress_candidate_for(candidates_by_identity, test_case_run) do
+    Map.get(
+      candidates_by_identity,
+      {test_case_run.module_name, test_case_run.suite_name || "", test_case_run.name}
+    )
+  end
+
+  @doc false
+  def stress_verdict_color(%{stress_outcome: "disagreed", stress_mode: "enforce"}), do: "destructive"
+  def stress_verdict_color(%{stress_outcome: "disagreed"}), do: "attention"
+  def stress_verdict_color(%{stress_outcome: "skipped"}), do: "warning"
+  def stress_verdict_color(_), do: "neutral"
+
+  @doc false
+  def stress_badge_label(%{outcome: "disagreed"} = candidate) do
+    dgettext("dashboard_tests", "%{failed} of %{total} repetitions failed",
+      failed: candidate.failed_repetitions,
+      total: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "passed"} = candidate) do
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition",
+      "%{count} repetitions",
+      candidate.repetitions,
+      count: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "excluded_too_slow"}), do: dgettext("dashboard_tests", "Too slow to stress")
+
+  def stress_badge_label(%{outcome: "excluded_candidate_cap"}),
+    do: dgettext("dashboard_tests", "Beyond the candidate cap")
+
+  def stress_badge_label(_), do: dgettext("dashboard_tests", "Not stressed")
+
+  @doc false
+  def stress_badge_color(%{outcome: "disagreed", is_quarantined: false}), do: "attention"
+  def stress_badge_color(%{outcome: "passed"}), do: "neutral"
+  def stress_badge_color(_), do: "neutral"
+
+  @doc false
+  def stress_verdict_label(run) do
+    case run.stress_outcome do
+      "disagreed" ->
+        if run.stress_mode == "enforce" do
+          dgettext("dashboard_tests", "Blocked the run")
+        else
+          dgettext("dashboard_tests", "Would have blocked the run")
+        end
+
+      "passed" ->
+        dngettext(
+          "dashboard_tests",
+          "%{count} new test held up",
+          "%{count} new tests held up",
+          run.stress_stressed_count,
+          count: run.stress_stressed_count
+        )
+
+      "no_candidates" ->
+        dgettext("dashboard_tests", "No new tests")
+
+      "skipped" ->
+        stress_skip_label(run)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp stress_skip_label(%{stress_skip_reason: "first_pass_failed"}),
+    do: dgettext("dashboard_tests", "Skipped, the run already failed")
+
+  defp stress_skip_label(%{stress_skip_reason: "no_default_branch"}),
+    do: dgettext("dashboard_tests", "Skipped, no default branch is set")
+
+  defp stress_skip_label(%{stress_skip_reason: "no_default_branch_history"}),
+    do: dgettext("dashboard_tests", "Skipped, no history on the default branch yet")
+
+  defp stress_skip_label(%{stress_skip_reason: "bulk_change", stress_new_count: new_count}),
+    do: dgettext("dashboard_tests", "Skipped, %{count} test cases read as new", count: new_count)
+
+  defp stress_skip_label(%{stress_skip_reason: "verdict_unavailable"}),
+    do: dgettext("dashboard_tests", "Skipped, Tuist could not be reached")
+
+  defp stress_skip_label(_), do: dgettext("dashboard_tests", "Skipped")
 
   # The `Download result` button and its route are keyed on the id under which
   # the bundle was stored: the command_event id for CLI `tuist test` runs, and
@@ -1289,6 +1393,114 @@ defmodule TuistWeb.TestRunLive do
 
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  # A finding from the stress gate, rendered with the same collapsible card the
+  # run's own failures use. The badge is the only thing marking it as solicited
+  # rather than observed, and the repetitions are the gate's evidence.
+  attr :candidate, :map, required: true
+  attr :run, :map, required: true
+  attr :id_prefix, :string, required: true
+
+  def stress_failure_card(assigns) do
+    ~H"""
+    <div
+      id={"#{@id_prefix}-stress-failure-#{@candidate.test_case_id}"}
+      phx-hook="NooraCollapsible"
+      data-part="collapsible"
+      data-state="closed"
+      class="test-failure-card"
+    >
+      <div data-part="root">
+        <div data-part="trigger">
+          <div data-part="header">
+            <div data-part="icon">
+              <.alert_circle />
+            </div>
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">
+                {@candidate.name}
+                <.badge
+                  label={dgettext("dashboard_tests", "Stress gate")}
+                  color="attention"
+                  style="light-fill"
+                  size="large"
+                />
+                <.badge
+                  :if={@candidate.is_quarantined}
+                  label={dgettext("dashboard_tests", "Quarantined")}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
+              </h3>
+              <span :if={@candidate.suite_name != ""} data-part="subtitle">
+                {@candidate.module_name} • {@candidate.suite_name}
+              </span>
+              <span :if={@candidate.suite_name == ""} data-part="subtitle">
+                {@candidate.module_name}
+              </span>
+            </div>
+            <.badge
+              label={
+                dgettext("dashboard_tests", "%{failed} of %{total}",
+                  failed: @candidate.failed_repetitions,
+                  total: @candidate.repetitions
+                )
+              }
+              color="destructive"
+              style="light-fill"
+              size="large"
+            />
+          </div>
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
+            <.chevron_down />
+          </.neutral_button>
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
+            <.chevron_up />
+          </.neutral_button>
+        </div>
+        <div data-part="content" data-state="closed">
+          <div data-part="repetitions">
+            <div
+              :for={repetition <- @candidate.stress_repetitions}
+              data-part="repetition-wrapper"
+            >
+              <div data-part="repetition-item">
+                <.badge
+                  :if={repetition.status == "success"}
+                  label={dgettext("dashboard_tests", "Passed")}
+                  color="success"
+                  style="light-fill"
+                  size="small"
+                />
+                <.badge
+                  :if={repetition.status == "failure"}
+                  label={dgettext("dashboard_tests", "Failed")}
+                  color="destructive"
+                  style="light-fill"
+                  size="small"
+                />
+                <span data-part="repetition-name">
+                  {dgettext("dashboard_tests", "Repetition %{number}",
+                    number: repetition.repetition_number
+                  )}
+                </span>
+              </div>
+              <.failure_message_span
+                :if={TestRunStressRepetition.failure(repetition)}
+                failure={TestRunStressRepetition.failure(repetition)}
+                context={@run}
+              />
+            </div>
+          </div>
+          <span :if={@candidate.stress_repetitions == []} data-part="repetition-name">
+            {dgettext("dashboard_tests", "This run recorded no per-repetition detail.")}
+          </span>
+        </div>
+      </div>
+    </div>
+    """
   end
 
   attr :attachments, :list, required: true

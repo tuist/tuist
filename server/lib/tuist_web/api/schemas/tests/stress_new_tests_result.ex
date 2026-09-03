@@ -66,6 +66,48 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
               type: :boolean,
               description:
                 "Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate."
+            },
+            repetition_results: %Schema{
+              type: :array,
+              description:
+                "Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.",
+              items: %Schema{
+                type: :object,
+                properties: %{
+                  repetition_number: %Schema{type: :integer, description: "The 1-based position of this repetition."},
+                  status: %Schema{
+                    type: :string,
+                    enum: ["success", "failure"],
+                    description: "The result of this repetition."
+                  },
+                  duration: %Schema{type: :integer, description: "Duration of this repetition in milliseconds."},
+                  failure: %Schema{
+                    type: :object,
+                    nullable: true,
+                    description: "The failure this repetition produced, when it failed.",
+                    properties: %{
+                      message: %Schema{type: :string, nullable: true, description: "The failure message."},
+                      path: %Schema{
+                        type: :string,
+                        nullable: true,
+                        description: "The source file the failure points at."
+                      },
+                      line_number: %Schema{
+                        type: :integer,
+                        nullable: true,
+                        description: "The line the failure points at."
+                      },
+                      issue_type: %Schema{
+                        type: :string,
+                        nullable: true,
+                        enum: ["assertion_failure", "error_thrown", "issue_recorded"],
+                        description: "The kind of failure."
+                      }
+                    }
+                  }
+                },
+                required: [:repetition_number, :status]
+              }
             }
           },
           required: [:name, :module_name, :repetitions, :failed_repetitions, :outcome]
