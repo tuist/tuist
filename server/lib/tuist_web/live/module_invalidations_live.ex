@@ -137,7 +137,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   defp sort_modules(modules, field), do: Enum.sort_by(modules, &Map.fetch!(&1, String.to_existing_atom(field)), :desc)
 
   def sort_label("invalidation_rate"), do: dgettext("dashboard_cache", "Rate")
-  def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Blast radius")
+  def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Dependents")
   def sort_label("self_changes"), do: dgettext("dashboard_cache", "Changed")
   def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Upstream")
   def sort_label(_), do: dgettext("dashboard_cache", "Misses")

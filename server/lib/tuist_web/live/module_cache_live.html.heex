@@ -575,7 +575,7 @@
       <.widget
         :if={@module_invalidations_summary.result.widest_blast_radius}
         id="widget-widest-blast-radius"
-        title={dgettext("dashboard_cache", "Widest blast radius")}
+        title={dgettext("dashboard_cache", "Most dependents")}
         legend_color="primary"
         description={
           dgettext(
@@ -588,7 +588,7 @@
       <.widget
         :if={!@module_invalidations_summary.result.widest_blast_radius}
         id="widget-widest-blast-radius"
-        title={dgettext("dashboard_cache", "Widest blast radius")}
+        title={dgettext("dashboard_cache", "Most dependents")}
         value=""
         empty
         empty_label={dgettext("dashboard_cache", "Needs CLI graph edges")}

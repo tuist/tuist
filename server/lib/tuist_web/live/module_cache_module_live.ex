@@ -3,7 +3,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
 
   alias Tuist.Builds.Analytics
@@ -38,9 +37,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
               "analytics-selected-widget",
               "cache-count",
               "miss-reason",
-              "invalidated-by-sort",
-              "invalidated-by-order",
-              "invalidated-by-page",
               "analytics-environment",
               "analytics-branch",
               "analytics-date-range",
@@ -130,14 +126,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     selected_cache_count = params["cache-count"] || "hits"
     selected_miss_reason = params["miss-reason"] || "changed"
 
-    invalidated_by_sort =
-      if params["invalidated-by-sort"] in ~w(name invalidations),
-        do: params["invalidated-by-sort"],
-        else: "invalidations"
-
-    invalidated_by_order =
-      if params["invalidated-by-order"] in ~w(asc desc), do: params["invalidated-by-order"], else: "desc"
-
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -149,9 +137,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:selected_cache_count, selected_cache_count)
       |> assign(:selected_miss_reason, selected_miss_reason)
-      |> assign(:invalidated_by_sort, invalidated_by_sort)
-      |> assign(:invalidated_by_order, invalidated_by_order)
-      |> assign(:invalidated_by_page, page_param(params["invalidated-by-page"]))
 
     {start_datetime, end_datetime} = period
     project_id = socket.assigns.selected_project.id
@@ -159,11 +144,10 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
     assign_async(
       socket,
-      [:module, :timeseries, :invalidated_by, :dependents_series, :miss_reasons_series, :cache_branches],
+      [:module, :timeseries, :dependents_series, :miss_reasons_series, :cache_branches],
       fn ->
         all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
         index = Map.new(all_modules, &{&1.name, &1})
-        %{edges: edges} = Analytics.module_dependency_graph(opts)
 
         timeseries =
           opts
@@ -172,13 +156,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
           |> with_hit_rates()
 
         module = build_module(index[name], name, timeseries)
-
-        attribution = Analytics.module_upstream_attribution(Keyword.put(opts, :name, name))
-
-        invalidated_by =
-          (edges[name] || [])
-          |> Enum.map(fn dep -> %{name: dep, invalidations: Map.get(attribution, dep, 0)} end)
-          |> Enum.sort_by(& &1.invalidations, :desc)
 
         dependents_series =
           Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
@@ -197,7 +174,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
          %{
            module: module,
            timeseries: timeseries,
-           invalidated_by: invalidated_by,
            dependents_series: dependents_series,
            miss_reasons_series: miss_reasons_series,
            cache_branches: branches
@@ -258,68 +234,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     case branch do
       "any" -> opts
       branch -> Keyword.put(opts, :git_branch, branch)
-    end
-  end
-
-  @invalidated_by_per_page 10
-
-  def invalidated_by_per_page, do: @invalidated_by_per_page
-
-  @doc false
-  def sort_dependencies(dependencies, sort_by, order) do
-    direction = if order == "asc", do: :asc, else: :desc
-    key = if sort_by == "name", do: :name, else: :invalidations
-
-    Enum.sort_by(dependencies, &Map.fetch!(&1, key), direction)
-  end
-
-  @doc false
-  def page_of(list, page) do
-    Enum.slice(list, (page - 1) * @invalidated_by_per_page, @invalidated_by_per_page)
-  end
-
-  @doc false
-  def page_count(list) do
-    max(ceil(length(list) / @invalidated_by_per_page), 1)
-  end
-
-  @doc false
-  def invalidated_by_sort_patch(uri, column, current_sort, current_order) do
-    order = if current_sort == column and current_order == "desc", do: "asc", else: "desc"
-
-    query =
-      uri.query
-      |> Query.put("invalidated-by-sort", column)
-      |> Query.put("invalidated-by-order", order)
-      |> Query.put("invalidated-by-page", "1")
-
-    "?" <> query
-  end
-
-  @doc false
-  def invalidated_by_sort_dropdown_patch(uri, column) do
-    query =
-      uri.query
-      |> Query.put("invalidated-by-sort", column)
-      |> Query.drop("invalidated-by-order")
-      |> Query.put("invalidated-by-page", "1")
-
-    "?" <> query
-  end
-
-  @doc false
-  def invalidated_by_sort_label("name"), do: dgettext("dashboard_cache", "Dependency")
-  def invalidated_by_sort_label(_), do: dgettext("dashboard_cache", "Invalidations caused")
-
-  @doc false
-  def invalidated_by_page_patch(uri, page) do
-    "?" <> Query.put(uri.query, "invalidated-by-page", Integer.to_string(page))
-  end
-
-  defp page_param(value) do
-    case Integer.parse(value || "") do
-      {page, ""} when page > 0 -> page
-      _ -> 1
     end
   end
 

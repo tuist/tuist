@@ -227,7 +227,7 @@
           <.widget
             loading={!@module.ok?}
             id="widget-blast-radius"
-            title={dgettext("dashboard_cache", "Blast radius")}
+            title={dgettext("dashboard_cache", "Dependents")}
             legend_color="secondary"
             description={
               dgettext(
@@ -445,7 +445,7 @@
             }
             series={[
               %{
-                name: dgettext("dashboard_cache", "Modules downstream"),
+                name: dgettext("dashboard_cache", "Dependents"),
                 data: @dependents_series.result.counts,
                 type: "line",
                 step: "end",
@@ -520,86 +520,4 @@
       </div>
     </.card_section>
   </.card>
-
-  <div data-part="reasons-grid">
-    <.card
-      title={dgettext("dashboard_cache", "Invalidated by")}
-      icon="square_rounded_arrow_down"
-      data-part="invalidated-by-card"
-    >
-      <.card_section
-        :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}
-        data-part="invalidated-by-section"
-      >
-        <% sorted =
-          sort_dependencies(
-            @invalidated_by.result,
-            @invalidated_by_sort,
-            @invalidated_by_order
-          )
-
-        pages = page_count(sorted)
-        page = min(@invalidated_by_page, pages) %>
-        <div data-part="filters">
-          <.dropdown
-            id="invalidated-by-sort-dropdown"
-            label={invalidated_by_sort_label(@invalidated_by_sort)}
-            secondary_text={dgettext("dashboard_cache", "Sort by:")}
-          >
-            <.dropdown_item
-              :for={column <- ~w(invalidations name)}
-              value={column}
-              label={invalidated_by_sort_label(column)}
-              patch={invalidated_by_sort_dropdown_patch(@uri, column)}
-              data-selected={@invalidated_by_sort == column}
-            >
-              <:right_icon :if={@invalidated_by_sort == column}><.check /></:right_icon>
-            </.dropdown_item>
-          </.dropdown>
-        </div>
-        <.table id="invalidated-by-table" rows={page_of(sorted, page)}>
-          <:col
-            :let={dep}
-            label={dgettext("dashboard_cache", "Dependency")}
-            patch={
-              invalidated_by_sort_patch(@uri, "name", @invalidated_by_sort, @invalidated_by_order)
-            }
-            sort_order={@invalidated_by_sort == "name" && @invalidated_by_order}
-          >
-            <.text_cell label={dep.name} />
-          </:col>
-          <:col
-            :let={dep}
-            label={dgettext("dashboard_cache", "Invalidations caused")}
-            patch={
-              invalidated_by_sort_patch(
-                @uri,
-                "invalidations",
-                @invalidated_by_sort,
-                @invalidated_by_order
-              )
-            }
-            sort_order={@invalidated_by_sort == "invalidations" && @invalidated_by_order}
-          >
-            <.text_cell label={Integer.to_string(dep.invalidations)} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={pages > 1}
-          current_page={page}
-          number_of_pages={pages}
-          page_patch={fn target -> invalidated_by_page_patch(@uri, target) end}
-        />
-      </.card_section>
-      <.empty_card_section
-        :if={@invalidated_by.ok? && Enum.empty?(@invalidated_by.result)}
-        title={dgettext("dashboard_cache", "No dependency edges")}
-      >
-        <:image>
-          <img src="/images/empty_table_light.png" data-theme="light" />
-          <img src="/images/empty_table_dark.png" data-theme="dark" />
-        </:image>
-      </.empty_card_section>
-    </.card>
-  </div>
 </div>

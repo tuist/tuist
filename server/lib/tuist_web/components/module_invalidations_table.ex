@@ -1,9 +1,10 @@
 defmodule TuistWeb.Components.ModuleInvalidationsTable do
   @moduledoc """
-  Shared table of modules ranked by cache invalidations, used both on the Module
-  Cache dashboard card and the standalone "all modules" page. Each row shows the
-  module, its invalidation count and rate, a self-change vs dependency-induced
-  split, and the downstream blast radius.
+  Shared table of modules ranked by cache misses, used both on the Module Cache
+  dashboard card and the standalone "all modules" page. Each row shows the
+  module, its miss count and rate, whether those misses came from its own
+  content changing or from an upstream dependency, and how many modules depend
+  on it.
   """
   use Phoenix.Component
   use Gettext, backend: TuistWeb.Gettext
@@ -36,7 +37,7 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
       <:col :let={module} label={dgettext("dashboard_cache", "Why")}>
         <.why_split module={module} />
       </:col>
-      <:col :let={module} label={dgettext("dashboard_cache", "Blast radius")}>
+      <:col :let={module} label={dgettext("dashboard_cache", "Dependents")}>
         <.text_cell label={Integer.to_string(module.blast_radius || 0)} />
       </:col>
     </.table>
