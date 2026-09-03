@@ -27,15 +27,15 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
+    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle traffic on the same route families in Prometheus, with REAPI as a Kura-only lane. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
       "panel-1": {
         "kind": "Panel",
         "spec": {
           "id": 1,
-          "title": "Kura share of cache runs",
-          "description": "Share of CLI runs that reported a cache endpoint and pointed at a Kura instance (`*.kura.tuist.dev`) rather than the legacy hosted cache (`cache-*.tuist.dev`) or a self-hosted endpoint. From ClickHouse `command_events.cache_endpoint`, over the selected range.",
+          "title": "Kura share of module cache runs",
+          "description": "Module (binary) cache lane only. Share of CLI runs (`generate`, `test`, `cache`, `run`, `warm`) whose resolved module cache endpoint was a Kura instance (`*.kura.tuist.dev`) rather than the legacy hosted cache (`cache-*.tuist.dev`) or a self-hosted endpoint. From ClickHouse `command_events.cache_endpoint`, weighted by invocation. The Xcode compilation cache, Gradle and REAPI lanes are not in command events; see the per-lane row.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -125,8 +125,8 @@
         "kind": "Panel",
         "spec": {
           "id": 2,
-          "title": "Projects by cache backend",
-          "description": "Distinct projects with at least one cache run against each backend in the range. \"Both\" is the overlap: projects that reached Kura and the legacy hosted cache in the same range (mid-migration, or a mix of CLI versions).",
+          "title": "Projects by module cache backend",
+          "description": "Module cache lane only. Distinct projects with at least one cache run against each backend in the range. \"Both\" is the overlap: projects that reached Kura and the legacy hosted cache in the same range (mid-migration, or a mix of CLI versions).",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -757,8 +757,8 @@
         "kind": "Panel",
         "spec": {
           "id": 10,
-          "title": "Cache runs by backend",
-          "description": "CLI runs that reported a cache endpoint, split by where the traffic went. From ClickHouse `command_events`.",
+          "title": "Module cache runs by backend",
+          "description": "Module cache lane only: CLI runs that reported a module cache endpoint, split by where the traffic went. From ClickHouse `command_events`.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -915,8 +915,8 @@
         "kind": "Panel",
         "spec": {
           "id": 11,
-          "title": "Kura share of hosted cache runs",
-          "description": "Percentage of hosted cache runs (Kura + legacy hosted cache) that went to Kura per bucket. Self-hosted endpoints are excluded from the denominator since they are not part of the migration.",
+          "title": "Kura share of module cache runs over time",
+          "description": "Module cache lane only. Percentage of hosted module cache runs (Kura + legacy hosted cache) that went to Kura per bucket. Self-hosted endpoints are excluded from the denominator since they are not part of the migration.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1045,8 +1045,8 @@
         "kind": "Panel",
         "spec": {
           "id": 12,
-          "title": "Projects by cache backend",
-          "description": "Distinct projects with cache runs per bucket against Kura, against the legacy hosted cache, and against both in the same bucket.",
+          "title": "Projects by module cache backend",
+          "description": "Module cache lane only. Distinct projects with cache runs per bucket against Kura, against the legacy hosted cache, and against both in the same bucket.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1705,12 +1705,870 @@
           }
         }
       },
-      "panel-20": {
+      "panel-40": {
         "kind": "Panel",
         "spec": {
-          "id": 20,
-          "title": "Cache bytes transferred by backend",
-          "description": "Kura bytes from `kura_usage_events` (rollups pushed by managed nodes) versus legacy hosted cache bytes from `cas_events_daily_stats` (the cache service's analytics webhook). Daily granularity on the legacy side.",
+          "id": 40,
+          "title": "Kura share per cache lane",
+          "description": "Share of `/api/cache/*` requests served by production Kura nodes rather than the production legacy cache service, per lane, over the selected range. Lanes are the route families both backends expose: module cache (`/api/cache/module/*`), Xcode compilation cache (`/api/cache/cas/*` and `/api/cache/keyvalue*`), Gradle (`/api/cache/gradle/*`). REAPI is gRPC and Kura-only, so it has no share to show.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range])))",
+                        "legendFormat": "Module",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__range])))",
+                        "legendFormat": "Xcode",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "C",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__range])))",
+                        "legendFormat": "Gradle",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "bargauge",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "displayMode": "gradient",
+                "orientation": "horizontal",
+                "namePlacement": "left",
+                "showUnfilled": true,
+                "sizing": "auto",
+                "valueMode": "color",
+                "minVizHeight": 16,
+                "minVizWidth": 8,
+                "maxVizHeight": 300,
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1,
+                  "decimals": 1,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "red"
+                      },
+                      {
+                        "value": 0.25,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 0.75,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-41": {
+        "kind": "Panel",
+        "spec": {
+          "id": 41,
+          "title": "Kura share per cache lane over time",
+          "description": "Kura requests over Kura + legacy requests on each lane's route family, from Prometheus. Gaps mean neither backend saw traffic on that lane in the interval.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval])))",
+                        "legendFormat": "Module",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])))",
+                        "legendFormat": "Xcode",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "C",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__rate_interval])))",
+                        "legendFormat": "Gradle",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percentunit",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "max": 1,
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Module"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Xcode"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Gradle"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "purple"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-42": {
+        "kind": "Panel",
+        "spec": {
+          "id": 42,
+          "title": "Module lane request rate by backend",
+          "description": "Requests per second on `/api/cache/module.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval]))",
+                        "legendFormat": "Kura",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval]))",
+                        "legendFormat": "Legacy hosted cache",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "reqps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 40,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy hosted cache"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "orange"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-43": {
+        "kind": "Panel",
+        "spec": {
+          "id": 43,
+          "title": "Xcode lane request rate by backend",
+          "description": "Requests per second on `/api/cache/(cas|keyvalue).*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval]))",
+                        "legendFormat": "Kura",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval]))",
+                        "legendFormat": "Legacy hosted cache",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "reqps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 40,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy hosted cache"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "orange"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-44": {
+        "kind": "Panel",
+        "spec": {
+          "id": 44,
+          "title": "Gradle lane request rate by backend",
+          "description": "Requests per second on `/api/cache/gradle.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval]))",
+                        "legendFormat": "Kura",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__rate_interval]))",
+                        "legendFormat": "Legacy hosted cache",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "reqps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 40,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy hosted cache"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "orange"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-45": {
+        "kind": "Panel",
+        "spec": {
+          "id": 45,
+          "title": "Cache bytes by lane and backend",
+          "description": "Kura bytes per lane from `kura_usage_events` (rollups pushed by managed nodes). Legacy bytes exist in ClickHouse for the Xcode compilation cache (`cas_events_daily_stats`, daily) and Gradle (`gradle_cache_events`); the legacy module cache only records events in Postgres `cache_events`, which is too large to scan from Grafana, so that series is absent and the module lane is Kura-only here. REAPI has no legacy counterpart.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1733,7 +2591,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT time, sum(kura_bytes) AS \"Kura\", sum(legacy_bytes) AS \"Legacy hosted cache\" FROM (\n  SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time, sum(bytes) AS kura_bytes, 0 AS legacy_bytes\n  FROM kura_usage_events WHERE $__timeFilter(window_start) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time, 0 AS kura_bytes, sum(total_size) AS legacy_bytes\n  FROM cas_events_daily_stats WHERE $__timeFilter(date) GROUP BY time\n)\nGROUP BY time ORDER BY time"
+                        "rawSql": "SELECT time,\n  sum(kura_module) AS \"Kura \u00b7 Module\", sum(kura_xcode) AS \"Kura \u00b7 Xcode\", sum(kura_gradle) AS \"Kura \u00b7 Gradle\", sum(kura_reapi) AS \"Kura \u00b7 REAPI\",\n  sum(legacy_xcode) AS \"Legacy \u00b7 Xcode\", sum(legacy_gradle) AS \"Legacy \u00b7 Gradle\"\nFROM (\n  SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time,\n    sumIf(bytes, artifact_kind = 'module') AS kura_module, sumIf(bytes, artifact_kind = 'xcode') AS kura_xcode,\n    sumIf(bytes, artifact_kind = 'gradle') AS kura_gradle, sumIf(bytes, artifact_kind = 'reapi') AS kura_reapi,\n    toUInt64(0) AS legacy_xcode, toUInt64(0) AS legacy_gradle\n  FROM kura_usage_events WHERE $__timeFilter(window_start) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(total_size)), toUInt64(0)\n  FROM cas_events_daily_stats WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000))) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(size))\n  FROM gradle_cache_events WHERE $__timeFilter(inserted_at) GROUP BY time\n)\nGROUP BY time ORDER BY time"
                       }
                     }
                   }
@@ -1815,7 +2673,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Kura"
+                      "options": "Kura \u00b7 Module"
                     },
                     "properties": [
                       {
@@ -1830,7 +2688,52 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Legacy hosted cache"
+                      "options": "Kura \u00b7 Xcode"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "dark-green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura \u00b7 Gradle"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "super-light-green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura \u00b7 REAPI"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "semi-dark-green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy \u00b7 Xcode"
                     },
                     "properties": [
                       {
@@ -1839,6 +2742,274 @@
                           "mode": "fixed",
                           "fixedColor": "orange"
                         }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy \u00b7 Gradle"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "dark-orange"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-46": {
+        "kind": "Panel",
+        "spec": {
+          "id": 46,
+          "title": "Kura usage by account and lane",
+          "description": "Requests and bytes each account pushed through Kura per lane in the range, from `kura_usage_events` joined to the Postgres accounts table. Shows which lanes an account has actually moved, not just whether it has an instance.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-clickhouse-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dexgs9hv7rjswd"
+                      },
+                      "spec": {
+                        "editorType": "sql",
+                        "format": 1,
+                        "queryType": "table",
+                        "range": true,
+                        "rawSql": "SELECT account_id, artifact_kind AS lane, sum(request_count) AS requests, sum(bytes) AS bytes, max(window_start) AS last_seen\nFROM kura_usage_events WHERE $__timeFilter(window_start)\nGROUP BY account_id, lane ORDER BY requests DESC"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afscyehfnzg8wf"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT id AS account_id, name AS account_handle FROM public.accounts"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "joinByField",
+                  "spec": {
+                    "options": {
+                      "byField": "account_id",
+                      "mode": "inner"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "indexByName": {
+                        "account_handle": 0,
+                        "lane": 1,
+                        "requests": 2,
+                        "bytes": 3,
+                        "last_seen": 4
+                      },
+                      "renameByName": {}
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "sortBy",
+                  "spec": {
+                    "options": {
+                      "fields": {},
+                      "sort": [
+                        {
+                          "desc": true,
+                          "field": "requests"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": []
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false,
+                    "filterable": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "account_handle"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Account"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 200
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "account_id"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hidden",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "lane"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Lane"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 100
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "requests"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Requests"
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 120
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bytes"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Bytes"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "bytes"
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 120
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "last_seen"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Last seen"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "dateTimeAsIso"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 170
                       }
                     ]
                   }
@@ -4068,7 +5239,112 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Adoption over time",
+              "title": "Adoption per cache lane",
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 8,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-40"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 8,
+                        "y": 0,
+                        "width": 16,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-41"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 8,
+                        "width": 8,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-42"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 8,
+                        "y": 8,
+                        "width": 8,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-43"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 16,
+                        "y": 8,
+                        "width": 8,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-44"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 16,
+                        "width": 12,
+                        "height": 9,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-45"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 16,
+                        "width": 12,
+                        "height": 9,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-46"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Module cache adoption over time (CLI runs)",
               "collapse": false,
               "layout": {
                 "kind": "GridLayout",
@@ -4160,7 +5436,7 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Traffic by backend",
+              "title": "Live traffic (all lanes)",
               "collapse": false,
               "layout": {
                 "kind": "GridLayout",
@@ -4175,7 +5451,7 @@
                         "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-20"
+                          "name": "panel-21"
                         }
                       }
                     },
@@ -4185,19 +5461,6 @@
                         "x": 12,
                         "y": 0,
                         "width": 12,
-                        "height": 9,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-21"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 0,
-                        "y": 9,
-                        "width": 24,
                         "height": 9,
                         "element": {
                           "kind": "ElementReference",
@@ -4213,7 +5476,7 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Accounts",
+              "title": "Accounts (module cache runs)",
               "collapse": false,
               "layout": {
                 "kind": "GridLayout",
