@@ -31,7 +31,7 @@ let project = Project(
                     .executionAction(
                         title: "Inspect Build",
                         scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
                         """,
                         target: "MyApp"
                     )
@@ -44,10 +44,6 @@ let project = Project(
 )
 ```
 
-> [!IMPORTANT]
-> Append `|| echo "warning: ..."` to the command as shown above. Without it, a post-action that
-> exits with a non-zero status fails the whole build.
-
 If you are not using Mise, you need to ensure `tuist` is available in the scheme's environment since Xcode post-actions don't inherit your shell's `PATH`. For [Homebrew](https://brew.sh/) installations:
 
 ```swift
@@ -58,7 +54,7 @@ buildAction: .buildAction(
             title: "Inspect Build",
             scriptText: """
             export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-            tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
+            tuist inspect build
             """,
             target: "MyApp"
         )

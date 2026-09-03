@@ -37,12 +37,8 @@ For [Mise](https://mise.jdx.dev/), activate `tuist` in the post-action environme
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
-$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
+$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
-
-> [!IMPORTANT]
-> Append `|| echo "warning: ..."` to the command as shown above. Without it, a post-action that
-> exits with a non-zero status fails the whole build.
 
 > [!TIP]
 > **Mise path resolution**
@@ -53,7 +49,7 @@ For [Homebrew](https://brew.sh/), add the Homebrew paths to the post-action envi
 
 ```sh
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
+tuist inspect build
 ```
 
 Once logged in, local builds are tracked and available from the Tuist dashboard:
