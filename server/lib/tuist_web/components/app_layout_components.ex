@@ -359,6 +359,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
+      <% runner_buildkite_path = ~p"/#{@selected_account.name}/runners/buildkite" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -396,6 +397,13 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="category"
           navigate={runner_profiles_path}
           selected={String.starts_with?(@current_path, runner_profiles_path)}
+        />
+        <.sidebar_item
+          :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+          label={dgettext("dashboard", "Buildkite")}
+          icon="list_tree"
+          navigate={runner_buildkite_path}
+          selected={String.starts_with?(@current_path, runner_buildkite_path)}
         />
       </.sidebar_group>
       <.sidebar_item

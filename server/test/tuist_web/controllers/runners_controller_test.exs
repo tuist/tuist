@@ -108,7 +108,7 @@ defmodule TuistWeb.RunnersControllerTest do
   end
 
   describe "POST /api/internal/runners/dispatch" do
-    test "returns the jit, workflow_job_id, and a per-job log token", %{conn: conn} do
+    test "returns the GitHub JIT config, workflow_job_id, and a per-job log token", %{conn: conn} do
       account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
@@ -118,7 +118,7 @@ defmodule TuistWeb.RunnersControllerTest do
       stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
         {:ok,
          %{
-           jit: "JITCONFIG",
+           credential: %{kind: :github, jit: "JITCONFIG"},
            account: account,
            runner_name: "pod-1",
            workflow_job_id: 4242,
@@ -137,6 +137,44 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
       refute Map.has_key?(body, "cache_endpoint_url")
+    end
+
+    test "returns a Buildkite acquisition token instead of a JIT config", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         %{
+           credential: %{
+             kind: :buildkite,
+             token: "bkjat_opaque",
+             job_uuid: "0189abcd-0000-4000-8000-000000000000",
+             organization_slug: "acme"
+           },
+           account: account,
+           runner_name: "pod-1",
+           workflow_job_id: 1_000_000_000_000_123,
+           fleet_on_cluster_network: false,
+           fleet_platform: :macos
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["buildkite_acquisition_token"] == "bkjat_opaque"
+      assert body["buildkite_job_uuid"] == "0189abcd-0000-4000-8000-000000000000"
+      assert body["buildkite_organization_slug"] == "acme"
+      # The poll script selects the agent to launch on which credential
+      # key is present, so the two must never appear together.
+      refute Map.has_key?(body, "encoded_jit_config")
     end
 
     test "routes cache_endpoint_url by fleet platform and cluster-network reachability", %{conn: conn} do
@@ -175,7 +213,7 @@ defmodule TuistWeb.RunnersControllerTest do
         stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
           {:ok,
            %{
-             jit: "JITCONFIG",
+             credential: %{kind: :github, jit: "JITCONFIG"},
              account: account,
              runner_name: "pod-1",
              workflow_job_id: 4242,
@@ -217,7 +255,7 @@ defmodule TuistWeb.RunnersControllerTest do
       end)
 
       base = %{
-        jit: "JITCONFIG",
+        credential: %{kind: :github, jit: "JITCONFIG"},
         account: account,
         runner_name: "pod-1",
         workflow_job_id: 4242,

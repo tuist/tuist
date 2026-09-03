@@ -67,6 +67,21 @@ added to catch that failed on `admin`'s unwritable cache instead.
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
   by `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).
+- `/opt/tuist/buildkite-agent` — Buildkite agent binary, for jobs
+  dispatched from a customer's Buildkite cluster. Both agents live in
+  the one image because which one runs is decided per job at dispatch,
+  so a warm Pod has to be able to serve either; forking the image would
+  split the warm pool to save one binary.
+- `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),
+  so they run for every job regardless of what the customer's
+  repository defines. `environment` re-exports the cache settings the
+  server sent (the agent sanitizes the job environment, so an export
+  from `dispatch-poll.sh` does not survive into the job) and stamps the
+  job's start; `pre-exit` posts the job's log and its window back to the
+  server. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
+  agent writes because it is started with `--enable-job-log-tmpfile` and
+  deletes when the job ends — hence a `pre-exit` hook rather than
+  anything later.
 - `/Users/runner/work/<owner>/<repo>` — workspace path the JIT
   config sets via `work_folder: "/Users/runner/work"`; matches
   GitHub-hosted's `GITHUB_WORKSPACE`.
@@ -75,7 +90,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
   `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
-  sleeps; on 200 it runs `./run.sh --jitconfig $JIT`. Captures
+  sleeps; on 200 it runs the agent the response selects: `./run.sh
+  --jitconfig $JIT` for a GitHub job, or `buildkite-agent start` with
+  `BUILDKITE_AGENT_ACQUIRE_JOB` set for a Buildkite one. The Buildkite
+  branch skips the idle watchdog entirely — an acquisition token names
+  one job UUID, so there is no window in which a registered agent waits
+  to be handed work, which is the whole hazard that watchdog bounds.
+  Captures
   the rc and `sudo shutdown -h now`s the VM via an `EXIT` trap so
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on

@@ -1,0 +1,35 @@
+#!/bin/bash
+# Buildkite global `environment` hook. Runs inside the agent before the
+# job's command, for every job this agent takes.
+#
+# dispatch-poll.sh exports the cache settings the server sent with the
+# dispatch, but the agent sanitizes the job environment, so a variable
+# exported by the parent process does not necessarily survive into the
+# job. Re-exporting them here is what puts them in front of the customer's
+# build.
+#
+# Also stamps the job's start time, which the pre-exit hook pairs with the
+# finish time to report the billable window. The agent gives us no start
+# timestamp of its own, and the Pod's own start is the wrong number: it
+# includes VM boot and cache materialization, which is our overhead and
+# not the customer's job.
+
+set -uo pipefail
+
+STATE_DIR=/var/log/tuist-runner
+mkdir -p "${STATE_DIR}" 2>/dev/null || true
+
+date +%s >"${STATE_DIR}/job-started-at" 2>/dev/null || true
+
+# dispatch-poll.sh writes whichever of these the server sent with this
+# job's dispatch. Absent file, or absent variable, means the server sent
+# nothing and the build falls back to normal cache resolution.
+if [ -f /etc/tuist-runner-job.env ]; then
+  # shellcheck disable=SC1091
+  source /etc/tuist-runner-job.env
+fi
+
+[ -n "${TUIST_CACHE_ENDPOINT:-}" ] && export TUIST_CACHE_ENDPOINT
+[ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && export TUIST_CACHE_SIGNING_GRANT
+
+exit 0

@@ -335,6 +335,7 @@ msgid "Skipped"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:947
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:88
 #: lib/tuist_web/live/runner_job_live.html.heex:95
 #: lib/tuist_web/live/runner_jobs_live.ex:490
 #: lib/tuist_web/live/runner_jobs_live.html.heex:364
@@ -379,6 +380,7 @@ msgstr ""
 msgid "The job you are looking for doesn't exist or has been moved."
 msgstr ""
 
+#: lib/tuist_web/live/runner_buildkite_live.ex:17
 #: lib/tuist_web/live/runner_job_live.ex:42
 #: lib/tuist_web/live/runner_jobs_live.ex:33
 #: lib/tuist_web/live/runner_profiles_live.ex:26
@@ -1392,4 +1394,85 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.ex:24
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Buildkite"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Cluster"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Cluster agent token"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Cluster name"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Create it under your cluster's Agent Tokens in Buildkite. It is stored encrypted and never shown again."
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:99
+#, elixir-autogen, elixir-format
+msgid "Disconnect"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Last checked"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Not yet"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Organization slug"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Queues"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Tuist runs a Buildkite job when its queue key matches one of your runner profiles. Create a self-hosted queue in your cluster for each profile you want to use, then target it with agents: { queue: ... } in your pipeline."
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "Update connection"
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "e.g. \"acme\""
+msgstr ""
+
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "e.g. \"macOS\""
 msgstr ""

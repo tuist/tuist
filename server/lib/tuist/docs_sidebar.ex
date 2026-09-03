@@ -276,6 +276,7 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Buildkite", slug: "/en/guides/features/runners/buildkite"},
               %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
             ]
           }

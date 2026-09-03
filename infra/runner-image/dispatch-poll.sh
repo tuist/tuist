@@ -11,6 +11,10 @@
 #
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
+#     200 carrying ONE provider's credential set. GitHub sends
+#       `encoded_jit_config`; Buildkite sends `buildkite_acquisition_token`
+#       plus `buildkite_job_uuid`, and the agent launched below is chosen
+#       on which is present.
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
 #                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
 #       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
@@ -1188,8 +1192,14 @@ while true; do
       # optional whitespace lets a future pretty-printer not
       # break this path.
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -z "${jit}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
+      # Buildkite's counterpart. The server sends one credential set or
+      # the other, never both, so which key is present is what selects
+      # the agent to launch further down. Same value-safety as the JIT:
+      # a `bkjat_` token and a UUID are both opaque ASCII with no quotes.
+      bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
       fi
@@ -1220,6 +1230,17 @@ while true; do
       if [ -n "${cache_grant}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
+      fi
+      # The GitHub runner inherits this process's environment, so exporting
+      # is enough there. The Buildkite agent sanitizes the job environment
+      # instead, so anything the build needs has to be re-exported from
+      # inside a hook — which can only read what is on disk.
+      if [ -n "${bk_token}" ]; then
+        {
+          [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
+          [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+        } >/etc/tuist-runner-job.env 2>/dev/null || true
+        chmod 0600 /etc/tuist-runner-job.env 2>/dev/null || true
       fi
       # Stage the account's volume HEAD for the host to converge a stale master
       # toward before it materializes into this VM's branch.
@@ -1325,6 +1346,33 @@ HOOK
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
+      if [ -n "${bk_token}" ]; then
+        # Buildkite needs none of the idle-watchdog machinery below. The
+        # acquisition token names one job UUID, so the assignment already
+        # happened server-side before this VM was handed anything: the
+        # agent either takes that job or exits. There is no window in
+        # which a registered agent sits waiting to be given work, which
+        # is the whole hazard the GitHub watchdog exists to bound.
+        #
+        # `--enable-job-log-tmpfile` is what makes the log ours to ship.
+        # The agent writes the job's output verbatim to the path it
+        # exports as BUILDKITE_JOB_LOG_TMPFILE, and the global pre-exit
+        # hook posts it to the server while the file still exists (the
+        # agent removes it when the job ends).
+        export BUILDKITE_AGENT_TOKEN="${bk_token}"
+        export BUILDKITE_AGENT_ACQUIRE_JOB="${bk_job_uuid}"
+        echo "$(date -u +%FT%TZ) dispatch-poll: acquiring buildkite job ${bk_job_uuid}"
+        /opt/tuist/buildkite-agent start \
+          --name "$(hostname)" \
+          --hooks-path /opt/tuist/buildkite-hooks \
+          --build-path /Users/runner/work \
+          --enable-job-log-tmpfile \
+          --job-log-path /var/log/tuist-runner \
+          --disconnect-after-job &
+        runner_pid=$!
+        wait "${runner_pid}"
+        rc=$?
+      else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
@@ -1369,6 +1417,7 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      fi
       # Cache teardown. The order here is load-bearing:
       #   0. wait for the compilation cache's asynchronous publications to reach
       #      the remote, while the spool is still mounted and the publisher can

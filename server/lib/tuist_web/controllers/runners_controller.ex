@@ -29,7 +29,7 @@ defmodule TuistWeb.RunnersController do
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok,
           %{
-            jit: jit,
+            credential: credential,
             account: account,
             workflow_job_id: workflow_job_id,
             fleet_on_cluster_network: on_cluster_network,
@@ -39,7 +39,7 @@ defmodule TuistWeb.RunnersController do
       json(
         conn,
         dispatch_response(
-          jit,
+          credential,
           account,
           workflow_job_id,
           on_cluster_network,
@@ -90,8 +90,8 @@ defmodule TuistWeb.RunnersController do
       {:error, :unknown_account} ->
         conn |> put_status(:not_found) |> json(%{error: "account not configured"})
 
-      {:error, :github_mint_failed} ->
-        conn |> put_status(:bad_gateway) |> json(%{error: "jit mint failed"})
+      {:error, mint_failure} when mint_failure in [:github_mint_failed, :buildkite_mint_failed] ->
+        conn |> put_status(:bad_gateway) |> json(%{error: "credential mint failed"})
 
       {:error, :not_in_cluster} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
@@ -314,7 +314,7 @@ defmodule TuistWeb.RunnersController do
   #     region's `runner_platforms`, so a node co-located with one
   #     fleet never serves a fleet on the wrong side of a WAN.
   defp dispatch_response(
-         jit,
+         credential,
          account,
          workflow_job_id,
          fleet_on_cluster_network,
@@ -322,11 +322,11 @@ defmodule TuistWeb.RunnersController do
          cache_signing_grant,
          volume_head
        ) do
-    base = %{
-      encoded_jit_config: jit,
-      owner: account.name,
-      workflow_job_id: workflow_job_id
-    }
+    base =
+      Map.merge(
+        %{owner: account.name, workflow_job_id: workflow_job_id},
+        credential_fields(credential)
+      )
 
     base =
       case cache_signing_grant do
@@ -348,6 +348,19 @@ defmodule TuistWeb.RunnersController do
     else
       _ -> base
     end
+  end
+
+  # The VM branches on which of these two key sets it receives, so the
+  # response stays a single shape per provider rather than a discriminator
+  # the poll script would have to read before it knows what else to expect.
+  defp credential_fields(%{kind: :github, jit: jit}), do: %{encoded_jit_config: jit}
+
+  defp credential_fields(%{kind: :buildkite} = credential) do
+    %{
+      buildkite_acquisition_token: credential.token,
+      buildkite_job_uuid: credential.job_uuid,
+      buildkite_organization_slug: credential.organization_slug
+    }
   end
 
   defp bearer_token(conn) do

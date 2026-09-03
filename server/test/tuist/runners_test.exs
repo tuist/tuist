@@ -8,6 +8,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
@@ -1397,6 +1398,134 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
       assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+  end
+
+  describe "dispatch_for_sa/2 provider selection" do
+    # The seam between the two lanes: the candidate's `provider` is what
+    # decides which credential a Pod is handed, and everything after the
+    # mint is shared. A regression here would hand a Buildkite job a
+    # GitHub JIT config, which the VM cannot use for anything.
+    defp buildkite_candidate(account) do
+      %{
+        workflow_job_id: 1_000_000_000_000_777,
+        provider: "buildkite",
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "ios",
+        workflow_run_id: 42,
+        run_attempt: 1,
+        workflow_name: "ios",
+        job_name: "test",
+        head_branch: "main",
+        head_sha: "",
+        platform: "macos",
+        vcpus: 4,
+        memory_gb: 16,
+        requested_dispatch_label: "tuist-macos",
+        enqueued_at: DateTime.utc_now()
+      }
+    end
+
+    test "mints a Buildkite acquisition token for a Buildkite candidate" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = buildkite_candidate(account)
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources ->
+        assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      # GitHub is never consulted for a Buildkite job, in either the mint
+      # or the fork check.
+      reject(&GitHubClient.generate_jit_config/3)
+      reject(&GitHubClient.get_workflow_run/1)
+
+      expect(Buildkite, :mint_acquisition, fn account_id, job_id ->
+        assert account_id == account.id
+        assert job_id == candidate.workflow_job_id
+        {:ok, %{token: "bkjat_opaque", job_uuid: "job-uuid", organization_slug: "acme"}}
+      end)
+
+      stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+      stub(Claims, :record_execution, fn _runner_name, _job_id, _account_id -> :matched end)
+
+      assert {:ok, %{credential: credential}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert credential.kind == :buildkite
+      assert credential.token == "bkjat_opaque"
+      assert credential.job_uuid == "job-uuid"
+    end
+
+    test "records the runner-to-job binding at dispatch rather than waiting on a webhook" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = buildkite_candidate(account)
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+      test_pid = self()
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, _fleet, _pod, _resources ->
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      stub(Buildkite, :mint_acquisition, fn _account_id, _job_id ->
+        {:ok, %{token: "bkjat_opaque", job_uuid: "job-uuid", organization_slug: "acme"}}
+      end)
+
+      stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+
+      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
+        send(test_pid, {:execution_recorded, job_id, account_id})
+        :matched
+      end)
+
+      assert {:ok, _dispatched} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_received {:execution_recorded, job_id, account_id}
+      assert job_id == candidate.workflow_job_id
+      assert account_id == account.id
     end
   end
 end

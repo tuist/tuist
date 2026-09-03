@@ -106,6 +106,12 @@ defmodule Tuist.Runners.RunnerSessions do
       # correctly, it just cannot be attributed to a machine afterwards.
       node_name: Map.get(attrs, :node_name),
       runner_name: Map.get(attrs, :runner_name, ""),
+      # Set at open time only by the Buildkite lane, where an acquisition
+      # token is minted for one job UUID and the runner can take no other.
+      # The GitHub lane leaves it nil and learns the binding later from
+      # the `workflow_job.in_progress` webhook, because GitHub, not us,
+      # decides which job a label-bound runner receives.
+      executed_workflow_job_id: Map.get(attrs, :executed_workflow_job_id),
       repository: Map.get(attrs, :repository, ""),
       workflow_name: Map.get(attrs, :workflow_name, ""),
       started_at: started_at,
@@ -467,7 +473,11 @@ defmodule Tuist.Runners.RunnerSessions do
     RunnerSession
     |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at) and not is_nil(s.executed_workflow_job_id))
     |> order_by([s], desc: s.started_at)
-    |> select([s], %{workflow_job_id: s.executed_workflow_job_id, account_id: s.account_id})
+    |> select([s], %{
+      workflow_job_id: s.executed_workflow_job_id,
+      account_id: s.account_id,
+      runner_name: s.runner_name
+    })
     |> limit(1)
     |> Repo.one()
     |> case do

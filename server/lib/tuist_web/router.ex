@@ -818,6 +818,8 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/pods/:pod_name/buildkite/logs", RunnerBuildkiteJobsController, :logs
+    post "/runners/pods/:pod_name/buildkite/finish", RunnerBuildkiteJobsController, :finish
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1157,6 +1159,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
+      live "/runners/buildkite", RunnerBuildkiteLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive

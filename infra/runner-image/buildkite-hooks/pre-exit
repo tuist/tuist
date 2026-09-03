@@ -1,0 +1,124 @@
+#!/bin/bash
+# Buildkite global `pre-exit` hook. Runs after the job's command, for
+# every job this agent takes, including a failed or cancelled one.
+#
+# This is where the job's log and outcome reach Tuist. The agent was
+# started with `--enable-job-log-tmpfile`, so BUILDKITE_JOB_LOG_TMPFILE
+# names a file holding the job's output verbatim; the agent deletes it
+# once the job ends, which is why the upload happens here rather than
+# anywhere later.
+#
+# Everything below is best-effort with respect to the job: a reporting
+# failure must never change the exit status the customer sees. It is not
+# best-effort with respect to the server, which is why the finish report
+# retries — that request carries the billable window, and it is recorded
+# nowhere else.
+
+set -uo pipefail
+
+STATE_DIR=/var/log/tuist-runner
+LOG=/var/log/tuist-runner/buildkite-hook.log
+exec >>"${LOG}" 2>&1
+
+# The agent sanitizes the job environment, so the dispatch settings the
+# parent process held are not necessarily still here. Read them from the
+# same files metrics-poll.sh reads.
+if [ -f /etc/tuist.env ]; then
+  # shellcheck disable=SC1091
+  source /etc/tuist.env
+fi
+
+# Chunked so one request never has to carry a whole build's output.
+# ClickHouse keys log lines by (job, line number), so a retried chunk
+# collapses on merge and the hook can resend freely.
+CHUNK_LINES=5000
+
+SA_TOKEN="$(cat /etc/tuist-sa-token 2>/dev/null || true)"
+POD_NAME="${TUIST_RUNNER_POD_NAME:-}"
+
+if [ -z "${SA_TOKEN}" ] || [ -z "${POD_NAME}" ] || [ -z "${TUIST_RUNNER_DISPATCH_URL:-}" ]; then
+  echo "$(date -u +%FT%TZ) buildkite-hook: dispatch settings unreadable; skipping report"
+  exit 0
+fi
+
+BASE_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+
+post() {
+  # $1 url, $2 body file
+  curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --max-time 30 \
+    --request POST \
+    --header "Authorization: Bearer ${SA_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --data-binary "@${2}" \
+    "$1" 2>/dev/null
+}
+
+upload_logs() {
+  local log_file="${BUILDKITE_JOB_LOG_TMPFILE:-}"
+  [ -n "${log_file}" ] && [ -f "${log_file}" ] || return 0
+
+  local total first body http
+  total=$(wc -l <"${log_file}" | tr -d ' ')
+  [ "${total}" -gt 0 ] 2>/dev/null || return 0
+
+  first=1
+  while [ "${first}" -le "${total}" ]; do
+    body=$(mktemp)
+    # `sed -n 'a,bp'` slices without re-reading the file from the top for
+    # each chunk the way `head | tail` would.
+    sed -n "${first},$((first + CHUNK_LINES - 1))p" "${log_file}" \
+      | python3 -c '
+import json, sys
+lines = sys.stdin.read().split("\n")
+if lines and lines[-1] == "":
+    lines.pop()
+json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
+' "${first}" >"${body}"
+
+    http=$(post "${BASE_URL}/runners/pods/${POD_NAME}/buildkite/logs" "${body}")
+    rm -f "${body}"
+    if [ "${http}" != "204" ]; then
+      echo "$(date -u +%FT%TZ) buildkite-hook: log chunk from line ${first} returned ${http}"
+    fi
+    first=$((first + CHUNK_LINES))
+  done
+}
+
+report_finish() {
+  local started body http attempt
+  started=$(cat "${STATE_DIR}/job-started-at" 2>/dev/null || echo 0)
+  body=$(mktemp)
+
+  # BUILDKITE_COMMAND_EXIT_STATUS is the job's own status. A cancelled job
+  # reports separately, and the two mean different things to the customer:
+  # a cancel is not a failure and must not read as one on the dashboard.
+  cat >"${body}" <<JSON
+{
+  "exit_status": ${BUILDKITE_COMMAND_EXIT_STATUS:-1},
+  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false},
+  "started_at": ${started},
+  "finished_at": $(date +%s)
+}
+JSON
+
+  attempt=1
+  while [ "${attempt}" -le 5 ]; do
+    http=$(post "${BASE_URL}/runners/pods/${POD_NAME}/buildkite/finish" "${body}")
+    if [ "${http}" = "204" ]; then
+      rm -f "${body}"
+      return 0
+    fi
+    echo "$(date -u +%FT%TZ) buildkite-hook: finish attempt ${attempt} returned ${http}"
+    sleep $((attempt * 2))
+    attempt=$((attempt + 1))
+  done
+
+  rm -f "${body}"
+  echo "$(date -u +%FT%TZ) buildkite-hook: finish report gave up; job window is lost"
+}
+
+upload_logs
+report_finish
+
+exit 0

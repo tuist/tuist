@@ -341,6 +341,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       limit: ^k,
       select: %{
         workflow_job_id: j.workflow_job_id,
+        provider: j.provider,
         account_id: j.account_id,
         fleet_name: j.fleet_name,
         platform: j.platform,
@@ -726,6 +727,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @candidate_defaults [
+    provider: "github",
     platform: "",
     vcpus: 0,
     memory_gb: 0,
