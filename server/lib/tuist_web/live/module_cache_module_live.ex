@@ -37,6 +37,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
           URI.encode_query(
             Map.take(params, [
               "analytics-selected-widget",
+              "cache-count",
               "analytics-environment",
               "analytics-branch",
               "analytics-date-range",
@@ -83,26 +84,37 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
+  def handle_event("select_cache_count", %{"type" => type}, socket) when type in ["hits", "misses"] do
+    query = Query.put(socket.assigns.uri.query, "cache-count", type)
+
+    {:noreply,
+     socket
+     |> assign(:selected_cache_count, type)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  # The miss rate chart is derived from the same daily counts rather than a
+  # The hit rate chart is derived from the same daily counts rather than a
   # second query: a day with no builds has no rate, so it plots as 0.
-  defp with_miss_rates(timeseries) do
-    miss_rates =
+  defp with_hit_rates(timeseries) do
+    hit_rates =
       Enum.zip_with(timeseries.invalidations, timeseries.reuses, fn misses, hits ->
         case misses + hits do
           0 -> 0.0
-          total -> Float.round(misses / total * 100, 1)
+          total -> Float.round(hits / total * 100, 1)
         end
       end)
 
-    Map.put(timeseries, :miss_rates, miss_rates)
+    Map.put(timeseries, :hit_rates, hit_rates)
   end
 
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_branch = params["analytics-branch"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
+    selected_cache_count = params["cache-count"] || "hits"
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -112,6 +124,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_branch, analytics_branch)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_cache_count, selected_cache_count)
 
     {start_datetime, end_datetime} = period
     project_id = socket.assigns.selected_project.id
@@ -125,7 +138,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         opts
         |> Keyword.put(:name, name)
         |> Analytics.module_invalidation_timeseries()
-        |> with_miss_rates()
+        |> with_hit_rates()
 
       module = build_module(index[name], name, timeseries)
 
@@ -175,6 +188,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       reuses: reuses,
       appearances: appearances,
       invalidation_rate: rate(invalidations, appearances),
+      hit_rate: rate(reuses, appearances),
       self_changes: 0,
       dependency_induced: 0,
       unclassified: invalidations,
@@ -183,7 +197,11 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   end
 
   defp build_module(row, _name, timeseries) do
-    Map.put(row, :reuses, Enum.sum(timeseries.reuses))
+    reuses = Enum.sum(timeseries.reuses)
+
+    row
+    |> Map.put(:reuses, reuses)
+    |> Map.put(:hit_rate, rate(reuses, row.invalidations + reuses))
   end
 
   defp rate(_invalidations, 0), do: 0.0

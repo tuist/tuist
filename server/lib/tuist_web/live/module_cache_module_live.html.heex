@@ -108,34 +108,86 @@
           <.widget
             loading={!@module.ok?}
             id="widget-cache-activity"
-            title={dgettext("dashboard_cache", "Cache activity")}
+            title={
+              if @selected_cache_count == "misses",
+                do: dgettext("dashboard_cache", "Misses"),
+                else: dgettext("dashboard_cache", "Hits")
+            }
+            legend_color={if @selected_cache_count == "misses", do: "destructive", else: "primary"}
+            description={
+              dgettext(
+                "dashboard_cache",
+                "Builds where this module was served from cache, versus those where it was a cache miss and had to be rebuilt."
+              )
+            }
+            value={
+              if @module.ok? do
+                format_number(
+                  if @selected_cache_count == "misses",
+                    do: @module.result.invalidations,
+                    else: @module.result.reuses
+                )
+              end
+            }
+            phx_click="select_widget"
+            phx_value_widget="cache_activity"
+            selected={@analytics_selected_widget == "cache_activity"}
+          >
+            <:select>
+              <.dropdown_item
+                value="hits"
+                phx-click="select_cache_count"
+                phx-value-type="hits"
+                data-selected={@selected_cache_count == "hits"}
+              >
+                <div data-part="breakdown-item">
+                  <div data-part="dot" data-color="primary"></div>
+                  <span data-part="label">{dgettext("dashboard_cache", "Hits")}</span>
+                  <span data-part="separator">-</span>
+                  <span data-part="value">
+                    {if @module.ok?,
+                      do: format_number(@module.result.reuses),
+                      else: dgettext("dashboard_cache", "N/A")}
+                  </span>
+                </div>
+              </.dropdown_item>
+              <.dropdown_item
+                value="misses"
+                phx-click="select_cache_count"
+                phx-value-type="misses"
+                data-selected={@selected_cache_count == "misses"}
+              >
+                <div data-part="breakdown-item">
+                  <div data-part="dot" data-color="destructive"></div>
+                  <span data-part="label">{dgettext("dashboard_cache", "Misses")}</span>
+                  <span data-part="separator">-</span>
+                  <span data-part="value">
+                    {if @module.ok?,
+                      do: format_number(@module.result.invalidations),
+                      else: dgettext("dashboard_cache", "N/A")}
+                  </span>
+                </div>
+              </.dropdown_item>
+            </:select>
+          </.widget>
+          <.widget
+            loading={!@module.ok?}
+            id="widget-hit-rate"
+            title={dgettext("dashboard_cache", "Cache hit rate")}
             legend_color="primary"
             description={
               dgettext(
                 "dashboard_cache",
-                "Builds where this module was cacheable, split into cache hits and misses."
+                "Share of this module's builds that were served from cache instead of rebuilt."
               )
-            }
-            value={if @module.ok?, do: format_number(@module.result.appearances)}
-            phx_click="select_widget"
-            phx_value_widget="cache_activity"
-            selected={@analytics_selected_widget == "cache_activity"}
-          />
-          <.widget
-            loading={!@module.ok?}
-            id="widget-miss-rate"
-            title={dgettext("dashboard_cache", "Miss rate")}
-            legend_color="destructive"
-            description={
-              dgettext("dashboard_cache", "Share of this module's builds that were a cache miss.")
             }
             value={
               if @module.ok?,
-                do: dgettext("dashboard_cache", "%{rate}%", rate: @module.result.invalidation_rate)
+                do: dgettext("dashboard_cache", "%{rate}%", rate: @module.result.hit_rate)
             }
             phx_click="select_widget"
-            phx_value_widget="miss_rate"
-            selected={@analytics_selected_widget == "miss_rate"}
+            phx_value_widget="hit_rate"
+            selected={@analytics_selected_widget == "hit_rate"}
           />
           <.widget
             loading={!@module.ok?}
@@ -213,11 +265,11 @@
         </div>
 
         <div
-          :if={@timeseries.ok? && @analytics_selected_widget == "miss_rate"}
+          :if={@timeseries.ok? && @analytics_selected_widget == "hit_rate"}
           data-part="analytics-chart"
         >
           <.chart
-            id="module-miss-rate-chart"
+            id="module-hit-rate-chart"
             type="line"
             extra_options={
               %{
@@ -245,12 +297,12 @@
             }
             series={[
               %{
-                name: dgettext("dashboard_cache", "Miss rate"),
-                data: @timeseries.result.miss_rates,
+                name: dgettext("dashboard_cache", "Cache hit rate"),
+                data: @timeseries.result.hit_rates,
                 type: "line",
                 smooth: 0.1,
                 symbol: "none",
-                color: "var:noora-chart-destructive"
+                color: "var:noora-chart-primary"
               }
             ]}
             y_axis_min={0}
