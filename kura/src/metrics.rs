@@ -137,6 +137,7 @@ pub struct MetricsInner {
     auth_decisions: Family<AuthDecisionLabels, Counter>,
     auth_decision_duration: Family<AuthDecisionStageLabels, Histogram>,
     auth_cache: Family<AuthCacheLabels, Counter>,
+    auth_hot: Arc<AuthHotMetrics>,
     auth_backend_requests: Family<AuthBackendLabels, Counter>,
     auth_backend_duration: Family<AuthBackendRouteLabels, Histogram>,
     process_resident_memory_bytes: Gauge,
@@ -252,6 +253,99 @@ struct HotWriteMetrics {
     reapi_ok_write_bytes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
+}
+
+struct AuthHotMetrics {
+    decide_allow: Counter,
+    decide_deny: Counter,
+    decide_unavailable: Counter,
+    decide_duration: Histogram,
+    authenticate_access: Counter,
+    authenticate_deny: Counter,
+    authenticate_unavailable: Counter,
+    authenticate_duration: Histogram,
+    verify_readable: Counter,
+    verify_unreadable: Counter,
+    verify_duration: Histogram,
+    access_hit: Counter,
+    access_stale: Counter,
+    access_revalidate: Counter,
+    access_miss: Counter,
+}
+
+impl AuthHotMetrics {
+    fn new(
+        decisions: &Family<AuthDecisionLabels, Counter>,
+        durations: &Family<AuthDecisionStageLabels, Histogram>,
+        cache: &Family<AuthCacheLabels, Counter>,
+    ) -> Self {
+        let decision = |stage: &str, result: &str| {
+            decisions.get_or_create_owned(&AuthDecisionLabels {
+                stage: stage.to_owned(),
+                result: result.to_owned(),
+            })
+        };
+        let duration = |stage: &str| {
+            durations.get_or_create_owned(&AuthDecisionStageLabels {
+                stage: stage.to_owned(),
+            })
+        };
+        let cache = |result: &str| {
+            cache.get_or_create_owned(&AuthCacheLabels {
+                cache: "access".to_owned(),
+                result: result.to_owned(),
+            })
+        };
+
+        Self {
+            decide_allow: decision("decide", "allow"),
+            decide_deny: decision("decide", "deny"),
+            decide_unavailable: decision("decide", "unavailable"),
+            decide_duration: duration("decide"),
+            authenticate_access: decision("authenticate", "access"),
+            authenticate_deny: decision("authenticate", "deny"),
+            authenticate_unavailable: decision("authenticate", "unavailable"),
+            authenticate_duration: duration("authenticate"),
+            verify_readable: decision("verify", "readable"),
+            verify_unreadable: decision("verify", "unreadable"),
+            verify_duration: duration("verify"),
+            access_hit: cache("hit"),
+            access_stale: cache("stale"),
+            access_revalidate: cache("revalidate"),
+            access_miss: cache("miss"),
+        }
+    }
+
+    fn decision(&self, stage: &str, result: &str) -> Option<(&Counter, &Histogram)> {
+        let counter = match (stage, result) {
+            ("decide", "allow") => &self.decide_allow,
+            ("decide", "deny") => &self.decide_deny,
+            ("decide", "unavailable") => &self.decide_unavailable,
+            ("authenticate", "access") => &self.authenticate_access,
+            ("authenticate", "deny") => &self.authenticate_deny,
+            ("authenticate", "unavailable") => &self.authenticate_unavailable,
+            ("verify", "readable") => &self.verify_readable,
+            ("verify", "unreadable") => &self.verify_unreadable,
+            _ => return None,
+        };
+        let duration = match stage {
+            "decide" => &self.decide_duration,
+            "authenticate" => &self.authenticate_duration,
+            "verify" => &self.verify_duration,
+            _ => return None,
+        };
+        Some((counter, duration))
+    }
+
+    fn cache(&self, cache: &str, result: &str) -> Option<&Counter> {
+        match (cache, result) {
+            ("access", "hit") => Some(&self.access_hit),
+            ("access", "stale") => Some(&self.access_stale),
+            ("access", "revalidate") => Some(&self.access_revalidate),
+            ("access", "miss") => Some(&self.access_miss),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -573,6 +667,11 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
             });
         let auth_cache = Family::<AuthCacheLabels, Counter>::default();
+        let auth_hot = Arc::new(AuthHotMetrics::new(
+            &auth_decisions,
+            &auth_decision_duration,
+            &auth_cache,
+        ));
         let auth_backend_requests = Family::<AuthBackendLabels, Counter>::default();
         let auth_backend_duration =
             Family::<AuthBackendRouteLabels, Histogram>::new_with_constructor(|| {
@@ -1640,6 +1739,7 @@ impl Metrics {
                 auth_decisions,
                 auth_decision_duration,
                 auth_cache,
+                auth_hot,
                 auth_backend_requests,
                 auth_backend_duration,
                 process_resident_memory_bytes,
@@ -2448,6 +2548,11 @@ impl Metrics {
     }
 
     pub fn record_auth_decision(&self, stage: &str, result: &str, duration: Duration) {
+        if let Some((counter, histogram)) = self.auth_hot.decision(stage, result) {
+            counter.inc();
+            histogram.observe(duration.as_secs_f64());
+            return;
+        }
         self.auth_decisions
             .get_or_create(&AuthDecisionLabels {
                 stage: stage.to_owned(),
@@ -2462,6 +2567,10 @@ impl Metrics {
     }
 
     pub fn record_auth_cache(&self, cache: &str, result: &str) {
+        if let Some(counter) = self.auth_hot.cache(cache, result) {
+            counter.inc();
+            return;
+        }
         self.auth_cache
             .get_or_create(&AuthCacheLabels {
                 cache: cache.to_owned(),
@@ -3341,6 +3450,124 @@ mod tests {
                 && line.contains("producer=\"reapi\"")
                 && line.ends_with(" 1")
         }));
+    }
+
+    #[test]
+    fn fixed_auth_metrics_use_the_registered_series() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_auth_cache("access", "hit");
+        metrics.record_auth_decision("decide", "allow", Duration::from_millis(2));
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_auth_cache_total")
+                && line.contains("cache=\"access\"")
+                && line.contains("result=\"hit\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_auth_decisions_total")
+                && line.contains("stage=\"decide\"")
+                && line.contains("result=\"allow\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_auth_decision_duration_seconds_count")
+                && line.contains("stage=\"decide\"")
+                && line.ends_with(" 1")
+        }));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn auth_metric_direct_handles_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 250_000;
+        const SAMPLES: usize = 6;
+
+        let measure = |direct_handles: bool| {
+            let metrics = Arc::new(Metrics::new("benchmark".into(), "benchmark".into()));
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            if direct_handles {
+                                metrics.record_auth_cache("access", "hit");
+                                metrics.record_auth_decision(
+                                    "decide",
+                                    "allow",
+                                    Duration::from_micros(10),
+                                );
+                            } else {
+                                metrics
+                                    .auth_cache
+                                    .get_or_create(&AuthCacheLabels {
+                                        cache: "access".to_owned(),
+                                        result: "hit".to_owned(),
+                                    })
+                                    .inc();
+                                metrics
+                                    .auth_decisions
+                                    .get_or_create(&AuthDecisionLabels {
+                                        stage: "decide".to_owned(),
+                                        result: "allow".to_owned(),
+                                    })
+                                    .inc();
+                                metrics
+                                    .auth_decision_duration
+                                    .get_or_create(&AuthDecisionStageLabels {
+                                        stage: "decide".to_owned(),
+                                    })
+                                    .observe(0.000_01);
+                            }
+                        }
+                    });
+                }
+                barrier.wait();
+                let started_at = std::time::Instant::now();
+                started_at
+            });
+            let operations = (WORKERS * ITERATIONS_PER_WORKER) as f64;
+            operations / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC auth_cache_hit_metrics_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC auth_cache_hit_metrics_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC auth_cache_hit_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 
     #[test]
