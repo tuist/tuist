@@ -3,7 +3,10 @@ import { copyTextToClipboard } from "../clipboard.js";
 function flashCopyCheck(button) {
   button.setAttribute("data-copied", "");
   button.setAttribute("aria-label", "Copied");
-  setTimeout(() => {
+  // Repeated clicks restart the flash instead of letting the first click's
+  // timer strip the checkmark mid-spam.
+  clearTimeout(button.copyResetTimer);
+  button.copyResetTimer = setTimeout(() => {
     button.removeAttribute("data-copied");
     button.setAttribute("aria-label", "Copy code");
   }, 2000);
@@ -15,6 +18,11 @@ function copySourceText(container) {
 
 function setupCodeCopy(el) {
   el.querySelectorAll('.code-window [data-part="copy"]').forEach((button) => {
+    // Guards re-runs on LiveView `updated()` from stacking click listeners
+    // (each would copy and flash again).
+    if (button.dataset.codeCopyReady) return;
+    button.dataset.codeCopyReady = "true";
+
     button.setAttribute("role", "button");
     button.setAttribute("tabindex", "0");
     button.setAttribute("aria-label", "Copy code");

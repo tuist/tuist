@@ -1,0 +1,150 @@
+/*
+ * Entry point for the REDESIGNED marketing pages (served as bundle-new.css).
+ *
+ * The root layout links this bundle instead of bundle.css when a page is
+ * flagged onto the new design (see TuistWeb.Marketing.Design). Old and new
+ * designs restyle the same selectors (#marketing-home, the navbar classes),
+ * so they must never be loaded together: page-level styles for redesigned
+ * pages live under css/new/ and are imported here, while their legacy
+ * counterparts stay in marketing.css. Once every page has migrated, this
+ * file replaces marketing.css and the legacy files are deleted.
+ */
+
+/* Self-hosted fonts (loaded before noora to provide font definitions) */
+@import "../app/css/fonts.css";
+@import "noora/noora.css";
+@import "css/shared/tokens.css";
+@import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
+@import "css/shared/pages.css";
+@import "css/routes/shared/page.css";
+@import "css/new/routes/home.css";
+@import "css/new/routes/home-hero.css";
+@import "css/new/layouts/components/navbar.css";
+@import "css/new/layouts/components/footer.css";
+@import "css/layouts/components/banner.css";
+@import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
+
+:root {
+  /* thumb, then track */
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600))
+    light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1100));
+  scrollbar-width: thin;
+  /* Both schemes are supported; the root layout's theme bootstrap narrows
+     this (and sets data-theme) when the user has an explicit preference. */
+  color-scheme: light dark;
+}
+
+::selection {
+  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+  color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+/* Theme-following fills for inline illustration SVGs (framework logos and
+   friends): a path carries data-fill="neutral-N" and picks up the matching
+   illustration-ramp token here. CSS rather than fill="var(--…)" presentation
+   attributes, because Firefox does not resolve var() inside presentation
+   attributes (Chromium and Safari do) and renders fallback black. */
+[data-fill="neutral-1"] {
+  fill: var(--marketing-illustration-neutral-1);
+}
+
+[data-fill="neutral-2"] {
+  fill: var(--marketing-illustration-neutral-2);
+}
+
+[data-fill="neutral-3"] {
+  fill: var(--marketing-illustration-neutral-3);
+}
+
+[data-fill="neutral-4"] {
+  fill: var(--marketing-illustration-neutral-4);
+}
+
+[data-fill="neutral-5"] {
+  fill: var(--marketing-illustration-neutral-5);
+}
+
+[data-fill="neutral-6"] {
+  fill: var(--marketing-illustration-neutral-6);
+}
+
+[data-fill="neutral-7"] {
+  fill: var(--marketing-illustration-neutral-7);
+}
+
+[data-fill="neutral-8"] {
+  fill: var(--marketing-illustration-neutral-8);
+}
+
+[data-fill="neutral-9"] {
+  fill: var(--marketing-illustration-neutral-9);
+}
+
+[data-fill="neutral-10"] {
+  fill: var(--marketing-illustration-neutral-10);
+}
+
+/* One focus treatment for the whole redesign, noora components included:
+   Tuist purple, flipped per scheme (500 needs the light background, 300 the
+   dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
+   flush against a clipping container pull the ring inward with an
+   outline-offset override (see the mega-menu cards in css/new/layouts/components/navbar.css);
+   everything else floats it 2px out. */
+:focus-visible {
+  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
+  outline-offset: 2px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  background: var(--noora-surface-background-primary);
+  padding: 0px;
+  overflow-x: hidden;
+  font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Nicer paragraph wrapping site-wide (avoids orphans/short last lines).
+     Inherited, so it cascades to all body text; headings override below. */
+  text-wrap: pretty;
+
+  & > div[data-part="content"] {
+    background: var(--noora-surface-background-primary);
+  }
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+/* Balanced line breaks on headings site-wide (no-op where text fits one line). */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}

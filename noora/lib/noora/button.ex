@@ -114,7 +114,18 @@ defmodule Noora.Button do
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
 
-  slot(:inner_block, required: true, doc: "Inner block that renders HEEx content")
+  attr(:label, :string,
+    default: nil,
+    doc: "The label of the button. When set, the inner block is replaced by the label and the icon slots."
+  )
+
+  slot(:icon_left, doc: "Icon displayed on the left of the label")
+  slot(:icon_right, doc: "Icon displayed on the right of the label")
+
+  slot(:inner_block,
+    required: false,
+    doc: "Inner block that renders HEEx content when no label is set"
+  )
 
   attr(:rest, :global, include: ~w(phx-click disabled target rel))
 
@@ -128,13 +139,32 @@ defmodule Noora.Button do
         patch={@patch}
         data-variant={@variant}
         data-size={@size}
+        data-with-label={!is_nil(@label)}
         {@rest}
       >
-        {render_slot(@inner_block)}
+        <%= if @label do %>
+          {render_slot(@icon_left)}
+          <span data-part="label">{@label}</span>
+          {render_slot(@icon_right)}
+        <% else %>
+          {render_slot(@inner_block)}
+        <% end %>
       </.link>
     <% else %>
-      <button class="noora-neutral-button" data-variant={@variant} data-size={@size} {@rest}>
-        {render_slot(@inner_block)}
+      <button
+        class="noora-neutral-button"
+        data-variant={@variant}
+        data-size={@size}
+        data-with-label={!is_nil(@label)}
+        {@rest}
+      >
+        <%= if @label do %>
+          {render_slot(@icon_left)}
+          <span data-part="label">{@label}</span>
+          {render_slot(@icon_right)}
+        <% else %>
+          {render_slot(@inner_block)}
+        <% end %>
       </button>
     <% end %>
     """

@@ -3,11 +3,16 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   use Noora
 
   import TuistWeb.Marketing.MarketingComponents
+  import TuistWeb.Marketing.MarketingFrameworkLogos
+  import TuistWeb.Marketing.MarketingIllustrations
   import TuistWeb.Marketing.MarketingOrgLogos
   import TuistWeb.Marketing.TestimonialOrgLogos
 
   embed_templates("marketing_html/*")
   embed_templates("marketing_html/blog/*")
+  # Templates for the redesigned marketing pages. The suffix keeps the
+  # function names (e.g. home_new/1) distinct from their legacy counterparts.
+  embed_templates("marketing_html/new/*", suffix: "_new")
 
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization

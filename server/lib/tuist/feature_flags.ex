@@ -25,6 +25,26 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether a marketing page should render the redesigned version instead of
+  the legacy one. The redesign ships page by page: each page gets its own
+  boolean flag (`:new_marketing_home`, `:new_marketing_pricing`, ...) that is
+  flipped for everyone at once — marketing traffic is mostly anonymous. A
+  page can be previewed before the flip by enabling its flag for a specific
+  user (actor gate), which is what the optional `user` serves. Callers
+  should go through `TuistWeb.Marketing.Design` rather than checking this
+  flag directly.
+  """
+  def new_marketing_page_enabled?(page, user \\ nil)
+
+  def new_marketing_page_enabled?(page, nil) when is_atom(page) do
+    FunWithFlags.enabled?(:"new_marketing_#{page}")
+  end
+
+  def new_marketing_page_enabled?(page, user) when is_atom(page) do
+    FunWithFlags.enabled?(:"new_marketing_#{page}", for: user)
+  end
+
+  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited

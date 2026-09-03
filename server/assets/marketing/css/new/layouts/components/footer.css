@@ -1,0 +1,178 @@
+#marketing-footer-new {
+  display: flex;
+  justify-content: center;
+
+  /* Same 1200px bordered shell as the page sections, with the page-level
+     spacing-1 gap to the divider above. */
+  & > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    margin: var(--noora-spacing-1) var(--noora-spacing-1) 0;
+    /* Open at the bottom: the footer is the page's last box, so it runs off
+       the viewport edge without closing its frame. */
+    border: 1px solid var(--marketing-stroke-default);
+    border-bottom: none;
+    padding: var(--noora-spacing-14) calc(var(--noora-spacing-7) + var(--noora-spacing-6)) 0;
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-14) var(--noora-spacing-4) 0;
+    }
+    width: 100%;
+    max-width: 1200px;
+
+    @media (min-width: 1024px) {
+      margin: var(--noora-spacing-1) 0 0;
+    }
+  }
+
+  & [data-part="main"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-11);
+
+    @media (min-width: 1024px) {
+      flex-direction: row;
+      justify-content: space-between;
+      gap: var(--noora-spacing-9);
+    }
+  }
+
+  & [data-part="brand"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-9);
+
+    & [data-part="logo"] {
+      display: block;
+      height: 32px;
+    }
+
+    /* Light/dark wordmark pair — the theme bootstrap stamps data-theme on
+       <html>, which picks the matching variant. */
+    & [data-part="logo"][data-theme="dark"] {
+      display: none;
+    }
+
+    :root[data-theme="dark"] & [data-part="logo"][data-theme="light"] {
+      display: none;
+    }
+
+    :root[data-theme="dark"] & [data-part="logo"][data-theme="dark"] {
+      display: block;
+    }
+
+    & [data-part="soc-badge"] > svg {
+      display: block;
+      width: 84px;
+      height: 84px;
+    }
+  }
+
+  & [data-part="columns"] {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: var(--noora-spacing-9);
+    row-gap: var(--noora-spacing-7);
+
+    @media (min-width: 1024px) {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-9);
+    }
+  }
+
+  & [data-part="column"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-9);
+
+    @media (min-width: 1024px) {
+      flex: none;
+      width: 128px;
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="links"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+
+      & [data-part="link"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-decoration: none;
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+  }
+
+  & [data-part="bar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    margin-top: var(--noora-spacing-12);
+
+    & > [data-part="status"] {
+      text-decoration: none;
+    }
+
+    & > [data-part="controls"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      /* On mobile the theme switcher lives in the navbar's burger menu
+         (visible below 960px), so the footer copy only shows alongside
+         the desktop navbar. */
+      & > #footer-theme-switcher {
+        display: none;
+
+        @media (min-width: 960px) {
+          display: flex;
+        }
+      }
+
+      /* The locale list renders in body-small for consistency (noora's
+         dropdown items default to body-medium). */
+      & .noora-dropdown-item {
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  /* Full-width tuist wordmark: the dither canvas's own blurred-silhouette
+     mask (data-mask) shapes the field, so the logo's edges dissolve into
+     particles instead of being hard-clipped. The aspect ratio matches the
+     84×32 wordmark so nothing crops. */
+  & [data-part="wordmark"] {
+    position: relative;
+    margin-top: var(--noora-spacing-12);
+    aspect-ratio: 84 / 32;
+    overflow: hidden;
+
+    & > [data-part="wordmark-dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    & > svg {
+      position: absolute;
+    }
+  }
+}
