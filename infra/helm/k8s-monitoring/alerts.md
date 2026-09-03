@@ -1389,6 +1389,28 @@ cascade's own first job, so nothing could deploy. The 300-second
 unschedulable reap did not help: the hog recreated each Pod the moment
 it was released.
 
+It fired again on 2026-09-03 with no hog at all, so check the other two
+causes before reaching for `maxReplicas`. First, look for Pods stuck
+`Terminating`: a Kata sandbox whose shim never tears the VM down keeps
+its node's CPU and memory reserved while being invisible to the
+controller, and nine of them held two of the four Linux nodes at 94%
+for four hours. Every shape was then unschedulable for want of real
+capacity, which is what filled the admission budget.
+
+```bash
+kubectl get pods -n tuist-runners --no-headers | grep Terminating
+```
+
+Second, the budget itself could be held by siblings each inside their
+own share. Before the fleet ceiling reserved slots for starved pools,
+`poolCap` bounded each pool's own Pending count but nothing held a slot
+open underneath it, so three siblings holding 1, 1 and 2 of four slots
+filled the ceiling between them while the starved pool reported
+`pendingForPool: 0, poolCap: 4, gap: 19` and was still refused. A
+starved pool now measures against the whole ceiling and its siblings
+measure against the ceiling minus what it is owed; if you see a pool
+blocked with its share unused, that reservation is not working.
+
 ```promql
 (
   max by (cluster, env, fleet) (tuist_runners_queue_length{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})

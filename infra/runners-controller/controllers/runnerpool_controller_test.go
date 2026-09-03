@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1741,5 +1742,90 @@ func TestIdleReplicasExcludesDarwinPodWithStaleHeartbeat(t *testing.T) {
 
 	if got := idleReplicasGauge(t, poolName); got != 2 {
 		t.Fatalf("idle replicas = %v, want 2 (the wedged Pod is not capacity; the silent one still is)", got)
+	}
+}
+
+// A kata sandbox whose shim never tears the VM down leaves the Pod deleting
+// with its containers still running. Nothing else in the controller can see it
+// (isAlive excludes a deleting Pod), so it holds its node's CPU and memory
+// against the scheduler indefinitely while the pool reads as having a gap.
+func TestReconcileForceReapsPodKubeletNeverFinishedTerminating(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-zombie", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.Finalizers = []string{"tuist.dev/test-hold"}
+	deletion := metav1.NewTime(now.Add(-4 * time.Hour))
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = ptr.To[int64](30)
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	recorder := record.NewFakeRecorder(2)
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    recorder,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("stuck Pod's ServiceAccount get error = %v, want NotFound", err)
+	}
+	select {
+	case event := <-recorder.Events:
+		if !strings.Contains(event, "RunnerPodTerminationStuck") {
+			t.Fatalf("event = %q, want RunnerPodTerminationStuck", event)
+		}
+	default:
+		t.Fatal("expected RunnerPodTerminationStuck event")
+	}
+}
+
+// A Pod that is merely shutting down is still making progress; force-deleting
+// it would cut a graceful drain short.
+func TestReconcileLeavesRecentlyDeletedPodAlone(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-draining", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.Finalizers = []string{"tuist.dev/test-hold"}
+	deletion := metav1.NewTime(now.Add(-time.Minute))
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = ptr.To[int64](30)
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    record.NewFakeRecorder(2),
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); err != nil {
+		t.Fatalf("draining Pod's ServiceAccount was reaped early: %v", err)
 	}
 }

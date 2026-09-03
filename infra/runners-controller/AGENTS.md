@@ -310,6 +310,35 @@ independent workqueues:
   moment a starved sibling gets its slot, within one
   `startTimeoutSeconds`.
 
+  The share has to be taken out of the ceiling siblings are measured
+  against, not just out of their own Pending counts. Bounding each pool
+  individually leaves nothing holding a slot open: several pools each
+  comfortably inside their own share still fill the ceiling between them,
+  and the fleet check refuses the starved pool before its reserved share
+  is ever read. On 2026-09-03 `linux-4vcpu-16gb` sat at zero Pods with
+  `pendingForPool: 0, poolCap: 4, gap: 19` — its whole share unused and
+  still blocked — while three siblings held 1, 1 and 2 of the four slots.
+  So a pool that is itself owed a slot measures against the full ceiling
+  (`fleetCap == cap`) and every other pool measures against the ceiling
+  minus the slots its starved siblings are owed, floored at one so a fleet
+  where everything is starved still makes progress one Pod at a time.
+
+  A Pod deleting for longer than its grace period plus five minutes is
+  force-deleted with a warning event. A Kata sandbox whose shim never
+  tears the VM down leaves the Pod Terminating with its containers still
+  `running`, and nothing else in the controller can see it: `isAlive`
+  excludes a deleting Pod, so it is neither a replica nor a provisioning
+  Pod, the pool reads as having a gap, the node reads as full, and the
+  two facts never meet. On 2026-09-03 two of four Linux runner nodes were
+  held this way for four hours, 94% reserved by Pods doing no work. The
+  ordinary reap cannot clear it — a plain `Delete` is a no-op on a Pod
+  that already carries a deletionTimestamp — so the object is dropped
+  outright. The sandbox can outlive the object, leaving the node
+  oversubscribed against what the scheduler believes, which is why the
+  reap logs the node and raises an Event: a node producing these
+  repeatedly wants draining, not another force delete. Watch
+  `tuist_runners_pool_stuck_terminations_total`.
+
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
   successful create and counts it until the cache observes the Pod. This
@@ -404,7 +433,12 @@ independent workqueues:
   `tuist_runners_pool_admission_blocked_total{pool,reason}`,
   `tuist_runners_fleet_ready_nodes{fleet_selector,operating_system}`,
   `tuist_runners_fleet_filtered_nodes{fleet_selector,operating_system,reason}`,
-  and `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`.
+  `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`,
+  and `tuist_runners_pool_stuck_terminations_total{pool}`. The last one
+  counts Pods force-deleted because kubelet never finished terminating
+  them; it is distinct from the start-timeout counter because that means
+  a sandbox failed to come up, while this means one failed to go down and
+  may still be holding its node.
 
   Alongside it, `tuist_runners_pool_oldest_pending_pod_age_seconds{pool}`
   is how long the pool's oldest un-`Running` Pod has been waiting (0 when

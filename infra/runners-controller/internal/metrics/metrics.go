@@ -187,10 +187,15 @@ var (
 		Name: "tuist_runners_pool_pod_start_timeouts_total",
 		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
 	}, []string{poolLabel, reasonLabel})
+
+	stuckTerminationsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_stuck_terminations_total",
+		Help: "Runner Pods force-deleted after kubelet did not finish terminating them within the grace period. A non-zero rate means sandboxes are leaking on their nodes.",
+	}, []string{poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal, stuckTerminationsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -248,6 +253,14 @@ func RecordFleetNodes(fleetSelector, operatingSystem string, ready int, filtered
 
 func RecordPodStartTimeout(pool, reason string) {
 	podStartTimeoutsTotal.WithLabelValues(pool, reason).Inc()
+}
+
+// RecordStuckTermination counts a Pod the controller force-deleted because
+// kubelet never finished terminating it. Distinct from the start-timeout
+// counter on purpose: that one means a sandbox failed to come up, this one
+// means one failed to go down and may still be holding its node.
+func RecordStuckTermination(pool string) {
+	stuckTerminationsTotal.WithLabelValues(pool).Inc()
 }
 
 // RecordRoll publishes a pool's Pod-template rollout progress for this
