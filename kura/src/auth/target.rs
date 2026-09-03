@@ -63,6 +63,17 @@ fn normalized(value: Option<&str>) -> Option<Cow<'_, str>> {
 }
 
 fn lowercase_is_identity(value: &str) -> bool {
+    let mut has_non_ascii = false;
+    for byte in value.bytes() {
+        if byte.is_ascii_uppercase() {
+            return false;
+        }
+        has_non_ascii |= !byte.is_ascii();
+    }
+    if !has_non_ascii {
+        return true;
+    }
+
     value.chars().all(|character| {
         let mut lowercase = character.to_lowercase();
         lowercase.next() == Some(character) && lowercase.next().is_none()
@@ -193,6 +204,13 @@ mod tests {
             .map(str::to_lowercase)
     }
 
+    fn unicode_only_lowercase_is_identity(value: &str) -> bool {
+        value.chars().all(|character| {
+            let mut lowercase = character.to_lowercase();
+            lowercase.next() == Some(character) && lowercase.next().is_none()
+        })
+    }
+
     fn allocating_request_target(
         ctx: &RequestContext,
     ) -> Result<(Scope, String, Option<String>, String), DenyDecision> {
@@ -299,6 +317,11 @@ mod tests {
         context.tenant_id = Some("CAFÉ".into());
         let uppercase = request_target(&context).expect("should resolve");
         assert!(matches!(uppercase.account, Cow::Owned(ref value) if value == "café"));
+
+        context.server_tenant_id = "İstanbul".into();
+        context.tenant_id = Some("İstanbul".into());
+        let expanding = request_target(&context).expect("should resolve");
+        assert!(matches!(expanding.account, Cow::Owned(ref value) if value == "i̇stanbul"));
     }
 
     // Some routes carry the target in the query rather than the path.
@@ -562,6 +585,73 @@ mod tests {
         );
         println!(
             "METRIC authorization_target_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn ascii_normalization_scan_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 1_000_000;
+        const SAMPLES: usize = 6;
+        const VALUES: [&str; 4] = ["acme", "ios", "account-0123456789", "project_name"];
+
+        let measure = |byte_fast_path: bool| {
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for iteration in 0..ITERATIONS_PER_WORKER {
+                            let value = std::hint::black_box(VALUES[iteration % VALUES.len()]);
+                            let unchanged = if byte_fast_path {
+                                lowercase_is_identity(value)
+                            } else {
+                                unicode_only_lowercase_is_identity(value)
+                            };
+                            std::hint::black_box(unchanged);
+                        }
+                    });
+                }
+                barrier.wait();
+                std::time::Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC ascii_normalization_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC ascii_normalization_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC ascii_normalization_speedup_ratio={:.6}",
             speedups[median]
         );
     }
