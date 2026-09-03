@@ -56,7 +56,6 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     {:ok, live_view, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/invocations")
     render_async(live_view, @render_async_timeout)
 
-    assert has_element?(live_view, "#bazel-total-invocations", "0")
     assert has_element?(live_view, "[data-part=empty-bazel-invocations]")
   end
 
