@@ -59,6 +59,12 @@ spec:
       # (`tuist-bm-staging-…`).
       - name: bareMetalCluster
         value: staging
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
       # Insert InternalIP ahead of Hostname so the apiserver can reach the
       # cross-cloud kura kubelets (Dedibox/Elastic Metal): they report no
       # ExternalIP and an unresolvable Hostname, so the default order lands on
