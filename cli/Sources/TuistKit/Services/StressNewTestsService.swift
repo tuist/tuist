@@ -133,7 +133,6 @@ public struct StressNewTestsResult: Equatable, Sendable {
 
     public var blockingCandidates: [StressNewTestsCandidate] { candidates.filter(\.blocks) }
 
-
     /// Whether the run must fail: only in `enforce`, and only on a disagreement the gate holds against the run.
     public var blocks: Bool { mode == .enforce && !blockingCandidates.isEmpty }
 
@@ -465,7 +464,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         Logger.current.notice(
             "\(result.newCount) new test cases, \(result.stressedCount) stressed, \(result.excludedCount) excluded"
         )
-        let width = result.candidates.map { $0.identifier.description.count }.max() ?? 0
+        let width = result.candidates.map(\.identifier.description.count).max() ?? 0
         for candidate in result.candidates {
             let name = candidate.identifier.description.padding(toLength: width, withPad: " ", startingAt: 0)
             Logger.current.notice("\(name)   \(Self.outcomeDescription(candidate, ceiling: ceiling))")

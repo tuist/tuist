@@ -48,7 +48,13 @@ struct StressNewTestsServiceTests {
             status: .passed,
             failures: [],
             repetitions: repetitionStatuses.enumerated().map { index, status in
-                TestCaseRepetition(repetitionNumber: index + 1, name: "Repetition \(index + 1)", status: status, duration: 5, failures: [])
+                TestCaseRepetition(
+                    repetitionNumber: index + 1,
+                    name: "Repetition \(index + 1)",
+                    status: status,
+                    duration: 5,
+                    failures: []
+                )
             }
         )
     }
@@ -74,10 +80,20 @@ struct StressNewTestsServiceTests {
         )
     }
 
-    private func candidate(_ name: String, repetitions: Int = 10, excluded: Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload.excluded_reasonPayload? = nil)
+    private func candidate(
+        _ name: String,
+        repetitions: Int = 10,
+        excluded: Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload.excluded_reasonPayload? = nil
+    )
         -> Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload
     {
-        .init(excluded_reason: excluded, module_name: "AppTests", name: name, repetitions: repetitions, suite_name: "CheckoutTests")
+        .init(
+            excluded_reason: excluded,
+            module_name: "AppTests",
+            name: name,
+            repetitions: repetitions,
+            suite_name: "CheckoutTests"
+        )
     }
 
     private func identifier(_ name: String) throws -> TestIdentifier {
@@ -124,11 +140,22 @@ struct StressNewTestsServiceTests {
     @Test(.withMockedDependencies())
     func sendsExecutedTestCasesAndRecordsTheGuard() async throws {
         given(verdictService)
-            .createVerdict(fullHandle: .value("tuist/app"), serverURL: .any, testCases: .matching { $0.map(\.name) == ["testNew()"] })
+            .createVerdict(
+                fullHandle: .value("tuist/app"),
+                serverURL: .any,
+                testCases: .matching { $0.map(\.name) == ["testNew()"] }
+            )
             .willReturn(verdict(candidates: [], guardSignal: .init(inventory_count: 100, kind: .bulk_change, new_count: 70)))
 
         var skipped = testCase("testSkipped()")
-        skipped = TestCase(name: skipped.name, testSuite: skipped.testSuite, module: skipped.module, duration: 0, status: .skipped, failures: [])
+        skipped = TestCase(
+            name: skipped.name,
+            testSuite: skipped.testSuite,
+            module: skipped.module,
+            duration: 0,
+            status: .skipped,
+            failures: []
+        )
 
         let result = await subject.run(
             mode: .enforce,
@@ -182,19 +209,39 @@ struct StressNewTestsServiceTests {
             .parse(path: .any, rootDirectory: .any)
             .willProduce { path, _ in
                 if path.basename.contains("stress-10") {
-                    return self.summary([
-                        self.testCase("testFlaky()", repetitionStatuses: [.passed, .failed, .passed, .passed, .passed, .passed, .passed, .failed, .passed, .passed]),
-                        self.testCase("testStable()", repetitionStatuses: Array(repeating: .passed, count: 10)),
+                    return summary([
+                        testCase(
+                            "testFlaky()",
+                            repetitionStatuses: [
+                                .passed,
+                                .failed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .failed,
+                                .passed,
+                                .passed,
+                            ]
+                        ),
+                        testCase("testStable()", repetitionStatuses: Array(repeating: .passed, count: 10)),
                     ])
                 }
-                return self.summary([self.testCase("testSlow()", repetitionStatuses: [.passed, .passed, .passed])])
+                return summary([testCase("testSlow()", repetitionStatuses: [.passed, .passed, .passed])])
             }
 
         let passes = PassRecorder()
 
         let result = await subject.run(
             mode: .report,
-            testSummary: summary([testCase("testFlaky()"), testCase("testStable()"), testCase("testSlow()"), testCase("testTooSlow()"), testCase("testOld()")]),
+            testSummary: summary([
+                testCase("testFlaky()"),
+                testCase("testStable()"),
+                testCase("testSlow()"),
+                testCase("testTooSlow()"),
+                testCase("testOld()"),
+            ]),
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
@@ -257,7 +304,8 @@ struct StressNewTestsServiceTests {
         #expect(muted.outcome == .disagreed)
         #expect(muted.isQuarantined == true)
         #expect(AlertController.current.warnings().isEmpty)
-        #expect(StressNewTestsError.blocked(result.blockingCandidates).description == "testFlaky() failed 1 of 2 repetitions and blocked this run.")
+        #expect(StressNewTestsError.blocked(result.blockingCandidates)
+            .description == "testFlaky() failed 1 of 2 repetitions and blocked this run.")
     }
 
     @Test(.withMockedDependencies())
@@ -342,7 +390,7 @@ struct StressPassArgumentsTests {
     }
 
     @Test
-    func testServiceStressPassthroughDropsRepetitionAndSelectionOptions() {
+    func serviceStressPassthroughDropsRepetitionAndSelectionOptions() {
         let arguments = TestService.stressPassthroughArguments([
             "-parallel-testing-enabled", "YES",
             "-test-iterations", "3", "-retry-tests-on-failure",
