@@ -540,6 +540,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(:head_title, dgettext("marketing", "Download Tuist"))
     |> assign(:new_design, true)
+    # The macOS demo's desktop is the biggest thing above the fold and a
+    # CSS background, so it is preloaded rather than found late.
+    |> assign(:head_preload_images, [~p"/marketing/images/download/macos-wallpaper.webp"])
     |> assign(:hero_platform, hero_platform)
     |> assign(:hero_download_url, hero_download_url)
     |> assign(:hero_version, hero_version)
