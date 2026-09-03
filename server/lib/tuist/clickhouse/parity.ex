@@ -61,13 +61,22 @@ defmodule Tuist.ClickHouse.Parity do
   # A count, the time bounds, and a sum over every numeric column. The sum is
   # what catches a copy that moved the right number of rows with the wrong
   # values in them, which a count cannot see.
+  #
+  # Integer and floating-point columns are summed differently on purpose.
+  # Integer addition is exact and order-independent, so `sum` over one is a
+  # fingerprint. Floating-point addition is neither: the two servers hold the
+  # same rows in different parts and will add them in different orders, so an
+  # unrounded float sum differs in its last bits for data that is identical.
+  # Rounding absorbs that, and the difference a rounded sum could hide is far
+  # smaller than any difference worth failing a migration over.
   defp fingerprint(endpoint, table) do
-    numeric = numeric_columns(endpoint, table)
+    {integer, float} = numeric_columns(endpoint, table)
     time = time_column(endpoint, table)
 
     selects =
       ["count() AS rows"] ++
-        Enum.map(numeric, fn column -> "sum(toFloat64OrZero(toString(#{quote_ident(column)}))) AS sum_#{column}" end) ++
+        Enum.map(integer, fn column -> "sum(#{quote_ident(column)}) AS sum_#{column}" end) ++
+        Enum.map(float, fn column -> "round(sum(#{quote_ident(column)}), 4) AS sum_#{column}" end) ++
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
@@ -99,7 +108,7 @@ defmodule Tuist.ClickHouse.Parity do
     %{rows: rows} =
       endpoint.repo.query!(
         """
-        SELECT name FROM system.columns
+        SELECT name, type FROM system.columns
         WHERE database = {database:String} AND table = {table:String}
           AND (type LIKE 'UInt%' OR type LIKE 'Int%' OR type LIKE 'Float%'
                OR type LIKE 'Nullable(UInt%' OR type LIKE 'Nullable(Int%' OR type LIKE 'Nullable(Float%')
@@ -109,7 +118,9 @@ defmodule Tuist.ClickHouse.Parity do
         log: false
       )
 
-    List.flatten(rows)
+    {float, integer} = Enum.split_with(rows, fn [_name, type] -> String.contains?(type, "Float") end)
+
+    {Enum.map(integer, &hd/1), Enum.map(float, &hd/1)}
   end
 
   defp time_column(endpoint, table) do
