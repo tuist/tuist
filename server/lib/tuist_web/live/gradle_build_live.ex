@@ -326,7 +326,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:artifact_transform_duration_ms, Enum.sum_by(all_artifact_transforms, & &1.duration_ms))
     |> assign(
       :configuration_timeline_operations,
-      configuration_timeline_operations(filtered_operations, socket.assigns.configuration_timeline_range)
+      configuration_timeline_operations(filtered_operations, configuration_timeline_range)
     )
     |> assign(:configuration_operations_table, configuration_operations)
     |> assign(:configuration_operations_filter, configuration_operations_filter)
@@ -856,4 +856,13 @@ defmodule TuistWeb.GradleBuildLive do
 
     Enum.join(parts, " ")
   end
+
+  defp url?(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
+      _ -> false
+    end
+  end
+
+  defp url?(_), do: false
 end

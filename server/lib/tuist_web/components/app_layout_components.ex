@@ -308,6 +308,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.supports_previews?(@selected_project)}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -319,6 +320,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.supports_bundles?(@selected_project)}
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
@@ -414,10 +416,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
       />
       <.sidebar_item
-        :if={
-          FeatureFlags.kura_enabled?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Cache")}
         icon="database"
         navigate={~p"/#{@selected_account.name}/cache"}
@@ -431,7 +430,6 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
       />
       <.sidebar_item
-        :if={FeatureFlags.kura_enabled?(@selected_account)}
         label={dgettext("dashboard", "Usage")}
         icon="chart_column"
         navigate={~p"/#{@selected_account.name}/usage"}

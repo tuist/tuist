@@ -79,8 +79,6 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     assert html =~ "Current configuration"
     assert html =~ "Edit history"
     assert html =~ "Automation renamed"
-    assert html =~ "Recovery disabled"
-    assert html =~ "Quarantine flaky tests"
     assert html =~ "the dashboard"
     assert has_element?(live_view, "#show-more-history", "Show more")
     refute html =~ "Automation created"
@@ -88,6 +86,8 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     html = live_view |> element("#show-more-history") |> render_click()
 
     assert html =~ "Automation created"
+    assert html =~ "Quarantine flaky tests"
+    assert html =~ "Recovery disabled"
     refute has_element?(live_view, "#show-more-history")
   end
 

@@ -12,6 +12,16 @@ defmodule Tuist.Kura.DemandTest do
 
   setup :set_mimic_from_context
 
+  # Resolution refuses a region the deployment does not serve, so these tests
+  # state the deployment they assume rather than inheriting the test env's
+  # local-controller-only catalog.
+  setup do
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    :ok
+  end
+
   # Tests run with the buffer bypassed by default so async tests cannot flush
   # each other's demand (see `config/test.exs`). These tests are about the
   # buffer itself, so they turn it back on. Safe because the case is

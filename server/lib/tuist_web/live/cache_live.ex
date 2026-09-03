@@ -9,7 +9,6 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
-  alias Tuist.FeatureFlags
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
 
@@ -20,14 +19,12 @@ defmodule TuistWeb.CacheLive do
             dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
 
-    cache_enabled = cache_enabled?(selected_account)
     # Self-hosting cache nodes is an Enterprise-only capability, gated by the
-    # plan entitlement rather than the (transient) :kura rollout flag.
-    self_hosted_enabled = cache_enabled and Entitlements.allows?(selected_account, :self_hosted_cache)
+    # plan entitlement.
+    self_hosted_enabled = Entitlements.allows?(selected_account, :self_hosted_cache)
 
     socket =
       socket
-      |> assign(:cache_enabled, cache_enabled)
       |> assign(:self_hosted_enabled, self_hosted_enabled)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Cache")} · #{selected_account.name} · Tuist")
       |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
@@ -141,20 +138,10 @@ defmodule TuistWeb.CacheLive do
     |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
   end
 
-  defp load_self_hosted_state(%{assigns: %{cache_enabled: false}} = socket) do
-    socket
-    |> assign(:self_hosted_clients, [])
-    |> assign(:registered_endpoints, [])
-  end
-
   defp load_self_hosted_state(%{assigns: %{selected_account: account}} = socket) do
     socket
     |> assign(:self_hosted_clients, SelfHostedClients.list_self_hosted_clients(account))
     |> assign(:registered_endpoints, Registrations.list_endpoints(account))
-  end
-
-  defp cache_enabled?(account) do
-    FeatureFlags.kura_enabled?(account)
   end
 
   attr(:cache_write_policy, :atom, required: true)

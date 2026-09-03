@@ -4,7 +4,7 @@
     # config and devDependencies live here rather than in a package.
     node = "24.11.0"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.207.0-canary.10"
+    tuist = "4.207.0-canary.17"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"

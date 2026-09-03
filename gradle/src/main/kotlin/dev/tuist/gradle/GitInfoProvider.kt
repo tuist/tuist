@@ -72,23 +72,27 @@ class ProcessGitInfoProvider(
 ) : GitInfoProvider {
 
     override fun branch(): String? {
-        val gitBranch = runCatching { gitCommandRunner(listOf("rev-parse", "--abbrev-ref", "HEAD")) }.getOrNull()
+        val gitBranch =
+            runCatching { gitCommandRunner(listOf("rev-parse", "--abbrev-ref", "HEAD")) }
+                .getOrNull()
+                ?.takeIf(String::isNotBlank)
         if (gitBranch != null && gitBranch != "HEAD") {
             return gitBranch
         }
         return ciBranch()
     }
 
-    override fun commitSha(): String? = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()
+    override fun commitSha(): String? =
+        runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
 
     override fun ref(): String? {
         val ciRef = ciRef()
         if (ciRef != null) return ciRef
-        return runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()
+        return runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()?.takeIf(String::isNotBlank)
     }
 
     override fun remoteUrlOrigin(): String? =
-        runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()
+        runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()?.takeIf(String::isNotBlank)
 
     private fun ciRef(): String? =
         refEnvironmentVariables
@@ -134,13 +138,14 @@ class ProcessGitInfoProvider(
 }
 
 private fun runGitProcess(args: List<String>): String {
-    val process = ProcessBuilder(listOf("git") + args)
-        .redirectErrorStream(true)
-        .start()
+    val process =
+        ProcessBuilder(listOf("git") + args)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
     try {
-        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim() }
+        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
         val exitCode = process.waitFor()
-        if (exitCode != 0 || output.isNullOrBlank()) {
+        if (exitCode != 0) {
             throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
         }
         return output

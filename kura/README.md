@@ -414,9 +414,9 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode and Gradle traffic.
+Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode, Gradle, and Bazel remote-cache traffic.
 
-Kura emits those webhook events only for namespace-scoped Xcode and Gradle HTTP requests, using the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Tenant-scoped requests skip analytics until Tuist grows account-scoped binary analytics.
+Kura emits those webhook events only for namespace-scoped Xcode and Gradle HTTP requests, plus Bazel REAPI action-cache and content-addressable-storage requests. It uses the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Tenant-scoped requests skip analytics until Tuist grows account-scoped binary analytics.
 
 When enabled:
 

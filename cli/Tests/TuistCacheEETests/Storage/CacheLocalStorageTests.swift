@@ -491,7 +491,7 @@ struct CacheLocalStorageTests {
             fileSystem: fileSystem
         )
 
-        // When: three 1 MB artifacts against a 2.5 MB budget.
+        // When: three 1 MB artifacts against the module cache's 2.25 MB share of the 2.5 MB budget.
         let got = try await subject.store(items, cacheCategory: .binaries)
 
         // Then: the batch is admitted a fitting subset at a time rather than written whole.

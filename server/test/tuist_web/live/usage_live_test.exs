@@ -114,28 +114,6 @@ defmodule TuistWeb.UsageLiveTest do
     "/#{account.name}/usage?period=#{Date.to_iso8601(DateTime.to_date(previous))}"
   end
 
-  defp enable_kura(account) do
-    stub(Environment, :dev?, fn -> false end)
-    stub_kura_flag(account, true)
-  end
-
-  defp disable_kura(account) do
-    stub(Environment, :dev?, fn -> false end)
-    # Kura is on by default on non-hosted deployments, so the flag only gates
-    # visibility on the hosted server.
-    stub(Environment, :tuist_hosted?, fn -> true end)
-    stub_kura_flag(account, false)
-  end
-
-  defp stub_kura_flag(account, enabled?) do
-    account_id = account.id
-
-    stub(FunWithFlags, :enabled?, fn
-      :kura, [for: %{id: ^account_id}] -> enabled?
-      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
-    end)
-  end
-
   defp insert_event(attrs) do
     base = %{
       event_id: "evt-#{System.unique_integer([:positive])}",
@@ -163,7 +141,6 @@ defmodule TuistWeb.UsageLiveTest do
       # page is where it looks to see what it has used. Hiding the
       # section until the first minute lands leaves it with nothing to
       # look at during the trial the section exists to support.
-      disable_kura(account)
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Trials, :on_trial?, fn _account -> true end)
 
@@ -175,7 +152,6 @@ defmodule TuistWeb.UsageLiveTest do
     test "shows what the trial covered rather than a receipt that does not add up", %{conn: conn, account: account} do
       # Without this the receipt reads "1,000 minutes run, 75.00$" and
       # then "Billed 0.00$", with nothing saying where the money went.
-      disable_kura(account)
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       stub(Allowance, :period_breakdown, fn _account -> trial_breakdown() end)
@@ -195,7 +171,6 @@ defmodule TuistWeb.UsageLiveTest do
       # Linux has no agreed rate, so its value reads as a dash. Taking a
       # dash off a dash rendered "−—", which is not a number and not an
       # explanation.
-      disable_kura(account)
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
@@ -228,7 +203,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
-      enable_kura(account)
       stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -238,8 +212,7 @@ defmodule TuistWeb.UsageLiveTest do
   end
 
   describe "runner usage with prepaid credit" do
-    setup %{account: account} do
-      disable_kura(account)
+    setup do
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
       stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
@@ -280,7 +253,6 @@ defmodule TuistWeb.UsageLiveTest do
       # the trial's credit and the allowance's added together. A period
       # part-covered by a trial therefore subtracted the trial twice and
       # the receipt stopped adding up.
-      disable_kura(account)
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
@@ -318,8 +290,7 @@ defmodule TuistWeb.UsageLiveTest do
   end
 
   describe "runner usage across billing periods" do
-    setup %{account: account} do
-      disable_kura(account)
+    setup do
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
       stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
@@ -362,20 +333,12 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
-  describe "Kura feature flag gate" do
-    test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
-      disable_kura(account)
-      # Nor runners: the page exists for either, so both have to be off
-      # for it to be missing.
+  describe "access" do
+    test "renders the cache traffic for an account with neither cache nor runner usage", %{
+      conn: conn,
+      account: account
+    } do
       stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
-
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        live(conn, ~p"/#{account.name}/usage")
-      end
-    end
-
-    test "renders the page when Kura is enabled", %{conn: conn, account: account} do
-      enable_kura(account)
 
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -386,26 +349,28 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "Requests"
     end
 
-    test "renders the page on the hosted server when the flag is on", %{conn: conn, account: account} do
-      # Positive coverage for the hosted branch: tuist_hosted? true disables
-      # the `not tuist_hosted?()` disjunct, so the page renders only because
-      # the :kura flag is on.
+    test "renders on a hosted deployment without a feature flag", %{conn: conn, account: account} do
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :tuist_hosted?, fn -> true end)
-      stub_kura_flag(account, true)
 
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 
       assert html =~ "Usage"
+      assert html =~ "Cache traffic"
+    end
+
+    test "raises 404 when the user cannot read the account dashboard", %{conn: conn} do
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
+
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        live(conn, ~p"/#{organization.account.name}/usage")
+      end
     end
   end
 
   describe "rendering" do
-    setup %{account: account} do
-      enable_kura(account)
-      :ok
-    end
-
     test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -454,8 +419,6 @@ defmodule TuistWeb.UsageLiveTest do
     # when its bytes/count is zero, so seed at least one event of each kind so
     # the click wrappers always render in this describe block.
     setup %{account: account} do
-      enable_kura(account)
-
       insert_event(%{account_id: account.id, direction: "egress", bytes: 1_000, request_count: 1})
       insert_event(%{account_id: account.id, direction: "ingress", bytes: 500, request_count: 1})
 
@@ -535,6 +498,17 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−7.50"
       # 20 minutes past the allowance at the standard rate.
       assert html =~ "1.50"
+    end
+
+    test "renders a pace for a projected runner receipt" do
+      pace =
+        UsageLive.pace_label(%{
+          minutes: 120,
+          projected_minutes: 1_800,
+          previous_minutes: 0
+        })
+
+      assert pace =~ "On track for about"
     end
   end
 

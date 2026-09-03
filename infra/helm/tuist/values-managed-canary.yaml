@@ -41,6 +41,9 @@ registry:
 server:
   replicaCount: 1
 
+  kuraCapacityAdmission:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -183,6 +186,17 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
+    - name: TUIST_KURA_AIR_REGION
+      # Air is funded on the ca-east OVH validation box, as on staging.
+      # Without this the default names us-east, which this environment does not
+      # serve, so every Air account resolved into a region the lifecycle loop
+      # never iterates and no instance was ever provisioned.
+      value: ca-east
+    - name: TUIST_KURA_AIR_REGIONS
+      # Both public regions carry an Air budget, matching staging, so
+      # traffic-driven placement is observable rather than collapsing onto a
+      # single funded region.
+      value: ca-east,eu-central
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.

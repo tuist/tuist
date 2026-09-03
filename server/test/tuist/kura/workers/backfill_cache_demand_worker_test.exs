@@ -18,6 +18,16 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
 
   setup :set_mimic_from_context
 
+  # Resolution refuses a region the deployment does not serve, so these tests
+  # state the deployment they assume rather than inheriting the test env's
+  # local-controller-only catalog.
+  setup do
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    :ok
+  end
+
   defp account_with_project do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)

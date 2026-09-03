@@ -4860,7 +4860,7 @@ mod tests {
         settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
-        context.state.metrics.update_outbox_messages(7);
+        context.state.metrics.update_outbox_messages(7, 5);
         context
             .state
             .metrics

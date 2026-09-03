@@ -381,11 +381,10 @@ jobs:
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - uses: ./.github/actions/github-deps-auth
+      - uses: ./.github/actions/mix-deps-get
         with:
+          working-directory: server
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install mix dependencies
-        run: mix deps.get
       - name: Install aube dependencies
         run: aube install
       - name: Check Elixir format

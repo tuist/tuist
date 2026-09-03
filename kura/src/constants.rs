@@ -49,20 +49,29 @@ pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
-// Outbox deliveries dispatched before the drain waits for one to finish. This
-// is what separates the queue's throughput from the round trip to a peer:
-// throughput is roughly this many messages per RTT, so at one the drain is
-// serial and delivers `1 / RTT` messages per second no matter how much
-// bandwidth it has been given, which leaves a write-primary whose peers sit on
-// another continent capped in the single digits. Every artifact enqueues one
-// message per peer, so the artifact rate is this divided again by the peer
-// count.
+// Outbox deliveries dispatched before the drain waits for one to finish, and
+// the only throughput knob the bulk lane has: the drain moves roughly this many
+// messages per per-delivery latency. Every artifact enqueues one message per
+// peer, so the artifact rate is this divided again by the peer count.
 //
-// The cost is per-delivery body residency — one `RESPONSE_STREAM_CHUNK_BYTES`
+// `drain_metadata_batches` amortizes the metadata lane over far fewer requests,
+// but it stops at `OUTBOX_BULK_LANE_PREFIX` and takes only inline upserts, so
+// segment-backed artifacts reach a peer one delivery at a time. A runner-cache
+// workload is almost entirely those, which is why this bounds it.
+//
+// Per-delivery latency is dominated by body transfer, not by the round trip: a
+// write-primary replicating to two peers one region away runs at hundreds of
+// milliseconds per delivery, so the ceiling this sets has to be read against
+// ingest measured in tens of messages per second. A ceiling below ingest does
+// not shave the peak, it fills the outbox to `DEFAULT_OUTBOX_MAX_DEPTH` and
+// starts refusing public writes.
+//
+// The cost is per-delivery body residency: one `RESPONSE_STREAM_CHUNK_BYTES`
 // chunk for a segment-backed artifact, or up to
-// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one — so 8 buys an order
-// of magnitude of headroom for a few MiB.
-pub const OUTBOX_MAX_INFLIGHT: usize = 8;
+// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one. That is a few MiB
+// times this number, which stays well inside the transient budget that bounds
+// concurrent writes.
+pub const OUTBOX_MAX_INFLIGHT: usize = 32;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;

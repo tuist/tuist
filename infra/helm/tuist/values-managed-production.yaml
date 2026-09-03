@@ -56,6 +56,12 @@ registry:
 server:
   replicaCount: 2
 
+  turnstile:
+    enabled: true
+
+  kuraCapacityAdmission:
+    enabled: true
+
   appUrl: https://tuist.dev
 
   config:
@@ -1419,6 +1425,11 @@ runnersFleetLinux:
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
+    # A per-pool safety ceiling, not a capacity bound. What the fleet can
+    # actually seat for each shape is derived per reconcile by the
+    # autoscaler's `shapePlacementCaps` from live node allocatable, so a
+    # hardcoded per-shape number here would be a second copy of that
+    # arithmetic, stale the moment a box is added, lost, or re-SKU'd.
     maxReplicas: 120
     scaleDownCooldownSeconds: 300
   shapes:
