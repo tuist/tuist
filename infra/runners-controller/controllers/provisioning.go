@@ -19,6 +19,10 @@ const (
 	creationReservationLifetime   = 30 * time.Second
 	pollerNotStartedTimeoutReason = "poller_not_started"
 	unschedulableTimeoutReason    = "unschedulable"
+
+	// terminationStuckSlack is how long past its grace period a deleting Pod
+	// may linger before the controller stops waiting for kubelet.
+	terminationStuckSlack = 5 * time.Minute
 )
 
 type creationReservation struct {
@@ -82,6 +86,7 @@ type provisioningAdmission struct {
 	pendingForPool  int
 	pendingForFleet int
 	cap             int
+	fleetCap        int
 	poolCap         int
 	healthyNodes    int
 	blockedReason   string
@@ -202,19 +207,49 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	// together, and that still holds); what changes is who may top the count
 	// back up after a reap. A hog at its share cannot recreate the Pod the
 	// timeout released, so the slot goes to the sibling that had none.
+	//
+	// Bounding each pool's own Pending count is not enough on its own,
+	// because the shared ceiling is what actually refuses the creation and
+	// nothing holds a slot open under it. Several pools each comfortably
+	// inside their own share still fill the ceiling between them, and the
+	// starved pool is then refused by the fleet check before its reserved
+	// share is ever consulted: measured live at cap 4 with the starved shape
+	// reporting `pendingForPool: 0, poolCap: 4, gap: 19` and still blocked,
+	// while three siblings held 1, 1 and 2 of the four slots.
+	//
+	// So the reservation has to come out of the ceiling the *siblings* are
+	// measured against. A pool that is itself starved keeps the full ceiling
+	// and can take the slot they were held back from.
+	needsSlot := make(map[string]bool, len(poolNames))
 	siblingsNeedingSlot := 0
 	for i := range pools.Items {
-		sibling := &pools.Items[i]
-		if _, ok := poolNames[sibling.Name]; !ok || sibling.Name == pool.Name {
+		candidate := &pools.Items[i]
+		if _, ok := poolNames[candidate.Name]; !ok {
 			continue
 		}
-		if int(sibling.Spec.Replicas) > aliveByPool[sibling.Name] && pendingByPool[sibling.Name] == 0 {
+		starved := int(candidate.Spec.Replicas) > aliveByPool[candidate.Name] &&
+			pendingByPool[candidate.Name] == 0
+		needsSlot[candidate.Name] = starved
+		if starved && candidate.Name != pool.Name {
 			siblingsNeedingSlot++
 		}
 	}
 	poolCap := capN - siblingsNeedingSlot
 	if poolCap < 1 {
 		poolCap = 1
+	}
+
+	// A starved pool is owed a slot, so it measures itself against the whole
+	// ceiling; every other pool measures itself against the ceiling minus the
+	// slots its starved siblings are owed. The floor of 1 keeps the fleet
+	// making progress when more pools are starved than there are slots: the
+	// first Pod to start frees the count for the next one.
+	fleetCap := capN
+	if !needsSlot[pool.Name] {
+		fleetCap = capN - siblingsNeedingSlot
+		if fleetCap < 1 {
+			fleetCap = 1
+		}
 	}
 
 	var nodes corev1.NodeList
@@ -231,6 +266,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		pendingForPool:  pendingForPool,
 		pendingForFleet: pendingForFleet,
 		cap:             capN,
+		fleetCap:        fleetCap,
 		poolCap:         poolCap,
 		healthyNodes:    healthyNodes,
 	}
@@ -238,7 +274,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		admission.blockedReason = "no_healthy_node"
 		return admission, nil
 	}
-	if pendingForFleet >= capN {
+	if pendingForFleet >= fleetCap {
 		admission.blockedReason = "fleet_cap"
 		return admission, nil
 	}
@@ -246,7 +282,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		admission.blockedReason = "pool_share"
 		return admission, nil
 	}
-	admission.available = capN - pendingForFleet
+	admission.available = fleetCap - pendingForFleet
 	if share := poolCap - pendingForPool; share < admission.available {
 		admission.available = share
 	}
@@ -288,6 +324,33 @@ func unschedulableTimedOut(pod *corev1.Pod, pool *tuistv1.RunnerPool, now time.T
 	}
 	rejectedAt, ok := unschedulableSince(pod)
 	return ok && now.Sub(rejectedAt) >= time.Duration(timeoutSeconds)*time.Second
+}
+
+// terminationTimedOut is true once a Pod has been deleting for longer than the
+// grace period kubelet was given, plus a margin. A kata-qemu sandbox whose shim
+// never tears the VM down leaves the Pod in Terminating with its containers
+// still reporting `running`: kubelet stops making progress, nothing retries the
+// kill, and the Pod keeps its node's CPU and memory reserved against the
+// scheduler indefinitely.
+//
+// Nothing else in this controller can see it. isAlive excludes a deleting Pod,
+// so it is neither a replica nor a provisioning Pod: the pool reads as having a
+// gap, the node reads as full, and the two facts never meet. Two of four Linux
+// runner nodes were held this way for four hours, 94% reserved by Pods doing no
+// work, while every shape on the fleet queued behind the shortfall.
+//
+// The margin is deliberately generous. A sandbox that is merely slow to stop is
+// still making progress and will finish on its own; one still present a full
+// grace period and five minutes later is not shutting down, it is stuck.
+func terminationTimedOut(pod *corev1.Pod, now time.Time) bool {
+	if pod.DeletionTimestamp.IsZero() {
+		return false
+	}
+	grace := time.Duration(0)
+	if pod.DeletionGracePeriodSeconds != nil {
+		grace = time.Duration(*pod.DeletionGracePeriodSeconds) * time.Second
+	}
+	return !now.Before(pod.DeletionTimestamp.Time.Add(grace).Add(terminationStuckSlack))
 }
 
 // linuxProvisioningStartedAt uses the scheduler's transition timestamp rather

@@ -319,6 +319,29 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 
+		if terminationTimedOut(p, r.now()) {
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("force reap runner pod kubelet did not finish terminating",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"deletingFor", r.now().Sub(p.DeletionTimestamp.Time).String(),
+				"nodeConditions", nodeConditions,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodTerminationStuck",
+					"Pod has been terminating for %s without kubelet completing it; dropping the object to release node %s. The sandbox may still be running there; node conditions: %s",
+					r.now().Sub(p.DeletionTimestamp.Time).Truncate(time.Second), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordStuckTermination(pool.Name)
+			if err := r.forceReapRunner(ctx, p); err != nil {
+				logger.Error(err, "force reap stuck terminating runner pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
 		if unschedulableTimedOut(p, pool, r.now()) {
 			rejectedAt, _ := unschedulableSince(p)
 			logger.Info("reap runner pod the scheduler could not place",
@@ -497,6 +520,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
 					"cap", admission.cap,
+					"fleetCap", admission.fleetCap,
 					"poolCap", admission.poolCap,
 					"healthyNodes", admission.healthyNodes,
 				)
@@ -684,6 +708,35 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
+	}
+	return nil
+}
+
+// forceReapRunner drops a Pod the kubelet will not finish terminating. The
+// ordinary reap issues a plain Delete, which is a no-op on a Pod that already
+// carries a deletionTimestamp, so dropping the object is the only way to hand
+// its node's CPU and memory back to the scheduler.
+//
+// The sandbox can outlive the object: a force delete does not reach the stuck
+// shim, so the QEMU process may keep running and the node is then oversubscribed
+// against what the scheduler believes. That is still the better trade — the
+// alternative is capacity reserved forever for a VM doing no work — but it is
+// why the caller logs the node and raises an Event: a node that produces these
+// repeatedly wants draining, not another force delete.
+func (r *RunnerPoolReconciler) forceReapRunner(ctx context.Context, pod *corev1.Pod) error {
+	r.reportStopped(ctx, pod)
+
+	if err := r.Delete(ctx, pod, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("force delete pod %s: %w", pod.Name, err)
 	}
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{

@@ -9,6 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
 
 func TestCreationReservationStoreReleasesObservedPod(t *testing.T) {
@@ -183,7 +185,11 @@ func TestProvisioningAdmissionHogCannotRecreateAfterReapWhileSiblingStarves(t *t
 	if err != nil {
 		t.Fatalf("provisioningAdmission(hog): %v", err)
 	}
-	if hogAdmission.poolCap != 3 || hogAdmission.blockedReason != "pool_share" || hogAdmission.available != 0 {
+	// The reservation now comes out of the ceiling the hog is measured against,
+	// so the fleet check is what withholds the slot and it reports `fleet_cap`
+	// rather than `pool_share`. The outcome is the one this test is about: the
+	// hog gets nothing and the starved sibling gets the freed slot.
+	if hogAdmission.poolCap != 3 || hogAdmission.fleetCap != 3 || hogAdmission.available != 0 {
 		t.Fatalf("hog admission = %+v, want share 3 (cap 4 minus one starved sibling) and no availability", hogAdmission)
 	}
 
@@ -250,5 +256,144 @@ func unschedulableRunnerPod(name, poolName string, rejectedAt time.Time) *corev1
 		Reason:             corev1.PodReasonUnschedulable,
 		LastTransitionTime: metav1.NewTime(rejectedAt),
 	}}
+	return pod
+}
+
+// The live regression: the share bounded each pool's own Pending count, but
+// nothing held a slot open under the shared ceiling. Three siblings each well
+// inside their own share filled the ceiling between them, and the starved pool
+// was refused by the fleet check before its reserved share was ever consulted.
+// Measured in production at cap 4 with the starved shape reporting
+// `pendingForPool: 0, poolCap: 4, gap: 19` and still blocked.
+func TestProvisioningAdmissionHoldsFleetSlotForStarvedSibling(t *testing.T) {
+	scheme := mustScheme(t)
+	starved := newLinuxKataPool("linux-starved", 19, 4)
+	hogs := []*tuistv1.RunnerPool{
+		newLinuxKataPool("linux-hog-a", 33, 4),
+		newLinuxKataPool("linux-hog-b", 8, 4),
+		newLinuxKataPool("linux-hog-c", 8, 4),
+	}
+	objs := []client.Object{starved, readyLinuxRunnerNode("runner-node", starved.Spec.FleetSelector)}
+	for _, hog := range hogs {
+		objs = append(objs, hog)
+		objs = append(objs, unschedulableRunnerPod(hog.Name+"-runner-1", hog.Name, time.Unix(1000, 0)))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	// Three of the four slots are held, one per sibling, so no sibling is over
+	// its own share of three. The last slot is the starved pool's.
+	for _, hog := range hogs {
+		admission, err := r.provisioningAdmission(context.Background(), hog)
+		if err != nil {
+			t.Fatalf("provisioningAdmission(%s): %v", hog.Name, err)
+		}
+		if admission.blockedReason != "fleet_cap" || admission.available != 0 {
+			t.Fatalf("%s admission = %+v, want the last slot withheld for the starved sibling", hog.Name, admission)
+		}
+	}
+
+	admission, err := r.provisioningAdmission(context.Background(), starved)
+	if err != nil {
+		t.Fatalf("provisioningAdmission(starved): %v", err)
+	}
+	if admission.blockedReason != "" || admission.available != 1 {
+		t.Fatalf("starved admission = %+v, want the reserved slot", admission)
+	}
+}
+
+// The reservation must not deadlock a fleet where every pool is starved: the
+// ceiling a sibling measures itself against floors at one, so the first Pod to
+// start frees the count for the next.
+func TestProvisioningAdmissionFleetCeilingFloorsAtOneWhenAllSiblingsStarve(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 8, 2)
+	objs := []client.Object{pool, readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)}
+	for _, name := range []string{"linux-b", "linux-c", "linux-d"} {
+		objs = append(objs, newLinuxKataPool(name, 8, 2))
+	}
+	// The pool under test is provisioning, so it is not itself owed a slot and
+	// measures against the reduced ceiling; its three starved siblings would
+	// take it below zero without the floor.
+	objs = append(objs, unschedulableRunnerPod("linux-a-runner-1", pool.Name, time.Unix(1000, 0)))
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.fleetCap != 1 {
+		t.Fatalf("fleetCap = %d, want a ceiling floored at one", admission.fleetCap)
+	}
+	if admission.blockedReason != "fleet_cap" {
+		t.Fatalf("admission = %+v, want the in-flight Pod to hold the floored ceiling", admission)
+	}
+}
+
+// A pool that is itself owed a slot measures against the whole ceiling; only
+// its siblings are held back. Without this the reservation would cancel itself
+// out whenever more than one pool was starved.
+func TestProvisioningAdmissionStarvedPoolKeepsFullFleetCeiling(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 8, 4)
+	sibling := newLinuxKataPool("linux-b", 8, 4)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		pool, sibling, readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector),
+	).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.fleetCap != admission.cap {
+		t.Fatalf("fleetCap = %d, cap = %d, want a starved pool to keep the whole ceiling", admission.fleetCap, admission.cap)
+	}
+}
+
+func TestTerminationTimedOutIgnoresPodThatIsNotDeleting(t *testing.T) {
+	pod := newRunnerPod("runner-a", "img", corev1.PodRunning, "linux-a")
+	if terminationTimedOut(pod, time.Unix(10000, 0)) {
+		t.Fatal("termination reap fired on a Pod with no deletionTimestamp")
+	}
+}
+
+// A sandbox that is merely slow to stop is still making progress. The reap
+// waits out the grace period kubelet was given plus the slack before deciding
+// the shim is stuck.
+func TestTerminationTimedOutWaitsGracePeriodPlusSlack(t *testing.T) {
+	deletedAt := time.Unix(1000, 0)
+	pod := terminatingRunnerPod("runner-a", "linux-a", deletedAt, 30)
+	deadline := deletedAt.Add(30 * time.Second).Add(terminationStuckSlack)
+
+	if terminationTimedOut(pod, deadline.Add(-time.Second)) {
+		t.Fatal("termination reap fired before the grace period and slack elapsed")
+	}
+	if !terminationTimedOut(pod, deadline) {
+		t.Fatal("termination reap did not fire after the grace period and slack elapsed")
+	}
+}
+
+// A Pod deleted with no grace period still gets the slack: kubelet needs a
+// moment to tear the sandbox down even when it was told not to wait.
+func TestTerminationTimedOutAppliesSlackWithoutGracePeriod(t *testing.T) {
+	deletedAt := time.Unix(1000, 0)
+	pod := terminatingRunnerPod("runner-a", "linux-a", deletedAt, 0)
+	pod.DeletionGracePeriodSeconds = nil
+
+	if terminationTimedOut(pod, deletedAt.Add(terminationStuckSlack-time.Second)) {
+		t.Fatal("termination reap fired inside the slack")
+	}
+	if !terminationTimedOut(pod, deletedAt.Add(terminationStuckSlack)) {
+		t.Fatal("termination reap did not fire after the slack")
+	}
+}
+
+func terminatingRunnerPod(name, poolName string, deletedAt time.Time, graceSeconds int64) *corev1.Pod {
+	pod := newRunnerPod(name, "img", corev1.PodRunning, poolName)
+	deletion := metav1.NewTime(deletedAt)
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = &graceSeconds
 	return pod
 }
