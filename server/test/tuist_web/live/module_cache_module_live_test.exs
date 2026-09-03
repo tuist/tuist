@@ -62,23 +62,23 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     alias TuistWeb.ModuleCacheModuleLive
 
     defp deps(count) do
-      for i <- 1..count, do: %{name: "Dep#{i}", self_changes: i}
+      for i <- 1..count, do: %{name: "Dep#{i}", invalidations: i}
     end
 
-    test "sorts by times changed in both directions" do
+    test "sorts by invalidations caused in both directions" do
       given = deps(3)
 
       assert given
-             |> ModuleCacheModuleLive.sort_dependencies("self_changes", "desc")
-             |> Enum.map(& &1.self_changes) == [3, 2, 1]
+             |> ModuleCacheModuleLive.sort_dependencies("invalidations", "desc")
+             |> Enum.map(& &1.invalidations) == [3, 2, 1]
 
       assert given
-             |> ModuleCacheModuleLive.sort_dependencies("self_changes", "asc")
-             |> Enum.map(& &1.self_changes) == [1, 2, 3]
+             |> ModuleCacheModuleLive.sort_dependencies("invalidations", "asc")
+             |> Enum.map(& &1.invalidations) == [1, 2, 3]
     end
 
     test "sorts by name" do
-      given = [%{name: "Zed", self_changes: 1}, %{name: "Alpha", self_changes: 9}]
+      given = [%{name: "Zed", invalidations: 1}, %{name: "Alpha", invalidations: 9}]
 
       assert given
              |> ModuleCacheModuleLive.sort_dependencies("name", "asc")

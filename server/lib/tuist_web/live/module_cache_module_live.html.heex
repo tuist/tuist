@@ -547,7 +547,7 @@
             secondary_text={dgettext("dashboard_cache", "Sort by:")}
           >
             <.dropdown_item
-              :for={column <- ~w(self_changes name)}
+              :for={column <- ~w(invalidations name)}
               value={column}
               label={invalidated_by_sort_label(column)}
               patch={invalidated_by_sort_dropdown_patch(@uri, column)}
@@ -570,18 +570,18 @@
           </:col>
           <:col
             :let={dep}
-            label={dgettext("dashboard_cache", "Times changed")}
+            label={dgettext("dashboard_cache", "Invalidations caused")}
             patch={
               invalidated_by_sort_patch(
                 @uri,
-                "self_changes",
+                "invalidations",
                 @invalidated_by_sort,
                 @invalidated_by_order
               )
             }
-            sort_order={@invalidated_by_sort == "self_changes" && @invalidated_by_order}
+            sort_order={@invalidated_by_sort == "invalidations" && @invalidated_by_order}
           >
-            <.text_cell label={Integer.to_string(dep.self_changes)} />
+            <.text_cell label={Integer.to_string(dep.invalidations)} />
           </:col>
         </.table>
         <.pagination_group

@@ -2083,6 +2083,93 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert by_name["App"].blast_radius == 0
     end
 
+    test "attributes upstream misses to the dependency that actually changed", %{project: project} do
+      build = fn created_at, targets ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        for {name, hash, sources, deps_hash, hit, dependencies} <- targets do
+          XcodeFixtures.xcode_target_fixture(
+            command_event_id: event.id,
+            name: name,
+            binary_cache_hash: hash,
+            binary_cache_hit: hit,
+            sources_hash: sources,
+            dependencies_hash: deps_hash,
+            dependencies: dependencies
+          )
+        end
+      end
+
+      # Baseline: nothing to compare against yet.
+      build.(~N[2024-04-10 10:00:00], [
+        {"App", "x1", "xs", "d-a", :miss, ["Dep1", "Dep2"]},
+        {"Dep1", "d1-a", "d1s1", "", :miss, []},
+        {"Dep2", "d2-a", "d2s1", "", :miss, []}
+      ])
+
+      # Dep1 changed underneath App: App's own content is untouched.
+      build.(~N[2024-04-11 10:00:00], [
+        {"App", "x2", "xs", "d-b", :miss, ["Dep1", "Dep2"]},
+        {"Dep1", "d1-b", "d1s2", "", :miss, []},
+        {"Dep2", "d2-a", "d2s1", "", :remote, []}
+      ])
+
+      # Now Dep2 changed instead.
+      build.(~N[2024-04-12 10:00:00], [
+        {"App", "x3", "xs", "d-c", :miss, ["Dep1", "Dep2"]},
+        {"Dep1", "d1-b", "d1s2", "", :remote, []},
+        {"Dep2", "d2-b", "d2s2", "", :miss, []}
+      ])
+
+      # App changed its own content, so this miss is not upstream even though
+      # Dep1 also moved: Dep1 must not be credited for it.
+      build.(~N[2024-04-13 10:00:00], [
+        {"App", "x4", "xs2", "d-d", :miss, ["Dep1", "Dep2"]},
+        {"Dep1", "d1-c", "d1s3", "", :miss, []},
+        {"Dep2", "d2-b", "d2s2", "", :remote, []}
+      ])
+
+      got =
+        Analytics.module_upstream_attribution(
+          project_id: project.id,
+          name: "App",
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert got == %{"Dep1" => 1, "Dep2" => 1}
+    end
+
+    test "attributes nothing when the module has no dependency edges", %{project: project} do
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: ~N[2024-04-10 10:00:00]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Leaf",
+        binary_cache_hash: "h",
+        binary_cache_hit: :miss,
+        sources_hash: "s",
+        dependencies: []
+      )
+
+      assert Analytics.module_upstream_attribution(
+               project_id: project.id,
+               name: "Leaf",
+               start_datetime: ~U[2024-04-01 00:00:00Z],
+               end_datetime: ~U[2024-04-30 23:59:59Z]
+             ) == %{}
+    end
+
     test "module_transitive_dependents returns the full downstream set" do
       edges = %{
         "Core" => [],
@@ -2094,7 +2181,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert Enum.sort(Analytics.module_transitive_dependents(edges, "Core")) ==
                ["Analytics", "Features", "Networking"]
 
-      assert Analytics.module_transitive_dependents(edges, "Networking") |> Enum.sort() ==
+      assert edges |> Analytics.module_transitive_dependents("Networking") |> Enum.sort() ==
                ["Analytics", "Features"]
 
       assert Analytics.module_transitive_dependents(edges, "Features") == []

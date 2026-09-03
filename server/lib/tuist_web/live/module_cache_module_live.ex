@@ -131,9 +131,9 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     selected_miss_reason = params["miss-reason"] || "changed"
 
     invalidated_by_sort =
-      if params["invalidated-by-sort"] in ~w(name self_changes),
+      if params["invalidated-by-sort"] in ~w(name invalidations),
         do: params["invalidated-by-sort"],
-        else: "self_changes"
+        else: "invalidations"
 
     invalidated_by_order =
       if params["invalidated-by-order"] in ~w(asc desc), do: params["invalidated-by-order"], else: "desc"
@@ -173,10 +173,12 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
         module = build_module(index[name], name, timeseries)
 
+        attribution = Analytics.module_upstream_attribution(Keyword.put(opts, :name, name))
+
         invalidated_by =
           (edges[name] || [])
-          |> Enum.map(fn dep -> %{name: dep, self_changes: index[dep][:self_changes] || 0} end)
-          |> Enum.sort_by(& &1.self_changes, :desc)
+          |> Enum.map(fn dep -> %{name: dep, invalidations: Map.get(attribution, dep, 0)} end)
+          |> Enum.sort_by(& &1.invalidations, :desc)
 
         dependents_series =
           Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
@@ -266,7 +268,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   @doc false
   def sort_dependencies(dependencies, sort_by, order) do
     direction = if order == "asc", do: :asc, else: :desc
-    key = if sort_by == "name", do: :name, else: :self_changes
+    key = if sort_by == "name", do: :name, else: :invalidations
 
     Enum.sort_by(dependencies, &Map.fetch!(&1, key), direction)
   end
@@ -307,7 +309,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
   @doc false
   def invalidated_by_sort_label("name"), do: dgettext("dashboard_cache", "Dependency")
-  def invalidated_by_sort_label(_), do: dgettext("dashboard_cache", "Times changed")
+  def invalidated_by_sort_label(_), do: dgettext("dashboard_cache", "Invalidations caused")
 
   @doc false
   def invalidated_by_page_patch(uri, page) do
