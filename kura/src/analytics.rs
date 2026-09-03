@@ -8,7 +8,7 @@ use std::{
 
 use hmac::{Hmac, Mac};
 use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
-use serde::Serialize;
+use serde::{Serialize, Serializer, ser::SerializeStruct};
 use sha2::Sha256;
 use tokio::{
     sync::mpsc,
@@ -66,21 +66,49 @@ struct GradleAnalyticsEvent {
     cache_key: String,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-pub struct ReapiCacheAnalyticsEvent {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReapiCacheAnalyticsContext {
     pub account_handle: String,
     pub project_handle: String,
-    pub client_kind: String,
-    pub operation: String,
-    pub outcome: String,
-    pub action_digest: String,
-    pub size: u64,
-    pub duration_ms: u64,
-    pub observed_at_ms: u64,
+    pub client_kind: &'static str,
     pub invocation_id: String,
     pub action_mnemonic: String,
     pub target_label: String,
     pub configuration_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReapiCacheAnalyticsEvent {
+    pub context: Arc<ReapiCacheAnalyticsContext>,
+    pub operation: &'static str,
+    pub outcome: &'static str,
+    pub action_digest: String,
+    pub size: u64,
+    pub duration_ms: u64,
+    pub observed_at_ms: u64,
+}
+
+impl Serialize for ReapiCacheAnalyticsEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 13)?;
+        event.serialize_field("account_handle", &self.context.account_handle)?;
+        event.serialize_field("project_handle", &self.context.project_handle)?;
+        event.serialize_field("client_kind", self.context.client_kind)?;
+        event.serialize_field("operation", self.operation)?;
+        event.serialize_field("outcome", self.outcome)?;
+        event.serialize_field("action_digest", &self.action_digest)?;
+        event.serialize_field("size", &self.size)?;
+        event.serialize_field("duration_ms", &self.duration_ms)?;
+        event.serialize_field("observed_at_ms", &self.observed_at_ms)?;
+        event.serialize_field("invocation_id", &self.context.invocation_id)?;
+        event.serialize_field("action_mnemonic", &self.context.action_mnemonic)?;
+        event.serialize_field("target_label", &self.context.target_label)?;
+        event.serialize_field("configuration_id", &self.context.configuration_id)?;
+        event.end()
+    }
 }
 
 #[derive(Serialize)]
@@ -604,7 +632,8 @@ mod tests {
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsContext,
+        ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
     };
 
     #[derive(Clone, Debug)]
@@ -638,19 +667,21 @@ mod tests {
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
         analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "action_cache".into(),
-            outcome: "hit".into(),
+            context: Arc::new(ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "SwiftCompile".into(),
+                target_label: "//app:app".into(),
+                configuration_id: "config-1".into(),
+            }),
+            operation: "action_cache",
+            outcome: "hit",
             action_digest: "digest-1".into(),
             size: 128,
             duration_ms: 9,
             observed_at_ms: 1_700_000_000_123,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "SwiftCompile".into(),
-            target_label: "//app:app".into(),
-            configuration_id: "config-1".into(),
         });
 
         timeout(Duration::from_secs(2), async {
@@ -762,19 +793,21 @@ mod tests {
         .expect("analytics should be enabled");
 
         analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "cas".into(),
-            outcome: "write".into(),
+            context: Arc::new(ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "".into(),
+                target_label: "".into(),
+                configuration_id: "".into(),
+            }),
+            operation: "cas",
+            outcome: "write",
             action_digest: "content-digest".into(),
             size: 4_096,
             duration_ms: 14,
             observed_at_ms: 1_700_000_000_456,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "".into(),
-            target_label: "".into(),
-            configuration_id: "".into(),
         });
 
         timeout(Duration::from_secs(2), async {

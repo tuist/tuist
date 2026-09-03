@@ -7,3 +7,4 @@
 - Evaluate Linux non-waiting positional reads only in a Linux benchmark with a guaranteed fallback for cold or unsupported filesystems.
 - Re-run positioned-write ceiling tuning on production-shaped Linux hardware before exposing configuration.
 - Measure fixed metadata-method request throughput now that route and metric-family allocation are removed from those paths.
+- Reserve analytics channel capacity before constructing a cache event so a saturated queue does not allocate an event that will be dropped.

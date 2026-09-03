@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     pin::Pin,
+    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -35,7 +36,7 @@ use super::protobuf_shape::*;
 use super::{admission::*, snapshot::*};
 
 use crate::{
-    analytics::ReapiCacheAnalyticsEvent,
+    analytics::{ReapiCacheAnalyticsContext, ReapiCacheAnalyticsEvent},
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     auth::{AccessDecision, RequestContext},
     constants::{
@@ -83,8 +84,8 @@ struct GrpcRequestSpec<'a> {
 }
 
 struct ReapiCacheObservation<'a> {
-    operation: &'a str,
-    outcome: &'a str,
+    operation: &'static str,
+    outcome: &'static str,
     digest: &'a str,
     size: u64,
     duration: Duration,
@@ -284,21 +285,32 @@ impl ReapiService {
         namespace_id: &str,
         observation: ReapiCacheObservation<'_>,
     ) {
-        let Some(analytics) = self.state.analytics.as_ref() else {
+        let context = self.reapi_cache_event_context(metadata, namespace_id);
+        self.record_reapi_cache_event_with_context(context.as_ref(), observation);
+    }
+
+    fn reapi_cache_event_context(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+    ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+        self.state.analytics.as_ref()?;
+        reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id)
+    }
+
+    fn record_reapi_cache_event_with_context(
+        &self,
+        context: Option<&Arc<ReapiCacheAnalyticsContext>>,
+        observation: ReapiCacheObservation<'_>,
+    ) {
+        let (Some(analytics), Some(context)) = (self.state.analytics.as_ref(), context) else {
             return;
         };
 
-        let attribution = reapi_request_metadata(metadata);
-        if attribution.client_kind != "bazel" {
-            return;
-        }
-
         analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: usage_tenant_id(metadata, &self.state.config.tenant_id),
-            project_handle: namespace_id.to_owned(),
-            client_kind: attribution.client_kind,
-            operation: observation.operation.into(),
-            outcome: observation.outcome.into(),
+            context: Arc::clone(context),
+            operation: observation.operation,
+            outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
             size: observation.size,
             duration_ms: observation
@@ -312,10 +324,6 @@ impl ReapiService {
                 .as_millis()
                 .try_into()
                 .unwrap_or(u64::MAX),
-            invocation_id: attribution.invocation_id,
-            action_mnemonic: attribution.action_mnemonic,
-            target_label: attribution.target_label,
-            configuration_id: attribution.configuration_id,
         });
     }
 
@@ -1650,6 +1658,7 @@ impl ContentAddressableStorage for ReapiService {
             .remove::<GrpcWriteAdmission>()
             .expect("write decode admission was checked before authorization");
         let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
         let mut responses = Vec::with_capacity(message.requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
@@ -1683,9 +1692,8 @@ impl ContentAddressableStorage for ReapiService {
                     if newly_stored {
                         stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
                         stored_any = true;
-                        self.record_reapi_cache_event(
-                            &metadata,
-                            namespace_id,
+                        self.record_reapi_cache_event_with_context(
+                            analytics_context.as_ref(),
                             ReapiCacheObservation {
                                 operation: "cas",
                                 outcome: "write",
@@ -1731,6 +1739,7 @@ impl ContentAddressableStorage for ReapiService {
         self.authorize_request(&request, auth).await?;
         let (metadata, _extensions, message) = request.into_parts();
         let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
         // Blobs are read concurrently: a sequential await per blob caps the
         // whole batch at per-read latency times batch size, which dominates
         // large read-heavy clients (measured ~4ms per blob serialized). The
@@ -1785,9 +1794,8 @@ impl ContentAddressableStorage for ReapiService {
                 });
 
             if let (Some(outcome), Some(digest)) = (outcome, response.digest.as_ref()) {
-                self.record_reapi_cache_event(
-                    &metadata,
-                    namespace_id,
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
                     ReapiCacheObservation {
                         operation: "cas",
                         outcome,
@@ -2735,6 +2743,27 @@ fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiReque
         target_label: metadata.target_id,
         configuration_id: metadata.configuration_id,
     }
+}
+
+fn reapi_cache_event_context(
+    metadata: &tonic::metadata::MetadataMap,
+    namespace_id: &str,
+    fallback_tenant_id: &str,
+) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+    let attribution = reapi_request_metadata(metadata);
+    if attribution.client_kind != "bazel" {
+        return None;
+    }
+
+    Some(Arc::new(ReapiCacheAnalyticsContext {
+        account_handle: usage_tenant_id(metadata, fallback_tenant_id),
+        project_handle: namespace_id.to_owned(),
+        client_kind: "bazel",
+        invocation_id: attribution.invocation_id,
+        action_mnemonic: attribution.action_mnemonic,
+        target_label: attribution.target_label,
+        configuration_id: attribution.configuration_id,
+    }))
 }
 
 // The request-declared tenant, read straight from the metadata: the first
@@ -4138,6 +4167,184 @@ mod tests {
         assert_eq!(
             reapi_request_metadata(request.metadata()).client_kind,
             "other"
+        );
+    }
+
+    #[test]
+    fn cache_analytics_events_share_batch_request_context() {
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "invocation-1".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let context = reapi_cache_event_context(request.metadata(), "ios", "fallback")
+            .expect("Bazel metadata should produce analytics context");
+        let first = ReapiCacheAnalyticsEvent {
+            context: Arc::clone(&context),
+            operation: "cas",
+            outcome: "hit",
+            action_digest: "digest-a".into(),
+            size: 1,
+            duration_ms: 2,
+            observed_at_ms: 3,
+        };
+        let second = ReapiCacheAnalyticsEvent {
+            context,
+            operation: "cas",
+            outcome: "miss",
+            action_digest: "digest-b".into(),
+            size: 0,
+            duration_ms: 4,
+            observed_at_ms: 5,
+        };
+
+        assert!(Arc::ptr_eq(&first.context, &second.context));
+        assert_eq!(first.context.account_handle, "acme");
+        assert_eq!(first.context.project_handle, "ios");
+        assert_eq!(first.context.invocation_id, "invocation-1");
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn reapi_batch_analytics_context_benchmark() {
+        const EVENTS_PER_BATCH: usize = 4_096;
+        const BATCHES: usize = 32;
+        const SAMPLES: usize = 7;
+
+        fn measure_baseline(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                for _ in 0..EVENTS_PER_BATCH {
+                    let attribution = reapi_request_metadata(std::hint::black_box(metadata));
+                    assert_eq!(attribution.client_kind, "bazel");
+                    std::hint::black_box((
+                        usage_tenant_id(metadata, "fallback"),
+                        namespace_id.to_owned(),
+                        attribution.client_kind,
+                        "cas".to_owned(),
+                        "hit".to_owned(),
+                        digest.to_owned(),
+                        attribution.invocation_id,
+                        attribution.action_mnemonic,
+                        attribution.target_label,
+                        attribution.configuration_id,
+                    ));
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_candidate(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                let context = reapi_cache_event_context(metadata, namespace_id, "fallback")
+                    .expect("Bazel metadata should produce analytics context");
+                for _ in 0..EVENTS_PER_BATCH {
+                    std::hint::black_box(ReapiCacheAnalyticsEvent {
+                        context: Arc::clone(&context),
+                        operation: "cas",
+                        outcome: "hit",
+                        action_digest: digest.to_owned(),
+                        size: 4_096,
+                        duration_ms: 1,
+                        observed_at_ms: 1,
+                    });
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//Sources/App:App".into(),
+            configuration_id: "darwin-arm64-fastbuild".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        let digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_baseline(request.metadata(), "ios", digest)
+            } else {
+                measure_candidate(request.metadata(), "ios", digest)
+            };
+            let second = if baseline_first {
+                measure_candidate(request.metadata(), "ios", digest)
+            } else {
+                measure_baseline(request.metadata(), "ios", digest)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC reapi_batch_analytics_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC baseline_events_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC shared_context_events_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
         );
     }
 
