@@ -105,9 +105,29 @@ independent workqueues:
     capped at the two M4-XL hosts compose to ten. Inside the cap, seats
     go load first, then warm floor, then headroom, one Pod per pool per
     round (so contenders do not both lose a seat) in name order (so the
-    split is stable across reconciles). darwin only — Linux kata pins
-    memory and oversubscribes CPU by design, and those hosts are
-    homogeneous, so the byte budget is already exact there.
+    split is stable across reconciles).
+
+    Both platforms. It was darwin-only until 2026-09-02, on the grounds
+    that kata pins memory and oversubscribes CPU so the byte budget was
+    already exact on a homogeneous Linux fleet. Neither half held.
+    `podtemplate` sets the runner container's CPU request equal to its
+    limit equal to the shape, so kube-scheduler bin-packs on the full
+    vCPU and a 16 vCPU Pod costing 16.25 with kata's overhead seats
+    exactly once on a 31-vCPU RISE-L, where the byte budget reads three.
+    And a fleet-wide byte sum cannot see per-node packing at all: six
+    `4vcpu-16gb` Pods fill 111 of a box's 117 GiB, so the leftovers add
+    up to budget that seats nothing. On 2026-09-02 the autoscaler
+    targeted 67 of that shape where 24 fit, and the excess held the
+    provisioning ceiling against every sibling.
+
+    The seat divisor is the *placement* shape (`placementShapeOf`): the
+    Pod's own request plus the RuntimeClass `podFixed` overhead the
+    scheduler charges at admission. `perPodCost` reads the same overhead
+    through the same helper, so the byte budget and the seat cap can
+    never disagree about what one Pod costs. Deriving the cap from live
+    node allocatable is also why no per-shape `maxReplicas` belongs in
+    values: that would be a second copy of this arithmetic, stale the
+    moment a box is added, lost, or re-SKU'd.
 
     **Node reservation.** Runs on BOTH fleets. A shape needing more of a
     host than any single smaller Pod does cannot accumulate the room on

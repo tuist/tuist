@@ -1352,17 +1352,23 @@ replica gap` with `creating: 0` for the starved pool. Cap the hog at the
 seat count (`kubectl patch runnerpool <pool> -n tuist-runners --type
 merge -p '{"spec":{"autoscaling":{"maxReplicas":N}}}'`); the autoscaler
 honours it after its 300-second scale-down cooldown, reaps the parked
-Pods, and the starved pool is admitted within seconds. Then re-adopt the
-value in `infra/helm/tuist/values-managed-production.yaml`, where every
-Linux shape now carries a `maxReplicas` bounded to what the fleet can
-seat, or Helm loses the field.
+Pods, and the starved pool is admitted within seconds. That patch is an
+incident lever only: it takes `maxReplicas` away from Helm until the
+next chart apply, so drop it once the fleet has recovered.
 
 Two changes made this shape of incident rarer rather than merely
-visible: per-shape `maxReplicas` in the production values, and the
-admission's per-pool share (`reason="pool_share"` in
+visible, and both are in the controller rather than in values. The
+autoscaler's shape placement cap now covers Linux, deriving per
+reconcile from live node allocatable how many Pods of each shape the
+fleet can actually seat, so a pool can no longer be targeted above what
+will fit. And the provisioning admission gives each pool a share of the
+Pending budget (`reason="pool_share"` in
 `infra/runners-controller/controllers/provisioning.go`), which stops a
 pool from topping the budget back up after a reap while a sibling with
-a gap holds nothing.
+a gap holds nothing. If a pool is still targeted far above its fleet's
+seats, suspect the cap rather than reaching for a values change:
+`tuist_runners_fleet_ready_nodes` going to zero, or a RuntimeClass the
+controller cannot read, both degrade it to the byte budget alone.
 
 ### Why there is no alert on withheld runner queue depth
 
