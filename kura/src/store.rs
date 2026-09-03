@@ -2865,7 +2865,9 @@ impl Store {
             let mut buffer = if preloaded.is_some() {
                 Vec::new()
             } else {
-                vec![0_u8; buffer_bytes]
+                try_allocate_exact_vec(buffer_bytes).ok_or_else(|| {
+                    format!("failed to allocate {buffer_bytes}-byte segment copy buffer")
+                })?
             };
             let mut copied = 0_u64;
             let mut advised_through = 0_u64;
@@ -2877,10 +2879,12 @@ impl Store {
                         .min(bytes.len());
                     (&bytes[start..end], end - start)
                 } else {
-                    let remaining = usize::try_from((size - copied).min(buffer.len() as u64))
+                    let remaining = usize::try_from((size - copied).min(buffer_bytes as u64))
                         .expect("copy chunk fits usize");
-                    let read = source
-                        .read(&mut buffer[..remaining])
+                    buffer.clear();
+                    let mut limited_source = (&mut *source).take(remaining as u64);
+                    limited_source
+                        .read_buf(&mut buffer)
                         .await
                         .map_err(|error| {
                             format!(
@@ -2888,7 +2892,8 @@ impl Store {
                                 segment_path.display()
                             )
                         })?;
-                    (&buffer[..read], read)
+                    let read = buffer.len();
+                    (&buffer[..], read)
                 };
                 if read == 0 {
                     break;
@@ -8522,6 +8527,107 @@ mod tests {
         );
         println!(
             "METRIC segment_preload_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn streaming_write_buffer_uninitialized_benchmark() {
+        const SOURCE_BYTES: usize = 1024 * 1024;
+        const ITERATIONS: usize = 1_024;
+        const SAMPLES: usize = 8;
+
+        async fn initialized_copy(source: &[u8]) -> usize {
+            let source_len = source.len();
+            let mut source = source;
+            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+            let mut copied = 0;
+            while copied < source_len {
+                let remaining = (source_len - copied).min(buffer.len());
+                let read = source
+                    .read(&mut buffer[..remaining])
+                    .await
+                    .expect("read initialized streaming buffer");
+                if read == 0 {
+                    break;
+                }
+                copied += read;
+                std::hint::black_box(&buffer[..read]);
+            }
+            copied
+        }
+
+        async fn uninitialized_copy(source: &[u8]) -> usize {
+            let source_len = source.len();
+            let mut source = source;
+            let mut buffer = try_allocate_exact_vec(SEGMENT_COPY_BUFFER_BYTES)
+                .expect("allocate uninitialized streaming buffer");
+            let mut copied = 0;
+            while copied < source_len {
+                let remaining = (source_len - copied).min(SEGMENT_COPY_BUFFER_BYTES);
+                buffer.clear();
+                let mut limited_source = (&mut source).take(remaining as u64);
+                limited_source
+                    .read_buf(&mut buffer)
+                    .await
+                    .expect("read uninitialized streaming buffer");
+                if buffer.is_empty() {
+                    break;
+                }
+                copied += buffer.len();
+                std::hint::black_box(buffer.as_slice());
+            }
+            copied
+        }
+
+        async fn measure(source: &[u8], uninitialized: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let copied = if uninitialized {
+                    uninitialized_copy(source).await
+                } else {
+                    initialized_copy(source).await
+                };
+                assert_eq!(copied, source.len());
+            }
+            (ITERATIONS * source.len()) as f64
+                / started_at.elapsed().as_secs_f64()
+                / (1_024.0 * 1_024.0)
+        }
+
+        let source = vec![0_u8; SOURCE_BYTES];
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&source, false).await, measure(&source, true).await)
+            } else {
+                let candidate = measure(&source, true).await;
+                (measure(&source, false).await, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC streaming_write_buffer_baseline_mebibytes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC streaming_write_buffer_candidate_mebibytes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC streaming_write_buffer_speedup_ratio={:.6}",
             speedups[median]
         );
     }
