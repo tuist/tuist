@@ -221,6 +221,19 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: clickhouse
+  annotations:
+    # Never delete this with the release. A StatefulSet's PVC is created by
+    # its volumeClaimTemplate and is not owned by Helm, so it outlives any
+    # rollback; the PersistentVolume it is bound to is owned by Helm, and
+    # deleting that while the claim still references it leaves the volume
+    # wedged in Terminating behind `kubernetes.io/pv-protection` forever.
+    # Every later upgrade then fails on "resource PersistentVolume not
+    # ready", which is how the first failed release here bricked all
+    # subsequent deploys until the orphaned claim was removed by hand.
+    #
+    # It is also simply the right policy for the volume holding a database:
+    # a failed release should never be able to take the data with it.
+    "helm.sh/resource-policy": keep
 spec:
   capacity:
     storage: {{ $m.persistence.size }}
@@ -245,6 +258,10 @@ metadata:
   name: {{ $m.persistence.storageClassName }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
+  annotations:
+    # Cluster-scoped and referenced by claims Helm does not own, for the same
+    # reason as the volume above.
+    "helm.sh/resource-policy": keep
 provisioner: kubernetes.io/no-provisioner
 # The claim must not bind before the pod is scheduled, or it can bind to a
 # volume on a node the pod cannot run on.
