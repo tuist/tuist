@@ -17,3 +17,7 @@
 - Move manifest string cloning outside the global cache lock through shared retained values.
 - Measure whether sampled recency updates can safely reduce hot-key write-lock pressure without changing eviction quality.
 - Add a one-entry lock-free front for repeated hits to the same open segment handle.
+- Keep input/output metrics access borrowed on serving paths; callers only record and never need registry ownership.
+- Parse canonical ByteStream resource names without temporary component or digest allocations.
+- Measure client connection sharding before changing the per-connection stream ceiling; one protocol connection retains a shared frame state machine regardless of server worker count.
+- Evaluate Linux non-waiting positional reads only in a Linux benchmark with a guaranteed fallback for cold or unsupported filesystems.
