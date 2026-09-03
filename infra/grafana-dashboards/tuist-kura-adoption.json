@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
+    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
       "panel-1": {
@@ -1853,7 +1853,7 @@
         "spec": {
           "id": 21,
           "title": "Live cache request rate by backend",
-          "description": "Requests per second on the `/api/cache/*` routes: the legacy cache service (`cache_prom_ex_phoenix_http_requests_total`) versus every production Kura node (`kura_http_requests_total_total`). Prometheus, so this is the real-time view the ClickHouse panels lag behind.",
+          "description": "Requests per second on the `/api/cache/*` routes: the production legacy cache service instances (`cache_prom_ex_phoenix_http_requests_total`, canary and staging instances excluded since that series has no cluster label) versus every production Kura node (`kura_http_requests_total_total{cluster=\"tuist-production\"}`). Prometheus, so this is the real-time view the ClickHouse panels lag behind.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1873,7 +1873,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{path=~\"/api/cache/.*\"}[$__rate_interval]))",
+                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/.*\"}[$__rate_interval]))",
                         "legendFormat": "Legacy hosted cache",
                         "instant": false,
                         "range": true,
