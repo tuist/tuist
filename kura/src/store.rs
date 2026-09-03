@@ -3601,11 +3601,9 @@ impl Store {
     /// keeps scheduling — probes answer, the metrics snapshot task keeps
     /// publishing, and inbound request bodies keep draining. See #12556.
     ///
-    /// `WriteBatch` is not `Send` (it is a raw `rocksdb_writebatch_t` pointer),
-    /// so the batch crosses the thread boundary as its own serialized
-    /// representation, which is the same encoding RocksDB puts in the WAL and
-    /// preserves column-family targeting. That costs one copy, bounded by
-    /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`.
+    /// The current RocksDB binding marks `WriteBatch` as `Send`, so ownership
+    /// moves to the blocking worker directly. This avoids serializing and
+    /// reconstructing the bounded batch merely to cross the thread boundary.
     async fn commit_eviction_chunk(
         &self,
         batch: WriteBatch,
@@ -3620,7 +3618,6 @@ impl Store {
             return Ok(());
         }
 
-        let payload = batch.data().to_vec();
         // Invalidate before the commit as well as after. `spawn_blocking` work
         // is never cancelled, but the future awaiting it can be dropped — and
         // eviction runs on the request path, under an axum handler whose client
@@ -3635,7 +3632,7 @@ impl Store {
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
-        let chunk_bytes = payload.len();
+        let chunk_bytes = batch.size_in_bytes();
         tokio::task::spawn_blocking(move || {
             #[cfg(test)]
             {
@@ -3645,7 +3642,7 @@ impl Store {
                 commits.threads.push(std::thread::current().id());
                 commits.chunk_bytes.push(chunk_bytes);
             }
-            db.write(WriteBatch::from_data(&payload))
+            db.write(batch)
         })
         .await
         .map_err(|error| format!("segment eviction commit task failed: {error}"))?
@@ -6922,12 +6919,11 @@ impl Store {
         label: &'static str,
         durability: ApplyDurability,
     ) -> Result<(), String> {
-        // `WriteBatch` is not `Send`, so the batch crosses as its serialized
-        // representation — the same encoding RocksDB writes to the WAL, with
-        // column-family targeting preserved. See `commit_eviction_chunk`.
+        // The current RocksDB binding marks `WriteBatch` as `Send`, so move its
+        // existing allocation to the blocking worker without a serialized copy
+        // and reconstruction. See `commit_eviction_chunk`.
         let pending_writer = (durability == ApplyDurability::Sync)
             .then(|| PendingDurabilityWriter::new(&self.wal_writers_ahead_of_durability));
-        let payload = batch.data().to_vec();
         let db = Arc::clone(&self.db);
         let mut write_options = WriteOptions::default();
         match durability {
@@ -6952,7 +6948,7 @@ impl Store {
             if let Some(observer) = observer {
                 observer(std::thread::current().id());
             }
-            db.write_opt(WriteBatch::from_data(&payload), &write_options)
+            db.write_opt(batch, &write_options)
         })
         .await
         .map_err(|error| format!("{label} write task failed: {error}"))?
@@ -8526,6 +8522,75 @@ mod tests {
         );
         println!(
             "METRIC segment_preload_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn write_batch_handoff_benchmark() {
+        const ITERATIONS: usize = 100_000;
+        const SAMPLES: usize = 8;
+
+        fn representative_batch(seed: usize) -> WriteBatch {
+            let key = format!("manifest/{seed:016x}");
+            let index = format!("namespace/index/{seed:016x}");
+            let segment = format!("segment/artifacts/{seed:016x}");
+            let manifest = [0x5a_u8; 512];
+            let mut batch = WriteBatch::default();
+            batch.put(key.as_bytes(), manifest);
+            batch.put(index.as_bytes(), []);
+            batch.put(segment.as_bytes(), []);
+            batch
+        }
+
+        fn measure(serialized_handoff: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for iteration in 0..ITERATIONS {
+                let batch = representative_batch(iteration);
+                if serialized_handoff {
+                    let payload = batch.data().to_vec();
+                    drop(batch);
+                    let reconstructed = WriteBatch::from_data(&payload);
+                    std::hint::black_box(reconstructed.len());
+                } else {
+                    std::hint::black_box(batch.len());
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC write_batch_handoff_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC write_batch_handoff_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC write_batch_handoff_speedup_ratio={:.6}",
             speedups[median]
         );
     }
@@ -13375,20 +13440,6 @@ mod tests {
             "the eviction committed inline on the thread driving the runtime, so \
              a write-buffer stall inside RocksDB would park the runtime itself"
         );
-    }
-
-    #[test]
-    fn an_empty_write_batch_survives_the_serialized_round_trip() {
-        // `commit_eviction_chunk` moves the batch to the blocking pool as its
-        // serialized representation, because `WriteBatch` is not `Send`. The
-        // tail commit of an eviction can hand it an empty batch — every row
-        // already went out on a chunk boundary — so the round trip has to hold
-        // for one, rather than `from_data` choking on a bare header.
-        let batch = WriteBatch::default();
-        assert!(batch.is_empty());
-        let round_tripped = WriteBatch::from_data(batch.data());
-        assert!(round_tripped.is_empty());
-        assert_eq!(round_tripped.len(), 0);
     }
 
     #[tokio::test]

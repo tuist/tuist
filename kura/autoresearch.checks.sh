@@ -2,5 +2,5 @@
 set -euo pipefail
 
 mise exec -- bazel test //:kura_lib_test \
-  --test_arg=segment_preload \
+  --test_arg=request_path_writes_also_commit_off_the_runtime_worker \
   --test_output=errors
