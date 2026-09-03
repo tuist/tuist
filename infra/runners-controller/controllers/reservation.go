@@ -91,7 +91,7 @@ const (
 	//
 	// Every reservation is capacity withdrawn from the small shapes while
 	// it converges, so this stays at one. On macOS a second concurrent
-	// drain would hold two hosts, up to 4 of the 13-slot production
+	// drain would hold two hosts, up to 4 of the 14-slot production
 	// fleet, to serve two large jobs. On Linux the argument is sharper
 	// still: that fleet is a handful of bare-metal boxes, so a single
 	// reservation is already a large share of it out of circulation.
