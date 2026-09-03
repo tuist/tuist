@@ -233,7 +233,30 @@
     >
       <.card_section data-part="repetitions-card-section">
         <div data-part="repetitions">
-          <div :for={repetition <- @stress_repetitions} data-part="repetition-wrapper">
+          <%!-- A pass where every repetition agreed needs one line, not ten identical rows.
+                The per-repetition list earns its space only once something disagreed. --%>
+          <div :if={!stress_repetitions_failed?(@stress_repetitions)} data-part="repetition-item">
+            <.badge
+              label={dgettext("dashboard_tests", "Passed")}
+              color="success"
+              style="light-fill"
+              size="small"
+            />
+            <span data-part="repetition-name">
+              {stress_repetitions_summary(@stress_repetitions)}
+            </span>
+            <span data-part="repetition-duration">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                stress_repetitions_duration(@stress_repetitions)
+              )}
+            </span>
+          </div>
+          <div
+            :for={repetition <- @stress_repetitions}
+            :if={stress_repetitions_failed?(@stress_repetitions)}
+            data-part="repetition-wrapper"
+          >
             <div data-part="repetition-item">
               <.badge
                 :if={repetition.status == "success"}

@@ -99,6 +99,25 @@ defmodule TuistWeb.TestCaseRunLive do
     {:noreply, socket}
   end
 
+  @doc false
+  def stress_repetitions_failed?(repetitions), do: Enum.any?(repetitions, &(&1.status == "failure"))
+
+  @doc false
+  def stress_repetitions_duration(repetitions), do: Enum.sum_by(repetitions, & &1.duration)
+
+  @doc false
+  def stress_repetitions_summary(repetitions) do
+    count = length(repetitions)
+
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition passed",
+      "All %{count} repetitions passed",
+      count,
+      count: count
+    )
+  end
+
   # Renders a failure message span without whitespace around the content.
   # Using ~H[] on a single line prevents the HEEx formatter from splitting
   # the tag across lines, which would introduce visible leading whitespace.
