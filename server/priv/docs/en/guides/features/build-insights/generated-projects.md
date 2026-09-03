@@ -31,7 +31,7 @@ let project = Project(
                     .executionAction(
                         title: "Inspect Build",
                         scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
                         """,
                         target: "MyApp"
                     )
@@ -44,6 +44,10 @@ let project = Project(
 )
 ```
 
+> [!IMPORTANT]
+> Append `|| echo "warning: ..."` to the command as shown above. Without it, a post-action that
+> exits with a non-zero status fails the whole build.
+
 If you are not using Mise, you need to ensure `tuist` is available in the scheme's environment since Xcode post-actions don't inherit your shell's `PATH`. For [Homebrew](https://brew.sh/) installations:
 
 ```swift
@@ -54,7 +58,7 @@ buildAction: .buildAction(
             title: "Inspect Build",
             scriptText: """
             export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-            tuist inspect build
+            tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
             """,
             target: "MyApp"
         )
@@ -72,6 +76,17 @@ For Xcodebuild-driven CI you need to:
 - Add `-resultBundlePath` to your `xcodebuild` command.
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
+
+`tuist xcodebuild` uploads the build run itself, on both successful and failed builds, so you do not
+need `tuist inspect build` as a separate CI step. Keep the scheme post-action for local Xcode builds,
+which `tuist xcodebuild` does not cover.
+
+### Inspect build environment variables {#inspect-build-environment-variables}
+
+| Variable | Description |
+|----------|-------------|
+| `TUIST_INSPECT_BUILD_WAIT` | Set to `YES` to upload before the command exits. Any other value, including `NO`, uploads in a detached background process. |
+| `TUIST_INSPECT_BUILD_TIMEOUT` | Seconds to wait for Xcode to finish writing the build's activity log. Defaults to `10`. This is not a network timeout. |
 
 ## Machine metrics {#machine-metrics}
 
