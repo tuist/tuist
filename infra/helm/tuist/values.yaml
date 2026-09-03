@@ -438,6 +438,17 @@ server:
   # 1Password item only when this switch is on.
   turnstile:
     enabled: false
+  # Browser real user monitoring. Set collectorUrl to the endpoint the browser
+  # posts Grafana Faro payloads to; a same-origin path keeps the request free of
+  # CORS and leaves the Content Security Policy untouched. Empty disables it and
+  # ships no browser telemetry at all.
+  faro:
+    collectorUrl: ""
+    # In-cluster address of the Faro receiver. Setting it renders an
+    # ExternalName Service and routes collectorUrl's path at it from the server
+    # Ingress, which is what keeps the collector same-origin with the site.
+    receiverHost: ""
+    receiverPort: 12347
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:
@@ -568,8 +579,8 @@ server:
           clientId: client_id
           clientSecret: client_secret
   # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
-  # OAuth/OIDC provider keys, the Mailgun API key, PostHog, Loops, the ClickHouse
-  # URL, Plain, the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # OAuth/OIDC provider keys, the Mailgun API key, the ClickHouse URL,
+  # the cache API key, and the Phoenix/Cloak/Guardian secret keys)
   # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
   # env var names, mounted via envFrom. This is what lets managed envs drop
   # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P
@@ -590,11 +601,6 @@ server:
       role: tuist_ops_readonly
       existingSecret: ""
       passwordKey: password
-    # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
-    # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
-    # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
-    posthog:
-      enabled: true
     # Newsletter signups go to Atlas, which is our own deployment. Only the
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.

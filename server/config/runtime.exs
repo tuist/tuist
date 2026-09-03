@@ -936,19 +936,3 @@ else
   config :opentelemetry,
     traces_exporter: :none
 end
-
-if Tuist.Environment.analytics_enabled?(secrets) do
-  config :posthog,
-    api_url: Tuist.Environment.posthog_url(secrets),
-    api_key: Tuist.Environment.posthog_api_key(secrets)
-
-  config :posthog,
-    json_library: Jason,
-    enabled_capture: true,
-    http_client: Tuist.PostHog.HTTPClient,
-    http_client_opts: [
-      timeout: 5_000,
-      retries: 3,
-      retry_delay: 1_000
-    ]
-end
