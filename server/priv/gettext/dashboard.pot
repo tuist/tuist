@@ -37,7 +37,7 @@ msgstr ""
 msgid "429"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:106
+#: lib/tuist_web/controllers/error_html.ex:127
 #, elixir-autogen, elixir-format
 msgid "500"
 msgstr ""
@@ -109,7 +109,7 @@ msgstr ""
 msgid "Emails"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:133
+#: lib/tuist_web/controllers/error_html.ex:154
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
 #: lib/tuist_web/live/ops_database_live.html.heex:323
 #, elixir-autogen, elixir-format
@@ -132,7 +132,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:155
+#: lib/tuist_web/controllers/error_html.ex:176
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""
@@ -225,7 +225,7 @@ msgstr ""
 msgid "Only operations roles can access this page."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:98
+#: lib/tuist_web/controllers/error_html.ex:119
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
 msgstr ""
@@ -271,7 +271,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:97
+#: lib/tuist_web/controllers/error_html.ex:118
 #, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr ""
@@ -286,7 +286,7 @@ msgstr ""
 msgid "Project Settings"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:101
+#: lib/tuist_web/controllers/error_html.ex:122
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
@@ -329,7 +329,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:52
+#: lib/tuist_web/plugs/loader_plug.ex:55
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -356,18 +356,18 @@ msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
-#: lib/tuist_web/plugs/loader_plug.ex:115
+#: lib/tuist_web/plugs/loader_plug.ex:131
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
-#: lib/tuist_web/plugs/loader_plug.ex:119
+#: lib/tuist_web/plugs/loader_plug.ex:135
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:95
+#: lib/tuist_web/plugs/loader_plug.ex:98
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -2630,4 +2630,29 @@ msgstr ""
 #: lib/tuist_web/components/layout_components.ex:34
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:112
+#, elixir-autogen, elixir-format
+msgid "503"
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:108
+#, elixir-autogen, elixir-format
+msgid "Run analytics are temporarily unavailable. Please try again in a moment."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:100
+#, elixir-autogen, elixir-format
+msgid "Sorry, this page is temporarily unavailable. Please try again in a moment."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:106
+#, elixir-autogen, elixir-format
+msgid "Temporarily unavailable"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:107
+#, elixir-autogen, elixir-format
+msgid "Temporarily unavailable."
 msgstr ""
