@@ -700,7 +700,7 @@ msgid "No, there's no minimum contract length. You're free to cancel at any time
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:38
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:211
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr ""
@@ -2304,8 +2304,18 @@ msgstr ""
 msgid "All features, no credit card required"
 msgstr ""
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Ask about Tuist on"
+msgstr ""
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:227
+#, elixir-autogen, elixir-format
+msgid "Ask about Tuist on %{assistant}"
+msgstr ""
+
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:32
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:205
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
 msgstr ""

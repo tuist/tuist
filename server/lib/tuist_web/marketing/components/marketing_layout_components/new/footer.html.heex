@@ -150,6 +150,25 @@
     ]
   }
 ] %>
+<% assistants = [
+  %{name: "ChatGPT", href: "https://chatgpt.com/?q=What+does+Tuist+do%3F", icon: "brand_chatgpt"},
+  %{
+    name: "Claude",
+    href: "https://claude.ai/new?q=What%20does%20Tuist%20do%3F",
+    icon: "brand_claude"
+  },
+  %{
+    name: "Gemini",
+    href: "https://gemini.google.com/app/c588db3918397563?q=What%20does%20Tuist%20do%3F",
+    icon: "brand_gemini"
+  },
+  %{name: "Grok", href: "https://grok.com/?q=What%20does%20Tuist%20do%3F", icon: "brand_grok"},
+  %{
+    name: "Perplexity",
+    href: "https://www.perplexity.ai/search?q=What%20does%20Tuist%20do%3F",
+    icon: "brand_perplexity"
+  }
+] %>
 <footer id="marketing-footer-new">
   <div data-part="content">
     <div data-part="main">
@@ -191,6 +210,26 @@
           </ul>
         </section>
       </nav>
+    </div>
+    <div data-part="ask">
+      <span data-part="ask-label">{dgettext("marketing", "Ask about Tuist on")}</span>
+      <div data-part="ask-assistants">
+        <.button
+          :for={assistant <- assistants}
+          variant="secondary"
+          size="large"
+          icon_only
+          href={assistant.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={assistant.name}
+          aria-label={
+            dgettext("marketing", "Ask about Tuist on %{assistant}", assistant: assistant.name)
+          }
+        >
+          <Noora.Icon.icon name={assistant.icon} />
+        </.button>
+      </div>
     </div>
     <div data-part="bar">
       <.link
@@ -311,8 +350,7 @@
         data-mask-viewbox="84 32"
         data-mask-blur="2"
         data-hover="off"
-      >
-      </canvas>
+      ></canvas>
       <%!-- The wordmark silhouette (navbar logo paths) that the dither hook
       rasterizes and blurs into its density mask, so the logo's edges
       dissolve into particles instead of being clipped hard. --%>
