@@ -362,13 +362,12 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     ]
 
   if bare_metal_url = Tuist.Environment.clickhouse_bare_metal_url(secrets) do
-    # The in-cluster ClickHouse, as a mirror destination while Cloud is still
-    # the system of record (spec #73). A small pool on purpose: it carries the
-    # same write volume as `Tuist.IngestRepo` but nothing waits on it, and it
-    # must not be able to starve the pool that serves customer requests.
-    # The read side of the same server, with the read path's own settings
-    # rather than the ingest path's. Configured here, next to the URL, so the
-    # credential never reaches application code.
+    # The in-cluster ClickHouse (spec #73), configured here next to the URL so
+    # the credential never reaches application code.
+    #
+    # The read side first, carrying the read path's own settings rather than
+    # the ingest path's: whether this server accepts them is part of what the
+    # migration has to establish before reads move onto it.
     config :tuist, Tuist.ShadowClickHouseRepo,
       url: bare_metal_url,
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
@@ -387,6 +386,10 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
         inet6: Tuist.Environment.use_ipv6?(secrets)
       ]
 
+    # And the write side, as a mirror destination while Cloud is still the
+    # system of record. A small pool on purpose: it carries the same write
+    # volume as `Tuist.IngestRepo` but nothing waits on it, and it must not be
+    # able to starve the pool that serves customer requests.
     config :tuist, Tuist.ShadowIngestRepo,
       url: bare_metal_url,
       pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),
