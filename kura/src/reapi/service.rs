@@ -1703,7 +1703,7 @@ impl ByteStream for ReapiService {
         let manifest = match self
             .state
             .store
-            .fetch_artifact_for_serving(
+            .fetch_artifact_for_serving_retained(
                 ArtifactProducer::Reapi,
                 &resource.namespace_id,
                 &resource.key,
@@ -1765,12 +1765,16 @@ impl ByteStream for ReapiService {
             })?;
         // Tolerates a concurrent background promotion relocating the blob
         // between the manifest fetch above and this open (see
-        // `Store::open_artifact_reader_range_tolerating_promotion`); a genuine
-        // eviction is a NOT_FOUND miss, not an internal error.
-        let Some((_, reader)) = self
+        // `Store::open_artifact_reader_range_tolerating_promotion_reader_only`);
+        // a genuine eviction is a NOT_FOUND miss, not an internal error.
+        let Some(reader) = self
             .state
             .store
-            .open_artifact_reader_range_tolerating_promotion(&manifest, read_offset, read_limit)
+            .open_artifact_reader_range_tolerating_promotion_reader_only(
+                &manifest,
+                read_offset,
+                read_limit,
+            )
             .await
             .map_err(|error| {
                 self.state

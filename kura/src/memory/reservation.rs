@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::OwnedSemaphorePermit;
 
-use crate::metrics::Metrics;
+use crate::metrics::ResponseStreamReservationMetrics;
 
 use super::{MemoryController, MemoryControllerInner};
 
@@ -56,8 +56,7 @@ pub struct ResponseStreamMemoryPermit {
     pub(super) background_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) elastic_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) transient: Option<TransientMemoryReservation>,
-    pub(super) metrics: Metrics,
-    pub(super) protocol: &'static str,
+    pub(super) metrics: Arc<ResponseStreamReservationMetrics>,
     pub(super) bytes: u64,
 }
 
@@ -80,8 +79,7 @@ impl ResponseStreamMemoryPermit {
 impl Drop for ResponseStreamMemoryPermit {
     fn drop(&mut self) {
         let mut transient = self.transient.take();
-        self.metrics
-            .remove_response_stream_reservation(self.protocol, self.bytes);
+        self.metrics.remove(self.bytes);
         drop(self.concurrency.take());
         drop(self.foreground_concurrency.take());
         drop(self.background_concurrency.take());
@@ -102,11 +100,7 @@ impl Drop for ResponseStreamMemoryPermit {
                     .response_stream_notify_without_waiters
                     .load(Ordering::Acquire);
             if has_waiters {
-                transient
-                    .controller
-                    .inner
-                    .pressure_changed
-                    .notify_waiters();
+                transient.controller.inner.pressure_changed.notify_waiters();
             }
         }
     }

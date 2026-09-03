@@ -40,7 +40,10 @@ use crate::{
     utils::directory_size_bytes,
 };
 
-const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
+// Fixed per connection: high enough to avoid turning a 512-way cache burst
+// into protocol-level waves, while still bounding request and header state.
+// Response buffers remain independently byte-bounded by MemoryController.
+const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 512;
 // The co-hosted listener carries large Bazel REAPI uploads, so it advertises a
 // 4 MiB stream window (a single ByteStream write is otherwise capped at
 // ~window/RTT) over a 16 MiB connection window sized for several concurrent

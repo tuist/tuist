@@ -9,6 +9,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(not(test))]
+use std::cell::Cell;
 #[cfg(test)]
 use std::path::PathBuf;
 
@@ -18,11 +20,18 @@ use crate::metrics::{InflightMetrics, Metrics};
 
 const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
+#[cfg(not(test))]
+const PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL: u8 = 16;
 const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
 const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
 const PUBLIC_HTTP_INFLIGHT_SHIFT: u32 = 32;
 const HTTP_INFLIGHT_INCREMENT: u64 = 1;
 const PUBLIC_HTTP_INFLIGHT_INCREMENT: u64 = 1 << PUBLIC_HTTP_INFLIGHT_SHIFT;
+
+#[cfg(not(test))]
+thread_local! {
+    static PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER: Cell<u8> = const { Cell::new(0) };
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrafficState {
@@ -236,6 +245,10 @@ impl RuntimeState {
     ) {
         metrics.observe_public_request_latency(transport, route, duration);
 
+        if !should_update_public_request_latency_ewma() {
+            return;
+        }
+
         let sample_micros = duration.as_micros().min(u64::MAX as u128) as u64;
         if sample_micros == 0 {
             return;
@@ -243,7 +256,7 @@ impl RuntimeState {
 
         let mut current = self
             .public_request_latency_ewma_micros
-            .load(Ordering::SeqCst);
+            .load(Ordering::Relaxed);
         loop {
             let next = if current == 0 {
                 sample_micros
@@ -251,15 +264,13 @@ impl RuntimeState {
                 ((current * (PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR - 1)) + sample_micros)
                     / PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR
             };
-            match self.public_request_latency_ewma_micros.compare_exchange(
-                current,
-                next,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            ) {
+            match self
+                .public_request_latency_ewma_micros
+                .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+            {
                 Ok(_) => {
                     self.public_request_latency_sampled_at_ms
-                        .store(now_ms(), Ordering::SeqCst);
+                        .store(now_ms(), Ordering::Relaxed);
                     metrics.update_public_request_latency_ewma(Duration::from_micros(next));
                     break;
                 }
@@ -267,6 +278,18 @@ impl RuntimeState {
             }
         }
     }
+}
+
+fn should_update_public_request_latency_ewma() -> bool {
+    #[cfg(test)]
+    return true;
+
+    #[cfg(not(test))]
+    PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER.with(|counter| {
+        let current = counter.get();
+        counter.set((current + 1) % PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL);
+        current == 0
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

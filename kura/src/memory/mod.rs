@@ -577,17 +577,17 @@ impl MemoryController {
             "degraded",
             started_at.elapsed(),
         );
-        self.inner
+        let metrics = self
+            .inner
             .metrics
-            .add_response_stream_reservation(protocol, bytes);
+            .begin_response_stream_reservation(protocol, bytes);
         Ok(ResponseStreamMemoryPermit {
             concurrency: Some(slot),
             foreground_concurrency: None,
             background_concurrency: None,
             elastic_concurrency: None,
             transient: Some(transient),
-            metrics: self.inner.metrics.clone(),
-            protocol,
+            metrics,
             bytes,
         })
     }
@@ -785,11 +785,10 @@ impl MemoryController {
                 .inner
                 .pools
                 .try_acquire_foreground_response_streaming(permits)?;
-            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
             Ok(self.response_stream_memory_permit(
-                (Some(concurrency), Some(foreground_concurrency), None, None),
+                (None, Some(foreground_concurrency), None, None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -838,11 +837,10 @@ impl MemoryController {
                 .inner
                 .pools
                 .try_acquire_background_response_streaming(permits)?;
-            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::PeerResponse)?;
             Ok(self.response_stream_memory_permit(
-                (Some(concurrency), None, Some(background_concurrency), None),
+                (None, None, Some(background_concurrency), None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -880,17 +878,17 @@ impl MemoryController {
         protocol: &'static str,
         bytes: u64,
     ) -> ResponseStreamMemoryPermit {
-        self.inner
+        let metrics = self
+            .inner
             .metrics
-            .add_response_stream_reservation(protocol, bytes);
+            .begin_response_stream_reservation(protocol, bytes);
         ResponseStreamMemoryPermit {
             concurrency,
             foreground_concurrency,
             background_concurrency,
             elastic_concurrency,
             transient: Some(transient),
-            metrics: self.inner.metrics.clone(),
-            protocol,
+            metrics,
             bytes,
         }
     }
@@ -1002,7 +1000,7 @@ mod tests {
                     barrier.wait().await;
                     for _ in 0..ADMISSIONS_PER_WORKER {
                         let (permit, _) = controller
-                            .try_acquire_response_stream_memory(1, "benchmark")
+                            .try_acquire_response_stream_memory(1, "http")
                             .expect("benchmark admission should have headroom");
                         std::hint::black_box(&permit);
                         drop(permit);

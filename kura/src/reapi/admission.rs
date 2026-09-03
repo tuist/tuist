@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     error::Error,
     pin::Pin,
     task::{Context, Poll},
@@ -27,6 +28,7 @@ type BoxError = Box<dyn Error + Send + Sync + 'static>;
 type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
 pub(super) const BYTESTREAM_WRITE_PATH: &str = "/google.bytestream.ByteStream/Write";
+pub(super) const BYTESTREAM_READ_PATH: &str = "/google.bytestream.ByteStream/Read";
 pub(super) const ACTION_CACHE_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
 pub(super) const CAS_BATCH_UPDATE_PATH: &str =
@@ -475,7 +477,10 @@ where
 
     fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
         let started_at = Instant::now();
-        let route = request.uri().path().to_owned();
+        let route = match request.uri().path() {
+            BYTESTREAM_READ_PATH => Cow::Borrowed(BYTESTREAM_READ_PATH),
+            path => Cow::Owned(path.to_owned()),
+        };
         let guard = self.state.start_grpc_request();
         let state = self.state.clone();
         let future = self.inner.call(request);

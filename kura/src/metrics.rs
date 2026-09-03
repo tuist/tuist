@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     collections::HashSet,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -86,6 +86,7 @@ pub struct Metrics {
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
     inflight: Arc<InflightMetrics>,
+    hot_read: Arc<HotReadMetrics>,
     public_request_latency_ewma_ms: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -171,8 +172,7 @@ pub struct Metrics {
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
     response_stream_degraded_slots: Gauge,
-    response_stream_reserved_bytes: Family<ResponseStreamProtocolLabels, Gauge>,
-    response_stream_active: Family<ResponseStreamProtocolLabels, Gauge>,
+    response_stream: Arc<ResponseStreamMetrics>,
     response_stream_waiters: Family<ResponseStreamProtocolLabels, Gauge>,
     response_stream_admissions: Family<ResponseStreamAdmissionLabels, Counter>,
     response_stream_wait_duration: Family<ResponseStreamProtocolLabels, Histogram>,
@@ -212,6 +212,68 @@ pub(crate) struct InflightMetrics {
     http: Gauge,
     public_http: Gauge,
     grpc: Gauge,
+}
+
+pub(crate) struct ResponseStreamReservationMetrics {
+    reserved_bytes: Gauge,
+    active: Gauge,
+}
+
+struct HotReadMetrics {
+    reapi_ok_reads: Counter,
+    reapi_ok_read_bytes: Counter,
+    streaming_serves: Counter,
+    segment_handle_hits: Counter,
+    manifest_hits: Counter,
+    bytestream_immediate_admissions: Counter,
+    bytestream_elastic_admissions: Counter,
+    bytestream_wait_duration: Histogram,
+    bytestream_public_latency: Histogram,
+}
+
+impl ResponseStreamReservationMetrics {
+    pub(crate) fn add(&self, bytes: u64) {
+        self.reserved_bytes.inc_by(bytes as i64);
+        self.active.inc();
+    }
+
+    pub(crate) fn remove(&self, bytes: u64) {
+        self.reserved_bytes.dec_by(bytes as i64);
+        self.active.dec();
+    }
+}
+
+struct ResponseStreamMetrics {
+    reserved_bytes: Family<ResponseStreamProtocolLabels, Gauge>,
+    active: Family<ResponseStreamProtocolLabels, Gauge>,
+    http: OnceLock<Arc<ResponseStreamReservationMetrics>>,
+    bytestream: OnceLock<Arc<ResponseStreamReservationMetrics>>,
+}
+
+impl ResponseStreamMetrics {
+    fn reservation(&self, protocol: &str) -> Arc<ResponseStreamReservationMetrics> {
+        match protocol {
+            "http" => self
+                .http
+                .get_or_init(|| self.resolve_reservation("http"))
+                .clone(),
+            "bytestream" => self
+                .bytestream
+                .get_or_init(|| self.resolve_reservation("bytestream"))
+                .clone(),
+            _ => self.resolve_reservation(protocol),
+        }
+    }
+
+    fn resolve_reservation(&self, protocol: &str) -> Arc<ResponseStreamReservationMetrics> {
+        let labels = ResponseStreamProtocolLabels {
+            protocol: protocol.to_owned(),
+        };
+        Arc::new(ResponseStreamReservationMetrics {
+            reserved_bytes: self.reserved_bytes.get_or_create_owned(&labels),
+            active: self.active.get_or_create_owned(&labels),
+        })
+    }
 }
 
 impl InflightMetrics {
@@ -469,6 +531,12 @@ impl Metrics {
         let response_stream_reserved_bytes =
             Family::<ResponseStreamProtocolLabels, Gauge>::default();
         let response_stream_active = Family::<ResponseStreamProtocolLabels, Gauge>::default();
+        let response_stream = Arc::new(ResponseStreamMetrics {
+            reserved_bytes: response_stream_reserved_bytes.clone(),
+            active: response_stream_active.clone(),
+            http: OnceLock::new(),
+            bytestream: OnceLock::new(),
+        });
         let response_stream_waiters = Family::<ResponseStreamProtocolLabels, Gauge>::default();
         let response_stream_admissions =
             Family::<ResponseStreamAdmissionLabels, Counter>::default();
@@ -476,6 +544,50 @@ impl Metrics {
             Family::<ResponseStreamProtocolLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 14))
             });
+        let reapi_ok_labels = ArtifactOpLabels {
+            producer: "reapi".to_owned(),
+            result: "ok".to_owned(),
+        };
+        let bytestream_labels = ResponseStreamProtocolLabels {
+            protocol: "bytestream".to_owned(),
+        };
+        let hot_read = Arc::new(HotReadMetrics {
+            reapi_ok_reads: artifact_reads.get_or_create_owned(&reapi_ok_labels),
+            reapi_ok_read_bytes: artifact_read_bytes.get_or_create_owned(&reapi_ok_labels),
+            streaming_serves: artifact_serving_paths.get_or_create_owned(
+                &ArtifactServingPathLabels {
+                    path: "streaming".to_owned(),
+                },
+            ),
+            segment_handle_hits: segment_handle_cache_lookups.get_or_create_owned(
+                &SegmentHandleCacheLookupLabels {
+                    result: "hit".to_owned(),
+                },
+            ),
+            manifest_hits: manifest_cache_lookups.get_or_create_owned(&ManifestCacheLookupLabels {
+                result: "hit".to_owned(),
+            }),
+            bytestream_immediate_admissions: response_stream_admissions.get_or_create_owned(
+                &ResponseStreamAdmissionLabels {
+                    protocol: "bytestream".to_owned(),
+                    outcome: "immediate".to_owned(),
+                },
+            ),
+            bytestream_elastic_admissions: response_stream_admissions.get_or_create_owned(
+                &ResponseStreamAdmissionLabels {
+                    protocol: "bytestream".to_owned(),
+                    outcome: "elastic".to_owned(),
+                },
+            ),
+            bytestream_wait_duration: response_stream_wait_duration
+                .get_or_create_owned(&bytestream_labels),
+            bytestream_public_latency: public_request_latency.get_or_create_owned(
+                &PublicRequestLatencyLabels {
+                    transport: "grpc".to_owned(),
+                    route: "/google.bytestream.ByteStream/Read".to_owned(),
+                },
+            ),
+        });
         let memory_pressure_transitions =
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
@@ -1364,6 +1476,7 @@ impl Metrics {
             file_descriptor_waiting,
             file_descriptor_capacity,
             inflight,
+            hot_read,
             public_request_latency_ewma_ms,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -1449,8 +1562,7 @@ impl Metrics {
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
             response_stream_degraded_slots,
-            response_stream_reserved_bytes,
-            response_stream_active,
+            response_stream,
             response_stream_waiters,
             response_stream_admissions,
             response_stream_wait_duration,
@@ -1580,6 +1692,13 @@ impl Metrics {
     }
 
     pub fn record_artifact_read(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
+        if producer == ArtifactProducer::Reapi && result == "ok" {
+            self.hot_read.reapi_ok_reads.inc();
+            if bytes > 0 {
+                self.hot_read.reapi_ok_read_bytes.inc_by(bytes);
+            }
+            return;
+        }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
             result: result.to_owned(),
@@ -1593,6 +1712,10 @@ impl Metrics {
     }
 
     pub fn record_artifact_serving_path(&self, path: &str) {
+        if path == "streaming" {
+            self.hot_read.streaming_serves.inc();
+            return;
+        }
         self.artifact_serving_paths
             .get_or_create(&ArtifactServingPathLabels {
                 path: path.to_owned(),
@@ -1653,6 +1776,12 @@ impl Metrics {
     }
 
     pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
+        if transport == "grpc" && route == "/google.bytestream.ByteStream/Read" {
+            self.hot_read
+                .bytestream_public_latency
+                .observe(duration.as_secs_f64());
+            return;
+        }
         self.public_request_latency
             .get_or_create(&PublicRequestLatencyLabels {
                 transport: transport.to_owned(),
@@ -1904,6 +2033,10 @@ impl Metrics {
     }
 
     pub fn record_segment_handle_cache_lookup(&self, result: &str) {
+        if result == "hit" {
+            self.hot_read.segment_handle_hits.inc();
+            return;
+        }
         self.segment_handle_cache_lookups
             .get_or_create(&SegmentHandleCacheLookupLabels {
                 result: result.to_owned(),
@@ -1935,6 +2068,10 @@ impl Metrics {
     }
 
     pub fn record_manifest_cache_lookup(&self, result: &str) {
+        if result == "hit" {
+            self.hot_read.manifest_hits.inc();
+            return;
+        }
         self.manifest_cache_lookups
             .get_or_create(&ManifestCacheLookupLabels {
                 result: result.to_owned(),
@@ -2303,24 +2440,19 @@ impl Metrics {
             .set(degraded_slots as i64);
     }
 
+    #[cfg(test)]
     pub fn add_response_stream_reservation(&self, protocol: &str, bytes: u64) {
-        let labels = ResponseStreamProtocolLabels {
-            protocol: protocol.to_owned(),
-        };
-        self.response_stream_reserved_bytes
-            .get_or_create(&labels)
-            .inc_by(bytes as i64);
-        self.response_stream_active.get_or_create(&labels).inc();
+        self.response_stream.reservation(protocol).add(bytes);
     }
 
-    pub fn remove_response_stream_reservation(&self, protocol: &str, bytes: u64) {
-        let labels = ResponseStreamProtocolLabels {
-            protocol: protocol.to_owned(),
-        };
-        self.response_stream_reserved_bytes
-            .get_or_create(&labels)
-            .dec_by(bytes as i64);
-        self.response_stream_active.get_or_create(&labels).dec();
+    pub(crate) fn begin_response_stream_reservation(
+        &self,
+        protocol: &str,
+        bytes: u64,
+    ) -> Arc<ResponseStreamReservationMetrics> {
+        let reservation = self.response_stream.reservation(protocol);
+        reservation.add(bytes);
+        reservation
     }
 
     pub fn add_response_stream_waiter(&self, protocol: &str) {
@@ -2345,6 +2477,20 @@ impl Metrics {
         outcome: &str,
         duration: Duration,
     ) {
+        if protocol == "bytestream" {
+            let admissions = match outcome {
+                "immediate" => Some(&self.hot_read.bytestream_immediate_admissions),
+                "elastic" => Some(&self.hot_read.bytestream_elastic_admissions),
+                _ => None,
+            };
+            if let Some(admissions) = admissions {
+                admissions.inc();
+                self.hot_read
+                    .bytestream_wait_duration
+                    .observe(duration.as_secs_f64());
+                return;
+            }
+        }
         self.response_stream_admissions
             .get_or_create(&ResponseStreamAdmissionLabels {
                 protocol: protocol.to_owned(),

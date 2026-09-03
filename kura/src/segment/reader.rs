@@ -55,11 +55,12 @@ impl SegmentReader {
             .min(max_bytes as u64)
             .min(READ_CHUNK_BYTES as u64) as usize;
         let offset = self.offset;
-        let handle = self.handle.clone();
-        let bytes = tokio::task::spawn_blocking(move || read_chunk(handle, offset, len))
-            .await
-            .map_err(|error| io::Error::other(format!("segment read task failed: {error}")))?
-            .map_err(io::Error::other)?;
+        let read = || read_chunk_from_file(self.handle.as_std(), offset, len);
+        let bytes = match tokio::runtime::Handle::current().runtime_flavor() {
+            tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(read),
+            _ => read(),
+        }
+        .map_err(io::Error::other)?;
         if bytes.is_empty() {
             return Err(truncated_segment_error(self.remaining));
         }

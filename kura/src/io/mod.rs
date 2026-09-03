@@ -1,7 +1,10 @@
 use std::{
     path::{Component, Path, PathBuf},
     pin::Pin,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -44,6 +47,7 @@ pub struct TrackedFile {
 
 pub struct PersistentFile {
     file: std::fs::File,
+    known_len: AtomicU64,
     _lease: FileDescriptorLease,
 }
 
@@ -183,11 +187,15 @@ impl IoController {
         let started_at = Instant::now();
         match tokio::task::spawn_blocking({
             let path = path.clone();
-            move || std::fs::File::open(&path)
+            move || {
+                let file = std::fs::File::open(&path)?;
+                let known_len = file.metadata()?.len();
+                Ok::<_, io::Error>((file, known_len))
+            }
         })
         .await
         {
-            Ok(Ok(file)) => {
+            Ok(Ok((file, known_len))) => {
                 self.inner.metrics.record_file_operation(
                     "open_persistent_read_file",
                     "ok",
@@ -196,6 +204,7 @@ impl IoController {
                 );
                 Ok(PersistentFile {
                     file,
+                    known_len: AtomicU64::new(known_len),
                     _lease: lease,
                 })
             }
@@ -220,6 +229,64 @@ impl IoController {
                 );
                 Err(format!(
                     "failed to join persistent file open task for {}: {error}",
+                    path.display()
+                ))
+            }
+        }
+    }
+
+    pub async fn open_persistent_append_file(&self, path: &Path) -> Result<PersistentFile, String> {
+        let path = self.validate_path(path)?;
+        let lease = self.acquire("open_persistent_append_file").await?;
+        let started_at = Instant::now();
+        match tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .read(true)
+                    .open(&path)?;
+                let known_len = file.metadata()?.len();
+                Ok::<_, io::Error>((file, known_len))
+            }
+        })
+        .await
+        {
+            Ok(Ok((file, known_len))) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "ok",
+                    started_at.elapsed(),
+                    0,
+                );
+                Ok(PersistentFile {
+                    file,
+                    known_len: AtomicU64::new(known_len),
+                    _lease: lease,
+                })
+            }
+            Ok(Err(error)) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "error",
+                    started_at.elapsed(),
+                    0,
+                );
+                Err(format!(
+                    "failed to open persistent append file {}: {error}",
+                    path.display()
+                ))
+            }
+            Err(error) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "error",
+                    started_at.elapsed(),
+                    0,
+                );
+                Err(format!(
+                    "failed to join persistent append file open task for {}: {error}",
                     path.display()
                 ))
             }
@@ -557,6 +624,31 @@ impl AsyncSeek for TrackedFile {
 impl PersistentFile {
     pub fn as_std(&self) -> &std::fs::File {
         &self.file
+    }
+
+    pub fn write_all(&self, bytes: &[u8]) -> Result<(), io::Error> {
+        std::io::Write::write_all(&mut &self.file, bytes)?;
+        self.known_len
+            .fetch_add(bytes.len() as u64, Ordering::AcqRel);
+        Ok(())
+    }
+
+    pub fn sync_data(&self) -> Result<(), io::Error> {
+        self.file.sync_data()
+    }
+
+    /// Returns whether this append-only file has reached `needed` bytes.
+    /// The open-time length handles the common read path without a metadata
+    /// system call. A larger request refreshes the monotonic high-water mark;
+    /// the positional read still reports an explicit short-read error if the
+    /// append-only invariant is violated externally.
+    pub fn has_len(&self, needed: u64) -> Result<bool, io::Error> {
+        if self.known_len.load(Ordering::Acquire) >= needed {
+            return Ok(true);
+        }
+        let actual = self.file.metadata()?.len();
+        self.known_len.fetch_max(actual, Ordering::AcqRel);
+        Ok(actual >= needed)
     }
 
     pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {

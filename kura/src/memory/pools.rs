@@ -26,7 +26,6 @@ pub(super) struct MemoryPools {
     mmap_serving: Arc<Semaphore>,
     transient_capacity_bytes: usize,
     reapi_materialization_limit_bytes: usize,
-    response_streaming: Arc<Semaphore>,
     foreground_response_streaming: Arc<Semaphore>,
     elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
@@ -69,6 +68,11 @@ impl MemoryPools {
             response_streaming_bytes.min(MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES);
         let foreground_response_streaming_bytes =
             response_streaming_bytes.saturating_sub(backfill_reserved_bytes);
+        // Foreground and background have disjoint semaphores whose capacities
+        // sum to the global response budget. A third global semaphore would
+        // enforce the same inequality again while adding an atomic acquisition
+        // and release to every stream. Keep the byte total for sizing and
+        // metrics, and enforce it through this exact partition.
         let elastic_foreground_response_streaming_bytes =
             elastic_foreground_response_streaming_bytes(
                 transient_capacity_bytes,
@@ -95,7 +99,6 @@ impl MemoryPools {
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
             transient_capacity_bytes,
             reapi_materialization_limit_bytes,
-            response_streaming: Arc::new(Semaphore::new(response_streaming_bytes)),
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
             )),
@@ -178,16 +181,6 @@ impl MemoryPools {
 
     pub(super) fn response_streaming_bytes(&self) -> usize {
         self.response_streaming_bytes
-    }
-
-    pub(super) fn try_acquire_response_streaming(
-        &self,
-        permits: u32,
-    ) -> Result<OwnedSemaphorePermit, ()> {
-        self.response_streaming
-            .clone()
-            .try_acquire_many_owned(permits)
-            .map_err(|_| ())
     }
 
     pub(super) fn foreground_response_streaming_bytes(&self) -> usize {
