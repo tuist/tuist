@@ -152,7 +152,7 @@ impl Outcome {
 fn settle(
     entry: Option<&AccessEntry>,
     required: Access,
-    request: &policy::ResolvedRequest,
+    request: &policy::ResolvedRequest<'_>,
     now: Instant,
 ) -> Option<Outcome> {
     let entry = entry?;
@@ -168,7 +168,7 @@ fn settle(
 }
 
 /// The answer a fresh evaluation gives the request that paid for it.
-fn respond(access: Access, required: Access, request: &policy::ResolvedRequest) -> Outcome {
+fn respond(access: Access, required: Access, request: &policy::ResolvedRequest<'_>) -> Outcome {
     if access == Access::Invalid {
         return Outcome::Refuse(policy::invalid_credential());
     }
@@ -295,7 +295,7 @@ impl AuthEngine {
     async fn answer(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
         required: Access,
         credential_key: CredentialKey,
         entry_key: EntryKey,
@@ -315,7 +315,7 @@ impl AuthEngine {
     async fn consult(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
         required: Access,
         credential_key: CredentialKey,
         entry_key: EntryKey,
@@ -433,7 +433,7 @@ impl AuthEngine {
     async fn evaluate_policy(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
     ) -> Authentication {
         let start = Instant::now();
         let authenticate_span = if trace_export_active() {
@@ -543,12 +543,12 @@ fn result_label(result: &Authentication) -> &'static str {
 /// from a closed set, so the identifier can carry anything.
 fn entry_key(
     credential_key: &CredentialKey,
-    target: &crate::auth::target::RequestTarget,
+    target: &crate::auth::target::RequestTarget<'_>,
 ) -> EntryKey {
     EntryKey {
         credential: *credential_key,
         scope: target.scope,
-        identifier: target.identifier.clone(),
+        identifier: target.identifier.to_string(),
     }
 }
 
@@ -568,7 +568,7 @@ mod tests {
         entries: Cache<EntryKey, AccessEntry>,
         revocations: Cache<CredentialKey, Instant>,
         authorization: Arc<str>,
-        target: Arc<RequestTarget>,
+        target: Arc<RequestTarget<'static>>,
     ) -> f64 {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 100_000;
@@ -618,7 +618,7 @@ mod tests {
         (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
     }
 
-    fn request() -> policy::ResolvedRequest {
+    fn request() -> policy::ResolvedRequest<'static> {
         policy::ResolvedRequest {
             target: RequestTarget {
                 scope: Scope::Project,

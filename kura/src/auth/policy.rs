@@ -20,14 +20,14 @@ use crate::auth::{Access, DenyDecision, RequestContext};
 /// needs it. Resolving it per consumer is how the cache key and the policy came
 /// to disagree about which project a request named.
 #[derive(Clone, Debug)]
-pub struct ResolvedRequest {
-    pub target: RequestTarget,
+pub struct ResolvedRequest<'a> {
+    pub target: RequestTarget<'a>,
     pub action: Action,
 }
 
 /// The credential check comes first: a request carrying none is refused for
 /// that before its target matters.
-pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDecision> {
+pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest<'_>, DenyDecision> {
     if authorization_header(ctx).is_none() {
         return Err(DenyDecision {
             status: 401,
@@ -42,7 +42,7 @@ pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDeci
 }
 
 /// The 403 a target refusal answers with.
-pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
+pub fn refusal(request: &ResolvedRequest<'_>) -> DenyDecision {
     DenyDecision {
         status: 403,
         message: format!(
@@ -56,7 +56,7 @@ pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
 
 /// The 402 an account whose free tier is exhausted answers with. Distinct from
 /// `refusal` because the caller can act on this one.
-pub fn payment_required(request: &ResolvedRequest) -> DenyDecision {
+pub fn payment_required(request: &ResolvedRequest<'_>) -> DenyDecision {
     DenyDecision {
         status: 402,
         message: format!(
@@ -190,7 +190,7 @@ fn project_handles(body: &Value) -> Vec<String> {
 pub async fn authenticate(
     backend: &TuistBackend,
     ctx: &RequestContext,
-    request: &ResolvedRequest,
+    request: &ResolvedRequest<'_>,
 ) -> Authentication {
     let Some(authorization) = authorization_header(ctx) else {
         return Authentication::Access(Access::Invalid);
@@ -241,7 +241,7 @@ pub async fn authenticate(
 /// server for.
 fn from_verified_claims(
     claims: &Value,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Option<Access> {
     let level = CacheGrants::from_body(claims).level(target);
@@ -276,7 +276,7 @@ async fn via_introspection(
     backend: &TuistBackend,
     token: &str,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Authentication {
     let response = match backend.introspect(token).await {
@@ -324,7 +324,7 @@ async fn via_introspection(
 async fn via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     floor: Access,
 ) -> Authentication {
     let response = match backend.cache_access(authorization).await {
@@ -430,7 +430,7 @@ mod tests {
         }
     }
 
-    fn target_of(ctx: &RequestContext) -> RequestTarget {
+    fn target_of(ctx: &RequestContext) -> RequestTarget<'_> {
         request_target(ctx).expect("a resolvable target")
     }
 
@@ -502,7 +502,8 @@ mod tests {
     fn falls_back_to_bare_handles_only_for_tokens_that_predate_scopes() {
         let legacy = json!({ "sub": "user", "projects": ["ACME/iOS"] });
         let scoped = json!({ "sub": "user", "scopes": [], "projects": ["ACME/iOS"] });
-        let target = target_of(&ctx());
+        let context = ctx();
+        let target = target_of(&context);
 
         assert_eq!(
             from_verified_claims(&legacy, &target, Access::Read),
