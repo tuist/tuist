@@ -40,6 +40,7 @@ Single-replica deploy of the `tuist-ops` app into the production cluster (same c
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
 - `clusters/cluster-{staging,canary,production,preview,pentest}.yaml` — per-env Cluster CRs in topology mode.
+- `clusters/bare-metal.yaml` and `clusters/bare-metal-stateful.yaml`: Hetzner Robot substrates. The first backs the `bare-metal-worker` class (runner-shaped: Kata pre-baked, root takes the whole array); the second backs `stateful-worker` (database-shaped: capped root plus a separate `/data`, no Kata, and a per-cluster `statefulRaidLevel` because SWRAIDLEVEL 1 on a four-disk box installs as a four-way mirror). Both are applied by a `bare-metal*.yaml` glob in `mgmt-cluster-apply.yml`. Host CRs come from `hetzner-robot-controller`, which stamps only managed-by + cluster, so any bare-metal MachineDeployment in an env can claim any host in it.
 - Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
   app workloads and preview Kura runtime pods both land on the tainted
