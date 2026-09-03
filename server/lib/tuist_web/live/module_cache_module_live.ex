@@ -137,6 +137,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
     invalidated_by_order =
       if params["invalidated-by-order"] in ~w(asc desc), do: params["invalidated-by-order"], else: "desc"
+
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -292,6 +293,21 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
     "?" <> query
   end
+
+  @doc false
+  def invalidated_by_sort_dropdown_patch(uri, column) do
+    query =
+      uri.query
+      |> Query.put("invalidated-by-sort", column)
+      |> Query.drop("invalidated-by-order")
+      |> Query.put("invalidated-by-page", "1")
+
+    "?" <> query
+  end
+
+  @doc false
+  def invalidated_by_sort_label("name"), do: dgettext("dashboard_cache", "Dependency")
+  def invalidated_by_sort_label(_), do: dgettext("dashboard_cache", "Times changed")
 
   @doc false
   def invalidated_by_page_patch(uri, page) do
