@@ -1356,6 +1356,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def clickhouse_shadow_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
+      nil -> 5
+      value -> String.to_integer(value)
+    end
+  end
+
   def clickhouse_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)

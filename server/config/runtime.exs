@@ -361,6 +361,26 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
 
+  if bare_metal_url = Tuist.Environment.clickhouse_bare_metal_url(secrets) do
+    # The in-cluster ClickHouse, as a mirror destination while Cloud is still
+    # the system of record (spec #73). A small pool on purpose: it carries the
+    # same write volume as `Tuist.IngestRepo` but nothing waits on it, and it
+    # must not be able to starve the pool that serves customer requests.
+    config :tuist, Tuist.ShadowIngestRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
+
   config :tuist, Tuist.Repo, database_options
 
   config :tuist,
