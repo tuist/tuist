@@ -37,13 +37,6 @@
     <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
     </script>
-    <script
-      :if={TuistWeb.Turnstile.required?() and assigns[:load_turnstile_script?]}
-      nonce={get_csp_nonce()}
-      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-      defer
-    >
-    </script>
     <script nonce={get_csp_nonce()}>
       function cssvar(name) {
         return getComputedStyle(document.documentElement).getPropertyValue(name);

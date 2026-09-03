@@ -433,11 +433,6 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
-  # Cloudflare Turnstile protects self-service browser registration on hosted
-  # deployments. Its site and secret keys are synced from the TURNSTILE
-  # 1Password item only when this switch is on.
-  turnstile:
-    enabled: false
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and
