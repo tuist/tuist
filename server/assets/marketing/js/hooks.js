@@ -10,6 +10,10 @@ import { AgentPrompt } from "./hooks/agent-prompt.js";
 import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
 import { LogoTransition } from "./hooks/logo-transition.js";
 import { CacheChart } from "./hooks/cache-chart.js";
+import { CacheHeroChart } from "./hooks/cache-hero-chart.js";
+import { CacheMinimalOverhead } from "./hooks/cache-minimal-overhead.js";
+import { CacheObservability } from "./hooks/cache-observability.js";
+import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
 import { CounterAnimation } from "./hooks/counter-animation.js";
 import { KaTeX } from "./hooks/katex.js";
 import { PlatformBackground } from "./hooks/platform-background.js";
@@ -21,6 +25,7 @@ import { TestGrid } from "./hooks/test-grid.js";
 import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
 import { ThemeSwitcher } from "./hooks/theme-switcher.js";
 import { DitherPing } from "./hooks/dither-ping.js";
+import { DitherGlobe } from "./hooks/dither-globe.js";
 import { CustomersDitherDots } from "./hooks/customers-dither-dots.js";
 import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
@@ -40,6 +45,7 @@ const Hooks = {
   TuistDitherParticles,
   ThemeSwitcher,
   DitherPing,
+  DitherGlobe,
   NavbarDropdown,
   NavbarMegaMenu,
   LogoContextMenu,
@@ -53,6 +59,10 @@ const Hooks = {
   InfiniteScrollLogos,
   LogoTransition,
   CacheChart,
+  CacheHeroChart,
+  CacheMinimalOverhead,
+  CacheObservability,
+  CacheBuildDecks,
   CounterAnimation,
   KaTeX,
   BlogViewPreference,
