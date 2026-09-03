@@ -6800,6 +6800,118 @@ struct PackageInfoMapperTests {
     }
 
     @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenRegistryDependencyUsesDefaultTrait_resolvesUnderlyingTraits() {
+        // A registry dependency is identified by a scoped identity (e.g.
+        // "hummingbird-project.hummingbird") while source control dependencies use
+        // the package name alone. The enabled traits must resolve regardless of
+        // which source the dependency is resolved from.
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird-project.hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let registryIdentities: Set<String> = ["hummingbird-project.hummingbird"]
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird-project.hummingbird": hummingbirdInfo],
+            registryIdentities: registryIdentities
+        )
+
+        #expect(result["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenRegistryDependencyMatchesSourceControlDependency_aggregatesTraits() {
+        // The same package resolved through the registry and referenced by its
+        // source control identity in the root manifest must resolve its traits.
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let registryIdentities: Set<String> = ["hummingbird-project.hummingbird"]
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird-project.hummingbird": hummingbirdInfo],
+            registryIdentities: registryIdentities
+        )
+
+        #expect(result["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func canonicalIdentity_whenRegistryIdentity_stripsScope() {
+        #expect(
+            SwiftPackageManagerGraphLoader.canonicalIdentity(
+                "hummingbird-project.hummingbird",
+                registryIdentities: ["hummingbird-project.hummingbird"]
+            ) == "hummingbird"
+        )
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func canonicalIdentity_whenSourceControlIdentity_preservesName() {
+        #expect(
+            SwiftPackageManagerGraphLoader.canonicalIdentity(
+                "hummingbird",
+                registryIdentities: []
+            ) == "hummingbird"
+        )
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
     func enabledTraits_whenConditionalTraitWithMatchingCondition_enablesTrait() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
