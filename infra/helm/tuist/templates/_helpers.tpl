@@ -714,6 +714,10 @@ the shadow writes inert everywhere else.
       # out. Absent instead means the schema clone reads no destination and
       # skips, and the next deploy has both the Secret and the server.
       optional: true
+{{- if .Values.clickhouse.managed.shadowWrites.enabled }}
+- name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
+  value: "1"
+{{- end }}
 {{- end }}
 {{- end }}
 

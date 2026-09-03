@@ -2899,6 +2899,14 @@ clickhouse:
     # `ENGINE = Replicated`, and `default` already exists as an ordinary
     # Atomic database on a fresh server.
     database: tuist
+    # Mirror every ClickHouse write onto the in-cluster server as well as the
+    # system of record. Switched on separately from the URL, and after the
+    # schema clone: a destination with no tables rejects every mirrored write,
+    # so a single switch would fill the logs on the deploy that first brings
+    # the server up. Cloud stays the system of record either way; a failed
+    # mirror is counted and ignored, never surfaced to a request.
+    shadowWrites:
+      enabled: false
     # One step of the migration off ClickHouse Cloud, run as a post-upgrade
     # hook. An operator advances the migration by changing `task` and
     # deploying, so each step is recorded in the release history.

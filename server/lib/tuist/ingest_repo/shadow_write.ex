@@ -121,11 +121,12 @@ defmodule Tuist.IngestRepo.ShadowWrite do
       :error
   end
 
-  # The repository is only in the supervision tree when a destination is
-  # configured, so this is what makes the whole module inert everywhere except
-  # an environment that is mid-migration.
+  # Two conditions, not one. The repository is only in the supervision tree
+  # when a destination is configured, which makes this inert everywhere except
+  # an environment that is mid-migration; and mirroring is switched on
+  # separately, once that destination has a schema to accept the writes.
   defp enabled? do
-    not is_nil(Tuist.Environment.clickhouse_bare_metal_url())
+    Tuist.Environment.clickhouse_shadow_writes_enabled?()
   end
 
   defp statement_kind(sql) do

@@ -1356,6 +1356,16 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Whether writes are mirrored onto the in-cluster ClickHouse. Separate from
+  # the URL being set, because the destination has to exist and hold the
+  # schema before it can accept a write: the schema clone runs after the
+  # release that first deploys the server, so a single switch would mirror
+  # writes into a database with no tables and log an error for each one.
+  def clickhouse_shadow_writes_enabled?(secrets \\ secrets()) do
+    not is_nil(clickhouse_bare_metal_url(secrets)) and
+      truthy?(get([:clickhouse, :shadow_writes_enabled], secrets, default_value: "0"))
+  end
+
   def clickhouse_shadow_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
       nil -> 5
