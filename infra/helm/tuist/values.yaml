@@ -2924,6 +2924,14 @@ clickhouse:
       # than colliding with the immutable pod template of the previous one.
       name: schema-clone
       task: Tuist.Release.clone_clickhouse_schema
+      # The instant the backfill copies up to, and the one shadow writes take
+      # over from. Set it to when the deploy that enabled shadow writes
+      # finished rolling out, and enable shadow writes first: the backfill
+      # covers what came before, the dual write covers what comes after, and
+      # naming the boundary is what stops the two from either overlapping or
+      # leaving a gap between them. RFC 3339, for example
+      # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
+      cutoff: ""
       # No retries. These steps are resumable, so a failure should be read
       # and re-run deliberately rather than repeated automatically against a
       # database.

@@ -16,9 +16,21 @@ defmodule Tuist.ClickHouse.Parity do
   is what the application's own reads do and therefore what parity has to mean
   here. Without it a freshly copied chunk fails a comparison that the product
   would have passed.
+
+  ## Why only the copied tables are a gate
+
+  The tables a materialized view writes into are not transferred. They are
+  recomputed on the destination, by the destination's own views, from the rows
+  the backfill delivers. Two things follow, and neither is a fault worth
+  blocking a migration on. The order differs, so a `ReplacingMergeTree` target
+  can keep a different row of a duplicated key than the source kept. And a
+  base table with a TTL has since dropped rows that its derived table still
+  counts on the source but cannot count again here. So those tables are
+  compared and reported, and only the copied ones decide the outcome.
   """
 
   alias Tuist.ClickHouse.Endpoints
+  alias Tuist.ClickHouse.Tables
 
   require Logger
 
@@ -30,32 +42,48 @@ defmodule Tuist.ClickHouse.Parity do
   """
   def compare(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      tables = Keyword.get_lazy(opts, :tables, fn -> comparable_tables(target) end)
+      copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
+      derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end)
 
-      rows =
-        Enum.map(tables, fn table ->
-          left = fingerprint(source, table)
-          right = fingerprint(target, table)
-
-          %{table: table, source: left, destination: right, matches: left == right}
-        end)
-
-      {matching, differing} = Enum.split_with(rows, & &1.matches)
+      {matching, differing} = split(source, target, copied)
+      {derived_matching, derived_differing} = split(source, target, derived)
 
       report = %{
-        compared: length(rows),
+        compared: length(copied),
         matching: Enum.map(matching, & &1.table),
-        differing: Enum.map(differing, &Map.delete(&1, :matches))
+        differing: Enum.map(differing, &Map.delete(&1, :matches)),
+        derived: %{
+          compared: length(derived),
+          matching: Enum.map(derived_matching, & &1.table),
+          differing: Enum.map(derived_differing, & &1.table)
+        }
       }
 
       if report.differing == [] do
-        Logger.info("ClickHouse parity: all #{report.compared} table(s) agree")
+        Logger.info("ClickHouse parity: all #{report.compared} copied table(s) agree")
       else
-        Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} table(s) differ")
+        Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} copied table(s) differ")
+      end
+
+      if report.derived.differing != [] do
+        Logger.warning(
+          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{Enum.join(report.derived.differing, ", ")}"
+        )
       end
 
       {:ok, report}
     end)
+  end
+
+  defp split(source, target, tables) do
+    tables
+    |> Enum.map(fn table ->
+      left = fingerprint(source, table)
+      right = fingerprint(target, table)
+
+      %{table: table, source: left, destination: right, matches: left == right}
+    end)
+    |> Enum.split_with(& &1.matches)
   end
 
   # A count, the time bounds, and a sum over every numeric column. The sum is
@@ -140,24 +168,6 @@ defmodule Tuist.ClickHouse.Parity do
       [] -> nil
       [column | _] -> column
     end
-  end
-
-  defp comparable_tables(target) do
-    %{rows: rows} =
-      target.repo.query!(
-        """
-        SELECT name FROM system.tables
-        WHERE database = {database:String}
-          AND engine LIKE 'Replicated%'
-          AND name NOT LIKE '.inner%'
-          AND name != 'schema_migrations'
-        ORDER BY name
-        """,
-        %{"database" => target.database},
-        log: false
-      )
-
-    List.flatten(rows)
   end
 
   defp label(select), do: select |> String.split(" AS ") |> List.last()

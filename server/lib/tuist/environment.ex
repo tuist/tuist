@@ -1366,6 +1366,22 @@ defmodule Tuist.Environment do
       truthy?(get([:clickhouse, :shadow_writes_enabled], secrets, default_value: "0"))
   end
 
+  # The instant that divides the two halves of the migration: the backfill
+  # copies rows from before it, and shadow writes carry everything from it on.
+  # It has to be named rather than inferred, because the only correct value is
+  # the moment dual writes were switched on, which this code cannot observe
+  # after the fact. Guessing it either way corrupts the copy: a cutoff before
+  # that moment loses the rows written in between, and one after it copies
+  # rows the dual write already delivered.
+  def clickhouse_backfill_cutoff(secrets \\ secrets()) do
+    with value when is_binary(value) and value != "" <- get([:clickhouse, :backfill_cutoff], secrets),
+         {:ok, cutoff, _offset} <- DateTime.from_iso8601(value) do
+      DateTime.truncate(cutoff, :second)
+    else
+      _ -> nil
+    end
+  end
+
   def clickhouse_shadow_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
       nil -> 5

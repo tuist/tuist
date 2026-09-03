@@ -26,8 +26,8 @@ defmodule Tuist.ClickHouse.Endpoints do
   alias Tuist.Environment
 
   @doc """
-  Starts the source and destination repositories and calls `fun` with a
-  descriptor for each, then shuts them down again.
+  Starts the ledger, source and destination repositories and calls `fun` with a
+  descriptor for the two ClickHouse ones, then shuts them all down again.
 
   Returns `{:error, :no_target_configured}` when the destination is not
   configured, which is every environment that is not mid-migration.
@@ -39,8 +39,14 @@ defmodule Tuist.ClickHouse.Endpoints do
     if is_nil(Environment.clickhouse_bare_metal_url()) do
       {:error, :no_target_configured}
     else
-      with_started_repo(source_repo, fn source ->
-        with_started_repo(target_repo, fn target -> fun.(source, target) end)
+      # The backfill records its progress in Postgres, which `bin/tuist eval`
+      # has not started either. A repository that is not started fails at the
+      # first query rather than at lookup, so the omission surfaced only once
+      # the first chunk had already been copied.
+      with_started_repo(Tuist.Repo, fn _ledger ->
+        with_started_repo(source_repo, fn source ->
+          with_started_repo(target_repo, fn target -> fun.(source, target) end)
+        end)
       end)
     end
   end

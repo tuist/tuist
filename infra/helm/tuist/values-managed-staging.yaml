@@ -333,15 +333,23 @@ clickhouse:
     enabled: true
     persistence:
       size: 60Gi
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    shadowWrites:
+      enabled: true
     # The migration is advanced one step at a time by changing `task` here and
     # deploying, so each step is a reviewed change recorded in the release
     # history.
     #
     # Done: the schema clone, which brought over 78 tables, 28 views and 235
-    # migration versions. Current step: copy the rows that already exist.
-    # Next: `Tuist.Release.check_clickhouse_parity`, then shadow writes.
+    # migration versions. Current step: turn dual writes on, with no task, so
+    # the cutoff can be read off a completed rollout. Next: the backfill up to
+    # that cutoff, then `Tuist.Release.check_clickhouse_parity`.
     migration:
-      enabled: true
+      enabled: false
       name: backfill
       task: Tuist.Release.backfill_clickhouse
 

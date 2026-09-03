@@ -22,6 +22,18 @@ defmodule Tuist.ClickHouse.Backfill do
   source nor the destination of the copy and so survives the failures that
   make resuming necessary.
 
+  ## Where the copy stops
+
+  The backfill is the second half of the cutover, not the first. Shadow writes
+  are switched on first, and from that instant every new row reaches both
+  servers; the backfill then copies what was written before it. So it needs to
+  know that instant, and it is given it rather than guessing: a bound taken
+  when the backfill starts would copy rows the dual write had already
+  delivered, and no bound at all would leave the rows written between the two
+  steps on the source alone. Tables with no time column cannot be bounded this
+  way, and are copied whole; see `chunks_for/3` for why that is safe for the
+  few tables it applies to.
+
   ## How a table is divided
 
   By month over a time column when the table has one, which is also how most
@@ -35,14 +47,18 @@ defmodule Tuist.ClickHouse.Backfill do
   import Ecto.Query
 
   alias Tuist.ClickHouse.Endpoints
+  alias Tuist.ClickHouse.Tables
+  alias Tuist.Environment
   alias Tuist.Repo
 
   require Logger
 
-  # First match wins. `inserted_at` is the convention across the ingest
-  # tables; the rest are the exceptions, and `command_events` is the reason
-  # `ran_at` is here.
-  @time_columns ~w(inserted_at ran_at ingested_at window_start ts created_at)
+  # First match wins, and the order is write time before event time. The
+  # cutoff divides rows by when they were written, so a column recording when
+  # something happened is the wrong one to bound by: `command_events` carries
+  # both, and a run that started before the cutoff can be reported minutes
+  # after it, which would put the row on both sides of the boundary.
+  @time_columns ~w(inserted_at created_at ingested_at ts window_start ran_at)
 
   @hash_buckets 16
 
@@ -54,18 +70,26 @@ defmodule Tuist.ClickHouse.Backfill do
   """
   def run(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      tables = Keyword.get_lazy(opts, :tables, fn -> destination_tables(target) end)
+      case Keyword.get_lazy(opts, :cutoff, &Environment.clickhouse_backfill_cutoff/0) do
+        nil ->
+          {:error, :no_cutoff_configured}
 
-      Logger.info("Backfilling #{length(tables)} table(s) from #{source.database} into #{target.database}")
+        cutoff ->
+          tables = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
 
-      results = Enum.map(tables, fn table -> {table, backfill_table(source, target, table)} end)
+          Logger.info(
+            "Backfilling #{length(tables)} table(s) from #{source.database} into #{target.database}, up to #{DateTime.to_iso8601(cutoff)}"
+          )
 
-      {:ok, Map.new(results)}
+          results = Enum.map(tables, fn table -> {table, backfill_table(source, target, table, cutoff)} end)
+
+          {:ok, Map.new(results)}
+      end
     end)
   end
 
-  defp backfill_table(source, target, table) do
-    chunks = chunks_for(source, table)
+  defp backfill_table(source, target, table, cutoff) do
+    chunks = chunks_for(source, table, cutoff)
     Logger.info("#{table}: #{length(chunks)} chunk(s)")
 
     Enum.reduce(chunks, %{copied: 0, skipped: 0, failed: 0}, fn chunk, acc ->
@@ -124,18 +148,27 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
-  # Divides by month over a time column, or by a hash of the sorting key when
-  # the table has none.
-  defp chunks_for(source, table) do
+  # Divides by month over a time column up to the cutoff, or by a hash of the
+  # sorting key when the table has none.
+  #
+  # A hash-divided table is copied whole, because there is no column to bound
+  # it by. That is safe for the tables it applies to and not by luck: they are
+  # `runner_jobs`, which is a `ReplacingMergeTree` keyed on the job id and so
+  # collapses a row delivered twice, and four `test_case_runs_recent_*` tables
+  # that no materialized view feeds and nothing has written to since July.
+  # A new table with no time column would not be covered by either argument,
+  # which is what the log line is for.
+  defp chunks_for(source, table, cutoff) do
     case time_column(source, table) do
       nil ->
+        Logger.info("#{table}: no time column, copying whole")
         key = sorting_key(source, table)
         Enum.map(0..(@hash_buckets - 1), &{:hash, key, &1, @hash_buckets})
 
       column ->
         case bounds(source, table, column) do
           {nil, nil} -> []
-          {from, to} -> month_chunks(column, from, to)
+          {from, to} -> month_chunks(column, from, to, cutoff)
         end
     end
   end
@@ -184,19 +217,34 @@ defmodule Tuist.ClickHouse.Backfill do
   end
 
   @doc """
-  The half-open monthly intervals covering `from` through `to`.
+  The half-open intervals covering `from` through `to`, one per month, ending
+  at `cutoff`.
 
   Public because chunk boundaries are the part of this module that silently
   loses or duplicates rows when wrong, and that is worth testing without a
   ClickHouse to talk to. An overlap double counts; a gap drops rows that no
   later run will look for, because the ledger will say the neighbouring chunks
   are done.
+
+  The month holding the cutoff is emitted as a partial interval, since the
+  cutover cannot wait for a month boundary to come round.
   """
-  def month_chunks(column, from, to) do
+  def month_chunks(column, from, to, cutoff) do
     from
     |> Stream.iterate(&add_month/1)
     |> Stream.take_while(&(Date.compare(&1, to) != :gt))
-    |> Enum.map(&{:month, column, &1, add_month(&1)})
+    |> Enum.flat_map(&clip(column, &1, add_month(&1), cutoff))
+  end
+
+  defp clip(column, from, to, cutoff) do
+    start = DateTime.new!(from, ~T[00:00:00])
+    finish = DateTime.new!(to, ~T[00:00:00])
+
+    cond do
+      DateTime.compare(start, cutoff) != :lt -> []
+      DateTime.compare(finish, cutoff) != :gt -> [{:range, column, start, finish}]
+      true -> [{:range, column, start, cutoff}]
+    end
   end
 
   defp add_month(%Date{} = date) do
@@ -209,8 +257,8 @@ defmodule Tuist.ClickHouse.Backfill do
   could disagree about which rows a chunk holds, the parity check would be
   comparing different things and would pass while the data diverged.
   """
-  def predicate({:month, column, from, to}) do
-    "#{quote_ident(column)} >= toDateTime64('#{from} 00:00:00', 6) AND #{quote_ident(column)} < toDateTime64('#{to} 00:00:00', 6)"
+  def predicate({:range, column, from, to}) do
+    "#{quote_ident(column)} >= toDateTime64('#{stamp(from)}', 6) AND #{quote_ident(column)} < toDateTime64('#{stamp(to)}', 6)"
   end
 
   def predicate({:hash, key, bucket, buckets}) do
@@ -233,9 +281,7 @@ defmodule Tuist.ClickHouse.Backfill do
 
   # The ledger is keyed on a time interval, so a hash chunk is mapped onto a
   # synthetic one. It never has to be interpreted as a date, only matched.
-  defp chunk_key({:month, _column, from, to}) do
-    {DateTime.new!(from, ~T[00:00:00]), DateTime.new!(to, ~T[00:00:00])}
-  end
+  defp chunk_key({:range, _column, from, to}), do: {from, to}
 
   defp chunk_key({:hash, _key, bucket, buckets}) do
     epoch = ~D[1970-01-01]
@@ -306,24 +352,6 @@ defmodule Tuist.ClickHouse.Backfill do
     )
   end
 
-  defp destination_tables(target) do
-    result =
-      target.repo.query!(
-        """
-        SELECT name FROM system.tables
-        WHERE database = {database:String}
-          AND engine LIKE 'Replicated%'
-          AND name NOT LIKE '.inner%'
-          AND name != 'schema_migrations'
-        ORDER BY total_bytes ASC
-        """,
-        %{"database" => target.database},
-        log: false
-      )
-
-    List.flatten(result.rows)
-  end
-
   # `remoteSecure` speaks the native protocol, which is a different port from
   # the HTTP interface the repository is configured with.
   defp source_address(source) do
@@ -334,6 +362,9 @@ defmodule Tuist.ClickHouse.Backfill do
   defp source_credential(source, key) do
     source.repo.config() |> Keyword.get(key, "") |> to_string()
   end
+
+  defp stamp(%DateTime{} = at),
+    do: at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second) |> NaiveDateTime.to_string()
 
   defp quote_ident(name), do: "`" <> String.replace(to_string(name), "`", "``") <> "`"
 end
