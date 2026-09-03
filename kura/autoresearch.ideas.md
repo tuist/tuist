@@ -5,5 +5,5 @@
 - Check whether the response admission turn lock is reached only after bounded immediate admission fails.
 - Measure whether sampled recency updates can safely reduce hot-key write-lock pressure without changing eviction quality.
 - Evaluate Linux non-waiting positional reads only in a Linux benchmark with a guaranteed fallback for cold or unsupported filesystems.
-- Tune the positioned-write concurrency ceiling against the complete durable artifact path.
+- Re-run positioned-write ceiling tuning on production-shaped Linux hardware before exposing configuration.
 - Measure fixed metadata-method request throughput now that route and metric-family allocation are removed from those paths.
