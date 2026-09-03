@@ -92,7 +92,7 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     }
 
     public func casProxySocketPathString() -> String {
-        "$HOME/cas-proxy.sock"
+        homeRelativePathString(casProxySocketPath())
     }
 
     public func casLogPath() -> AbsolutePath {

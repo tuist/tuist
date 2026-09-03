@@ -192,8 +192,14 @@ func (c *BaremetalClient) PartitioningSchemaFor(ctx context.Context, zone scw.Zo
 // reinstalling its OS — the Elastic Metal analog of the macOS ReleaseToPool.
 // Used on Machine delete to RETURN the pre-ordered box to the pool rather than
 // terminate it (the operator owns the pool's lifecycle). The sshKeyIDs re-author
-// the fleet key so the reinstalled box is bootstrappable on its next claim. An
-// absent server (deleted out of band) is treated as already released.
+// the fleet key so the reinstalled box is bootstrappable on its next claim.
+//
+// Two states already satisfy the postcondition and are reported as released
+// rather than acted on: an absent server (deleted out of band), and one Scaleway
+// is already installing. The second is what a controller restart between a
+// successful install and the finalizer patch leaves behind; issuing a second
+// install there is rejected, and the caller retries on any error, so it would
+// hold the Machine in Deleting for the whole install.
 func (c *BaremetalClient) ReinstallServer(ctx context.Context, zone scw.Zone, serverID, osLabel string, sshKeyIDs []string) error {
 	server, err := c.GetServer(ctx, zone, serverID)
 	if err != nil {
@@ -201,6 +207,9 @@ func (c *BaremetalClient) ReinstallServer(ctx context.Context, zone scw.Zone, se
 			return nil
 		}
 		return err
+	}
+	if ServerInstalling(server) {
+		return nil
 	}
 	osID, err := c.resolveOS(ctx, zone, server.OfferID, osLabel)
 	if err != nil {
@@ -316,6 +325,20 @@ func ServerInstalled(server *baremetal.Server) bool {
 		return false
 	}
 	return server.Install != nil && server.Install.Status == baremetal.ServerInstallStatusCompleted
+}
+
+// ServerInstalling reports whether an OS install is queued or already running on
+// the server — the state that makes a further install both unnecessary and
+// rejected.
+func ServerInstalling(server *baremetal.Server) bool {
+	if server.Install == nil {
+		return false
+	}
+	switch server.Install.Status {
+	case baremetal.ServerInstallStatusToInstall, baremetal.ServerInstallStatusInstalling:
+		return true
+	}
+	return false
 }
 
 // ServerInstallFailed reports a terminal install/order failure (out of stock,
