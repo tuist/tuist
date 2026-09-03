@@ -735,13 +735,20 @@
               }
             }
 
-            & [data-part="repetitions"] {
+            & [data-part="repetitions"],
+            & [data-part="stress-repetitions"] {
               display: flex;
               flex-direction: column;
               gap: var(--noora-spacing-5);
-              box-shadow: var(--noora-light-border-default);
-              border-radius: var(--noora-radius-4);
-              padding: var(--noora-spacing-5);
+
+              /* The organic list groups repetitions under a run header, so it needs
+                 its own box. The stress gate's pass has no header above it, so a box
+                 there is only a box inside a box. */
+              &[data-part="repetitions"] {
+                box-shadow: var(--noora-light-border-default);
+                border-radius: var(--noora-radius-4);
+                padding: var(--noora-spacing-5);
+              }
 
               & [data-part="repetition-wrapper"] {
                 display: flex;
@@ -749,10 +756,10 @@
                 gap: var(--noora-spacing-5);
               }
 
-            & [data-part="repetition-wrapper"]:has([data-part="repetition-failure"]) {
-              gap: var(--noora-spacing-4);
-              margin-block: var(--noora-spacing-4);
-            }
+              & [data-part="repetition-wrapper"]:has([data-part="repetition-failure"]) {
+                gap: var(--noora-spacing-4);
+                margin-block: var(--noora-spacing-4);
+              }
 
               & [data-part="repetition-item"] {
                 display: flex;
@@ -766,19 +773,19 @@
                   font: var(--noora-font-weight-regular) var(--noora-font-body-small);
                 }
 
-              & [data-part="repetition-duration"] {
-                display: flex;
-                flex-direction: row;
-                align-items: center;
-                gap: var(--noora-spacing-1);
-                color: var(--noora-surface-label-secondary);
-                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                & [data-part="repetition-duration"] {
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: var(--noora-spacing-1);
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
-                & svg {
-                  width: var(--noora-icon-size-small);
-                  height: var(--noora-icon-size-small);
+                  & svg {
+                    width: var(--noora-icon-size-small);
+                    height: var(--noora-icon-size-small);
+                  }
                 }
-              }
               }
             }
 

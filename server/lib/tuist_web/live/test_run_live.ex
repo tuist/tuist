@@ -1415,7 +1415,7 @@ defmodule TuistWeb.TestRunLive do
         <div data-part="content" data-state="closed">
           <div data-part="flaky-run-item-wrapper">
             <div data-part="flaky-run-item">
-              <div :if={@candidate.stress_repetitions != []} data-part="repetitions">
+              <div :if={@candidate.stress_repetitions != []} data-part="stress-repetitions">
                 <div
                   :for={repetition <- @candidate.stress_repetitions}
                   data-part="repetition-wrapper"
