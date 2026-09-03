@@ -281,10 +281,40 @@ independent workqueues:
   gap, `RunnerPoolReconciler` counts every alive, unclaimed Pod whose
   dispatch poller has not started across sibling pools sharing
   the same operating system and `FleetSelector`. It creates only up to
-  `spec.provisioning.maxConcurrentPerFleetSelector` (default 4), using
-  the lowest sibling value so one mismatched pool cannot weaken the
-  fleet boundary. Excess demand remains a replica gap and is retried
-  every five seconds. macOS pools skip this gate.
+  the fleet ceiling, `spec.provisioning.maxConcurrentPerNode` (default
+  4) times the fleet's healthy node count, using the lowest sibling
+  per-node value so one mismatched pool cannot weaken the fleet
+  boundary. Excess demand remains a replica gap and is retried every
+  five seconds. macOS pools skip this gate.
+
+  The budget is per node because what it protects is per node: each host
+  runs its own kubelet and its own Kata runtime, and a simultaneous
+  sandbox-start burst overwhelms one of them, not the fleet. Expressed
+  fleet-wide it did the opposite of its job — adding hardware raised
+  capacity without raising start throughput, so the fleet could be
+  simultaneously idle and refusing work. Measured on 2026-09-03: 62 jobs
+  queued across the Linux pools, one node at 0% CPU and 0% memory and
+  two more near half, every pool refused with `reason="fleet_cap"`, and
+  raising the ceiling by hand filled the idle machines inside one
+  reconcile tick (`linux-4vcpu-16gb` went from 1 Pod to 18).
+
+  The node count is `summarizeFleetNodes`, so it already excludes
+  cordoned, NotReady and pressured nodes. That is deliberate and it is
+  what makes the documented remedy below — cordon a host that accepts
+  sandboxes it cannot start — take that host's share of the start budget
+  away with it, instead of leaving the ceiling inflated by a node
+  contributing nothing.
+
+  The field replaces `maxConcurrentPerFleetSelector`, which was a single
+  fleet-wide integer. Nothing reads the old name: structural-schema
+  pruning drops it from any CR that still carries it, including the
+  value patched onto production by hand during the 2026-09-03 incident.
+  The CRD lives in `crds/`, which helm does not touch on upgrade, so the
+  schema has to be re-applied out of band as usual — and until it is,
+  `maxConcurrentPerNode` is pruned on the way in and the accessor's
+  default (4 per node) applies, which is the intended behaviour anyway.
+  A stale schema therefore degrades to the right answer rather than to
+  the old one.
 
   The count deliberately includes Pods with no node. An unbound Pod is
   one the scheduler may bind at any moment, and nothing re-checks
@@ -294,6 +324,36 @@ independent workqueues:
   Scheduling gates do not help here either: a gate can be removed but
   never re-added, so a Pod that turns out to be unschedulable after
   ungating is back to holding a slot with no way to reclaim it.
+
+  A ceiling that scales with the fleet bounds how many sandboxes are
+  coming up across it, but not how many land on one host — this
+  controller does not place Pods, and steering them was tried and
+  dropped (see the per-node circuit breaker below). What it can bound is
+  how many are handed to the scheduler at once, and the Pods with no
+  node yet that the scheduler has *not* rejected are exactly the set
+  that can arrive on one kubelet together: kube-scheduler prefers the
+  least-allocated node, which on a fleet with an idle host means all of
+  them. So that set is capped at one node's budget, refused with
+  `reason="placement_burst"`. It costs nothing in steady state — those
+  Pods bind within a second or two, well inside the five-second tick —
+  and it makes a batch of creations converge on the ceiling over a few
+  ticks rather than landing as one burst.
+
+  So `placement_burst` on `tuist_runners_pool_admission_blocked_total` is
+  what a healthy ramp looks like, not a fault: a pool with a gap of 19
+  reports it on every tick until the gap closes. A *sustained* one with a
+  queue behind it means the Pods are not binding, which is the
+  unschedulable reap's territory. The same counter reports whichever term
+  actually capped the tick, not only outright refusals — that is what
+  `limitedBy` is for. Attributing a ramp to the ceiling would leave
+  `fleet_cap` meaning nothing.
+
+  A Pod the scheduler has already refused is excluded from that set,
+  though it still holds its slot in the ceiling. It is not about to
+  arrive anywhere; it binds one at a time as capacity frees. Counting it
+  would rebuild the 2026-09-02 starvation on the new gate, with a shape
+  no node can seat parking its Pods for a whole start timeout while
+  every sibling is refused behind them.
 
   The ceiling is shared, so it is also divided. A pool's own share
   (`poolCap`) is the fleet ceiling minus one for every sibling pool that
@@ -388,6 +448,14 @@ independent workqueues:
   of that particular fault — any node that accepts Pods it cannot start
   reproduces it.
 
+  A per-node ceiling softens this without removing it. The dead Pods now
+  hold one node's budget rather than the whole fleet's, so siblings keep
+  creating on the healthy hosts instead of stopping dead; and cordoning
+  the broken node, still the remedy, now also removes its contribution
+  to the ceiling rather than leaving phantom budget behind. What has not
+  changed is that the replacement Pod keeps landing on the broken node,
+  so its share of the budget stays burnt until an operator intervenes.
+
   A per-node circuit breaker was built and then deliberately dropped:
   counting `poller_not_started` timeouts per node and steering new Pods
   away with a required `kubernetes.io/hostname NotIn` affinity. It works,
@@ -433,8 +501,14 @@ independent workqueues:
   `tuist_runners_pool_admission_blocked_total{pool,reason}`,
   `tuist_runners_fleet_ready_nodes{fleet_selector,operating_system}`,
   `tuist_runners_fleet_filtered_nodes{fleet_selector,operating_system,reason}`,
+  `tuist_runners_fleet_provisioning_ceiling{fleet_selector,operating_system}`,
   `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`,
-  and `tuist_runners_pool_stuck_terminations_total{pool}`. The last one
+  and `tuist_runners_pool_stuck_terminations_total{pool}`. The ceiling is
+  the derived budget the admission gate measures against, so it moves
+  with the healthy node count on its own: a drop with no chart change
+  means nodes left the fleet, and comparing it against the summed
+  pending-provisioning gauges says how much of the budget is in use. The
+  last one
   counts Pods force-deleted because kubelet never finished terminating
   them; it is distinct from the start-timeout counter because that means
   a sandbox failed to come up, while this means one failed to go down and

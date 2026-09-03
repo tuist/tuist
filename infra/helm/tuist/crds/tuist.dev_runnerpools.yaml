@@ -136,15 +136,24 @@ spec:
                     one mismatched pool cannot weaken the fleet safety limit.
                     Ignored for macOS pools.
                   properties:
-                    maxConcurrentPerFleetSelector:
+                    maxConcurrentPerNode:
                       type: integer
                       default: 4
                       minimum: 1
                       description: |
-                        Maximum Linux runner Pods across the shared fleet that
+                        Maximum Linux runner Pods per healthy fleet node that
                         may be waiting for their dispatch poller to start.
-                        Excess replica demand remains uncreated and is retried
-                        as existing sandboxes become ready.
+                        The controller multiplies it by the fleet's healthy
+                        node count to get the shared ceiling, so adding
+                        machines raises start throughput. Excess replica
+                        demand remains uncreated and is retried as existing
+                        sandboxes become ready.
+
+                        Replaces `maxConcurrentPerFleetSelector`, which was a
+                        single fleet-wide integer and so did not scale with
+                        the fleet. Structural-schema pruning drops the old
+                        field from any CR that still carries it, and the
+                        controller ignores it.
                     startTimeoutSeconds:
                       type: integer
                       default: 300

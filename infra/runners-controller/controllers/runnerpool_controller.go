@@ -533,6 +533,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if admissionBlocked {
 				reason := admission.blockedReason
 				if reason == "" {
+					reason = admission.limitedBy
+				}
+				if reason == "" {
 					reason = "fleet_cap"
 				}
 				metrics.RecordAdmissionBlocked(pool.Name, reason)
@@ -542,6 +545,8 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"creating", createLimit,
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
+					"awaitingPlacement", admission.awaitingPlacement,
+					"perNode", admission.perNode,
 					"cap", admission.cap,
 					"fleetCap", admission.fleetCap,
 					"poolCap", admission.poolCap,

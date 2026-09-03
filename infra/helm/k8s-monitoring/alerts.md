@@ -1231,7 +1231,8 @@ after 85 days of uptime. Kubelet reports that per Pod, not as a node
 condition, so the node stayed `Ready` with no Memory/Disk/PID pressure
 and, being the emptiest node in the fleet, the scheduler preferred it.
 Every Pod it accepted sat in `Init:0/4` holding a slot in the
-fleet-wide provisioning ceiling (`maxConcurrentPerFleetSelector: 4`)
+provisioning ceiling — a single fleet-wide 4 at the time, since replaced
+by a per-node budget (`maxConcurrentPerNode`) that a cordon shrinks —
 until the 5-minute start timeout reaped it, and the replacement landed
 on the same node. The ceiling stayed saturated by Pods that could never
 run, so every sibling shape was refused admission with
@@ -1380,16 +1381,16 @@ creation, not waiting on capacity.
 On 2026-09-02 `linux-4vcpu-16gb`, with every Linux shape allowed
 `maxReplicas: 120`, was targeted at 67 replicas on a fleet that seats
 24 of that shape. The excess sat Pending on `Insufficient memory`,
-and because the provisioning admission budgets Pending Pods fleet-wide
-(`maxConcurrentPerFleetSelector`, default 4), those four dead Pods held
-the whole budget and every sibling shape was refused with
-`reason="fleet_cap"`. `linux-2vcpu-8gb` sat at zero Pods for over an
+and because the provisioning admission budgets Pending Pods across the
+shared fleet (then a flat 4, now `maxConcurrentPerNode` times the healthy
+node count), those four dead Pods held the whole budget and every sibling
+shape was refused with `reason="fleet_cap"`. `linux-2vcpu-8gb` sat at zero Pods for over an
 hour with 143 `tuist-linux` jobs queued, one of them the production
 cascade's own first job, so nothing could deploy. The 300-second
 unschedulable reap did not help: the hog recreated each Pod the moment
 it was released.
 
-It fired again on 2026-09-03 with no hog at all, so check the other two
+It fired again on 2026-09-03 with no hog at all, so check the other
 causes before reaching for `maxReplicas`. First, look for Pods stuck
 `Terminating`: a Kata sandbox whose shim never tears the VM down keeps
 its node's CPU and memory reserved while being invisible to the
@@ -1410,6 +1411,14 @@ filled the ceiling between them while the starved pool reported
 starved pool now measures against the whole ceiling and its siblings
 measure against the ceiling minus what it is owed; if you see a pool
 blocked with its share unused, that reservation is not working.
+
+Third, the ceiling itself may have shrunk. It is
+`maxConcurrentPerNode` times the fleet's healthy node count, published
+as `tuist_runners_fleet_provisioning_ceiling`, so nodes leaving the
+fleet — cordoned, NotReady, or under memory/disk/PID pressure — lower it
+with no configuration change. A ceiling well below `4 * <node count>`
+with `reason="fleet_cap"` on every pool is a node problem, and
+`tuist_runners_fleet_filtered_nodes` says which reason took them out.
 
 ```promql
 (
