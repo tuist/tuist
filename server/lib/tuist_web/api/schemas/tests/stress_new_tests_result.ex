@@ -34,7 +34,8 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
       },
       new_count: %Schema{
         type: :integer,
-        description: "How many of the run's test cases had never run in CI on the default branch."
+        description:
+          "How many of the run's test cases had not run in CI on the default branch in the trailing ninety days."
       },
       stressed_count: %Schema{type: :integer, description: "How many candidates the gate reran."},
       excluded_count: %Schema{

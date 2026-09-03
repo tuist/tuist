@@ -3,7 +3,8 @@ defmodule Tuist.Tests.StressNewTests do
   Server half of the stress gate for newly added tests.
 
   The client runs the suite, sends the test cases that executed, and gets back
-  the subset that has never run in CI on the project's default branch, each
+  the subset that has not run in CI on the project's default branch in the
+  trailing ninety days, each
   priced with the number of repetitions its own duration earns on the project's
   curve. The guards whose inputs only the server holds (the default branch and
   its history, the size of the project's inventory) are decided here and
@@ -35,6 +36,9 @@ defmodule Tuist.Tests.StressNewTests do
   @excluded_reasons ~w(too_slow candidate_cap)
 
   @batch_size 2_000
+
+  # Trailing window of default-branch CI history a test case is looked up in.
+  @window_days 90
 
   def modes, do: @modes
   def run_outcomes, do: @run_outcomes
@@ -147,17 +151,19 @@ defmodule Tuist.Tests.StressNewTests do
     |> Enum.map(fn {_, test_case} -> test_case end)
   end
 
-  # "Ever run in CI on the default branch", with no trailing window: selective
-  # testing keeps unchanged targets off the default branch for as long as their
-  # inputs are stable, so a window would read a dormant module as new. The
-  # rows are retained indefinitely and the ids are bound as one `Array(UUID)`
-  # so a large suite stays within ClickHouse's parameter limits.
+  # The window matches the one `Tuist.Tests.check_new_test_cases/3` reads, so the
+  # gate and the new-test badge answer the same question. Selective testing keeps
+  # an unchanged target off the default branch for as long as its inputs are
+  # stable, so a module dormant for longer than the window reads as new and is
+  # stressed again. The ids are bound as one `Array(UUID)` so a large suite stays
+  # within ClickHouse's parameter limits.
   defp known_test_case_ids(project_id, default_branch, ids) do
     ClickHouseRepo.all(
       from(bp in TestCaseBranchPresence,
         where: bp.project_id == ^project_id,
         where: bp.git_branch == ^default_branch,
         where: bp.is_ci == true,
+        where: bp.ran_at >= ^window_start(),
         where: fragment("? IN (?)", bp.test_case_id, type(^ids, {:array, Ecto.UUID})),
         distinct: true,
         select: bp.test_case_id
@@ -166,16 +172,22 @@ defmodule Tuist.Tests.StressNewTests do
     )
   end
 
+  # Counted over the same window as the newness lookup above. A test case that
+  # falls out of the window leaves both sides at once, which is what keeps the
+  # bulk-change ratio comparing two halves of one population.
   defp default_branch_inventory_count(project_id, default_branch) do
     ClickHouseRepo.one(
       from(bp in TestCaseBranchPresence,
         where: bp.project_id == ^project_id,
         where: bp.git_branch == ^default_branch,
         where: bp.is_ci == true,
+        where: bp.ran_at >= ^window_start(),
         select: fragment("uniqExact(?)", bp.test_case_id)
       )
     ) || 0
   end
+
+  defp window_start, do: NaiveDateTime.add(NaiveDateTime.utc_now(), -@window_days, :day)
 
   defp price(new_test_cases, parameters) do
     {candidates, _stressed} =

@@ -311,7 +311,7 @@ public protocol APIProtocol: Sendable {
     func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have never run in CI on the project's default branch, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict/post(createStressNewTestsVerdict)`.
@@ -1558,7 +1558,7 @@ extension APIProtocol {
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have never run in CI on the project's default branch, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict/post(createStressNewTestsVerdict)`.
@@ -6098,7 +6098,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
             public var mode: Components.Schemas.StressNewTestsResult.modePayload
-            /// How many of the run's test cases had never run in CI on the default branch.
+            /// How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/new_count`.
             public var new_count: Swift.Int
@@ -6340,7 +6340,7 @@ public enum Components {
             ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
             ///   - inventory_count: How many test cases have run in CI on the default branch, as the verdict measured it.
             ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
-            ///   - new_count: How many of the run's test cases had never run in CI on the default branch.
+            ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
             ///   - outcome: `passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
             ///   - skip_reason: Why the gate ran nothing, when `outcome` is `skipped`.
             ///   - stressed_count: How many candidates the gate reran.
@@ -11167,7 +11167,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPageSize`.
         public typealias BuildIssuesIndexPageSize = Swift.Int
-        /// Which of the reported test cases have never run in CI on the project's default branch, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.
+        /// Which of the reported test cases have not run in CI on the project's default branch in the trailing ninety days, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.
         ///
         /// - Remark: Generated from `#/components/schemas/StressNewTestsVerdict`.
         public struct StressNewTestsVerdict: Codable, Hashable, Sendable {
@@ -35862,7 +35862,7 @@ public enum Operations {
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have never run in CI on the project's default branch, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/verdict/post(createStressNewTestsVerdict)`.

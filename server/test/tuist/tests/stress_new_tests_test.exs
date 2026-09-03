@@ -28,7 +28,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
         status: "success",
         git_branch: Keyword.get(opts, :git_branch, "main"),
         git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.utc_now(),
+        ran_at: Keyword.get(opts, :ran_at, NaiveDateTime.utc_now()),
         is_ci: Keyword.get(opts, :is_ci, true),
         test_modules: [
           %{
@@ -150,34 +150,6 @@ defmodule Tuist.Tests.StressNewTestsTest do
       above_floor = StressNewTests.verdict(project, account, new_cases)
       assert above_floor.guard == %{kind: "bulk_change", new_count: 3, inventory_count: 1}
       assert above_floor.candidates == []
-    end
-
-    test "does not window default-branch history", %{project: project, account: account} do
-      {:ok, _} =
-        Tests.create_test(%{
-          id: UUIDv7.generate(),
-          project_id: project.id,
-          account_id: account.id,
-          duration: 1000,
-          status: "success",
-          git_branch: "main",
-          git_commit_sha: "old",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -200, :day),
-          is_ci: true,
-          test_modules: [
-            %{
-              name: "AppTests",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "testDormant", test_suite_name: "CheckoutTests", status: "success", duration: 10}]
-            }
-          ]
-        })
-
-      verdict = StressNewTests.verdict(project, account, [case_attrs("testDormant")])
-
-      assert verdict.candidates == []
-      assert verdict.guard == nil
     end
   end
 
@@ -322,6 +294,30 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert stored.stress_mode == ""
       assert stored.stress_outcome == ""
       assert StressNewTests.list_candidates(test.id) == []
+    end
+  end
+
+  describe "the trailing window" do
+    test "a test case last seen inside the window is not new", %{project: project, account: account} do
+      run_on_main(project, account, ["testOld"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -89, :day))
+
+      verdict = StressNewTests.verdict(project, account, [case_attrs("testOld")])
+
+      assert verdict.candidates == []
+      assert verdict.inventory_count == 1
+    end
+
+    test "a test case dormant for longer than the window reads as new again", %{project: project, account: account} do
+      run_on_main(project, account, ["testDormant"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -91, :day))
+      run_on_main(project, account, ["testRecent"])
+
+      verdict = StressNewTests.verdict(project, account, [case_attrs("testDormant"), case_attrs("testRecent")])
+
+      assert Enum.map(verdict.candidates, & &1.name) == ["testDormant"]
+
+      # The dormant case leaves the inventory with it, so the bulk-change ratio
+      # keeps comparing two halves of one population.
+      assert verdict.inventory_count == 1
     end
   end
 

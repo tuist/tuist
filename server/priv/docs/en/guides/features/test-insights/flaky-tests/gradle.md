@@ -97,7 +97,7 @@ When `enabled` is not set, it defaults to auto-detection: enabled on CI, disable
 
 ## Stress-testing new tests {#stress-testing-new-tests}
 
-Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that disagree with themselves before the change merges. Tuist decides what counts as new by checking which test cases have never run in CI on the project's default branch, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
+Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that disagree with themselves before the change merges. Tuist decides what counts as new by checking which test cases have not run in CI on the project's default branch in the last 90 days, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
 
 The gate is off unless you enable it, and it takes a mode rather than a switch so anyone reading the pipeline can see whether the job can fail on flakiness:
 
