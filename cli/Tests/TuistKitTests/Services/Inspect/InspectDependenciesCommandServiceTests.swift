@@ -497,6 +497,42 @@ struct InspectDependenciesCommandServiceTests {
     // MARK: - Redundant Check: Special Product Types
 
     @Test
+    func runRedundantOnlyDoesntFlagMacOSEmbeddedProductDependencies() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let mainApp = Target.test(name: "MainApp", destinations: .macOS, product: .app)
+        let innerApp = Target.test(name: "InnerApp", destinations: .macOS, product: .app)
+        let innerCLI = Target.test(name: "InnerCLI", destinations: .macOS, product: .commandLineTool)
+        let innerSystemExtension = Target.test(name: "InnerSystemExtension", destinations: .macOS, product: .systemExtension)
+        let innerXPC = Target.test(name: "InnerXPC", destinations: .macOS, product: .xpc)
+        let project = Project.test(
+            path: path,
+            targets: [mainApp, innerApp, innerCLI, innerSystemExtension, innerXPC]
+        )
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: mainApp.name, path: project.path): [
+                .target(name: innerApp.name, path: project.path),
+                .target(name: innerCLI.name, path: project.path),
+                .target(name: innerSystemExtension.name, path: project.path),
+                .target(name: innerXPC.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(mainApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(innerApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(innerCLI), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(innerSystemExtension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(innerXPC), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+    }
+
+    @Test
     func runRedundantOnlyDoesntFlagExternalPackageTargets() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
