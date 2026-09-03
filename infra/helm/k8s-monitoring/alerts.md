@@ -3876,6 +3876,7 @@ visitors on bad connections cannot manufacture a percentile.
 | Rule | Percentile | Window | Threshold | Min samples | Pending |
 | --- | --- | --- | --- | --- | --- |
 | LCP p50 above the Core Web Vitals good threshold | 0.50 | 1h | > 2.5s | 50 | 15m |
+| **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **200** | **30m** |
 | LCP p90 in the Core Web Vitals poor band | 0.90 | 1h | > 4.0s | 100 | 15m |
 | LCP p95 sustained slow tail | 0.95 | 6h | > 5.0s | 200 | 30m |
 | LCP p99 pathological tail | 0.99 | 6h | > 8.0s | 200 | 30m |
@@ -3884,29 +3885,64 @@ The higher percentiles use a 6h window because a stable estimate needs roughly
 ten times `1/(1-q)` samples and tuist.dev does not produce that in an hour
 outside peak.
 
-**THESE THRESHOLDS ARE NOT MEASUREMENTS OF TUIST.DEV.** They anchor on Google's
-Core Web Vitals boundaries — good at or below 2.5s, poor above 4.0s — because
-when the rules were written no LCP history existed to derive anything from:
-PostHog held the only real-user vitals and was being removed in the same change.
-Re-derive all four from two weeks of this stream before treating any of them as
-an SLO. The p95 rule tracks the percentile the retired PostHog daily report
-watched, so it is the one with continuity to what came before.
+**p75 is the only one of these that measures a standard.** Core Web Vitals
+assesses LCP at the 75th percentile — at or below 2.5s is good, above 4.0s is
+poor — and p75 is what CrUX publishes and what Google Search's page-experience
+signal reads. It is the number an outside party quotes when they say tuist.dev
+is slow. The other four describe the *shape* of a regression: a p50 move changed
+something for everyone, p90 and p95 point at a segment, and p99 finds individual
+broken pages. Only p75 answers whether we are passing.
 
-Note that the Core Web Vitals assessment is defined at p75, which none of these
-rules use. p75 is the right number for judging the site against the standard;
-p50/p90/p95/p99 are chosen here because they separate failure shapes: a p50
-regression changed something for everyone, p90 and p95 point at a segment, and
-p99 finds individual broken pages.
+Treat 2.5s as the failing line rather than the goal. tuist.dev is mostly static
+content behind Cloudflare with TTFB around 117ms, and marketing image weight was
+cut from 145 MB to 73 MB in [#12800](https://github.com/tuist/tuist/pull/12800),
+so **p75 in the 1.2–1.8s range is what to aim at**. For reference, a site
+passing comfortably at p75 ≈ 2.0s typically sits around p50 ≈ 1.4s, p90 ≈ 3.0s,
+p95 ≈ 3.8s and p99 ≈ 6.5s — which is why the thresholds above sit clear of a
+healthy distribution rather than hugging it.
+
+Core Web Vitals is officially assessed over 28 days, which is neither practical
+nor useful to alert on, so the p75 rule uses 6h as an operational proxy. A
+passing 6h window is not the same as a passing CrUX assessment: different
+population, different window, and CrUX covers Chrome users only.
+
+**Finding which phase blew the budget.** Google's LCP sub-part budget is TTFB at
+most 40% of LCP, resource load delay at most 10%, resource load duration at most
+40%, and element render delay at most 10%. Faro records all four next to the
+value, so no extra instrumentation is needed:
+
+```logql
+quantile_over_time(0.75,
+  {service_name="tuist-web", kind="measurement"}
+    | logfmt
+    | type="web-vitals"
+    | lcp!=""
+    | unwrap resource_load_duration [6h]
+) by (app_environment)
+```
+
+Swap `resource_load_duration` for `time_to_first_byte`, `resource_load_delay` or
+`element_render_delay`. A large `resource_load_duration` is image weight; a large
+`time_to_first_byte` is the origin.
+
+**THESE THRESHOLDS ARE NOT MEASUREMENTS OF TUIST.DEV.** They anchor on Google's
+Core Web Vitals boundaries because when the rules were written no LCP history
+existed to derive anything from: PostHog held the only real-user vitals and was
+being removed in the same change. Re-derive the p50, p90, p95 and p99 thresholds
+from two weeks of this stream before treating any of them as an SLO. p75 is the
+exception and should stay at 2.5s: it is a published standard rather than a
+guess about this site. The p95 rule tracks the percentile the retired PostHog
+daily report watched, so it is the one with continuity to what came before.
 
 These rules are warnings and carry no `affected_service` label. A slow marketing
 page is not a customer-visible outage and must not open a status-page incident.
 
 ### Browser vitals telemetry missing
 
-The paired telemetry rule for the four LCP rules above, which are threshold
+The paired telemetry rule for the five LCP rules above, which are threshold
 rules with No Data: OK and therefore cannot tell a fast site from a collector
 that stopped receiving. Without this rule, breaking the Faro pipeline would
-silence all four permanently and read as health.
+silence all five permanently and read as health.
 
 ```logql
 sum(count_over_time(
@@ -3920,7 +3956,7 @@ sum(count_over_time(
 
 - Pending period: 2 hours
 - No Data: **Alerting**, and Error: **Alerting**
-- Summary: `No browser LCP measurements have reached Loki for 2h - the four LCP percentile rules are blind`
+- Summary: `No browser LCP measurements have reached Loki for 2h - every LCP percentile rule is blind`
 
 The polarity is inverted relative to the rules it guards. If the stream vanishes
 entirely, `sum(count_over_time(...))` returns nothing rather than zero, so the
