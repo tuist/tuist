@@ -735,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn saturated_analytics_queue_benchmark() {
         const ATTEMPTS: usize = 1_000_000;
         const SAMPLES: usize = 9;
@@ -829,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn analytics_queue_metric_handles_benchmark() {
         const WORKERS: usize = 8;
         const ATTEMPTS_PER_WORKER: usize = 100_000;

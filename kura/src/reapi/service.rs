@@ -3213,7 +3213,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn bytestream_read_chunk_materialization_benchmark() {
         use tokio::io::AsyncReadExt as _;
 
@@ -3281,7 +3281,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn segment_reader_owned_chunk_benchmark() {
         const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
@@ -3370,7 +3370,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn artifact_reader_inline_bytes_stream_benchmark() {
         const ARTIFACT_BYTES: usize = 4 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
@@ -4227,7 +4227,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn reapi_batch_analytics_context_benchmark() {
         const EVENTS_PER_BATCH: usize = 4_096;
         const BATCHES: usize = 32;
@@ -5847,7 +5847,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn direct_memory_bytestream_write_benchmark() {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
@@ -6761,7 +6761,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn digest_comparison_without_hex_allocation_benchmark() {
         const ITERATIONS: usize = 1_000_000;
         const SAMPLES: usize = 8;
@@ -6841,7 +6841,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn blob_resource_name_parser_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLES: usize = 8;
@@ -6900,7 +6900,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn blob_resource_construction_without_duplicate_hash_benchmark() {
         const ITERATIONS: usize = 1_000_000;
         const SAMPLES: usize = 8;

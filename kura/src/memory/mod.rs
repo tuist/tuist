@@ -980,7 +980,7 @@ mod tests {
     use tokio::task::JoinSet;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn response_stream_uncontended_admission_benchmark() {
         const WORKERS: usize = 8;
         const ADMISSIONS_PER_WORKER: usize = 50_000;

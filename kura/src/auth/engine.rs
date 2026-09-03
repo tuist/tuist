@@ -839,7 +839,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn authorization_cache_lookup_benchmark() {
         const SAMPLES: usize = 6;
 

@@ -506,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn inflight_request_accounting_benchmark() {
         const WORKERS: usize = 8;
         const REQUESTS_PER_WORKER: usize = 50_000;

@@ -1812,7 +1812,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn accelerated_setup_ownership_benchmark() {
         const ITERATIONS: usize = 200_000;
         const SAMPLE_COUNT: usize = 9;

@@ -528,7 +528,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn write_admission_narrow_metric_clone_benchmark() {
         const ITERATIONS: usize = 200_000;
         const SAMPLES: usize = 8;

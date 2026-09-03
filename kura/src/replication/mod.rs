@@ -1397,7 +1397,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn replication_upload_owned_chunk_benchmark() {
         const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
         const SAMPLE_COUNT: usize = 8;

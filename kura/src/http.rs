@@ -6053,7 +6053,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn backfill_spool_owned_chunk_benchmark() {
         const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
@@ -6141,7 +6141,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn backfill_spool_response_owned_chunk_benchmark() {
         const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;
@@ -7934,7 +7934,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn authorization_query_scan_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 250_000;
@@ -8010,7 +8010,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn lean_keyvalue_authorization_context_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 10_000;

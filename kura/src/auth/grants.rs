@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn normalized_payment_required_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 500_000;

@@ -932,7 +932,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn borrowed_metrics_access_benchmark() {
         const ITERATIONS: usize = 200_000;
         const SAMPLES: usize = 7;

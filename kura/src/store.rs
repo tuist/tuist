@@ -8847,7 +8847,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn segment_preload_uninitialized_read_benchmark() {
         const ITERATIONS: usize = 4_096;
         const SAMPLES: usize = 8;
@@ -8926,7 +8926,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn positioned_segment_write_benchmark() {
         const WRITERS: usize = 64;
         const WRITES_PER_WRITER: usize = 8;
@@ -9183,7 +9183,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn direct_memory_artifact_write_benchmark() {
         const CONCURRENCY: usize = 64;
         const WRITES: usize = 512;
@@ -9346,7 +9346,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn streaming_write_buffer_uninitialized_benchmark() {
         const SOURCE_BYTES: usize = 1024 * 1024;
         const ITERATIONS: usize = 1_024;
@@ -9447,7 +9447,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn write_batch_handoff_benchmark() {
         const ITERATIONS: usize = 100_000;
         const SAMPLES: usize = 8;
@@ -9517,7 +9517,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn whole_artifact_uninitialized_read_benchmark() {
         use std::{os::unix::fs::FileExt as _, time::Duration};
 
@@ -11159,7 +11159,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn existence_cache_shared_key_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLE_COUNT: usize = 9;
@@ -12186,7 +12186,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn manifest_cache_concurrent_hit_benchmark() {
         const WORKERS: usize = 8;
         const LOOKUPS_PER_WORKER: usize = 50_000;
@@ -12403,7 +12403,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn segment_handle_hot_cache_benchmark() {
         const WORKERS: usize = 8;
         const LOOKUPS_PER_WORKER: usize = 50_000;

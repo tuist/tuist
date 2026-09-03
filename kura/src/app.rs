@@ -1648,7 +1648,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn bytestream_connection_sharding_benchmark() {
         use sha2::{Digest as _, Sha256};
 

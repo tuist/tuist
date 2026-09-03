@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     async fn segment_reader_blocking_dispatch_benchmark() {
         const STREAM_COUNT: usize = 32;
         const CHUNKS_PER_STREAM: usize = 64;
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn segment_reader_uninitialized_chunk_benchmark() {
         const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
         const CHUNK_BYTES: usize = 512 * 1_024;

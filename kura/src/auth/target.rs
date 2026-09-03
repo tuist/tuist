@@ -405,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn allocation_free_action_classification_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 1_000_000;
@@ -481,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn borrowed_authorization_target_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 250_000;
@@ -558,7 +558,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn ascii_normalization_scan_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 1_000_000;

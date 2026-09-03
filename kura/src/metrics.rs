@@ -3380,7 +3380,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn metrics_shared_inner_clone_benchmark() {
         const ITERATIONS: usize = 1_000_000;
         const SAMPLES: usize = 8;
@@ -3404,7 +3404,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn http_metric_borrowed_route_benchmark() {
         const ITERATIONS: usize = 1_000_000;
         const SAMPLE_COUNT: usize = 9;
@@ -3575,7 +3575,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn http_response_admission_metric_handles_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 100_000;
@@ -3662,7 +3662,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn response_waiter_metric_handles_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 100_000;
@@ -3771,7 +3771,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn auth_metric_direct_handles_benchmark() {
         const WORKERS: usize = 8;
         const ITERATIONS_PER_WORKER: usize = 250_000;
@@ -3862,7 +3862,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn successful_reapi_write_metrics_direct_handles_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLES: usize = 8;
@@ -3967,7 +3967,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn metadata_latency_direct_handle_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLES: usize = 8;
@@ -4030,7 +4030,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "performance benchmark run by autoresearch.sh"]
+    #[ignore = "performance benchmark run manually"]
     fn bytestream_write_latency_direct_handle_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLES: usize = 8;
