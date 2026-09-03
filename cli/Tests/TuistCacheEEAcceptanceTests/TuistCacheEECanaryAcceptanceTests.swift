@@ -102,22 +102,25 @@ struct TuistCacheEECanaryAcceptanceTests {
                 // `tuist generate` writes it into the project pointing at the proxy, and
                 // the plugin consumes that option rather than forwarding it to Xcode's own
                 // remote client.
-                let arguments = [
+                let baseArguments = [
                     "-scheme", "App",
                     "-destination", "generic/platform=iOS Simulator",
                     "-project", xcodeprojPath.pathString,
-                    "-derivedDataPath", temporaryDirectory.pathString,
                     "CODE_SIGN_IDENTITY=",
                     "CODE_SIGNING_REQUIRED=NO",
                     "CODE_SIGNING_ALLOWED=NO",
                 ]
-                try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+                let coldDerivedDataPath = temporaryDirectory.appending(component: "cold")
+                try await TuistTest.run(
+                    XcodeBuildBuildCommand.self,
+                    baseArguments + ["-derivedDataPath", coldDerivedDataPath.pathString]
+                )
                 TuistTest.expectLogs("cacheable tasks (0%)")
                 resetUI()
 
                 try await expectFullyCachedRebuild(
-                    arguments: arguments,
-                    derivedDataPath: temporaryDirectory,
+                    arguments: baseArguments,
+                    derivedDataParentDirectory: temporaryDirectory,
                     fileSystem: fileSystem
                 )
             }
@@ -248,16 +251,28 @@ struct TuistCacheEECanaryAcceptanceTests {
     /// polls the same backend instead of asserting on the first attempt.
     private func expectFullyCachedRebuild(
         arguments: [String],
-        derivedDataPath: AbsolutePath,
-        fileSystem: FileSysteming,
+        derivedDataParentDirectory: AbsolutePath,
+        fileSystem _: FileSysteming,
         sourceLocation: SourceLocation = #_sourceLocation
     ) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(180))
+        var attempt = 0
 
         while true {
-            try await fileSystem.remove(derivedDataPath)
-            try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+            // A fresh directory rather than deleting the previous one: the running
+            // proxy keeps its store and spool under the derived data path, so a
+            // wholesale remove races its writes and throws on a spool file that the
+            // walk enumerated and the proxy has since rotated away. A new directory
+            // is also a colder local CAS than a deleted one, which is what makes a
+            // hit here evidence of the remote.
+            attempt += 1
+            let derivedDataPath =
+                derivedDataParentDirectory.appending(component: "warm-\(attempt)")
+            try await TuistTest.run(
+                XcodeBuildBuildCommand.self,
+                arguments + ["-derivedDataPath", derivedDataPath.pathString]
+            )
 
             if Logger.testingLogHandler.collected[.warning, >=].contains("cacheable tasks (100%)") {
                 return
