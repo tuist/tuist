@@ -2579,6 +2579,80 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
+  Returns a daily time series of how many modules transitively depend on a
+  module — its dependent count over time. Rebuilding the graph per day means a
+  refactor that removes (or adds) dependents shows up as a step in the chart.
+
+  Days with no build carry the previous day's graph forward, since the graph did
+  not change; days before the first build carrying edges are 0. Requires `:name`.
+  """
+  def module_dependents_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      xt.name AS name,
+      argMax(xt.dependencies, e.ran_at) AS deps
+    FROM xcode_targets AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+    GROUP BY day, name
+    ORDER BY day
+    """
+
+    edges_by_day =
+      case ClickHouseRepo.query(query, params) do
+        {:ok, %{rows: rows}} ->
+          Enum.group_by(
+            rows,
+            fn [day, _name, _deps] -> normalize_date(day) end,
+            fn [_day, name, deps] -> {name, deps} end
+          )
+
+        _ ->
+          %{}
+      end
+
+    dates =
+      DateTime.to_date(start_datetime)
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    {counts, _carried} =
+      Enum.map_reduce(dates, nil, fn date, carried ->
+        edges =
+          case Map.get(edges_by_day, date) do
+            nil -> carried
+            pairs -> if Enum.any?(pairs, fn {_n, deps} -> deps != [] end), do: Map.new(pairs), else: carried
+          end
+
+        count =
+          case edges do
+            nil -> 0
+            edges -> edges |> module_transitive_dependents(name) |> length()
+          end
+
+        {count, edges}
+      end)
+
+    %{dates: Enum.map(dates, &Date.to_iso8601/1), counts: counts}
+  end
+
+  @doc """
   Returns the project's latest module dependency graph as
   `%{edges: %{module => [dependency names]}, radii: %{module => blast_radius}}`.
 

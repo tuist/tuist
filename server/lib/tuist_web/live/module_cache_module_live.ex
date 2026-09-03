@@ -130,7 +130,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     project_id = socket.assigns.selected_project.id
     opts = analytics_opts(socket.assigns)
 
-    assign_async(socket, [:module, :timeseries, :invalidated_by, :invalidates, :cache_branches], fn ->
+    assign_async(socket, [:module, :timeseries, :invalidated_by, :dependents_series, :cache_branches], fn ->
       all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
       index = Map.new(all_modules, &{&1.name, &1})
       %{edges: edges} = Analytics.module_dependency_graph(opts)
@@ -147,13 +147,8 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         |> Enum.map(fn dep -> %{name: dep, self_changes: index[dep][:self_changes] || 0} end)
         |> Enum.sort_by(& &1.self_changes, :desc)
 
-      invalidates =
-        edges
-        |> Analytics.module_transitive_dependents(name)
-        |> Enum.map(fn dependent ->
-          %{name: dependent, invalidations: index[dependent][:invalidations] || 0}
-        end)
-        |> Enum.sort_by(& &1.invalidations, :desc)
+      dependents_series =
+        Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
 
       branches =
         Analytics.cache_branches(
@@ -167,7 +162,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
          module: module,
          timeseries: timeseries,
          invalidated_by: invalidated_by,
-         invalidates: invalidates,
+         dependents_series: dependents_series,
          cache_branches: branches
        }}
     end)

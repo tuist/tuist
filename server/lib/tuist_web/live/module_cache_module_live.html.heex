@@ -311,23 +311,31 @@
         </div>
 
         <div
-          :if={@analytics_selected_widget == "blast_radius"}
+          :if={@dependents_series.ok? && @analytics_selected_widget == "blast_radius"}
           data-part="analytics-chart"
         >
           <.chart
-            :if={@invalidates.ok? && not Enum.empty?(@invalidates.result)}
-            id="module-blast-radius-chart"
-            type="bar"
+            id="module-dependents-chart"
+            type="line"
             extra_options={
               %{
-                grid: %{width: "96%", left: "0.4%", right: "3%", height: "84%", top: "6%"},
+                grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "6%"},
                 tooltip: %{},
                 xAxis: %{
+                  boundaryGap: false,
                   type: "category",
-                  data: Enum.map(@invalidates.result, & &1.name),
-                  axisLabel: %{color: "var:noora-surface-label-secondary"}
+                  data: @dependents_series.result.dates,
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@dependents_series.result.dates),
+                      List.last(@dependents_series.result.dates)
+                    ]
+                  }
                 },
                 yAxis: %{
+                  minInterval: 1,
                   splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
                   axisLabel: %{color: "var:noora-surface-label-secondary"}
                 },
@@ -336,25 +344,16 @@
             }
             series={[
               %{
-                name: dgettext("dashboard_cache", "Misses"),
-                data: Enum.map(@invalidates.result, & &1.invalidations),
-                type: "bar",
-                color: "var:noora-chart-secondary",
-                barMaxWidth: 32
+                name: dgettext("dashboard_cache", "Modules downstream"),
+                data: @dependents_series.result.counts,
+                type: "line",
+                step: "end",
+                symbol: "none",
+                color: "var:noora-chart-secondary"
               }
             ]}
             y_axis_min={0}
-            grid_lines
           />
-          <.empty_card_section
-            :if={@invalidates.ok? && Enum.empty?(@invalidates.result)}
-            title={dgettext("dashboard_cache", "Nothing depends on this module")}
-          >
-            <:image>
-              <img src="/images/empty_line_chart_light.png" data-theme="light" />
-              <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-            </:image>
-          </.empty_card_section>
         </div>
       </div>
     </.card_section>
