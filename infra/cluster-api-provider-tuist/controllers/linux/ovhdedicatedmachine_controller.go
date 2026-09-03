@@ -364,6 +364,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
+				logger.Error(quotaErr, "containerd quota lift failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
