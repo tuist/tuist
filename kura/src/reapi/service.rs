@@ -424,7 +424,7 @@ impl ReapiService {
                 "uploaded blob size did not match digest",
             ));
         }
-        if !digest_matches_hex(hasher.finalize().as_ref(), &resource.hash) {
+        if !digest_matches_hex(hasher.finalize().as_ref(), resource.hash()) {
             return Err(Status::invalid_argument(
                 "uploaded blob digest did not match content",
             ));
@@ -1692,7 +1692,7 @@ impl ByteStream for ReapiService {
             namespace_id: Some(&resource.namespace_id),
             producer: Some("reapi"),
             artifact_key: Some(&resource.key),
-            artifact_hash: Some(&resource.hash),
+            artifact_hash: Some(resource.hash()),
         };
         self.authorize_request(&request, auth).await?;
         if request.get_ref().read_offset < 0 {
@@ -1851,7 +1851,7 @@ impl ByteStream for ReapiService {
             namespace_id: Some(&resource.namespace_id),
             producer: Some("reapi"),
             artifact_key: Some(&resource.key),
-            artifact_hash: Some(&resource.hash),
+            artifact_hash: Some(resource.hash()),
         };
         self.authorize_request(&request, auth).await?;
         let manifest = self
@@ -2591,9 +2591,15 @@ fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
 #[derive(Debug, PartialEq, Eq)]
 struct BlobResource {
     namespace_id: String,
-    hash: String,
+    hash_range: std::ops::Range<usize>,
     size_bytes: u64,
     key: String,
+}
+
+impl BlobResource {
+    fn hash(&self) -> &str {
+        &self.key[self.hash_range.clone()]
+    }
 }
 
 fn digest_matches_hex(actual: &[u8], expected_hex: &str) -> bool {
@@ -2717,7 +2723,7 @@ fn parse_blob_resource_name(
 
     Ok(BlobResource {
         namespace_id,
-        hash: hash.to_owned(),
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
         size_bytes,
         key,
     })
@@ -2766,7 +2772,7 @@ fn parse_blob_resource_name_allocating(
 
     Ok(BlobResource {
         namespace_id,
-        hash,
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
         size_bytes,
         key,
     })
@@ -6008,7 +6014,7 @@ mod tests {
             parse_read_resource_name("blobs/abc/10").expect("resource should parse"),
             BlobResource {
                 namespace_id: "default".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
@@ -6018,7 +6024,7 @@ mod tests {
                 .expect("instance-scoped resource should parse"),
             BlobResource {
                 namespace_id: "bazel/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
@@ -6175,13 +6181,72 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn blob_resource_construction_without_duplicate_hash_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+        const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        const ENCODED_SIZE: &str = "262144";
+
+        let measure = |duplicate_hash: bool| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let hash = duplicate_hash.then(|| HASH.to_owned());
+                let mut key =
+                    String::with_capacity("blob/".len() + HASH.len() + 1 + ENCODED_SIZE.len());
+                key.push_str("blob/");
+                key.push_str(HASH);
+                key.push('/');
+                key.push_str(ENCODED_SIZE);
+                let hash_range = "blob/".len().."blob/".len() + HASH.len();
+                std::hint::black_box((hash, hash_range, key));
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_construction_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
     fn parses_write_resource_names_with_upload_prefix() {
         assert_eq!(
             parse_write_resource_name("buck/cache/uploads/uuid-1/blobs/abc/10")
                 .expect("write resource should parse"),
             BlobResource {
                 namespace_id: "buck/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
