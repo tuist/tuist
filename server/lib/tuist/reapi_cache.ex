@@ -93,14 +93,20 @@ defmodule Tuist.ReapiCache do
     rows =
       ClickHouseRepo.all(
         from(event in CacheEvent,
-          where:
-            event.project_id == ^project_id and event.operation == "action_cache" and
-              event.invocation_id in ^invocation_ids,
+          where: event.project_id == ^project_id and event.invocation_id in ^invocation_ids,
           group_by: event.invocation_id,
           select: %{
             invocation_id: event.invocation_id,
-            hits: coalesce(sum(fragment("if(? = 'hit', 1, 0)", event.outcome)), 0),
-            misses: coalesce(sum(fragment("if(? = 'miss', 1, 0)", event.outcome)), 0),
+            hits:
+              coalesce(
+                sum(fragment("if(? = 'action_cache' AND ? = 'hit', 1, 0)", event.operation, event.outcome)),
+                0
+              ),
+            misses:
+              coalesce(
+                sum(fragment("if(? = 'action_cache' AND ? = 'miss', 1, 0)", event.operation, event.outcome)),
+                0
+              ),
             download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
             upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0)
           }

@@ -7,6 +7,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Utilities.Query
 
   @page_size 20
 
@@ -37,6 +38,7 @@ defmodule TuistWeb.BazelInvocationsLive do
 
     {:noreply,
      socket
+     |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
      |> assign(:invocations, invocations)
      |> assign(:current_page, meta.current_page)
      |> assign(:total_pages, meta.total_pages)
@@ -150,6 +152,12 @@ defmodule TuistWeb.BazelInvocationsLive do
                 <.text_cell sublabel={DateFormatter.from_now(invocation.finished_at)} />
               </:col>
             </.table>
+            <.pagination_group
+              :if={@total_pages > 1}
+              current_page={@current_page}
+              number_of_pages={@total_pages}
+              page_patch={fn page -> "?#{Query.put(@uri.query, "page", to_string(page))}" end}
+            />
           </div>
           <p :if={Enum.empty?(@invocations)} data-part="empty-bazel-invocations">
             {dgettext(

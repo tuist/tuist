@@ -6,7 +6,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBazelInvocationsTable do
              primary_key: false,
              engine: "MergeTree",
              options:
-               "PARTITION BY toYYYYMM(finished_at) ORDER BY (project_id, finished_at, invocation_id) TTL finished_at + INTERVAL 90 DAY"
+               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, finished_at, invocation_id) TTL inserted_at + INTERVAL 90 DAY"
            ) do
       add :id, :uuid, null: false
       add :invocation_id, :string, null: false
