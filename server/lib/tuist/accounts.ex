@@ -666,12 +666,18 @@ defmodule Tuist.Accounts do
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
       end)
+      |> Multi.run(:clear_origin_rollup_buffer, fn _repo, _changes ->
+        Origins.clear_account(account.id)
+        {:ok, :cleared}
+      end)
       |> Multi.delete(:delete_account, account)
       |> Multi.delete(:delete_user, user)
       |> Repo.transaction()
   end
 
   def delete_organization!(%Organization{} = organization) do
+    account = get_account_from_organization(organization)
+    Origins.clear_account(account.id)
     Repo.delete!(organization)
   end
 

@@ -62,6 +62,16 @@ defmodule Tuist.Kura.Origins do
   def record_run(account_id, origin), do: record(account_id, origin, @run_position)
 
   @doc """
+  Removes all buffered ETS entries for `account_id`. Call this before deleting
+  an account so the next flush does not attempt to write rows whose foreign key
+  no longer exists.
+  """
+  def clear_account(account_id) when is_integer(account_id) do
+    :ets.match_delete(@table, {{account_id, :_, :_}, :_, :_})
+    :ok
+  end
+
+  @doc """
   Folds this node's buffer into the day's rollups. Called on the flush timer,
   and by the demand flush before it resolves regions, so an account's first
   request places it from its own origin rather than from the default.
