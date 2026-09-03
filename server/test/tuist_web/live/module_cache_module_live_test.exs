@@ -57,4 +57,55 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     # Core's downstream blast radius includes Networking.
     assert html =~ "Networking"
   end
+
+  describe "invalidated by sorting and pagination" do
+    alias TuistWeb.ModuleCacheModuleLive
+
+    defp deps(count) do
+      for i <- 1..count, do: %{name: "Dep#{i}", self_changes: i}
+    end
+
+    test "sorts by times changed in both directions" do
+      given = deps(3)
+
+      assert given
+             |> ModuleCacheModuleLive.sort_dependencies("self_changes", "desc")
+             |> Enum.map(& &1.self_changes) == [3, 2, 1]
+
+      assert given
+             |> ModuleCacheModuleLive.sort_dependencies("self_changes", "asc")
+             |> Enum.map(& &1.self_changes) == [1, 2, 3]
+    end
+
+    test "sorts by name" do
+      given = [%{name: "Zed", self_changes: 1}, %{name: "Alpha", self_changes: 9}]
+
+      assert given
+             |> ModuleCacheModuleLive.sort_dependencies("name", "asc")
+             |> Enum.map(& &1.name) == ["Alpha", "Zed"]
+    end
+
+    test "pages the list" do
+      per_page = ModuleCacheModuleLive.invalidated_by_per_page()
+      given = deps(per_page * 2 + 3)
+
+      assert length(ModuleCacheModuleLive.page_of(given, 1)) == per_page
+      assert length(ModuleCacheModuleLive.page_of(given, 3)) == 3
+      assert ModuleCacheModuleLive.page_count(given) == 3
+
+      # pages do not overlap and cover the whole list
+      paged =
+        1..3
+        |> Enum.flat_map(&ModuleCacheModuleLive.page_of(given, &1))
+        |> Enum.map(& &1.name)
+
+      assert paged == Enum.map(given, & &1.name)
+    end
+
+    test "a short list is a single page and an empty list still reports one" do
+      assert ModuleCacheModuleLive.page_count(deps(1)) == 1
+      assert ModuleCacheModuleLive.page_count([]) == 1
+      assert ModuleCacheModuleLive.page_of([], 1) == []
+    end
+  end
 end

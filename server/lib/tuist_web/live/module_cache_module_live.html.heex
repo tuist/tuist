@@ -527,15 +527,52 @@
       icon="square_rounded_arrow_down"
       data-part="invalidated-by-card"
     >
-      <.card_section :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}>
-        <.table id="invalidated-by-table" rows={@invalidated_by.result}>
-          <:col :let={dep} label={dgettext("dashboard_cache", "Dependency")}>
+      <.card_section
+        :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}
+        data-part="invalidated-by-section"
+      >
+        <% sorted =
+          sort_dependencies(
+            @invalidated_by.result,
+            @invalidated_by_sort,
+            @invalidated_by_order
+          )
+
+        pages = page_count(sorted)
+        page = min(@invalidated_by_page, pages) %>
+        <.table id="invalidated-by-table" rows={page_of(sorted, page)}>
+          <:col
+            :let={dep}
+            label={dgettext("dashboard_cache", "Dependency")}
+            patch={
+              invalidated_by_sort_patch(@uri, "name", @invalidated_by_sort, @invalidated_by_order)
+            }
+            sort_order={@invalidated_by_sort == "name" && @invalidated_by_order}
+          >
             <.text_cell label={dep.name} />
           </:col>
-          <:col :let={dep} label={dgettext("dashboard_cache", "Times changed")}>
+          <:col
+            :let={dep}
+            label={dgettext("dashboard_cache", "Times changed")}
+            patch={
+              invalidated_by_sort_patch(
+                @uri,
+                "self_changes",
+                @invalidated_by_sort,
+                @invalidated_by_order
+              )
+            }
+            sort_order={@invalidated_by_sort == "self_changes" && @invalidated_by_order}
+          >
             <.text_cell label={Integer.to_string(dep.self_changes)} />
           </:col>
         </.table>
+        <.pagination_group
+          :if={pages > 1}
+          current_page={page}
+          number_of_pages={pages}
+          page_patch={fn target -> invalidated_by_page_patch(@uri, target) end}
+        />
       </.card_section>
       <.empty_card_section
         :if={@invalidated_by.ok? && Enum.empty?(@invalidated_by.result)}
