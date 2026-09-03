@@ -85,19 +85,29 @@ fn request_namespace(ctx: &RequestContext) -> Option<String> {
 /// Read or write, from the operation when it says, and from the method when it
 /// does not.
 pub fn request_action(ctx: &RequestContext) -> Action {
-    let operation = ctx.operation.to_lowercase();
-
-    if operation.ends_with(".read") || operation.ends_with(".inspect") {
+    if ends_with_ignore_ascii_case(&ctx.operation, b".read")
+        || ends_with_ignore_ascii_case(&ctx.operation, b".inspect")
+    {
         return Action::Read;
     }
-    if operation.ends_with(".write") || operation.ends_with(".delete") {
+    if ends_with_ignore_ascii_case(&ctx.operation, b".write")
+        || ends_with_ignore_ascii_case(&ctx.operation, b".delete")
+    {
         return Action::Write;
     }
 
-    match ctx.method.to_uppercase().as_str() {
-        "GET" | "HEAD" => Action::Read,
-        _ => Action::Write,
+    if ctx.method.eq_ignore_ascii_case("GET") || ctx.method.eq_ignore_ascii_case("HEAD") {
+        Action::Read
+    } else {
+        Action::Write
     }
+}
+
+fn ends_with_ignore_ascii_case(value: &str, suffix: &[u8]) -> bool {
+    let value = value.as_bytes();
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|ending| ending.eq_ignore_ascii_case(suffix))
 }
 
 pub fn request_target(ctx: &RequestContext) -> Result<RequestTarget, DenyDecision> {
@@ -147,7 +157,25 @@ pub fn request_target(ctx: &RequestContext) -> Result<RequestTarget, DenyDecisio
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Barrier};
+
     use super::*;
+
+    fn allocating_request_action(ctx: &RequestContext) -> Action {
+        let operation = ctx.operation.to_lowercase();
+
+        if operation.ends_with(".read") || operation.ends_with(".inspect") {
+            return Action::Read;
+        }
+        if operation.ends_with(".write") || operation.ends_with(".delete") {
+            return Action::Write;
+        }
+
+        match ctx.method.to_uppercase().as_str() {
+            "GET" | "HEAD" => Action::Read,
+            _ => Action::Write,
+        }
+    }
 
     fn ctx() -> RequestContext {
         RequestContext {
@@ -271,5 +299,107 @@ mod tests {
 
         context.method = "POST".into();
         assert_eq!(request_action(&context), Action::Write);
+    }
+
+    #[test]
+    fn allocation_free_action_classification_matches_case_insensitive_behavior() {
+        let cases = [
+            ("artifact.READ", "POST"),
+            ("artifact.InSpEcT", "POST"),
+            ("artifact.WRITE", "GET"),
+            ("artifact.DeLeTe", "GET"),
+            ("artifact", "get"),
+            ("artifact", "hEaD"),
+            ("artifact", "post"),
+            ("short", "GET"),
+            ("é", "GET"),
+        ];
+
+        for (operation, method) in cases {
+            let mut context = ctx();
+            context.operation = operation.into();
+            context.method = method.into();
+            assert_eq!(
+                request_action(&context),
+                allocating_request_action(&context),
+                "operation={operation} method={method}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn allocation_free_action_classification_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 1_000_000;
+        const SAMPLES: usize = 6;
+
+        let mut operation_context = ctx();
+        operation_context.operation = "artifact.read".into();
+        operation_context.method = "POST".into();
+        let mut method_context = ctx();
+        method_context.operation = "request".into();
+        method_context.method = "HEAD".into();
+        let contexts = Arc::new([operation_context, method_context]);
+
+        let measure = |allocation_free: bool| {
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    let contexts = contexts.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for iteration in 0..ITERATIONS_PER_WORKER {
+                            let context =
+                                std::hint::black_box(&contexts[iteration % contexts.len()]);
+                            let action = if allocation_free {
+                                request_action(context)
+                            } else {
+                                allocating_request_action(context)
+                            };
+                            std::hint::black_box(action);
+                        }
+                    });
+                }
+                barrier.wait();
+                std::time::Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC authorization_action_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC authorization_action_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC authorization_action_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 }
