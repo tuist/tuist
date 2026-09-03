@@ -579,8 +579,8 @@ server:
           clientId: client_id
           clientSecret: client_secret
   # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
-  # OAuth/OIDC provider keys, the Mailgun API key, Loops, the ClickHouse
-  # URL, Plain, the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # OAuth/OIDC provider keys, the Mailgun API key, the ClickHouse URL,
+  # the cache API key, and the Phoenix/Cloak/Guardian secret keys)
   # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
   # env var names, mounted via envFrom. This is what lets managed envs drop
   # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P

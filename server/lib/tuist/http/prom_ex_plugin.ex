@@ -228,7 +228,7 @@ defmodule Tuist.HTTP.PromExPlugin do
   # and SSO flows. Those carry per-customer hostnames in `request.host`, which
   # blow up active-series cardinality through the `request_host` label. Keep the
   # metrics scoped to `Tuist.Finch` so per-host visibility stays on for our
-  # bounded internal endpoints (GitHub, Tigris, Namespace) only.
+  # bounded internal endpoints (GitHub, Tigris, the marketing site) only.
   defp keep_tuist_finch?(metadata), do: Map.get(metadata, :name) == Tuist.Finch
 
   defp request_to_tag_values(request) do
