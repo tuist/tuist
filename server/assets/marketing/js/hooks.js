@@ -26,6 +26,9 @@ import { ComputeCacheReady } from "./hooks/compute-cache-ready.js";
 import { ComputeMacDither } from "./hooks/compute-mac-dither.js";
 import { RunnerGrid } from "./hooks/compute-runners.js";
 import { TaskFeed } from "./hooks/compute-tasks.js";
+import { MenubarClock } from "./hooks/menubar-clock.js";
+import { DownloadMacDemo } from "./hooks/download-mac-demo.js";
+import { DownloadIosDemo } from "./hooks/download-ios-demo.js";
 import { TestGrid } from "./hooks/test-grid.js";
 import { ShardingTimeline } from "./hooks/sharding-timeline.js";
 import { InsightsChart } from "./hooks/insights-chart.js";
@@ -55,6 +58,9 @@ const Hooks = {
   ComputeMacDither,
   RunnerGrid,
   TaskFeed,
+  MenubarClock,
+  DownloadMacDemo,
+  DownloadIosDemo,
   TestGrid,
   ShardingTimeline,
   InsightsChart,
