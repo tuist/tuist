@@ -235,6 +235,12 @@ impl IoController {
         }
     }
 
+    /// Opens an append-only segment file without the operating system's append flag.
+    ///
+    /// Callers reserve non-overlapping offsets before writing. Linux ignores the
+    /// supplied offset for positioned writes when the append flag is set, so the
+    /// file must be opened for ordinary writes for those reservations to remain
+    /// correct.
     pub async fn open_persistent_append_file(&self, path: &Path) -> Result<PersistentFile, String> {
         let path = self.validate_path(path)?;
         let lease = self.acquire("open_persistent_append_file").await?;
@@ -244,7 +250,7 @@ impl IoController {
             move || {
                 let file = std::fs::OpenOptions::new()
                     .create(true)
-                    .append(true)
+                    .write(true)
                     .read(true)
                     .open(&path)?;
                 let known_len = file.metadata()?.len();
@@ -626,10 +632,41 @@ impl PersistentFile {
         &self.file
     }
 
-    pub fn write_all(&self, bytes: &[u8]) -> Result<(), io::Error> {
-        std::io::Write::write_all(&mut &self.file, bytes)?;
+    pub fn write_all_at(&self, bytes: &[u8], offset: u64) -> Result<(), io::Error> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt as _;
+
+            self.file.write_all_at(bytes, offset)?;
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt as _;
+
+            let mut remaining = bytes;
+            let mut next_offset = offset;
+            while !remaining.is_empty() {
+                match self.file.seek_write(remaining, next_offset) {
+                    Ok(0) => return Err(io::Error::from(io::ErrorKind::WriteZero)),
+                    Ok(written) => {
+                        remaining = &remaining[written..];
+                        next_offset = next_offset.saturating_add(written as u64);
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (bytes, offset);
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "positioned segment writes require Unix or Windows file support",
+            ));
+        }
         self.known_len
-            .fetch_add(bytes.len() as u64, Ordering::AcqRel);
+            .fetch_max(offset.saturating_add(bytes.len() as u64), Ordering::AcqRel);
         Ok(())
     }
 
@@ -861,6 +898,35 @@ mod tests {
         };
 
         assert!(error.contains("parent traversal component"));
+    }
+
+    #[tokio::test]
+    async fn persistent_positioned_writes_preserve_disjoint_ranges() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create temp dir");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        let path = directory.path().join("positioned-writes");
+        let file = controller
+            .open_persistent_append_file(&path)
+            .await
+            .expect("positioned file should open");
+
+        file.write_all_at(b"second", 5)
+            .expect("second range should write");
+        file.write_all_at(b"first", 0)
+            .expect("first range should write");
+
+        assert!(file.has_len(11).expect("known length should read"));
+        assert_eq!(
+            std::fs::read(path).expect("positioned file should read"),
+            b"firstsecond"
+        );
     }
 
     #[test]

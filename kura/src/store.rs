@@ -19,7 +19,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
-    sync::{Mutex, Notify, RwLock},
+    sync::{Mutex, Notify, RwLock, Semaphore},
 };
 use uuid::Uuid;
 
@@ -99,6 +99,7 @@ const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
 const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // The production backfill averaged thousands of reverse rows per action-cache
@@ -173,7 +174,15 @@ pub struct Store {
     multipart_stored_bytes: AtomicU64,
     multipart_max_active_uploads: usize,
     multipart_max_stored_bytes: u64,
+    // Positioned small writes hold the read side while writing disjoint ranges.
+    // Rotation, serial streaming appends, and durability barriers take the
+    // write side, which waits for every preceding positioned write and prevents
+    // a segment from rotating or syncing through an in-progress range.
+    segment_write_barrier: RwLock<()>,
     segment_write_lock: Mutex<ActiveSegmentWriter>,
+    segment_positioned_write_slots: Semaphore,
+    #[cfg(test)]
+    positioned_segment_writes_enabled: AtomicBool,
     segment_writers_ahead_of_durability: AtomicU64,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
@@ -1152,7 +1161,11 @@ impl Store {
             multipart_stored_bytes: AtomicU64::new(0),
             multipart_max_active_uploads: config.multipart_max_active_uploads,
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
+            segment_write_barrier: RwLock::new(()),
             segment_write_lock: Mutex::new(ActiveSegmentWriter::default()),
+            segment_positioned_write_slots: Semaphore::new(SEGMENT_POSITIONED_WRITE_SLOTS),
+            #[cfg(test)]
+            positioned_segment_writes_enabled: AtomicBool::new(true),
             segment_writers_ahead_of_durability: AtomicU64::new(0),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
@@ -2764,6 +2777,17 @@ impl Store {
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        if self.positioned_segment_writes_enabled()
+            && !file_cache_policy.should_drop(
+                self.memory.should_reclaim_file_cache(),
+                self.memory.transient_reserved_bytes(),
+            )
+        {
+            return self
+                .append_preloaded_to_reserved_segment(bytes, durability)
+                .await;
+        }
+
         let mut empty = tokio::io::empty();
         self.append_reader_to_segment_inner(
             &mut empty,
@@ -2774,6 +2798,156 @@ impl Store {
             durability,
         )
         .await
+    }
+
+    fn positioned_segment_writes_enabled(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.positioned_segment_writes_enabled
+                .load(Ordering::Acquire)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    async fn append_preloaded_to_reserved_segment(
+        &self,
+        bytes: &[u8],
+        durability: ApplyDurability,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        let pending_writer =
+            PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
+        let write_slot = self
+            .segment_positioned_write_slots
+            .acquire()
+            .await
+            .map_err(|_| "positioned segment write slots closed".to_owned())?;
+        let size = bytes.len() as u64;
+
+        let fast_write = {
+            let range_guard = self.segment_write_barrier.read().await;
+            let mut writer = self.segment_write_lock.lock().await;
+            let active = self.segment_state_snapshot().state.active().cloned();
+            let reservation = active.and_then(|segment| {
+                let fits = writer.segment_id.as_deref() == Some(segment.segment_id.as_str())
+                    && writer.file.is_some()
+                    && !writer.directory_sync_pending
+                    && writer.len.saturating_add(size) <= MAX_SEGMENT_BYTES;
+                fits.then(|| {
+                    let offset = writer.len;
+                    writer.len = writer.len.saturating_add(size);
+                    (
+                        SegmentLocation {
+                            segment_id: segment.segment_id,
+                            offset,
+                        },
+                        writer
+                            .file
+                            .as_ref()
+                            .expect("ready segment writer should hold a file")
+                            .clone(),
+                    )
+                })
+            });
+            drop(writer);
+
+            reservation.map(|(location, file)| {
+                let path = self.segment_path(&location.segment_id);
+                run_segment_file_operation(|| file.write_all_at(bytes, location.offset)).map_err(
+                    |error| {
+                        format!(
+                            "failed to write reserved segment range {} at {}: {error}",
+                            path.display(),
+                            location.offset
+                        )
+                    },
+                )?;
+                let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+                drop(range_guard);
+                Ok::<_, String>((location, Vec::new(), durability_seq))
+            })
+        };
+
+        let (location, evicted_segments, durability_seq) = match fast_write {
+            Some(result) => result?,
+            None => {
+                let _exclusive = self.segment_write_barrier.write().await;
+                let mut writer = self.segment_write_lock.lock().await;
+                let (segment, evicted_segments) = self
+                    .prepare_active_segment_writer(size, &mut writer)
+                    .await?;
+                let offset = writer.len;
+                writer.len = writer.len.saturating_add(size);
+                let file = writer
+                    .file
+                    .as_ref()
+                    .expect("prepared segment writer should hold a file")
+                    .clone();
+                drop(writer);
+                let location = SegmentLocation {
+                    segment_id: segment.segment_id,
+                    offset,
+                };
+                let path = self.segment_path(&location.segment_id);
+                run_segment_file_operation(|| file.write_all_at(bytes, location.offset)).map_err(
+                    |error| {
+                        format!(
+                            "failed to write reserved segment range {} at {}: {error}",
+                            path.display(),
+                            location.offset
+                        )
+                    },
+                )?;
+                let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+                (location, evicted_segments, durability_seq)
+            }
+        };
+        drop(pending_writer);
+        drop(write_slot);
+
+        if durability == ApplyDurability::Sync {
+            self.ensure_segment_durable(durability_seq).await?;
+        }
+
+        Ok((location, evicted_segments, durability_seq))
+    }
+
+    async fn prepare_active_segment_writer(
+        &self,
+        size: u64,
+        writer: &mut ActiveSegmentWriter,
+    ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
+        let (segment, evicted_segments) = self.active_segment(size, writer).await?;
+        let segment_path = self.segment_path(&segment.segment_id);
+        let segment_dir = segment_path
+            .parent()
+            .ok_or_else(|| "missing segment parent directory".to_string())?;
+        if writer.segment_id.as_deref() != Some(segment.segment_id.as_str())
+            || writer.file.is_none()
+        {
+            self.io.create_dir_all(segment_dir).await?;
+            let segment_already_exists = self.io.path_exists(&segment_path).await?;
+            let len = if segment_already_exists {
+                self.io.metadata_len(&segment_path).await?
+            } else {
+                0
+            };
+            let file = Arc::new(self.io.open_persistent_append_file(&segment_path).await?);
+            *writer = ActiveSegmentWriter {
+                segment_id: Some(segment.segment_id.clone()),
+                file: Some(file),
+                len,
+                len_unknown: false,
+                directory_sync_pending: !segment_already_exists,
+            };
+        }
+        if writer.directory_sync_pending {
+            self.io.sync_directory(segment_dir).await?;
+            writer.directory_sync_pending = false;
+        }
+        Ok((segment, evicted_segments))
     }
 
     /// The returned `u64` is the append's group-commit durability sequence.
@@ -2825,35 +2999,12 @@ impl Store {
         let pending_writer =
             PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
         let (location, evicted_segments, durability_seq) = {
+            let _exclusive = self.segment_write_barrier.write().await;
             let mut writer = self.segment_write_lock.lock().await;
-            let (segment, evicted_segments) = self.active_segment(size, &mut writer).await?;
+            let (segment, evicted_segments) = self
+                .prepare_active_segment_writer(size, &mut writer)
+                .await?;
             let segment_path = self.segment_path(&segment.segment_id);
-            let segment_dir = segment_path
-                .parent()
-                .ok_or_else(|| "missing segment parent directory".to_string())?;
-            if writer.segment_id.as_deref() != Some(segment.segment_id.as_str())
-                || writer.file.is_none()
-            {
-                self.io.create_dir_all(segment_dir).await?;
-                let segment_already_exists = self.io.path_exists(&segment_path).await?;
-                let len = if segment_already_exists {
-                    self.io.metadata_len(&segment_path).await?
-                } else {
-                    0
-                };
-                let file = self.io.open_persistent_append_file(&segment_path).await?;
-                *writer = ActiveSegmentWriter {
-                    segment_id: Some(segment.segment_id.clone()),
-                    file: Some(file),
-                    len,
-                    len_unknown: false,
-                    directory_sync_pending: !segment_already_exists,
-                };
-            }
-            if writer.directory_sync_pending {
-                self.io.sync_directory(segment_dir).await?;
-                writer.directory_sync_pending = false;
-            }
 
             let offset = writer.len;
             // If this future is cancelled at any following await, the retained
@@ -2903,7 +3054,7 @@ impl Store {
                         .file
                         .as_ref()
                         .expect("active segment writer should hold a file")
-                        .write_all(chunk)
+                        .write_all_at(chunk, offset.saturating_add(copied))
                 })
                 .map_err(|error| {
                     format!(
@@ -2966,7 +3117,9 @@ impl Store {
                             ));
                         }
                     }
-                    writer.file = Some(self.io.open_persistent_append_file(&segment_path).await?);
+                    writer.file = Some(Arc::new(
+                        self.io.open_persistent_append_file(&segment_path).await?,
+                    ));
                     advised_through = copied;
                     self.io
                         .metrics()
@@ -3033,7 +3186,9 @@ impl Store {
                         ));
                     }
                 }
-                writer.file = Some(self.io.open_persistent_append_file(&segment_path).await?);
+                writer.file = Some(Arc::new(
+                    self.io.open_persistent_append_file(&segment_path).await?,
+                ));
             }
             writer.len = offset.saturating_add(copied);
             writer.len_unknown = false;
@@ -3059,15 +3214,15 @@ impl Store {
 
     /// Group-commit fsync: makes every append with sequence `<= seq` durable.
     ///
-    /// Writers reserve `pending_seq` in append order while holding the write
-    /// lock, then call this. The first writer to win `fsync_lock` performs one
-    /// fsync of the active segment and advances `durable_seq` to the latest
-    /// reserved sequence. That is correct because a segment is fsynced when it
-    /// rotates out (see `active_segment`), so only the active segment can hold
-    /// un-synced bytes — and if the active segment rotated between a writer's
-    /// append and this fsync, that writer's bytes were already made durable by
-    /// the rotation. Writers already covered by a prior fsync return without
-    /// syncing.
+    /// Each writer publishes `pending_seq` only after its reserved range is
+    /// complete and before releasing the segment barrier. The first writer to
+    /// win `fsync_lock` performs one fsync of the active segment and advances
+    /// `durable_seq` to the latest published sequence. The exclusive side of
+    /// the segment barrier waits for every in-progress positioned write before
+    /// capturing that sequence, so every published range in the prefix is in
+    /// the file being synchronized. This is also correct across rotation
+    /// because the outgoing segment is synchronized before it stops being the
+    /// active target. Writers covered by a prior fsync return without syncing.
     async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
         if self.durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
@@ -3087,9 +3242,9 @@ impl Store {
         }
         self.hit_failpoint(FailpointName::BeforeSegmentFsync)
             .await?;
-        // Taking the append lock inside the fsync lock lets already-queued
-        // appends finish first, then captures exactly the prefix covered by the
-        // retained file handle's sync.
+        // Taking the exclusive segment barrier inside the fsync lock lets
+        // already-started writes finish first, then captures exactly the prefix
+        // covered by the retained file handle's sync.
         let target = self.fsync_active_segment().await?;
         self.durable_seq.store(target, Ordering::Release);
         Ok(())
@@ -3098,6 +3253,7 @@ impl Store {
     /// Fsyncs the current active segment file and returns the append sequence
     /// covered by that barrier.
     async fn fsync_active_segment(&self) -> Result<u64, String> {
+        let _exclusive = self.segment_write_barrier.write().await;
         let writer = self.segment_write_lock.lock().await;
         let target = self.pending_seq.load(Ordering::Acquire);
         let snapshot = self.segment_state_snapshot();
@@ -7998,7 +8154,7 @@ struct SegmentLocation {
 #[derive(Default)]
 struct ActiveSegmentWriter {
     segment_id: Option<String>,
-    file: Option<PersistentFile>,
+    file: Option<Arc<PersistentFile>>,
     len: u64,
     len_unknown: bool,
     directory_sync_pending: bool,
@@ -8528,6 +8684,263 @@ mod tests {
         println!(
             "METRIC segment_preload_speedup_ratio={:.6}",
             speedups[median]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn positioned_segment_write_benchmark() {
+        const WRITERS: usize = 64;
+        const WRITES_PER_WRITER: usize = 8;
+        const SAMPLES: usize = 6;
+
+        async fn measure(store: Arc<Store>, bytes: Arc<Vec<u8>>, positioned: bool) -> (f64, u64) {
+            store
+                .positioned_segment_writes_enabled
+                .store(positioned, Ordering::Release);
+            let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+            let start = Arc::new(tokio::sync::Barrier::new(WRITERS + 1));
+            let mut writers = Vec::with_capacity(WRITERS);
+            for _ in 0..WRITERS {
+                let store = store.clone();
+                let bytes = bytes.clone();
+                let start = start.clone();
+                writers.push(tokio::spawn(async move {
+                    start.wait().await;
+                    for _ in 0..WRITES_PER_WRITER {
+                        store
+                            .append_preloaded_to_segment(
+                                &bytes,
+                                None,
+                                FileCachePolicy::Adaptive,
+                                ApplyDurability::Sync,
+                            )
+                            .await
+                            .expect("benchmark segment write should persist");
+                    }
+                }));
+            }
+            start.wait().await;
+            let started_at = std::time::Instant::now();
+            for writer in writers {
+                writer.await.expect("benchmark writer should finish");
+            }
+            let writes = WRITERS * WRITES_PER_WRITER;
+            (
+                writes as f64 / started_at.elapsed().as_secs_f64(),
+                store
+                    .segment_fsync_count
+                    .load(Ordering::Relaxed)
+                    .saturating_sub(fsyncs_before),
+            )
+        }
+
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let bytes = Arc::new(vec![0x5a; 64 * 1024]);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_fsyncs = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_fsyncs = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (
+                    measure(store.clone(), bytes.clone(), false).await,
+                    measure(store.clone(), bytes.clone(), true).await,
+                )
+            } else {
+                let candidate = measure(store.clone(), bytes.clone(), true).await;
+                (
+                    measure(store.clone(), bytes.clone(), false).await,
+                    candidate,
+                )
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline.0);
+                candidate_rates.push(candidate.0);
+                speedups.push(candidate.0 / baseline.0);
+                baseline_fsyncs.push(baseline.1);
+                candidate_fsyncs.push(candidate.1);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        baseline_fsyncs.sort_unstable();
+        candidate_fsyncs.sort_unstable();
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC positioned_segment_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC serialized_segment_writes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC positioned_segment_writes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC serialized_segment_fsyncs={}",
+            baseline_fsyncs[median]
+        );
+        println!(
+            "METRIC positioned_segment_fsyncs={}",
+            candidate_fsyncs[median]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually for end-to-end validation"]
+    async fn positioned_artifact_write_benchmark() {
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+
+        async fn measure(
+            store: Arc<Store>,
+            bytes: Arc<Vec<u8>>,
+            label: &'static str,
+            sample: usize,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                store: Arc<Store>,
+                bytes: Arc<Vec<u8>>,
+                key: String,
+            ) {
+                writes.spawn(async move {
+                    let started_at = std::time::Instant::now();
+                    store
+                        .persist_artifact_from_bytes(
+                            ArtifactProducer::Xcode,
+                            "positioned-write-benchmark",
+                            &key,
+                            "application/octet-stream",
+                            &bytes,
+                        )
+                        .await
+                        .expect("benchmark artifact should persist");
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(
+                    &mut writes,
+                    store.clone(),
+                    bytes.clone(),
+                    format!("{label}-{sample}-{next}"),
+                );
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(
+                        &mut writes,
+                        store.clone(),
+                        bytes.clone(),
+                        format!("{label}-{sample}-{next}"),
+                    );
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let (_baseline_temp, _baseline_config, baseline) = temp_store();
+        baseline
+            .positioned_segment_writes_enabled
+            .store(false, Ordering::Release);
+        let baseline = Arc::new(baseline);
+        let (_candidate_temp, _candidate_config, candidate) = temp_store();
+        candidate
+            .positioned_segment_writes_enabled
+            .store(true, Ordering::Release);
+        let candidate = Arc::new(candidate);
+        let bytes = Arc::new(vec![0x5a; SEGMENT_COPY_BUFFER_BYTES]);
+        let mut baseline_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline_result, candidate_result) = if sample % 2 == 0 {
+                (
+                    measure(baseline.clone(), bytes.clone(), "baseline", sample).await,
+                    measure(candidate.clone(), bytes.clone(), "candidate", sample).await,
+                )
+            } else {
+                let candidate_result =
+                    measure(candidate.clone(), bytes.clone(), "candidate", sample).await;
+                (
+                    measure(baseline.clone(), bytes.clone(), "baseline", sample).await,
+                    candidate_result,
+                )
+            };
+            if sample > 0 {
+                speedups.push(candidate_result.0 / baseline_result.0);
+                baseline_samples.push(baseline_result);
+                candidate_samples.push(candidate_result);
+            }
+        }
+        baseline_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        candidate_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let baseline_median = baseline_samples[median];
+        let candidate_median = candidate_samples[median];
+
+        println!(
+            "METRIC positioned_artifact_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC serialized_artifact_writes_per_second={:.3}",
+            baseline_median.0
+        );
+        println!(
+            "METRIC positioned_artifact_writes_per_second={:.3}",
+            candidate_median.0
+        );
+        println!(
+            "METRIC serialized_artifact_write_p50_microseconds={}",
+            baseline_median.1
+        );
+        println!(
+            "METRIC serialized_artifact_write_p95_microseconds={}",
+            baseline_median.2
+        );
+        println!(
+            "METRIC serialized_artifact_write_p99_microseconds={}",
+            baseline_median.3
+        );
+        println!(
+            "METRIC positioned_artifact_write_p50_microseconds={}",
+            candidate_median.1
+        );
+        println!(
+            "METRIC positioned_artifact_write_p95_microseconds={}",
+            candidate_median.2
+        );
+        println!(
+            "METRIC positioned_artifact_write_p99_microseconds={}",
+            candidate_median.3
         );
     }
 
@@ -16384,9 +16797,11 @@ mod tests {
         for i in 0..writers {
             let store = store.clone();
             let path = config.tmp_dir.join(format!("artifact-{i}"));
-            std::fs::write(&path, format!("artifact-body-{i}")).expect("write artifact body");
+            let mut body = vec![i as u8; 64 * 1024];
+            body[..8].copy_from_slice(&i.to_le_bytes());
+            std::fs::write(&path, &body).expect("write artifact body");
             handles.push(tokio::spawn(async move {
-                store
+                let manifest = store
                     .persist_artifact_from_path_and_enqueue(
                         ArtifactProducer::Xcode,
                         "ns",
@@ -16396,11 +16811,42 @@ mod tests {
                         &[],
                     )
                     .await
-                    .expect("artifact should persist");
+                    .expect("artifact should persist")
+                    .manifest;
+                (manifest, body)
             }));
         }
+        let mut persisted = Vec::with_capacity(writers as usize);
         for handle in handles {
-            handle.await.expect("writer task should complete");
+            persisted.push(handle.await.expect("writer task should complete"));
+        }
+
+        let segment_id = persisted[0]
+            .0
+            .segment_id
+            .as_deref()
+            .expect("concurrent artifact should be segment backed");
+        let mut ranges = Vec::with_capacity(persisted.len());
+        for (manifest, expected) in &persisted {
+            assert_eq!(manifest.segment_id.as_deref(), Some(segment_id));
+            let offset = manifest
+                .segment_offset
+                .expect("concurrent artifact should have a segment offset");
+            ranges.push((offset, offset + manifest.size));
+            assert_eq!(
+                store
+                    .read_artifact_bytes(manifest)
+                    .await
+                    .expect("concurrent artifact should remain readable"),
+                *expected
+            );
+        }
+        ranges.sort_unstable();
+        for adjacent in ranges.windows(2) {
+            assert!(
+                adjacent[0].1 <= adjacent[1].0,
+                "positioned segment ranges must not overlap: {adjacent:?}"
+            );
         }
 
         let fsyncs = store
