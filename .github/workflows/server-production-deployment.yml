@@ -85,13 +85,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    # GitHub-hosted on purpose. This job gates the whole cascade, and the
-    # cascade is what deploys the runners fleet, so running it on that fleet
-    # makes a fleet incident block the deployment of its own fix. On
-    # 2026-09-02 it sat queued behind a starved Linux pool for over an hour
-    # while runners-controller 0.22.1 waited to roll. It only needs git,
-    # git-cliff and jq.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     # release:check only needs the git-cliff + jq installed below, but `mise run`
     # otherwise auto-installs the whole merged mise.toml toolset — including
