@@ -569,9 +569,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:cancel, :project_not_found} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, deleted_project_id), 1, 20)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, deleted_project_id), 1, 20))
     end
   end
 

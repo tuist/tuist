@@ -394,6 +394,7 @@ defmodule Tuist.Processor.XCResultProcessor do
       {:ok, entries} ->
         Enum.find_value(entries, fn entry ->
           candidate = Path.join(temp_dir, entry)
+
           if File.dir?(candidate) and File.exists?(Path.join(candidate, "Info.plist")),
             do: candidate
         end)
