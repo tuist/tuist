@@ -2710,38 +2710,37 @@ impl Store {
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
-        let preloaded = if size <= SEGMENT_COPY_BUFFER_BYTES as u64 {
-            self.memory
-                .try_reserve_foreground_memory(size)
-                .ok()
-                .and_then(|reservation| {
-                    let mut bytes = Vec::new();
-                    bytes.try_reserve_exact(size as usize).ok()?;
-                    bytes.resize(size as usize, 0);
-                    Some((reservation, bytes))
-                })
+        let preload_reservation = if size <= SEGMENT_COPY_BUFFER_BYTES as u64 {
+            self.memory.try_reserve_foreground_memory(size).ok()
         } else {
             None
         };
-        if let Some((_reservation, mut bytes)) = preloaded {
-            let mut source = self.io.open_file(source_path).await?;
-            source.read_exact(&mut bytes).await.map_err(|error| {
-                format!(
-                    "failed to preload segment source {}: {error}",
-                    source_path.display()
-                )
-            })?;
-            drop(source);
-            let result = self
-                .append_preloaded_to_segment(
-                    &bytes,
-                    Some(source_path),
-                    file_cache_policy,
-                    durability,
-                )
-                .await;
-            self.io.remove_file_if_exists(source_path).await;
-            return result;
+        if let Some(reservation) = preload_reservation {
+            let preload_size =
+                usize::try_from(size).expect("bounded segment preload size always fits into usize");
+            if let Some(bytes) = try_allocate_exact_vec(preload_size) {
+                let mut source = self.io.open_file(source_path).await?;
+                let bytes = read_exact_to_vec(&mut source, bytes, preload_size)
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to preload segment source {}: {error}",
+                            source_path.display()
+                        )
+                    })?;
+                drop(source);
+                let result = self
+                    .append_preloaded_to_segment(
+                        &bytes,
+                        Some(source_path),
+                        file_cache_policy,
+                        durability,
+                    )
+                    .await;
+                self.io.remove_file_if_exists(source_path).await;
+                return result;
+            }
+            drop(reservation);
         }
 
         let mut source = self.io.open_file(source_path).await?;
@@ -8195,6 +8194,31 @@ fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> boo
     incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
 }
 
+fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(size).ok()?;
+    Some(bytes)
+}
+
+async fn read_exact_to_vec<R>(
+    reader: &mut R,
+    mut bytes: Vec<u8>,
+    size: usize,
+) -> std::io::Result<Vec<u8>>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut limited_reader = reader.take(size as u64);
+    while bytes.len() < size {
+        let read_offset = bytes.len();
+        limited_reader.read_buf(&mut bytes).await?;
+        if bytes.len() == read_offset {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+    }
+    Ok(bytes)
+}
+
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
     let size = usize::try_from(size)
         .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
@@ -8393,6 +8417,117 @@ mod tests {
 
         let error = read_bytes_at(&file, 0, 6).expect_err("truncated range must fail");
         assert_eq!(error, "unexpected EOF while reading 6 bytes at offset 0");
+    }
+
+    #[tokio::test]
+    async fn segment_preload_read_is_bounded_to_requested_size() {
+        let mut source = &[1_u8, 2, 3, 4][..];
+        let bytes = read_exact_to_vec(
+            &mut source,
+            try_allocate_exact_vec(3).expect("allocate exact buffer"),
+            3,
+        )
+        .await
+        .expect("read exact bytes");
+        assert_eq!(bytes, vec![1, 2, 3]);
+        assert_eq!(source, &[4]);
+    }
+
+    #[tokio::test]
+    async fn segment_preload_read_reports_truncated_source() {
+        let mut source = &[1_u8, 2][..];
+        let error = read_exact_to_vec(
+            &mut source,
+            try_allocate_exact_vec(3).expect("allocate exact buffer"),
+            3,
+        )
+        .await
+        .expect_err("truncated source should fail");
+        assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn segment_preload_falls_back_when_allocation_is_impossible() {
+        assert!(try_allocate_exact_vec(usize::MAX).is_none());
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    async fn segment_preload_uninitialized_read_benchmark() {
+        const ITERATIONS: usize = 4_096;
+        const SAMPLES: usize = 8;
+
+        async fn initialized_read(source: &[u8]) -> Vec<u8> {
+            let mut source = source;
+            let mut bytes = vec![0; SEGMENT_COPY_BUFFER_BYTES];
+            source
+                .read_exact(&mut bytes)
+                .await
+                .expect("read initialized preload buffer");
+            bytes
+        }
+
+        async fn uninitialized_read(source: &[u8]) -> Vec<u8> {
+            let mut source = source;
+            read_exact_to_vec(
+                &mut source,
+                try_allocate_exact_vec(SEGMENT_COPY_BUFFER_BYTES)
+                    .expect("benchmark allocation should succeed"),
+                SEGMENT_COPY_BUFFER_BYTES,
+            )
+            .await
+            .expect("read uninitialized preload buffer")
+        }
+
+        async fn measure(source: &[u8], uninitialized: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let bytes = if uninitialized {
+                    uninitialized_read(source).await
+                } else {
+                    initialized_read(source).await
+                };
+                assert_eq!(bytes.len(), SEGMENT_COPY_BUFFER_BYTES);
+                std::hint::black_box(bytes.as_ptr());
+            }
+            let total_bytes = (ITERATIONS * SEGMENT_COPY_BUFFER_BYTES) as f64;
+            total_bytes / started_at.elapsed().as_secs_f64() / (1_024.0 * 1_024.0)
+        }
+
+        let source = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&source, false).await, measure(&source, true).await)
+            } else {
+                let candidate = measure(&source, true).await;
+                (measure(&source, false).await, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC segment_preload_baseline_mebibytes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC segment_preload_candidate_mebibytes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC segment_preload_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 
     #[cfg(unix)]
