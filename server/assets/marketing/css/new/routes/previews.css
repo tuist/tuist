@@ -407,7 +407,7 @@
         }
 
         &[data-screen="2"] {
-          --name-width: 128px;
+          --name-width: 112px;
           --subline-width: 72px;
           --meta-width: 24px;
           --card-height: 114px;
