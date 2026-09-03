@@ -98,9 +98,8 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   end
 
   defp plausible_timestamp?(timestamp_ms) do
-    with {:ok, timestamp} <- DateTime.from_unix(timestamp_ms, :millisecond) do
-      DateTime.compare(timestamp, DateTime.add(DateTime.utc_now(), 1, :hour)) != :gt
-    else
+    case DateTime.from_unix(timestamp_ms, :millisecond) do
+      {:ok, timestamp} -> DateTime.compare(timestamp, DateTime.add(DateTime.utc_now(), 1, :hour)) != :gt
       _ -> false
     end
   end
