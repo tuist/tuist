@@ -1,0 +1,4 @@
+package,version,archive_written,detail
+apple/swift-tools-support-core,0.0.1,2026-02-19T03:44:10Z,12/12 dirs — apple-swift-tools-support-core-693aba4/ mode=40644 host=3 ifdir=true
+auth0/auth0_swift,2.10.0,2026-07-28T16:17:24Z,9/9 dirs — auth0-Auth0.swift-1c2d3e4/ mode=40644 host=3 ifdir=true
+jb55/secp256k1.swift,0.1.0,2026-02-19T03:51:02Z,4/4 dirs — jb55-secp256k1.swift-a1b2c3d/ mode=40644 host=3 ifdir=true
