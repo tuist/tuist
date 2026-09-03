@@ -2,10 +2,32 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.AppStore
   alias Tuist.Atlas.Email
+  alias Tuist.GitHub.Releases
   alias Tuist.Loops
   alias Tuist.Marketing.Blog
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
+
+  @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
+  defp stub_latest_app_release do
+    stub(Releases, :get_latest_app_release, fn ->
+      %{
+        published_at: Timex.format!(DateTime.utc_now(), "{ISO:Extended}"),
+        name: "App 0.25.6",
+        tag_name: "app@0.25.6",
+        html_url: "https://github.com/tuist/tuist/releases/tag/app@0.25.6",
+        assets: [
+          %{
+            name: "Tuist.dmg",
+            browser_download_url: "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+          }
+        ]
+      }
+    end)
+  end
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -213,6 +235,84 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /download" do
+    test "redirects to the latest macOS app DMG when the redesign flag is off", %{conn: conn} do
+      stub_latest_app_release()
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      conn = get(conn, ~p"/download")
+
+      assert redirected_to(conn) ==
+               "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+    end
+
+    test "raises not found when the redesign flag is off and no release exists", %{conn: conn} do
+      stub(Releases, :get_latest_app_release, fn -> nil end)
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/download")
+      end
+    end
+
+    test "renders the download page with the macOS hero by default", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_download -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download Tuist"
+      assert html =~ "Download for macOS"
+      assert html =~ "Version 0.25.6"
+      assert html =~ "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+      assert [vary] = get_resp_header(conn, "vary")
+      assert vary =~ "user-agent"
+    end
+
+    test "renders the iPhone hero with the iOS app version for iOS visitors", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_download -> true
+        _flag -> false
+      end)
+
+      conn =
+        conn
+        |> put_req_header("user-agent", @iphone_user_agent)
+        |> get(~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download on iPhone"
+      assert html =~ "Version 1.2.3"
+      assert html =~ AppStore.ios_app_url()
+    end
+
+    test "omits the hero version when no release information is available", %{conn: conn} do
+      stub(Releases, :get_latest_app_release, fn -> nil end)
+      stub(AppStore, :get_latest_ios_app_version, fn -> nil end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_download -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download for macOS"
+      refute html =~ ~s(data-part="version")
+      assert html =~ "https://github.com/tuist/tuist/releases"
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given
@@ -278,7 +378,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   describe "GET /page" do
     test "raises NotFoundError when page is not found", %{conn: conn} do
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         conn
         |> Map.put(:request_path, "//terms")
         |> TuistWeb.Marketing.MarketingController.page(%{})

@@ -114,6 +114,12 @@
     </script>
     <!-- Assets -->
     <%= if assigns[:new_design] do %>
+      <%!-- Pages can name their largest above-the-fold images (typically CSS
+        backgrounds, which the browser would otherwise only discover after
+        parsing the stylesheet) so they start downloading with the HTML. --%>
+      <%= for href <- assigns[:head_preload_images] || [] do %>
+        <link rel="preload" as="image" href={href} fetchpriority="high" />
+      <% end %>
       <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle-new.css"} />
     <% else %>
       <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />

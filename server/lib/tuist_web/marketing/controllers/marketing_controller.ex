@@ -490,6 +490,99 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
+  # The download page only exists in the redesign, but /download has always
+  # redirected straight to the latest macOS app DMG — that stays as the
+  # legacy behaviour until the :download rollout flag is on.
+  def download(conn, _params) do
+    latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
+
+    if Design.new?(conn, :download) do
+      render_download(conn, latest_app_release)
+    else
+      redirect_to_macos_app_dmg(conn, latest_app_release)
+    end
+  end
+
+  defp render_download(conn, latest_app_release) do
+    macos_version = macos_app_version(latest_app_release)
+    macos_download_url = macos_app_dmg_url(latest_app_release) || "https://github.com/tuist/tuist/releases"
+    ios_version = Tuist.AppStore.get_latest_ios_app_version()
+
+    {hero_platform, hero_download_url, hero_version} =
+      if ios_visitor?(conn) do
+        {:ios, Tuist.AppStore.ios_app_url(), ios_version}
+      else
+        {:macos, macos_download_url, macos_version}
+      end
+
+    conn
+    # The hero swaps its CTA and version on the visitor's OS, so shared
+    # caches must key the cached page on the user agent.
+    |> put_resp_header("vary", "user-agent")
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Download"), Tuist.Environment.app_url(path: ~p"/download")}
+      ])
+    )
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Download Tuist")))
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Download the Tuist apps for macOS and iOS to launch, manage, and run Tuist Previews from your Mac and iPhone."
+      )
+    )
+    |> assign(:head_title, dgettext("marketing", "Download Tuist"))
+    |> assign(:new_design, true)
+    # The macOS demo's desktop is the biggest thing above the fold and a
+    # CSS background, so it is preloaded rather than found late.
+    |> assign(:head_preload_images, [~p"/marketing/images/download/macos-wallpaper.webp"])
+    |> assign(:hero_platform, hero_platform)
+    |> assign(:hero_download_url, hero_download_url)
+    |> assign(:hero_version, hero_version)
+    |> assign(:macos_download_url, macos_download_url)
+    |> assign(:ios_download_url, Tuist.AppStore.ios_app_url())
+    |> render(:download_new, layout: false)
+  end
+
+  defp redirect_to_macos_app_dmg(conn, latest_app_release) do
+    case macos_app_dmg_url(latest_app_release) do
+      nil ->
+        raise NotFoundError,
+              dgettext("marketing", "The page you are looking for doesn't exist or has been moved.")
+
+      app_download_url ->
+        conn |> redirect(external: app_download_url) |> halt()
+    end
+  end
+
+  defp macos_app_dmg_url(nil), do: nil
+
+  defp macos_app_dmg_url(%{assets: assets}) do
+    Enum.find_value(assets, fn asset ->
+      String.ends_with?(asset.browser_download_url, "dmg") && asset.browser_download_url
+    end)
+  end
+
+  defp macos_app_version(%{tag_name: "app@" <> version}), do: version
+  defp macos_app_version(_latest_app_release), do: nil
+
+  defp ios_visitor?(conn) do
+    case get_req_header(conn, "user-agent") do
+      [user_agent | _] ->
+        match?(%{os: %{family: "iOS"}}, UAParser.parse(user_agent))
+
+      [] ->
+        false
+    end
+  end
+
   def support(conn, _params) do
     conn
     |> assign_structured_data(get_organization_structured_data())

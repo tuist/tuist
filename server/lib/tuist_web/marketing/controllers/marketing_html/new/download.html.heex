@@ -1,0 +1,1023 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-download">
+    <%!-- Hero card: same shell as the brand page header. The CTA follows the
+    visitor's platform (macOS DMG by default, App Store on iOS), with the
+    matching app version underneath. --%>
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Download Tuist")}</h1>
+      <p data-part="subtitle">
+        {dgettext("marketing", "Available for macOS and iOS to help you build and ship faster.")}
+      </p>
+      <div data-part="action">
+        <%= if @hero_platform == :ios do %>
+          <.button
+            href={@hero_download_url}
+            label={dgettext("marketing", "Download on iPhone")}
+            size="large"
+          >
+            <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+          </.button>
+        <% else %>
+          <.button
+            href={@hero_download_url}
+            label={dgettext("marketing", "Download for macOS")}
+            size="large"
+          >
+            <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+          </.button>
+        <% end %>
+        <span :if={@hero_version} data-part="version">
+          {dgettext("marketing", "Version %{version}", version: @hero_version)}
+        </span>
+      </div>
+    </header>
+
+    <section data-part="section" data-section="macos" aria-labelledby="download-macos-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Desktop")}</span>
+        <h2 data-part="title" id="download-macos-title">{dgettext("marketing", "macOS app")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "The Tuist macOS menu bar app makes it easy to launch and manage"
+          )}
+          <a href={TuistWeb.Marketing.MarketingHTML.localized_href("/previews")}>
+            {dgettext("marketing", "Tuist Previews")}
+          </a>
+          {dgettext(
+            "marketing",
+            "on simulators and real devices directly from your Mac."
+          )}
+        </p>
+        <.button
+          href={@macos_download_url}
+          variant="secondary"
+          size="large"
+          label={dgettext("marketing", "Download for macOS")}
+        >
+          <:icon_left><Noora.Icon.icon name="device_laptop" /></:icon_left>
+        </.button>
+      </div>
+      <%!-- The macOS demo: DownloadMacDemo loops the preview install through
+      the menu bar app's popover (see the hook for the storyboard). --%>
+      <figure
+        data-part="illustration"
+        aria-hidden="true"
+        id="download-macos-demo"
+        phx-hook="DownloadMacDemo"
+      >
+        <%!-- macOS menu bar: the exported glyphs carry their own slot
+          padding, so they butt up against each other; the Tuist item is in
+          its open state (pill behind the mark) because the app's popover is
+          what the demo shows. The clock is live — see MenubarClock. --%>
+        <div data-part="menubar">
+          <img decoding="async"
+            data-part="menubar-item"
+            src={~p"/marketing/images/download/menubar/apple.svg"}
+            alt=""
+          />
+          <div data-part="menubar-status">
+            <%!-- The open item and its popover share a wrapper so the
+              popover's left edge always lines up with the pill, wherever the
+              live clock's width pushes the status items. --%>
+            <span data-part="menubar-app">
+              <span data-part="menubar-item" data-selected="true">
+                <svg viewBox="0 0 28 28" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M14 28C13.987 27.9941 13.9747 27.9873 13.9616 27.976C13.6474 27.705 13.3807 24.5933 13.3075 24.0193C12.7908 19.7403 12.1308 15.4803 11.3288 11.2464C11.0425 9.74432 10.7479 8.24385 10.4451 6.74498C10.1864 5.45569 9.96718 4.28443 9.82802 2.97478C9.56263 0.477938 11.3874 0.136877 13.4518 0.0156154C13.6103 0.00678462 13.7958 0.000753846 14 0C14.2042 0.000753846 14.3897 0.00678462 14.5482 0.0156154C16.6126 0.136877 18.4375 0.477938 18.1721 2.97478C18.0328 4.28443 17.8136 5.45569 17.5549 6.74498C17.2522 8.24385 16.9575 9.74432 16.6712 11.2464C15.8692 15.4803 15.2092 19.7403 14.6925 24.0193C14.6193 24.5933 14.3526 27.705 14.0384 27.976C14.0253 27.9873 14.013 27.9941 14 28Z" />
+                  <path d="M6.08117 2.95702C7.03362 2.84189 7.48009 3.55654 7.80498 4.33375C8.13622 5.12572 8.40344 5.96874 8.65449 6.79065C8.96374 7.79488 9.25823 8.80363 9.53784 9.8168C10.8233 14.391 11.8864 19.0263 12.7233 23.7053C12.8517 24.4162 12.9759 25.1277 13.0959 25.8399C13.2057 26.4952 13.3296 27.2089 13.3366 27.8697C12.8655 27.5603 12.5927 26.7536 12.3653 26.235C12.1422 25.7282 11.9166 25.2229 11.6884 24.7187C11.4106 24.0492 11.0069 23.2362 10.6899 22.5822C9.12198 19.3449 7.26354 16.2592 5.13842 13.3644C4.54384 12.5493 3.92716 11.7507 3.28914 10.9699C2.72582 10.2672 1.92082 9.359 1.6245 8.52234C1.04448 6.88498 2.64012 5.19885 3.76321 4.21292C4.39498 3.65852 5.23759 3.09368 6.08117 2.95702Z" />
+                  <path d="M1.20692 11.805C1.4875 11.7833 1.76647 11.8967 1.99208 12.0577C2.55734 12.4611 3.08455 13.0048 3.55635 13.5097C7.03976 17.2376 9.68713 21.6799 11.9164 26.2621C12.1833 26.8111 12.4497 27.3713 12.6692 27.9408C12.3839 27.7999 12.1504 27.6459 11.8871 27.472C11.2045 27.0001 10.4699 26.4126 9.81325 25.8987C8.7585 25.0598 7.69363 24.2344 6.61872 23.4221C5.704 22.7362 4.78357 22.0586 3.85774 21.3884C2.12962 20.1364 0.900681 19.4396 0.321083 17.2054C-0.0136115 15.9155 -0.472051 12.2491 1.20692 11.805Z" />
+                  <path d="M26.7931 11.805C26.5125 11.7833 26.2335 11.8967 26.0079 12.0577C25.4427 12.4611 24.9155 13.0048 24.4436 13.5097C20.9602 17.2376 18.3129 21.6799 16.0836 26.2621C15.8167 26.8111 15.5503 27.3713 15.3308 27.9408C15.6161 27.7999 15.8496 27.6459 16.1129 27.472C16.7955 27.0001 17.5301 26.4126 18.1868 25.8987C19.2415 25.0598 20.3064 24.2344 21.3813 23.4221C22.296 22.7362 23.2164 22.0586 24.1423 21.3884C25.8704 20.1364 27.0993 19.4396 27.6789 17.2054C28.0136 15.9155 28.4721 12.2491 26.7931 11.805Z" />
+                  <path d="M21.9188 2.95702C20.9664 2.84189 20.5199 3.55654 20.195 4.33375C19.8638 5.12572 19.5966 5.96874 19.3455 6.79065C19.0363 7.79488 18.7418 8.80363 18.4622 9.8168C17.1767 14.391 16.1136 19.0263 15.2767 23.7053C15.1483 24.4162 15.0241 25.1277 14.9041 25.8399C14.7943 26.4952 14.6704 27.2089 14.6634 27.8697C15.1345 27.5603 15.4073 26.7536 15.6347 26.235C15.8578 25.7282 16.0834 25.2229 16.3116 24.7187C16.5894 24.0492 16.9931 23.2362 17.3101 22.5822C18.878 19.3449 20.7365 16.2592 22.8616 13.3644C23.4562 12.5493 24.0728 11.7507 24.7109 10.9699C25.2742 10.2672 26.0792 9.359 26.3755 8.52234C26.9555 6.88498 25.3599 5.19885 24.2368 4.21292C23.605 3.65852 22.7624 3.09368 21.9188 2.95702Z" />
+                </svg>
+              </span>
+              <%!-- The app's menu bar popover, dropped from the open Tuist item:
+          account header, the installed-previews tray, then the menu rows.
+          Illustration copy, so it stays untranslated like the other demos. --%>
+              <div data-part="popover">
+                <div data-part="popover-header">
+                  <div data-part="popover-account">
+                    <span data-part="popover-title">Tuist</span>
+                    <span data-part="popover-handle">tuistrocks</span>
+                  </div>
+                  <%!-- Status line: the server renders the finished comp;
+                    the demo cycles it ready → installing → installed and
+                    shows the spinner while installing. --%>
+                  <span data-part="popover-status" data-stage="installed">
+                    <span data-part="popover-status-text">Installed Tuist@22d00c0</span>
+                    <svg
+                      data-part="popover-spinner"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle
+                        data-part="spinner-track"
+                        cx="8"
+                        cy="8"
+                        r="6.25"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <circle
+                        data-part="spinner-arc"
+                        cx="8"
+                        cy="8"
+                        r="6.25"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-dasharray="11 29"
+                      />
+                    </svg>
+                  </span>
+                </div>
+                <ul data-part="popover-tray">
+                  <li data-part="popover-app" data-app="tuist">
+                    <img decoding="async"
+                      src={~p"/marketing/images/download/popover/tuist.webp"}
+                      alt=""
+                      width="45"
+                      height="45"
+                    />
+                    <span data-part="popover-app-name">Tuist</span>
+                    <span data-part="popover-app-platform">iOS</span>
+                  </li>
+                  <li data-part="popover-app" data-app="wikipedia">
+                    <img decoding="async"
+                      src={~p"/marketing/images/download/popover/wikipedia.webp"}
+                      alt=""
+                      width="45"
+                      height="45"
+                    />
+                    <span data-part="popover-app-name">Wikipedia</span>
+                    <span data-part="popover-app-platform">iOS</span>
+                  </li>
+                  <li data-part="popover-app">
+                    <img decoding="async"
+                      src={~p"/marketing/images/download/popover/mastodon.webp"}
+                      alt=""
+                      width="45"
+                      height="45"
+                    />
+                    <span data-part="popover-app-name">Mastodon</span>
+                    <span data-part="popover-app-platform">Android</span>
+                  </li>
+                </ul>
+                <ul data-part="popover-menu">
+                  <li data-part="popover-row" data-submenu="true">
+                    Other devices
+                    <svg
+                      viewBox="0 0 6 10"
+                      fill="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M5.50342 4.62109C5.50342 4.75228 5.47803 4.875 5.42725 4.98926C5.3807 5.09928 5.30241 5.20931 5.19238 5.31934L1.45361 9.00098C1.29281 9.16178 1.09603 9.24219 0.863281 9.24219C0.626302 9.24219 0.423177 9.15967 0.253906 8.99463C0.0846354 8.82959 0 8.62858 0 8.3916C0 8.15462 0.093099 7.94515 0.279297 7.76318L3.49121 4.61475L0.279297 1.479C0.093099 1.29704 0 1.08757 0 0.850586C0 0.613607 0.0846354 0.412598 0.253906 0.247559C0.423177 0.0825195 0.626302 0 0.863281 0C1.09603 0 1.29281 0.0804036 1.45361 0.241211L5.19238 3.92285C5.39974 4.12598 5.50342 4.35872 5.50342 4.62109Z" />
+                    </svg>
+                  </li>
+                  <li data-part="popover-separator" role="presentation"></li>
+                  <li data-part="popover-row">Log out</li>
+                  <li data-part="popover-row">Check for updates</li>
+                  <li data-part="popover-row">Quit Tuist</li>
+                </ul>
+              </div>
+            </span>
+            <img decoding="async"
+              data-part="menubar-item"
+              src={~p"/marketing/images/download/menubar/wifi.svg"}
+              alt=""
+            />
+            <img decoding="async"
+              data-part="menubar-item"
+              src={~p"/marketing/images/download/menubar/search.svg"}
+              alt=""
+            />
+            <img decoding="async"
+              data-part="menubar-item"
+              src={~p"/marketing/images/download/menubar/user.svg"}
+              alt=""
+            />
+            <img decoding="async"
+              data-part="menubar-item"
+              src={~p"/marketing/images/download/menubar/menu.svg"}
+              alt=""
+            />
+            <time data-part="menubar-clock" id="download-macos-clock" phx-hook="MenubarClock">
+              <span data-part="date">Mon Jun 10</span>
+              <span data-part="time">9:41 AM</span>
+            </time>
+          </div>
+        </div>
+        <%!-- Simulator window title bar above the phone: traffic lights,
+        the device name over its OS, and the home / capture / rotate tools.
+        The tool glyphs are 44×29 exported slots painted through CSS masks
+        so they follow the theme. --%>
+        <div data-part="simulator-bar">
+          <span data-part="simulator-lights">
+            <span data-part="simulator-light" data-color="red"></span>
+            <span data-part="simulator-light" data-color="yellow"></span>
+            <span data-part="simulator-light" data-color="green"></span>
+          </span>
+          <span data-part="simulator-device">
+            <span data-part="simulator-name">iPhone 17</span>
+            <span data-part="simulator-os">iOS 26.2</span>
+          </span>
+          <span data-part="simulator-tools">
+            <span data-part="simulator-tool" data-tool="home"></span>
+            <span data-part="simulator-tool" data-tool="capture"></span>
+            <span data-part="simulator-tool" data-tool="rotate"></span>
+          </span>
+        </div>
+        <%!-- The iPhone (Figma "Home Screen": 275.97×600 at 462/116, so
+        centred under the utility panel). The screen is real HTML clipped to
+        the display's corners with the bezel image laid over it, so the demo
+        can put the Tuist app on the home screen. Fractional sizes are
+        Figma's own so the layout lands on the same pixels. --%>
+        <div data-part="phone">
+          <div data-part="home-screen">
+            <div data-part="status-bar">
+              <span data-part="status-time">9:41</span>
+              <span data-part="status-levels">
+                <img decoding="async" src={~p"/marketing/images/download/iphone/cellular.svg"} alt="" />
+                <img decoding="async" src={~p"/marketing/images/download/iphone/wifi.svg"} alt="" />
+                <img decoding="async" src={~p"/marketing/images/download/iphone/battery.svg"} alt="" />
+              </span>
+            </div>
+            <ul data-part="apps">
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/facetime.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">FaceTime</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/calendar.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Calendar</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/photos.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Photos</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/camera.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Camera</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/mail.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Mail</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/notes.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Notes</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/reminders.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Reminders</span>
+              </li>
+              <li data-part="app">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/clock.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-label">Clock</span>
+              </li>
+              <%!-- The demo installs these two in turn: each pops onto the
+                home screen and installs behind iOS's progress pie (a dark
+                disc that a lighter wedge sweeps round clockwise), and stays
+                so the next visit is an update. The hook drives the wedge and
+                the label. Server-rendered only Tuist shows, installed, as in
+                the Figma comp; Wikipedia's tile is demo-only. --%>
+              <li data-part="app" data-app="tuist" data-installable>
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/tuist.webp"}
+                  alt=""
+                  width="132"
+                  height="132"
+                />
+                <span data-part="app-progress">
+                  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect data-part="app-progress-dim" width="44" height="44" rx="9.84" />
+                    <circle data-part="app-progress-disc" cx="22" cy="22" r="13" />
+                    <circle
+                      data-part="app-progress-pie"
+                      cx="22"
+                      cy="22"
+                      r="6.5"
+                      stroke-width="13"
+                      pathLength="100"
+                      stroke-dasharray="100"
+                      stroke-dashoffset="100"
+                      transform="rotate(-90 22 22)"
+                    />
+                  </svg>
+                </span>
+                <span data-part="app-label">Tuist</span>
+              </li>
+              <li data-part="app" data-app="wikipedia" data-installable data-demo-only>
+                <img decoding="async"
+                  src={~p"/marketing/images/download/popover/wikipedia.webp"}
+                  alt=""
+                  width="135"
+                  height="135"
+                />
+                <span data-part="app-progress">
+                  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect data-part="app-progress-dim" width="44" height="44" rx="9.84" />
+                    <circle data-part="app-progress-disc" cx="22" cy="22" r="13" />
+                    <circle
+                      data-part="app-progress-pie"
+                      cx="22"
+                      cy="22"
+                      r="6.5"
+                      stroke-width="13"
+                      pathLength="100"
+                      stroke-dasharray="100"
+                      stroke-dashoffset="100"
+                      transform="rotate(-90 22 22)"
+                    />
+                  </svg>
+                </span>
+                <span data-part="app-label">Wikipedia</span>
+              </li>
+            </ul>
+            <div data-part="spotlight">
+              <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="3.4" cy="3.4" r="2.6" stroke="currentColor" stroke-width="1.2" />
+                <path
+                  d="M5.4 5.4 7.4 7.4"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <span>Search</span>
+            </div>
+            <div data-part="dock">
+              <div data-part="dock-tray">
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/phone.webp"}
+                  alt=""
+                  width="136"
+                  height="136"
+                />
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/safari.webp"}
+                  alt=""
+                  width="136"
+                  height="136"
+                />
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/messages.webp"}
+                  alt=""
+                  width="136"
+                  height="136"
+                />
+                <img decoding="async"
+                  src={~p"/marketing/images/download/iphone/music.webp"}
+                  alt=""
+                  width="136"
+                  height="136"
+                />
+              </div>
+            </div>
+          </div>
+          <img decoding="async"
+            data-part="bezel"
+            src={~p"/marketing/images/download/iphone/bezel.webp"}
+            alt=""
+            width="927"
+            height="1895"
+          />
+        </div>
+        <%!-- macOS arrow cursor the demo drives; hidden until the hook
+          takes over, its tip at the element's origin. --%>
+        <svg data-part="cursor" viewBox="0 0 14 20" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M1 1v15.2l3.9-3.4 2.6 6.2 2.9-1.2-2.6-6.1h5.4z"
+            fill="#000"
+            stroke="#fff"
+            stroke-width="1.2"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </figure>
+    </section>
+
+    <section data-part="section" data-section="ios" aria-labelledby="download-ios-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Mobile")}</span>
+        <h2 data-part="title" id="download-ios-title">{dgettext("marketing", "iOS app")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "The Tuist iOS app lets you manage previews, trigger releases, and inspect project commits from your iPhone."
+          )}
+        </p>
+        <.button
+          href={@ios_download_url}
+          variant="secondary"
+          size="large"
+          label={dgettext("marketing", "Download for iOS")}
+        >
+          <:icon_left><Noora.Icon.icon name="device_mobile" /></:icon_left>
+        </.button>
+      </div>
+      <%!-- Three steps; the current one (data-active) reads in primary,
+        the others in tertiary. Static on the first step until the phone
+        demo steps through them. --%>
+      <p data-part="lines">
+        <span data-part="line" data-active>
+          {dgettext("marketing", "Brings your latest previews together,")}
+        </span>
+        <span data-part="line">{dgettext("marketing", "lets you inspect them in detail,")}</span>
+        <span data-part="line">
+          {dgettext("marketing", "and runs them directly on your device")}
+        </span>
+      </p>
+      <%!-- The iOS app on the same bezel as the macOS demo (Figma "Home
+      Screen": 298.97×650 at 451/34 in the 1200×500 frame), cut off by the
+      frame's bottom edge so the tab bar never shows. Two pages sit under
+      the status bar: the Previews list and the preview's detail page, which
+      DownloadIosDemo pushes in from the right after a tap on the Tuist row
+      (see the hook for the storyboard). Illustration copy, untranslated
+      like the other demos. --%>
+      <figure
+        data-part="illustration"
+        aria-hidden="true"
+        id="download-ios-demo"
+        phx-hook="DownloadIosDemo"
+      >
+        <div data-part="phone">
+          <div data-part="screen">
+            <%!-- The home screen the app closes back to: the macOS phone's
+              home screen, scaled to this bezel by CSS. --%>
+            <div data-part="home-screen">
+                <div data-part="status-bar">
+                  <span data-part="status-time">9:41</span>
+                  <span data-part="status-levels">
+                    <img loading="lazy" decoding="async" src={~p"/marketing/images/download/iphone/cellular.svg"} alt="" />
+                    <img loading="lazy" decoding="async" src={~p"/marketing/images/download/iphone/wifi.svg"} alt="" />
+                    <img loading="lazy" decoding="async" src={~p"/marketing/images/download/iphone/battery.svg"} alt="" />
+                  </span>
+                </div>
+                <ul data-part="apps">
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/facetime.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">FaceTime</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/calendar.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Calendar</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/photos.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Photos</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/camera.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Camera</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/mail.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Mail</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/notes.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Notes</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/reminders.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Reminders</span>
+                  </li>
+                  <li data-part="app">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/clock.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-label">Clock</span>
+                  </li>
+                  <%!-- The tile the demo installs after "Run" (see the macOS
+                    phone for the progress overlay). --%>
+                  <li data-part="app" data-app="tuist" data-installable>
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/tuist.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-progress">
+                      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect data-part="app-progress-dim" width="44" height="44" rx="9.84" />
+                        <circle data-part="app-progress-disc" cx="22" cy="22" r="13" />
+                        <circle
+                          data-part="app-progress-pie"
+                          cx="22"
+                          cy="22"
+                          r="6.5"
+                          stroke-width="13"
+                          pathLength="100"
+                          stroke-dasharray="100"
+                          stroke-dashoffset="100"
+                          transform="rotate(-90 22 22)"
+                        />
+                      </svg>
+                    </span>
+                    <span data-part="app-label">Tuist</span>
+                  </li>
+                </ul>
+                <div data-part="spotlight">
+                  <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="3.4" cy="3.4" r="2.6" stroke="currentColor" stroke-width="1.2" />
+                    <path
+                      d="M5.4 5.4 7.4 7.4"
+                      stroke="currentColor"
+                      stroke-width="1.2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  <span>Search</span>
+                </div>
+                <div data-part="dock">
+                  <div data-part="dock-tray">
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/phone.webp"}
+                      alt=""
+                      width="136"
+                      height="136"
+                    />
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/safari.webp"}
+                      alt=""
+                      width="136"
+                      height="136"
+                    />
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/messages.webp"}
+                      alt=""
+                      width="136"
+                      height="136"
+                    />
+                    <img loading="lazy" decoding="async"
+                      src={~p"/marketing/images/download/iphone/music.webp"}
+                      alt=""
+                      width="136"
+                      height="136"
+                    />
+                  </div>
+                </div>
+            </div>
+            <div data-part="app-shell">
+              <%!-- The app icon iOS crossfades over the window near the
+                small end of the open/close: it covers the clipped square,
+                so at the tile it is the tile. --%>
+              <img loading="lazy" decoding="async"
+                data-part="shell-icon"
+                src={~p"/marketing/images/download/iphone/tuist.webp"}
+                alt=""
+                width="132"
+                height="132"
+              />
+              <div data-part="status-bar">
+                <span data-part="status-time">9:41</span>
+                <%!-- Painted through CSS masks so they take the label colour
+                  on the app's light and dark surfaces. --%>
+                <span data-part="status-levels">
+                  <span data-part="status-icon" data-icon="cellular"></span>
+                  <span data-part="status-icon" data-icon="wifi"></span>
+                  <span data-part="status-icon" data-icon="battery"></span>
+                </span>
+              </div>
+              <div data-part="pages">
+                <div data-part="page" data-page="list">
+                  <span data-part="previews-title">Previews</span>
+                  <div data-part="search">
+                    <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="3.4" cy="3.4" r="2.6" stroke="currentColor" stroke-width="1.1" />
+                      <path
+                        d="M5.4 5.4 7.4 7.4"
+                        stroke="currentColor"
+                        stroke-width="1.1"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                    <span data-part="search-label">Search</span>
+                    <svg viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="3" y="0.6" width="4" height="8" rx="2" fill="currentColor" />
+                      <path
+                        d="M1 6.6c0 2.3 1.8 4 4 4s4-1.7 4-4M5 10.6v2.4M3 13h4"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </div>
+                  <div data-part="scope">
+                    <span>Apps in</span>
+                    <span data-part="scope-picker">
+                      tuist/tuist
+                      <Noora.Icon.icon name="chevron_down" />
+                    </span>
+                  </div>
+                  <ul data-part="previews">
+                  <li data-part="preview">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/previews/blueprint.svg"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          3f9c2ae
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Demo App</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          2h ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          main
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                  <li data-part="preview" data-preview="tuist">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/iphone/tuist.webp"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          c41d0b7
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Tuist</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          5h ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          feat/previews
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                  <li data-part="preview">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/iphone/tuist.webp"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          9e27f1d
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Tuist</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          22h ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          main
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                  <li data-part="preview">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/iphone/tuist.webp"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          71ab5c3
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Tuist</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          1d ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          fix/login
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                  <li data-part="preview">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/previews/blueprint.svg"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          b06e48f
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Blueprint App</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          2d ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          main
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                  <li data-part="preview">
+                    <img loading="lazy" decoding="async"
+                      data-part="preview-icon"
+                      src={~p"/marketing/images/download/previews/icon-alt.webp"}
+                      alt=""
+                      width="108"
+                      height="108"
+                    />
+                    <span data-part="preview-info">
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/timeline-event.svg"} alt="" />
+                          e58d13a
+                        </span>
+                      </span>
+                      <span data-part="preview-name">Blueprint App</span>
+                      <span data-part="preview-meta">
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/history.svg"} alt="" />
+                          3d ago
+                        </span>
+                        <span>
+                          <img loading="lazy" decoding="async" src={~p"/marketing/images/download/previews/git-branch.svg"} alt="" />
+                          release/1.2
+                        </span>
+                      </span>
+                    </span>
+                    <span data-part="preview-run">Run</span>
+                  </li>
+                </ul>
+                </div>
+                <div data-part="page" data-page="detail">
+                  <div data-part="nav">
+                    <span data-part="nav-button" data-action="back">
+                      <Noora.Icon.icon name="chevron_left" />
+                    </span>
+                    <span data-part="nav-button">
+                      <svg viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M8 1.5v11M4.5 5 8 1.5 11.5 5M3 8.5H2.5A1.5 1.5 0 0 0 1 10v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 15 17v-7a1.5 1.5 0 0 0-1.5-1.5H13"
+                          stroke="currentColor"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  </div>
+                  <div data-part="app-header">
+                    <img loading="lazy" decoding="async"
+                      data-part="app-icon"
+                      src={~p"/marketing/images/download/iphone/tuist.webp"}
+                      alt=""
+                      width="132"
+                      height="132"
+                    />
+                    <span data-part="app-meta">
+                      <span data-part="app-name">Tuist</span>
+                      <span data-part="app-version">v1.0.0</span>
+                    </span>
+                    <span data-part="preview-run" data-action="run">Run</span>
+                  </div>
+                  <span data-part="section-title">Supported platforms</span>
+                  <ul data-part="platforms">
+                    <li><Noora.Icon.icon name="device_mobile" /> iOS</li>
+                    <li><Noora.Icon.icon name="device_watch" /> watchOS</li>
+                    <li>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect
+                          x="3"
+                          y="2.5"
+                          width="18"
+                          height="19"
+                          rx="3"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                        />
+                        <path d="M10 18.5h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                      </svg>
+                      iPadOS
+                    </li>
+                    <li><Noora.Icon.icon name="device_laptop" /> macOS</li>
+                  </ul>
+                  <span data-part="section-title">Details</span>
+                  <dl data-part="details">
+                    <div>
+                      <dt>Created by</dt>
+                      <dd>
+                        <span data-part="user-badge">
+                          <Noora.Icon.icon name="user" /> marekfort
+                        </span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Created at</dt>
+                      <dd>Thu 3 Sep, 2026 at 4:41 AM</dd>
+                    </div>
+                    <div>
+                      <dt>Bundle identifier</dt>
+                      <dd>dev.tuist.app</dd>
+                    </div>
+                    <div>
+                      <dt>Branch</dt>
+                      <dd><Noora.Icon.icon name="git_branch" /> feat/previews</dd>
+                    </div>
+                    <div>
+                      <dt>Commit SHA</dt>
+                      <dd>c41d0b7</dd>
+                    </div>
+                  </dl>
+                  <span data-part="delete">
+                    Delete preview <Noora.Icon.icon name="trash" />
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <img loading="lazy" decoding="async"
+            data-part="bezel"
+            src={~p"/marketing/images/download/iphone/bezel.webp"}
+            alt=""
+            width="927"
+            height="1895"
+          />
+        </div>
+      </figure>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the customers
+    page. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="download-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">
+        {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}
+      </span>
+      <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="download-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
