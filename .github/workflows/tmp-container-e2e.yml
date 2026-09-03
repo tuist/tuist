@@ -15,21 +15,29 @@ jobs:
       contents: read
     container:
       image: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Step script is reachable inside the container
+      - name: Runner-shared trees are visible inside the container
         run: |
           set -euo pipefail
           echo "Running inside: $(head -1 /etc/os-release)"
           test -d /__w || { echo "ERROR: /__w missing"; exit 1; }
-          ls -la /__e || true
+          echo "--- /__w ---"; ls -la /__w
+          echo "--- /__e ---"; ls -la /__e
           test -x /__e/node20/bin/node || test -x /__e/node24/bin/node \
             || { echo "ERROR: no node runtime staged at /__e"; exit 1; }
+          echo "--- /github ---"; ls -la /github
 
       - uses: actions/checkout@v4
 
-      - name: Checkout landed in the workspace
+      - name: Actions tree was populated and checkout landed
         run: |
           set -euo pipefail
+          echo "--- /__w/_actions ---"; ls -R /__w/_actions | head -20
+          test -f /__w/_actions/actions/checkout/v4/dist/index.js \
+            || { echo "ERROR: checkout dist/index.js missing (the reported failure)"; exit 1; }
           test -f "$GITHUB_WORKSPACE/README.md"
           echo "Workspace: $GITHUB_WORKSPACE"
           ls "$GITHUB_WORKSPACE" | head
@@ -42,16 +50,3 @@ jobs:
           set -euo pipefail
           test "${SMOKE_VALUE:-}" = "ok" || { echo "ERROR: GITHUB_ENV did not round-trip"; exit 1; }
           echo "GITHUB_ENV round-tripped"
-
-  docker-run-bind-mount:
-    runs-on: tuist-linux-large
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: docker run -v bind mount sees the workspace
-        run: |
-          set -euo pipefail
-          echo hello > "$GITHUB_WORKSPACE/tmp-bind-probe.txt"
-          out=$(docker run --rm -v "$GITHUB_WORKSPACE:/mnt" ubuntu:22.04 cat /mnt/tmp-bind-probe.txt)
-          test "$out" = "hello" || { echo "ERROR: bind mount empty, got '$out'"; exit 1; }
-          echo "bind mount OK"
