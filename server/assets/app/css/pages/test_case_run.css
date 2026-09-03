@@ -671,6 +671,13 @@
         gap: var(--noora-spacing-3);
       }
 
+      /* A repetition that failed carries a message block, so it needs room from
+         the plain rows either side of it. */
+      & [data-part="repetition-wrapper"]:has([data-part="repetition-failure"]) {
+        gap: var(--noora-spacing-4);
+        margin-block: var(--noora-spacing-4);
+      }
+
       & [data-part="repetition-item"] {
         display: flex;
         flex-direction: row;
@@ -686,7 +693,7 @@
           display: flex;
           flex-direction: row;
           align-items: center;
-          gap: var(--noora-spacing-2);
+          gap: var(--noora-spacing-1);
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
