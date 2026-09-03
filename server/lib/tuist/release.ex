@@ -114,6 +114,48 @@ defmodule Tuist.Release do
     end
   end
 
+  @doc """
+  Copies existing ClickHouse rows onto the in-cluster server.
+
+  Run explicitly rather than from a deploy hook: it moves the whole dataset,
+  it is resumable, and it should be started and watched deliberately rather
+  than blocking a release. Safe to re-run; completed chunks are skipped.
+  """
+  def backfill_clickhouse do
+    load_app()
+
+    case Tuist.ClickHouse.Backfill.run() do
+      {:ok, report} ->
+        Logger.info("ClickHouse backfill finished: #{inspect(report)}")
+        :ok
+
+      {:error, reason} ->
+        raise "ClickHouse backfill could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Compares the two ClickHouse servers and raises unless every table agrees.
+
+  This is the gate for the backfill and, once dual writes are on, for the
+  ongoing parity between the two.
+  """
+  def check_clickhouse_parity do
+    load_app()
+
+    case Tuist.ClickHouse.Parity.compare() do
+      {:ok, %{differing: []} = report} ->
+        Logger.info("ClickHouse parity holds across #{report.compared} table(s)")
+        :ok
+
+      {:ok, report} ->
+        raise "ClickHouse parity failed: #{inspect(report.differing)}"
+
+      {:error, reason} ->
+        raise "ClickHouse parity could not run: #{inspect(reason)}"
+    end
+  end
+
   # A migration that brings the VM down instead of raising (an exit signal from a
   # linked process, say) leaves `Ecto.Migrator.run/3` looking like it succeeded,
   # so the deploy would report success and boot against a half-migrated database.

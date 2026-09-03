@@ -266,7 +266,14 @@ defmodule Tuist.ClickHouse.SchemaClone do
     )
   end
 
-  defp parse_url!(url, role) do
+  @doc """
+  Splits a ClickHouse URL into the parts a connection needs.
+
+  Public because the backfill resolves the same two endpoints from the same
+  two environment variables, and a second implementation of this would be a
+  second place for the port and database defaults to drift.
+  """
+  def parse_url!(url, role) do
     uri = URI.parse(url)
 
     if !(uri.scheme in ["http", "https"] and is_binary(uri.host)) do
