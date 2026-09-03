@@ -29,6 +29,8 @@
 @import "css/new/routes/page.css";
 @import "css/new/routes/brand.css";
 @import "css/new/routes/cache.css";
+@import "css/new/routes/pricing.css";
+@import "css/new/layouts/components/dropdown.css";
 @import "css/new/layouts/components/navbar.css";
 @import "css/new/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
