@@ -321,13 +321,13 @@ independent workqueues:
   fleet-wide integer. Nothing reads the old name: structural-schema
   pruning drops it from any CR that still carries it, including the
   value patched onto production by hand during the 2026-09-03 incident.
-  The CRD lives in `crds/`, which helm does not touch on upgrade, so the
-  schema has to be re-applied out of band as usual — and until it is,
-  `maxConcurrentPerNode` is pruned on the way in and the accessor's
-  default applies, which is why the Go default, the CRD default and the
-  chart value are kept equal: the intended figure holds either way.
-  A stale schema therefore degrades to the right answer rather than to
-  the old one.
+  No operator step is needed for the schema: `server-deployment.yml`
+  runs `kubectl apply -f crds/` before every helm upgrade, precisely
+  because helm skips `crds/` on upgrade, so the new schema lands with
+  the deploy. The Go default, the CRD default and the chart value are
+  still kept equal, so that a cluster whose schema has somehow not
+  caught up prunes `maxConcurrentPerNode` on the way in and lands on the
+  same figure through the accessor instead of an older one.
 
   The count deliberately includes Pods with no node. An unbound Pod is
   one the scheduler may bind at any moment, and nothing re-checks
