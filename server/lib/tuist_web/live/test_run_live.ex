@@ -1440,6 +1440,12 @@ defmodule TuistWeb.TestRunLive do
                         number: repetition.repetition_number
                       )}
                     </span>
+                    <span data-part="repetition-duration">
+                      <.history />
+                      {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        repetition.duration
+                      )}
+                    </span>
                   </div>
                   <.failure_message_span
                     :if={TestRunStressRepetition.failure(repetition)}

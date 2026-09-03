@@ -760,6 +760,21 @@
                   color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-small);
                 }
+
+              & [data-part="repetition-duration"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-2);
+                margin-left: auto;
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+                & svg {
+                  width: var(--noora-icon-size-small);
+                  height: var(--noora-icon-size-small);
+                }
+              }
               }
             }
 
