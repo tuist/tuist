@@ -345,13 +345,20 @@ clickhouse:
     # history.
     #
     # Done: the schema clone, which brought over 78 tables, 28 views and 235
-    # migration versions. Current step: turn dual writes on, with no task, so
-    # the cutoff can be read off a completed rollout. Next: the backfill up to
-    # that cutoff, then `Tuist.Release.check_clickhouse_parity`.
+    # migration versions, and the deploy that turned dual writes on, which
+    # finished rolling out at 23:39:38Z on 2026-09-03. Current step: copy the
+    # rows written before that. Next: `Tuist.Release.check_clickhouse_parity`,
+    # then the read flag.
     migration:
-      enabled: false
+      enabled: true
       name: backfill
       task: Tuist.Release.backfill_clickhouse
+      # A round minute past the moment that rollout completed, so every write
+      # from here on is mirrored and everything before it is copied. The
+      # overlap this leaves is harmless: a chunk clears the destination's rows
+      # for its range before copying them, so the copy is exact rather than
+      # additive.
+      cutoff: "2026-09-03T23:40:00Z"
 
 cache:
   extraEnv:

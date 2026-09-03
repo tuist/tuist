@@ -22,6 +22,14 @@ defmodule Tuist.ClickHouse.Backfill do
   source nor the destination of the copy and so survives the failures that
   make resuming necessary.
 
+  ## Why a chunk is cleared before it is copied
+
+  The copy is authoritative for its range rather than additive to it: each
+  chunk deletes the destination's rows for that range before inserting the
+  source's. This is what makes the boundary with the dual write exact even
+  though the deploy that switches dual writes on has both old and new pods
+  writing for a moment. See `clear_destination/3`.
+
   ## Where the copy stops
 
   The backfill is the second half of the cutover, not the first. Shadow writes
@@ -125,6 +133,7 @@ defmodule Tuist.ClickHouse.Backfill do
       }
 
       try do
+        clear_destination(target, table, chunk)
         target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
 
         source_rows = count(source, table, chunk)
@@ -263,6 +272,36 @@ defmodule Tuist.ClickHouse.Backfill do
 
   def predicate({:hash, key, bucket, buckets}) do
     "cityHash64(#{key}) % #{buckets} = #{bucket}"
+  end
+
+  # Makes the copy authoritative for its range rather than additive to it.
+  #
+  # A rolling deploy is what switches dual writes on, and during it the old
+  # pods and the new ones write at the same time, so there is a window whose
+  # rows reached the destination only if the pod that wrote them had already
+  # restarted. No single cutoff can describe that window: put it before and
+  # the rows the old pods wrote are lost, put it after and the rows the new
+  # ones mirrored are copied twice. Deleting the destination's rows for a
+  # chunk before copying it settles the question, because the system of record
+  # holds every row in that range either way.
+  #
+  # The count is what keeps this cheap. The destination is empty for all but
+  # the last chunk or two of each table, and a mutation is only worth issuing
+  # where there is something to remove. It also makes re-running a chunk safe
+  # on any engine, so the ledger is an optimisation rather than the thing
+  # standing between a retry and duplicated rows.
+  defp clear_destination(target, table, chunk) do
+    if count(target, table, chunk) > 0 do
+      Logger.info("#{table} #{inspect(chunk)}: clearing the destination's rows before copying")
+
+      target.repo.query!(
+        "ALTER TABLE #{quote_ident(target.database)}.#{quote_ident(table)} DELETE WHERE #{predicate(chunk)}",
+        [],
+        settings: [mutations_sync: 2],
+        timeout: to_timeout(minute: 30),
+        log: false
+      )
+    end
   end
 
   defp count(endpoint, table, chunk) do
