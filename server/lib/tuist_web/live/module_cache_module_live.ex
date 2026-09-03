@@ -36,6 +36,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         "?" <>
           URI.encode_query(
             Map.take(params, [
+              "analytics-selected-widget",
               "analytics-environment",
               "analytics-branch",
               "analytics-date-range",
@@ -72,11 +73,36 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      )}
   end
 
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info(_event, socket), do: {:noreply, socket}
+
+  # The miss rate chart is derived from the same daily counts rather than a
+  # second query: a day with no builds has no rate, so it plots as 0.
+  defp with_miss_rates(timeseries) do
+    miss_rates =
+      Enum.zip_with(timeseries.invalidations, timeseries.reuses, fn misses, hits ->
+        case misses + hits do
+          0 -> 0.0
+          total -> Float.round(misses / total * 100, 1)
+        end
+      end)
+
+    Map.put(timeseries, :miss_rates, miss_rates)
+  end
 
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_branch = params["analytics-branch"] || "any"
+    analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -85,6 +111,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_branch, analytics_branch)
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
 
     {start_datetime, end_datetime} = period
     project_id = socket.assigns.selected_project.id
@@ -94,7 +121,11 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
       index = Map.new(all_modules, &{&1.name, &1})
       %{edges: edges} = Analytics.module_dependency_graph(opts)
-      timeseries = Analytics.module_invalidation_timeseries(Keyword.put(opts, :name, name))
+      timeseries =
+        opts
+        |> Keyword.put(:name, name)
+        |> Analytics.module_invalidation_timeseries()
+        |> with_miss_rates()
 
       module = build_module(index[name], name, timeseries)
 

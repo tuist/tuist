@@ -97,102 +97,214 @@
     </.date_picker>
   </div>
 
-  <div :if={@module.ok?} data-part="widgets">
-    <.widget
-      id="widget-module-invalidations"
-      title={dgettext("dashboard_cache", "Misses")}
-      legend_color="destructive"
-      description={dgettext("dashboard_cache", "Builds where this module was a cache miss and had to be rebuilt.")}
-      value={Integer.to_string(@module.result.invalidations)}
-    />
-    <.widget
-      id="widget-module-reuses"
-      title={dgettext("dashboard_cache", "Hits")}
-      legend_color="primary"
-      description={dgettext("dashboard_cache", "Builds where this module was served from cache instead of rebuilt.")}
-      value={Integer.to_string(@module.result.reuses)}
-    />
-    <.widget
-      id="widget-module-rate"
-      title={dgettext("dashboard_cache", "Miss rate")}
-      legend_color="secondary"
-      description={dgettext("dashboard_cache", "Share of this module's builds that were a cache miss.")}
-      value={dgettext("dashboard_cache", "%{rate}%", rate: @module.result.invalidation_rate)}
-    />
-    <.widget
-      :if={@module.result.blast_radius}
-      id="widget-module-blast-radius"
-      title={dgettext("dashboard_cache", "Blast radius")}
-      legend_color="primary"
-      description={dgettext("dashboard_cache", "How many modules this one invalidates downstream when it changes.")}
-      value={Integer.to_string(@module.result.blast_radius)}
-    />
-    <.widget
-      :if={is_nil(@module.result.blast_radius)}
-      id="widget-module-blast-radius"
-      title={dgettext("dashboard_cache", "Blast radius")}
-      value=""
-      empty
-      empty_label={dgettext("dashboard_cache", "Needs CLI graph edges")}
-    />
-  </div>
-
   <.card
-    title={dgettext("dashboard_cache", "Cache activity")}
+    title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
-    data-part="timeline-card"
+    data-part="analytics"
   >
-    <.card_section :if={!@timeseries.ok?}>
-      <.skeleton_chart />
-    </.card_section>
-    <.card_section :if={@timeseries.ok?}>
-      <.chart
-        id="module-invalidations-timeline-chart"
-        type="bar"
-        extra_options={
-          %{
-            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
-            tooltip: %{},
-            xAxis: %{
-              type: "category",
-              data: @timeseries.result.dates,
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                customValues: [
-                  List.first(@timeseries.result.dates),
-                  List.last(@timeseries.result.dates)
-                ]
+    <.card_section data-part="analytics-body">
+      <div data-part="analytics-main">
+        <div data-part="widgets">
+          <.widget
+            loading={!@module.ok?}
+            id="widget-cache-activity"
+            title={dgettext("dashboard_cache", "Cache activity")}
+            legend_color="primary"
+            description={
+              dgettext(
+                "dashboard_cache",
+                "Builds where this module was cacheable, split into cache hits and misses."
+              )
+            }
+            value={if @module.ok?, do: format_number(@module.result.appearances)}
+            phx_click="select_widget"
+            phx_value_widget="cache_activity"
+            selected={@analytics_selected_widget == "cache_activity"}
+          />
+          <.widget
+            loading={!@module.ok?}
+            id="widget-miss-rate"
+            title={dgettext("dashboard_cache", "Miss rate")}
+            legend_color="destructive"
+            description={
+              dgettext("dashboard_cache", "Share of this module's builds that were a cache miss.")
+            }
+            value={
+              if @module.ok?,
+                do: dgettext("dashboard_cache", "%{rate}%", rate: @module.result.invalidation_rate)
+            }
+            phx_click="select_widget"
+            phx_value_widget="miss_rate"
+            selected={@analytics_selected_widget == "miss_rate"}
+          />
+          <.widget
+            loading={!@module.ok?}
+            id="widget-blast-radius"
+            title={dgettext("dashboard_cache", "Blast radius")}
+            legend_color="secondary"
+            description={
+              dgettext(
+                "dashboard_cache",
+                "How many modules this one invalidates downstream when it changes."
+              )
+            }
+            value={if @module.ok?, do: Integer.to_string(@module.result.blast_radius || 0)}
+            phx_click="select_widget"
+            phx_value_widget="blast_radius"
+            selected={@analytics_selected_widget == "blast_radius"}
+          />
+        </div>
+
+        <div :if={!@timeseries.ok?} data-part="analytics-chart">
+          <.skeleton_chart />
+        </div>
+
+        <div
+          :if={@timeseries.ok? && @analytics_selected_widget == "cache_activity"}
+          data-part="analytics-chart"
+        >
+          <.chart
+            id="module-cache-activity-chart"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
+                tooltip: %{},
+                xAxis: %{
+                  type: "category",
+                  data: @timeseries.result.dates,
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@timeseries.result.dates),
+                      List.last(@timeseries.result.dates)
+                    ]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                  axisLabel: %{color: "var:noora-surface-label-secondary"}
+                },
+                legend: %{show: false}
               }
-            },
-            yAxis: %{
-              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-              axisLabel: %{color: "var:noora-surface-label-secondary"}
-            },
-            legend: %{show: false}
-          }
-        }
-        series={[
-          %{
-            name: dgettext("dashboard_cache", "Hits"),
-            data: @timeseries.result.reuses,
-            type: "bar",
-            stack: "total",
-            color: "var:noora-chart-primary",
-            barMaxWidth: 18
-          },
-          %{
-            name: dgettext("dashboard_cache", "Misses"),
-            data: @timeseries.result.invalidations,
-            type: "bar",
-            stack: "total",
-            color: "var:noora-chart-destructive",
-            barMaxWidth: 18
-          }
-        ]}
-        y_axis_min={0}
-        grid_lines
-      />
+            }
+            series={[
+              %{
+                name: dgettext("dashboard_cache", "Hits"),
+                data: @timeseries.result.reuses,
+                type: "bar",
+                stack: "total",
+                color: "var:noora-chart-primary",
+                barMaxWidth: 18
+              },
+              %{
+                name: dgettext("dashboard_cache", "Misses"),
+                data: @timeseries.result.invalidations,
+                type: "bar",
+                stack: "total",
+                color: "var:noora-chart-destructive",
+                barMaxWidth: 18
+              }
+            ]}
+            y_axis_min={0}
+            grid_lines
+          />
+        </div>
+
+        <div
+          :if={@timeseries.ok? && @analytics_selected_widget == "miss_rate"}
+          data-part="analytics-chart"
+        >
+          <.chart
+            id="module-miss-rate-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "6%"},
+                tooltip: %{valueFormat: "{value}%"},
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  data: @timeseries.result.dates,
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@timeseries.result.dates),
+                      List.last(@timeseries.result.dates)
+                    ]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                  axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                },
+                legend: %{show: false}
+              }
+            }
+            series={[
+              %{
+                name: dgettext("dashboard_cache", "Miss rate"),
+                data: @timeseries.result.miss_rates,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none",
+                color: "var:noora-chart-destructive"
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
+          />
+        </div>
+
+        <div
+          :if={@analytics_selected_widget == "blast_radius"}
+          data-part="analytics-chart"
+        >
+          <.chart
+            :if={@invalidates.ok? && not Enum.empty?(@invalidates.result)}
+            id="module-blast-radius-chart"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{width: "96%", left: "0.4%", right: "3%", height: "84%", top: "6%"},
+                tooltip: %{},
+                xAxis: %{
+                  type: "category",
+                  data: Enum.map(@invalidates.result, & &1.name),
+                  axisLabel: %{color: "var:noora-surface-label-secondary"}
+                },
+                yAxis: %{
+                  splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                  axisLabel: %{color: "var:noora-surface-label-secondary"}
+                },
+                legend: %{show: false}
+              }
+            }
+            series={[
+              %{
+                name: dgettext("dashboard_cache", "Misses"),
+                data: Enum.map(@invalidates.result, & &1.invalidations),
+                type: "bar",
+                color: "var:noora-chart-secondary",
+                barMaxWidth: 32
+              }
+            ]}
+            y_axis_min={0}
+            grid_lines
+          />
+          <.empty_card_section
+            :if={@invalidates.ok? && Enum.empty?(@invalidates.result)}
+            title={dgettext("dashboard_cache", "Nothing depends on this module")}
+          >
+            <:image>
+              <img src="/images/empty_line_chart_light.png" data-theme="light" />
+              <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+            </:image>
+          </.empty_card_section>
+        </div>
+      </div>
     </.card_section>
   </.card>
 
@@ -243,37 +355,4 @@
     </.card>
   </div>
 
-  <.card
-    title={dgettext("dashboard_cache", "Invalidates downstream")}
-    icon="square_rounded_arrow_up"
-    data-part="invalidates-card"
-  >
-    <.card_section :if={@invalidates.ok? && not Enum.empty?(@invalidates.result)}>
-      <.table
-        id="invalidates-table"
-        rows={@invalidates.result}
-        row_navigate={
-          fn dependent ->
-            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{dependent.name}"
-          end
-        }
-      >
-        <:col :let={dependent} label={dgettext("dashboard_cache", "Module")}>
-          <.text_cell label={dependent.name} />
-        </:col>
-        <:col :let={dependent} label={dgettext("dashboard_cache", "Misses")}>
-          <.text_cell label={Integer.to_string(dependent.invalidations)} />
-        </:col>
-      </.table>
-    </.card_section>
-    <.empty_card_section
-      :if={@invalidates.ok? && Enum.empty?(@invalidates.result)}
-      title={dgettext("dashboard_cache", "Nothing depends on this module")}
-    >
-      <:image>
-        <img src="/images/empty_table_light.png" data-theme="light" />
-        <img src="/images/empty_table_dark.png" data-theme="dark" />
-      </:image>
-    </.empty_card_section>
-  </.card>
 </div>
