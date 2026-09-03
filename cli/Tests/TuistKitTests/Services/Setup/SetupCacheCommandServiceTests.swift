@@ -624,14 +624,16 @@ struct SetupCacheCommandServiceTests {
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
-    ) func setupCache_withoutKuraFlag_installsLegacyDaemon() async throws {
-        // Given: no TUIST_FEATURE_FLAG_KURA, so setup takes the legacy per-project
-        // daemon path that every not-yet-migrated account still runs. The kura
-        // backwards-compat promise rests on this branch, so pin its behaviour.
+    ) func setupCache_withKuraDisabled_installsLegacyDaemon() async throws {
+        // Given: TUIST_FEATURE_FLAG_KURA turned off, so setup takes the legacy
+        // per-project daemon path that every not-yet-migrated account still runs.
+        // The kura backwards-compat promise rests on this branch, so pin its
+        // behaviour.
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
 
         let config = Tuist.test(
             fullHandle: "organization/project",
@@ -658,7 +660,10 @@ struct SetupCacheCommandServiceTests {
                     Constants.URLs.production.absoluteString,
                     "--no-upload",
                 ]),
-                environmentVariables: .value(["TUIST_TOKEN": token])
+                environmentVariables: .value([
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "0",
+                ])
             )
             .called(1)
         verify(cacheSocketService)

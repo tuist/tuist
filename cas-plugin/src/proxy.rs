@@ -579,6 +579,30 @@ pub struct PathState {
     pub ms_fetch: AtomicU64,
     pub ms_decode: AtomicU64,
     pub ms_store: AtomicU64,
+    // The local half of a publication's cost, separated from the four RPCs it
+    // shares `write_duration` with. That one number covering both is why the
+    // 40x write regression of 2026-09-02 survived four wrong explanations and
+    // is still open: nothing said whether the time was network or disk, so
+    // every theory had to be argued instead of read off.
+    //
+    // Every llcas read a publication makes, from both of the places it makes
+    // them (see `encode_node_blob_accounted`), and nothing else: not the memo
+    // lookups or the graph bookkeeping around them, which are not what a slow
+    // store makes slow.
+    //
+    // Microseconds, not the milliseconds the counters above use: a read against
+    // a store that has not rotated is tens of nanoseconds, and a millisecond
+    // counter reports a whole build of them as zero.
+    pub us_publish_local: AtomicU64,
+    // The reads those microseconds are spread over. The per-read cost is what
+    // the store's generation chain changes, so the total is only readable
+    // against the count.
+    pub stats_publish_nodes_loaded: AtomicU64,
+    // Publications skipped because the remote was inside its shed window. The
+    // companion to `us_publish_local`: between them, a `write_duration` that
+    // moved says which half moved, and a `write_duration` that did not move
+    // says whether that is health or silence.
+    pub stats_publish_shed: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -1566,6 +1590,9 @@ impl Proxy {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }));
         self.paths
             .lock()
@@ -1713,7 +1740,11 @@ impl Proxy {
                 }
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
                 if let Some(analytics) = &self.analytics {
-                    analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+                    analytics.record_keyvalue(
+                        key,
+                        "read",
+                        crate::analytics::millis(op_start.elapsed()),
+                    );
                 }
                 return Ok(None);
             }
@@ -1731,7 +1762,7 @@ impl Proxy {
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(key, "read", crate::analytics::millis(op_start.elapsed()));
         }
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
@@ -1988,13 +2019,16 @@ impl Proxy {
                     let transfer = if inlined {
                         0.0
                     } else {
-                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64)
+                        crate::analytics::millis(fetch_elapsed)
+                            * (compressed as f64 / total_compressed as f64)
                     };
-                    let codec = codec_elapsed.as_secs_f64();
-                    // This node's own transfer, keyed by its content-digest hex
-                    // (which equals the checksum in its parent's reference).
+                    let codec = crate::analytics::millis(codec_elapsed);
+                    // This node's own transfer. Keyed by the node, not by a hex
+                    // of its digest: the checksum the server joins on is the
+                    // separate digest this node's PARENT carries next to its
+                    // casID, which the root of this graph records below.
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(&entry.llcas_digest),
+                        &entry.llcas_digest,
                         frame.len() as i64,
                         compressed,
                         transfer + codec,
@@ -2672,7 +2706,13 @@ impl Proxy {
                 );
             }
             Err(reason) => {
-                crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                // A shed is already reported once per window by the breaker that
+                // armed it, and every publication queued behind it fails for the
+                // same reason. Saying so per record buries the line that
+                // explains them in thousands of copies of itself.
+                if reason != "remote shedding writes" {
+                    crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                }
             }
         }
     }
@@ -2687,6 +2727,17 @@ impl Proxy {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<(), String> {
+        // Asked before anything else. A node shedding writes will refuse this
+        // publication at its last RPC whatever happens in between, so the probe,
+        // the closure walk and the missing-blob query would be three round trips
+        // and a pile of local reads spent to reach a refusal already known. The
+        // record stays on disk and the next sweep retries it, which is the same
+        // contract every other publication failure has.
+        if remote.shedding_writes() {
+            remote.record_shed_write();
+            state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
+            return Err("remote shedding writes".into());
+        }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
         // the wildcard inline hint the resolve path uses.
@@ -2710,41 +2761,7 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let mut entries: Vec<ManifestEntry> = Vec::new();
-        let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
-        let mut visited = HashSet::new();
-        let mut pending = VecDeque::from([record.value_digest.clone()]);
-        while let Some(digest) = pending.pop_front() {
-            if !visited.insert(digest.clone()) {
-                continue;
-            }
-            if let Some((blob_digest, children)) =
-                state.publish_cache.lock().unwrap().get(&digest).cloned()
-            {
-                entries.push(ManifestEntry {
-                    llcas_digest: digest,
-                    blob: blob_digest,
-                    contents: None,
-                });
-                blobs.push(None);
-                pending.extend(children);
-                continue;
-            }
-            let (blob, children) = unsafe { encode_node_blob(state, &digest)? };
-            let blob_digest = reapi::blob_digest(&blob);
-            state
-                .publish_cache
-                .lock()
-                .unwrap()
-                .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-            entries.push(ManifestEntry {
-                llcas_digest: digest,
-                blob: blob_digest,
-                contents: None,
-            });
-            blobs.push(Some(blob));
-            pending.extend(children);
-        }
+        let (entries, blobs) = walk_closure(state, &record.value_digest)?;
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -2761,7 +2778,7 @@ impl Proxy {
             }
             let bytes = match blob {
                 Some(bytes) => bytes,
-                None => unsafe { encode_node_blob(state, &entry.llcas_digest)?.0 },
+                None => encode_node_blob_accounted(state, &entry.llcas_digest)?.0,
             };
             if self.analytics.is_some() {
                 let (size, data) = reapi::decompress_frame(&bytes)
@@ -2782,12 +2799,12 @@ impl Proxy {
             let upload_start = Instant::now();
             remote.batch_update(uploads)?;
             if let Some(analytics) = &self.analytics {
-                let elapsed = upload_start.elapsed().as_secs_f64();
+                let elapsed = crate::analytics::millis(upload_start.elapsed());
                 let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
                 for (digest, size, compressed, data) in &upload_meta {
                     let transfer = elapsed * (*compressed as f64 / total as f64);
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(digest),
+                        digest,
                         *size,
                         *compressed,
                         transfer,
@@ -2802,7 +2819,11 @@ impl Proxy {
         }
         let result = remote.update_action(&record.key, &entries, branch, trunk);
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(
+                &record.key,
+                "write",
+                crate::analytics::millis(op_start.elapsed()),
+            );
         }
         result
     }
@@ -3779,7 +3800,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3798,6 +3819,9 @@ impl Proxy {
                 state.ms_fetch.load(Ordering::Relaxed),
                 state.ms_decode.load(Ordering::Relaxed),
                 state.ms_store.load(Ordering::Relaxed),
+                state.us_publish_local.load(Ordering::Relaxed),
+                state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
+                state.stats_publish_shed.load(Ordering::Relaxed),
             ));
         }
         parts.join(" | ")
@@ -4086,6 +4110,90 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
         return Err("store".into());
     }
     Ok(())
+}
+
+/// The manifest for the value graph rooted at `root`, in visit order, plus the
+/// encoded blob for every node THIS walk had to read (a memo hit yields `None`,
+/// because the bytes are only needed for the nodes the remote turns out to be
+/// missing and re-reading them then is cheaper than holding every closure in
+/// memory).
+///
+/// Each node the memo does not already hold costs an `llcas_cas_load_object`,
+/// and what that load costs depends on the on-disk store's state: once the
+/// store crosses `COMPILATION_CACHE_LIMIT_SIZE` it enforces the limit by
+/// starting a new generation and demoting the old one, and a load resolving in
+/// a demoted generation copies the object forward. Measured on Xcode 26.5
+/// (`tests/graph_retention.rs`), the same 41-node walk is ~1.5us against a
+/// store that has not rotated and ~167us/key on the first pass after one.
+///
+/// Worth knowing and worth measuring (`us_publish_local`), but worth keeping in
+/// proportion: 100x a number this size is still small against one RPC, and a
+/// publication makes four. A walk cost is not a candidate explanation for a
+/// `write_duration` regression measured in hundreds of milliseconds.
+/// `encode_node_blob` with the local-cost accounting attached. Every llcas read
+/// a publication makes goes through here, because a publication makes them from
+/// TWO places and the counters are worth nothing if they only see one: the walk
+/// below reads each node it has not memoized, and the upload leg reads again for
+/// any node the memo answered from cache that the remote then turns out to be
+/// missing. That second read is local CAS latency sitting inside
+/// `write_duration` exactly like the first, and accounting for only the first
+/// would let the counters report no local work while the store was the thing
+/// being slow, which is the one conclusion they exist to prevent.
+fn encode_node_blob_accounted(
+    state: &'static PathState,
+    digest: &[u8],
+) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    let started = Instant::now();
+    let loaded = unsafe { encode_node_blob(state, digest) };
+    state
+        .us_publish_local
+        .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+    state
+        .stats_publish_nodes_loaded
+        .fetch_add(1, Ordering::Relaxed);
+    loaded
+}
+
+fn walk_closure(
+    state: &'static PathState,
+    root: &[u8],
+) -> Result<(Vec<ManifestEntry>, Vec<Option<Vec<u8>>>), String> {
+    let mut entries: Vec<ManifestEntry> = Vec::new();
+    let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut visited = HashSet::new();
+    let mut pending = VecDeque::from([root.to_vec()]);
+    while let Some(digest) = pending.pop_front() {
+        if !visited.insert(digest.clone()) {
+            continue;
+        }
+        if let Some((blob_digest, children)) =
+            state.publish_cache.lock().unwrap().get(&digest).cloned()
+        {
+            entries.push(ManifestEntry {
+                llcas_digest: digest,
+                blob: blob_digest,
+                contents: None,
+            });
+            blobs.push(None);
+            pending.extend(children);
+            continue;
+        }
+        let (blob, children) = encode_node_blob_accounted(state, &digest)?;
+        let blob_digest = reapi::blob_digest(&blob);
+        state
+            .publish_cache
+            .lock()
+            .unwrap()
+            .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+        entries.push(ManifestEntry {
+            llcas_digest: digest,
+            blob: blob_digest,
+            contents: None,
+        });
+        blobs.push(Some(blob));
+        pending.extend(children);
+    }
+    Ok((entries, blobs))
 }
 
 unsafe fn encode_node_blob(
@@ -5352,6 +5460,9 @@ mod tests {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }))
     }
 

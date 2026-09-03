@@ -63,6 +63,7 @@ defmodule TuistWeb.API.OIDCController do
            },
            required: [:access_token, :expires_in]
          }},
+      bad_request: {"Unsupported CI provider or missing repository claim", "application/json", Error},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
       forbidden: {"No projects linked to the repository", "application/json", Error}
     }

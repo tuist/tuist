@@ -6,7 +6,12 @@
   >
     <.card_section data-part="build-runs-card-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-build-runs" phx-debounce="200">
+        <.form
+          id="gradle-build-runs-search-form"
+          for={%{}}
+          phx-change="search-build-runs"
+          phx-debounce="200"
+        >
           <.text_input
             type="search"
             id="search-build-runs"
@@ -67,7 +72,35 @@
           }
         >
           <:col :let={build} label={dgettext("dashboard_gradle", "Project")}>
-            <.text_cell label={build.root_project_name} />
+            <div data-part="cell" data-type="text">
+              <div
+                data-part="project-with-tags"
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <span data-part="label">{build.root_project_name}</span>
+                <.badge
+                  :if={Enum.any?(build.custom_tags || [])}
+                  label={List.first(build.custom_tags)}
+                  color="success"
+                  style="light-fill"
+                  size="large"
+                />
+                <.badge
+                  :if={length(build.custom_tags || []) == 2}
+                  label={Enum.at(build.custom_tags, 1)}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
+                <.badge
+                  :if={length(build.custom_tags || []) > 2}
+                  label={"+#{length(build.custom_tags) - 1}"}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
+              </div>
+            </div>
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Status")}>
             <.status_badge_cell

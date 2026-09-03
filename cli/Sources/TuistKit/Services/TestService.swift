@@ -1230,6 +1230,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             for testSchemeRun in testSchemeRuns {
                 let testScheme = testSchemeRun.scheme
+                let xctestrunTestTargets: [TestIdentifier]
+                if action == .testWithoutBuilding,
+                   passthroughXcodeBuildArguments.contains("-xctestrun"),
+                   testSchemeRun.testTargets.isEmpty
+                {
+                    xctestrunTestTargets = try testActionTargetReferences(
+                        scheme: testScheme,
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action
+                    )
+                    .map { try TestIdentifier(target: $0.name) }
+                } else {
+                    xctestrunTestTargets = testSchemeRun.testTargets
+                }
                 let testSchemeResultBundlePath = schemeResultBundlePath(
                     resultBundlePath,
                     schemeName: testScheme.name,
@@ -1253,7 +1267,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         resultBundlePath: testSchemeResultBundlePath,
                         derivedDataPath: derivedDataPath,
                         retryCount: retryCount,
-                        testTargets: testSchemeRun.testTargets,
+                        testTargets: xctestrunTestTargets,
                         skipTestTargets: skipTestTargets,
                         testPlanConfiguration: testPlanConfiguration,
                         passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,

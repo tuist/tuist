@@ -20,7 +20,7 @@ use prometheus_client::{
 };
 
 use crate::{
-    artifact::producer::ArtifactProducer, node_location::NodeLocation,
+    VERSION, artifact::producer::ArtifactProducer, node_location::NodeLocation,
     utils::replication_target_label,
 };
 
@@ -73,6 +73,7 @@ pub struct Metrics {
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
     capacity_sheds: Family<CapacityShedLabels, Counter>,
+    build_info: Family<BuildInfoLabels, Gauge>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -100,6 +101,7 @@ pub struct Metrics {
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
+    outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
@@ -330,6 +332,7 @@ impl Metrics {
                 kind: kind.to_owned(),
             });
         }
+        let build_info = Family::<BuildInfoLabels, Gauge>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -364,6 +367,7 @@ impl Metrics {
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
+        let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
@@ -648,6 +652,11 @@ impl Metrics {
             capacity_sheds.clone(),
         );
         registry.register(
+            "kura_build_info",
+            "Kura build information",
+            build_info.clone(),
+        );
+        registry.register(
             "kura_node_info",
             "Node info labels for each Kura region",
             node_info.clone(),
@@ -781,6 +790,11 @@ impl Metrics {
             "kura_outbox_messages",
             "Replication outbox messages waiting to be processed",
             outbox_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_lane_messages",
+            "Replication outbox messages waiting to be processed, split by drain lane",
+            outbox_lane_messages.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
@@ -1321,6 +1335,7 @@ impl Metrics {
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
             capacity_sheds,
+            build_info,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1348,6 +1363,7 @@ impl Metrics {
             manifest_index_rebuilds,
             manifest_index_rebuild_duration,
             outbox_messages,
+            outbox_lane_messages,
             multipart_uploads,
             tmp_dir_bytes,
             discovered_peer_nodes,
@@ -1449,6 +1465,12 @@ impl Metrics {
             promotion_drops,
         };
 
+        metrics
+            .build_info
+            .get_or_create(&BuildInfoLabels {
+                version: VERSION.to_owned(),
+            })
+            .set(1);
         metrics
             .node_info
             .get_or_create(&NodeInfoLabels { region, tenant_id })
@@ -1922,8 +1944,23 @@ impl Metrics {
             .observe(duration.as_secs_f64());
     }
 
-    pub fn update_outbox_messages(&self, count: usize) {
+    pub fn update_outbox_messages(&self, count: usize, bulk: usize) {
         self.outbox_messages.set(count as i64);
+        // The bulk lane drains one delivery at a time and the metadata lane is
+        // batched, so which lane a backlog sits in is what decides whether the
+        // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`. The total
+        // alone cannot separate them.
+        let bulk = bulk.min(count);
+        self.outbox_lane_messages
+            .get_or_create(&OutboxLaneLabels {
+                lane: "bulk".to_owned(),
+            })
+            .set(bulk as i64);
+        self.outbox_lane_messages
+            .get_or_create(&OutboxLaneLabels {
+                lane: "metadata".to_owned(),
+            })
+            .set(count.saturating_sub(bulk) as i64);
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
@@ -2499,6 +2536,11 @@ fn records_public_http_metrics(route: &str) -> bool {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct OutboxLaneLabels {
+    lane: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpRequestLabels {
     route: String,
     status: u16,
@@ -2633,6 +2675,11 @@ struct FileOperationLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct FileOperationRouteLabels {
     operation: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BuildInfoLabels {
+    version: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2947,7 +2994,7 @@ mod tests {
         metrics.record_manifest_cache_admission("admitted");
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
-        metrics.update_outbox_messages(4);
+        metrics.update_outbox_messages(4, 3);
         metrics.update_multipart_uploads(2);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
@@ -3048,6 +3095,7 @@ mod tests {
         assert!(rendered.contains("outcome=\"applied\""));
         assert!(rendered.contains("outcome=\"ignored_older\""));
         assert!(rendered.contains("kura_multipart_parts_total"));
+        assert!(rendered.contains(&format!("kura_build_info{{version=\"{VERSION}\"}} 1")));
         assert!(rendered.contains("kura_node_info"));
         assert!(rendered.contains("kura_node_geo_info"));
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
@@ -3068,6 +3116,8 @@ mod tests {
         assert!(rendered.contains("kura_manifest_cache_evictions_total"));
         assert!(rendered.contains("kura_manifest_index_rebuilds_total"));
         assert!(rendered.contains("kura_outbox_messages"));
+        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"bulk\"} 3"));
+        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"metadata\"} 1"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));

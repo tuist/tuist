@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -999,22 +1000,145 @@ func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
 	}
 }
 
-// Linux opts out: kata pins memory per sandbox and oversubscribes CPU,
-// so a CPU quotient would cap a fleet that is not CPU-bound.
-func TestAutoscaler_ShapePlacementCapsSkipLinux(t *testing.T) {
+// Linux is capped too. It used to opt out on the grounds that kata
+// oversubscribes CPU, so a CPU quotient would cap a fleet that is not
+// CPU-bound. That does not hold on this fleet: podtemplate sets the
+// runner container's CPU request equal to its limit equal to the shape,
+// so kube-scheduler bin-packs on the full vCPU and a 16 vCPU Pod costing
+// 16.25 with kata's overhead seats exactly once on a 31-vCPU RISE-L. The
+// min() of the two quotients is what the scheduler does, so taking it
+// here is agreement rather than pessimism.
+//
+// The production topology: 4 RISE-L at 31 vCPU / 117 GiB allocatable.
+func TestAutoscaler_ShapePlacementCapsCountLinuxSeats(t *testing.T) {
+	const fleet = "runners-linux"
+
+	objects := []client.Object{}
+	for i := 0; i < 4; i++ {
+		objects = append(objects, linuxNodeWithResources(fmt.Sprintf("rise-l-%d", i), fleet, 31, 117*1024))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	// Placement shapes: the advertised shape plus kata's 250m / 2560Mi.
+	small := podShape{cpuMilli: 2250, memoryMB: 8*1024 + 2560}
+	big := podShape{cpuMilli: 4250, memoryMB: 16*1024 + 2560}
+	ceiling := podShape{cpuMilli: 16250, memoryMB: 32*1024 + 2560}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small, big.key(): big, ceiling.key(): ceiling,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 44 {
+		t.Fatalf("2vcpu-8gb seats = %d, want 44 (11 per box, memory-bound)", got)
+	}
+	// The shape that starved the fleet on 2026-09-02: the autoscaler
+	// targeted 67 of these where 24 fit.
+	if got := caps[big.key()]; got != 24 {
+		t.Fatalf("4vcpu-16gb seats = %d, want 24 (6 per box, memory-bound)", got)
+	}
+	// CPU binds this one: 117 GiB would suggest three per box, but two
+	// would need 32.5 of 31 vCPU.
+	if got := caps[ceiling.key()]; got != 4 {
+		t.Fatalf("16vcpu-32gb seats = %d, want 4 (1 per box, CPU-bound)", got)
+	}
+}
+
+// An unrecognised OS is left uncapped rather than capped against the
+// wrong node set: fleetNodeSelector falls through to darwin, which
+// matches no node in a Linux fleet, and a zero cap would freeze the pool
+// at zero replicas.
+func TestAutoscaler_ShapePlacementCapsNoNodesLeavesZero(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
 
-	shape := podShape{cpuMilli: 2000, memoryMB: 8192}
+	shape := podShape{cpuMilli: 2250, memoryMB: 10752}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
 
 	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}
-	if caps != nil {
-		t.Fatalf("Linux must not be capped, got %v", caps)
+	if got := caps[shape.key()]; got != 0 {
+		t.Fatalf("seats with no nodes = %d, want 0", got)
+	}
+}
+
+// The seat cap and the byte budget must charge a Pod the same overhead,
+// or the two halves of the allocator disagree about what fits.
+func TestAutoscaler_PlacementShapeIncludesRuntimeClassOverhead(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 16*1024, 1, 30)
+	pool.Spec.PodCPUMilli = 4000
+	pool.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("250m"),
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(runtimeClass).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape, err := r.placementShapeOf(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("placementShapeOf: %v", err)
+	}
+	if shape.cpuMilli != 4250 {
+		t.Fatalf("cpuMilli = %d, want 4250 (4000 + kata 250m)", shape.cpuMilli)
+	}
+	if shape.memoryMB != 16*1024+2560 {
+		t.Fatalf("memoryMB = %d, want %d (16 GiB + kata 2560Mi)", shape.memoryMB, 16*1024+2560)
+	}
+}
+
+// A named RuntimeClass that cannot be read freezes the pool rather than
+// silently sizing it as if the sandbox were free.
+func TestAutoscaler_PlacementShapeFailsOnUnreadableRuntimeClass(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	if _, err := r.placementShapeOf(context.Background(), pool); !errors.Is(err, errPodCostUnavailable) {
+		t.Fatalf("err = %v, want errPodCostUnavailable", err)
+	}
+}
+
+func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"node.cluster.x-k8s.io/pool": fleetSelector,
+				"kubernetes.io/os":           "linux",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+			},
+		},
 	}
 }

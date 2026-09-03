@@ -97,11 +97,23 @@ enum PackageResolver {
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
-        let snapshot =
+        // `swift package resolve` also reads pins from
+        // `<scratch>/workspace-state.json` when Package.resolved is missing,
+        // so a stale workspace state silently pins the resolve at whatever
+        // the previous install had checked out — the exact scenario `update`
+        // exists to escape. Clear both together and let SwiftPM rewrite each
+        // from the fresh solver output.
+        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
+            .appendingPathComponent("workspace-state.json")
+        let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
+        let workspaceStateSnapshot =
+            !useExistingResolvedFile
+                ? try await snapshotResolvedFile(at: workspaceStatePath) : nil
         if !useExistingResolvedFile {
             try? await fileSystem.removePath(resolvedPath)
+            try? await fileSystem.removePath(workspaceStatePath)
         }
 
         do {
@@ -125,13 +137,19 @@ enum PackageResolver {
             let resolved = resolvedPathExists
                 ? try await ResolvedFile.read(packageDir: packageDir)
                 : ResolvedPins(originHash: nil, pins: [], version: 3)
-            if !writeResolvedFile, let snapshot {
-                try await restoreResolvedFile(snapshot, at: resolvedPath)
+            if !writeResolvedFile, let resolvedSnapshot {
+                try await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+                if let workspaceStateSnapshot {
+                    try await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
+                }
             }
             return resolved
         } catch {
-            if let snapshot {
-                try? await restoreResolvedFile(snapshot, at: resolvedPath)
+            if let resolvedSnapshot {
+                try? await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+            }
+            if let workspaceStateSnapshot {
+                try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
         }

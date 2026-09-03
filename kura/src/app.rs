@@ -91,7 +91,20 @@ pub async fn run() -> Result<(), String> {
     );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
-        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+        warn!(
+            event.name = "kura.runtime.file_descriptor_limit_raise_failed",
+            error = %error,
+            "failed to raise file descriptor soft limit"
+        );
+    }
+    if let Some(enrollment) = enrollment.as_ref() {
+        info!(
+            event.name = "kura.enrollment.completed",
+            kura.node_url = %enrollment.node_url,
+            kura.tenant_id = %enrollment.tenant_id,
+            kura.peer.count = enrollment.peers.len(),
+            "node enrollment completed"
+        );
     }
     let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, node_location, enrollment)
@@ -226,6 +239,13 @@ async fn run_with_config(
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
+    info!(
+        event.name = "kura.request_observability.configured",
+        kura.request_log.sample_rate = state.config.request_log_sample_rate,
+        kura.slow_request.threshold_ms = state.config.slow_request_threshold_ms,
+        kura.warning_log.interval_ms = state.config.warning_log_interval_ms,
+        "request observability configured"
+    );
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
@@ -582,9 +602,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
-                        state
-                            .metrics
-                            .update_outbox_messages(snapshot.outbox_messages);
+                        state.metrics.update_outbox_messages(
+                            snapshot.outbox_messages,
+                            snapshot.outbox_bulk_messages,
+                        );
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics

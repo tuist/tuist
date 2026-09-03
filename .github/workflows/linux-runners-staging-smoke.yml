@@ -81,3 +81,50 @@ jobs:
             exit 1
           fi
           echo "Cluster-internal egress correctly denied."
+
+  # Job containers exercise a path plain `run:` steps never touch:
+  # the runner hands dockerd the work directory, `externals` and the
+  # `_temp` / `_actions` / `_tool` trees under it, and dockerd
+  # resolves every one of those in the dind sidecar's namespace. A
+  # volume mounted at the wrong path on the sidecar side leaves them
+  # empty and only shows up here — the `smoke` job above keeps
+  # passing either way.
+  container-smoke:
+    runs-on: tuist-staging-linux
+    timeout-minutes: 15
+    # The only job here that reads repo state: `actions/checkout`
+    # is the JS action that exercises the externals + actions trees.
+    permissions:
+      contents: read
+    container:
+      image: ubuntu:22.04
+    steps:
+      # Runs from /__w/_temp/<id>.sh, so it fails outright when the
+      # work directory isn't shared with the sidecar.
+      - name: Step script is reachable inside the container
+        run: |
+          set -euo pipefail
+          echo "Running inside: $(cat /etc/os-release | head -1)"
+          test -d /__w || { echo "ERROR: /__w missing"; exit 1; }
+          test -x /__e/node20/bin/node || test -x /__e/node24/bin/node \
+            || { echo "ERROR: no node runtime staged at /__e"; exit 1; }
+
+      # A JS action: executed as `/__e/node2x/bin/node
+      # /__w/_actions/...`, so it covers the externals staging and
+      # the actions tree in one step.
+      - uses: actions/checkout@v4
+
+      - name: Checkout landed in the workspace
+        run: |
+          set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/README.md"
+          echo "Workspace: $GITHUB_WORKSPACE"
+
+      # /github/home and /github/workflow are separate bind mounts
+      # off _temp; the runner reads GITHUB_ENV back out of them.
+      - name: Environment files round-trip
+        run: echo "SMOKE_VALUE=ok" >> "$GITHUB_ENV"
+      - name: Environment files round-trip check
+        run: |
+          set -euo pipefail
+          test "${SMOKE_VALUE:-}" = "ok" || { echo "ERROR: GITHUB_ENV did not round-trip"; exit 1; }

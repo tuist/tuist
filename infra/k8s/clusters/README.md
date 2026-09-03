@@ -21,6 +21,12 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 clusters/
 ├── README.md                  this file
 ├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass
+├── bare-metal.yaml            runner substrate: templates for the
+│                              bare-metal-worker class (Kata, whole-disk root)
+├── bare-metal-stateful.yaml   stateful substrate: templates for the
+│                              stateful-worker class (separate /data, no Kata,
+│                              per-cluster RAID level): carries ClickHouse
+├── machinedrainrules.yaml     per-workload drain behaviour
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
@@ -28,13 +34,17 @@ clusters/
 └── cluster-pentest.yaml
 ```
 
+Both `bare-metal*.yaml` files are applied by the glob in
+`.github/workflows/mgmt-cluster-apply.yml`, so a new one is picked up
+without touching the workflow.
+
 ## Target shape per cluster
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 4× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 | `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
 

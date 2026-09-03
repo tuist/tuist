@@ -46,7 +46,8 @@ data class TuistGradleConfig(
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null,
     val stressNewTestsMode: String? = null,
-    val stressRepetition: StressRepetitionContext? = null
+    val stressRepetition: StressRepetitionContext? = null,
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata()
 ) {
     data class Network(val proxy: Boolean)
 
@@ -75,7 +76,11 @@ data class TuistGradleConfig(
                     environmentValue = System.getenv(STRESS_MODE_ENV),
                     extensionValue = extension.stressNewTests.mode
                 ),
-                stressRepetition = StressRepetitionContext.from(settings.startParameter.projectProperties)
+                stressRepetition = StressRepetitionContext.from(settings.startParameter.projectProperties),
+                customMetadata = BuildCustomMetadata(
+                    tags = extension.buildInsights.tags,
+                    values = extension.buildInsights.values
+                )
             )
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
@@ -245,6 +250,18 @@ open class TuistExtension {
     fun stressNewTests(action: Action<StressNewTestsExtension>) {
         action.execute(stressNewTests)
     }
+
+    /**
+     * Build insight metadata configuration.
+     */
+    val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
+
+    /**
+     * Configure tags and key-value metadata for build insights.
+     */
+    fun buildInsights(action: Action<BuildInsightsExtension>) {
+        action.execute(buildInsights)
+    }
 }
 
 /**
@@ -304,4 +321,23 @@ open class StressNewTestsExtension {
      * `report` or `enforce`. When null (default), the gate does not run.
      */
     var mode: String? = null
+}
+
+/**
+ * Configuration for build insight tags and key-value metadata.
+ */
+open class BuildInsightsExtension {
+    private val configuredTags = mutableListOf<String>()
+    private val configuredValues = mutableMapOf<String, String>()
+
+    internal val tags: List<String> get() = configuredTags.toList()
+    internal val values: Map<String, String> get() = configuredValues.toMap()
+
+    fun tag(value: String) {
+        configuredTags.add(value)
+    }
+
+    fun value(key: String, value: String) {
+        configuredValues[key] = value
+    }
 }

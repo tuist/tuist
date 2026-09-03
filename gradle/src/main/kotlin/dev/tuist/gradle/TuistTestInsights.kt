@@ -332,11 +332,15 @@ abstract class TuistTestInsightsService :
         val useEnvironmentProxy: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val gitBranch: Property<String>
+        val gitCommitSha: Property<String>
+        val gitRef: Property<String>
+        val gitRemoteUrlOrigin: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
 
-    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
@@ -461,15 +465,16 @@ abstract class TuistTestInsightsService :
 
         val totalDurationMs = latestEndTime - earliestStartTime
         val gradleBuildId = buildInsightsService?.buildId
+        val reportGitInfoProvider = reportGitInfoProvider()
 
         val report = collector.buildReport(
             totalDurationMs = totalDurationMs,
             isCi = ciDetector.isCi(),
             scheme = parameters.rootProjectName.orNull,
-            gitBranch = gitInfoProvider.branch(),
-            gitCommitSha = gitInfoProvider.commitSha(),
-            gitRef = gitInfoProvider.ref(),
-            gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
+            gitBranch = reportGitInfoProvider.branch(),
+            gitCommitSha = reportGitInfoProvider.commitSha(),
+            gitRef = reportGitInfoProvider.ref(),
+            gitRemoteUrlOrigin = reportGitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
@@ -515,6 +520,14 @@ abstract class TuistTestInsightsService :
             logger.warn("Tuist: Failed to report test insights.")
         }
     }
+
+    private fun reportGitInfoProvider(): GitInfoProvider =
+        gitInfoProvider ?: GitInfo(
+            branch = parameters.gitBranch.orNull,
+            commitSha = parameters.gitCommitSha.orNull,
+            ref = parameters.gitRef.orNull,
+            remoteUrlOrigin = parameters.gitRemoteUrlOrigin.orNull
+        )
 }
 
 // --- Plugin ---
@@ -529,6 +542,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
+        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistTestInsights",
@@ -539,6 +553,10 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.gitBranch.set(gitInfo.branch())
+            parameters.gitCommitSha.set(gitInfo.commitSha())
+            parameters.gitRef.set(gitInfo.ref())
+            parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
         }
 
         val repetition = config.stressRepetition
