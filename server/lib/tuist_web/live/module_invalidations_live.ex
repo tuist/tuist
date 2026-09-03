@@ -12,7 +12,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @sort_options ~w(invalidations invalidation_rate blast_radius self_changes dependency_induced)
+  @sort_options ~w(invalidations hit_rate blast_radius self_changes dependency_induced)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -134,9 +134,11 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   end
 
   defp sort_modules(modules, "blast_radius"), do: Enum.sort_by(modules, &(&1.blast_radius || -1), :desc)
+  # Worst first, like every other option: the lowest hit rate is the biggest problem.
+  defp sort_modules(modules, "hit_rate"), do: Enum.sort_by(modules, & &1.hit_rate, :asc)
   defp sort_modules(modules, field), do: Enum.sort_by(modules, &Map.fetch!(&1, String.to_existing_atom(field)), :desc)
 
-  def sort_label("invalidation_rate"), do: dgettext("dashboard_cache", "Rate")
+  def sort_label("hit_rate"), do: dgettext("dashboard_cache", "Cache hit rate")
   def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Dependents")
   def sort_label("self_changes"), do: dgettext("dashboard_cache", "Changed")
   def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Upstream")

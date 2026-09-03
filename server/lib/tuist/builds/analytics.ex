@@ -2273,8 +2273,9 @@ defmodule Tuist.Builds.Analytics do
 
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
-    `:invalidation_rate` (percentage), `:self_changes`, `:dependency_induced`, and
-    `:unclassified` (misses with no comparable prior build: first-seen / cold / evicted).
+    `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
+    `:dependency_induced`, and `:unclassified` (misses with no comparable prior
+    build: first-seen / cold / evicted).
   """
   def module_invalidations(opts \\ []) do
     project_id = Keyword.fetch!(opts, :project_id)
@@ -2357,7 +2358,8 @@ defmodule Tuist.Builds.Analytics do
             product: product,
             appearances: appearances,
             invalidations: invalidations,
-            invalidation_rate: invalidation_rate(invalidations, appearances),
+            invalidation_rate: percentage(invalidations, appearances),
+            hit_rate: percentage(appearances - invalidations, appearances),
             self_changes: self_changes,
             dependency_induced: dependency_induced,
             unclassified: max(invalidations - (self_changes + dependency_induced), 0),
@@ -2508,8 +2510,8 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  defp invalidation_rate(_invalidations, 0), do: 0.0
-  defp invalidation_rate(invalidations, appearances), do: Float.round(invalidations / appearances * 100, 1)
+  defp percentage(_count, 0), do: 0.0
+  defp percentage(count, total), do: Float.round(count / total * 100, 1)
 
   defp module_name_filter(opts) do
     case Keyword.get(opts, :name) do

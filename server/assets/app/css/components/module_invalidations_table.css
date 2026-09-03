@@ -1,0 +1,28 @@
+.module-invalidations-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+  min-width: 140px;
+
+  & > [data-part="bar"] {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--noora-chart-lines);
+
+    & > [data-part="changed"] {
+      background: var(--noora-chart-primary);
+    }
+
+    & > [data-part="upstream"] {
+      background: var(--noora-chart-secondary);
+    }
+  }
+
+  & > [data-part="badges"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-3);
+  }
+}
