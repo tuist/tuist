@@ -1,0 +1,314 @@
+# Stateful bare-metal substrate — the pool that carries ClickHouse.
+#
+# Separate from `bare-metal.yaml` (the runner substrate) because the two
+# shapes disagree on three things that cannot be expressed in one template:
+#
+#   1. Disk. A runner host gives the whole array to `/`; a database host
+#      keeps its data off the root filesystem, so a full table cannot wedge
+#      the kubelet and containerd along with it. Root is capped and the rest
+#      becomes `/data`, which is where the ClickHouse local PV lives.
+#   2. RAID. The runner hosts are all two-disk (AX42/AX162), where mirroring
+#      is the only choice. The stateful pool spans two-disk non-production
+#      boxes and four-disk production ones, and installimage reads
+#      SWRAIDLEVEL 1 on four disks as a FOUR-WAY MIRROR — a 4x3.84 TB
+#      EX131-2 would come back with 3.84 TB usable instead of 7.68 TB. The
+#      level is therefore a per-cluster variable, not a constant.
+#   3. Kata. Runner hosts pre-bake Kata Containers and advertise the
+#      `katacontainers.io/kata-runtime` label; a database host runs ordinary
+#      runc workloads and should not carry a second VMM it never uses.
+#
+# Everything else is deliberately identical to the runner substrate — the
+# installimage flow, the containerd 2.x tarball install, the netplan and
+# cloud-init fixes, the kubelet reservations — because that path is proven
+# on this hardware and divergence is the expensive kind of bug here.
+#
+# Applied by `.github/workflows/mgmt-cluster-apply.yml`, which globs
+# `infra/k8s/clusters/bare-metal*.yaml`.
+#
+# Host claiming: `hetzner-robot-controller` reflects Robot inventory named
+# `tuist-bm-<cluster>-*` into `HetznerBareMetalHost` CRs and stamps
+# `app.kubernetes.io/managed-by` + `tuist.dev/cluster`. Those two labels are
+# the whole selector, so ANY bare-metal MachineDeployment in an environment
+# can claim ANY host in it. That is safe while this is the only bare-metal
+# class in use (the runner pools moved to OVH in tuist/tuist#12768), and it
+# stops being safe the moment a Robot runner pool returns. Before that
+# happens, teach the controller to stamp a role label from the server-name
+# segment (`tuist-bm-production-ch-1` -> `tuist.dev/role: clickhouse`) and
+# add it to both hostSelectors.
+
+---
+# Infrastructure template for the stateful-worker MachineDeployment class.
+# The class definition lives in `clusterclass-tuist.yaml`.
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalMachineTemplate
+metadata:
+  name: tuist-stateful-machinetemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      installImage:
+        # Path inside the rescue system's filesystem to the OS tarball to
+        # install. Hetzner mounts an NFS share at /root/.oldroot/nfs inside
+        # the rescue system with images for each supported distribution.
+        image:
+          path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.zst
+        swraid: 1
+        # Overwritten per cluster by the `HetznerBareMetalMachineTemplateStatefulRaidLevel`
+        # patch from the `statefulRaidLevel` variable. The default suits the
+        # two-disk non-production boxes; a four-disk production box MUST set
+        # 10 on its Cluster or half its capacity disappears into a mirror.
+        # Do not set 0 — caph rewrites it to 1 in the installimage wrapper.
+        swraidLevel: 1
+        # Root is capped rather than `all` so the database cannot fill the
+        # filesystem the kubelet, containerd and the container images live
+        # on. 64 GiB matches what the OVH/Dedibox prep lays down for the
+        # same reason. `/data` takes the remainder and carries the
+        # ClickHouse local PersistentVolume.
+        #
+        # The ESP uses `fileSystem: esp` (an installimage keyword, not one
+        # of caph's documented filesystems — its schema is an unconstrained
+        # string that passes through to the autosetup file). That marks it
+        # as an EFI System Partition, formats FAT32, and places it OUTSIDE
+        # the RAID array; `vfat` makes installimage reject it as malformed
+        # inside SWRAID. No swap on bare metal.
+        partitions:
+          - mount: /boot/efi
+            fileSystem: esp
+            size: 256M
+          - mount: /boot
+            fileSystem: ext4
+            size: 1024M
+          - mount: /
+            fileSystem: ext4
+            size: 64G
+          # XFS for the data filesystem: it is what ClickHouse's own sizing
+          # guidance assumes, and it matches the `/data` convention the
+          # OVH and Dedibox fleets already install.
+          - mount: /data
+            fileSystem: xfs
+            size: all
+        # post-install script runs CHROOTed into the freshly installed OS
+        # before the first reboot. Same three jobs as the runner substrate
+        # minus the Kata pre-bake:
+        #
+        #   1. Install cloud-init. Hetzner's Ubuntu-2404-noble base tarball
+        #      doesn't include it, but caph's `ensure-provisioned` step SSHes
+        #      back in after reboot and runs `cloud-init status`. Without the
+        #      package caph hangs there with `cloud-init: command not found`.
+        #   2. Disable cloud-init's network config and pin Hetzner's static
+        #      netplan as authoritative (DHCPv6 fights the static assignment
+        #      otherwise).
+        #   3. Install runc + containerd 2.x from upstream tarballs, matching
+        #      the runner and cloud worker templates. The containerd.service
+        #      unit dropped by the KubeadmConfigTemplate below points at
+        #      /usr/local/bin/containerd, which is the tarball path and not
+        #      apt's, so these two halves have to stay in step.
+        postInstallScript: |
+          #!/bin/bash
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y cloud-init
+          # Hetzner's installimage leaves cloud-init disabled (its base
+          # tarball targets a static-image use case). caph polls
+          # `cloud-init status` after the post-install reboot and
+          # reboot-loops when the answer is `disabled`.
+          rm -f /etc/cloud/cloud-init.disabled
+          systemctl enable cloud-init.service
+          systemctl enable cloud-init-local.service
+          systemctl enable cloud-config.service
+          systemctl enable cloud-final.service
+          cloud-init clean --logs --machine-id || true
+          # Disable cloud-init's network handling. Hetzner's installimage
+          # already wrote /etc/netplan/01-netcfg.yaml with the static
+          # IPv4/IPv6 assignment. Default cloud-init writes a
+          # 50-cloud-init.yaml with dhcp4/dhcp6 enabled on the same
+          # interface, which netplan merges as an override — and DHCP fails
+          # on Hetzner since they assign static IPs.
+          mkdir -p /etc/cloud/cloud.cfg.d
+          cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CICFG'
+          network: {config: disabled}
+          CICFG
+          rm -f /etc/netplan/50-cloud-init.yaml
+          # Disable DHCPv6 + accept-ra on Hetzner's netplan interface.
+          # Hetzner's 01-netcfg.yaml omits both, and networkd in Ubuntu
+          # 24.04 implicitly tries DHCPv6 when an IPv6 address is
+          # configured. The implicit client fails, networkd marks the whole
+          # interface Failed, the static IPv4 never binds, and the box ends
+          # up unreachable post-install. A higher-priority drop-in wins
+          # (netplan merges alphabetically).
+          #
+          # Detect the primary interface from Hetzner's own file rather than
+          # hardcoding it: AX42-U boxes use `enp3s0` and other AX/EX classes
+          # differ, and hardcoding broke provisioning on production once.
+          PRIMARY_NIC=$(awk '/^[[:space:]]+ethernets:[[:space:]]*$/{flag=1; next} flag && /^[[:space:]]+[a-z0-9]+:[[:space:]]*$/{gsub(":","",$1); print $1; exit}' /etc/netplan/01-netcfg.yaml)
+          if [ -z "$PRIMARY_NIC" ]; then
+            echo "FATAL: could not detect primary NIC from /etc/netplan/01-netcfg.yaml" >&2
+            cat /etc/netplan/01-netcfg.yaml >&2
+            exit 1
+          fi
+          cat > /etc/netplan/99-tuist-disable-dhcp6.yaml <<NETPLAN
+          network:
+            version: 2
+            ethernets:
+              $PRIMARY_NIC:
+                dhcp6: false
+                accept-ra: false
+          NETPLAN
+          chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
+          # ---- runc + containerd 2.x install ----
+          CONTAINERD_VERSION=2.2.3
+          RUNC_VERSION=1.2.5
+          ARCH="$(dpkg --print-architecture)"
+          # runc must be installed before `containerd config default` runs:
+          # containerd's default config references /usr/local/sbin/runc.
+          curl -fsSL -o /tmp/runc.${ARCH} \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH}"
+          curl -fsSL -o /tmp/runc.sha256sum \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.sha256sum"
+          (cd /tmp && sha256sum --check --ignore-missing runc.sha256sum)
+          install /tmp/runc.${ARCH} /usr/local/sbin/runc
+          rm /tmp/runc.${ARCH} /tmp/runc.sha256sum
+          curl -fsSL -o /tmp/containerd.tar.gz \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz"
+          curl -fsSL -o /tmp/containerd.tar.gz.sha256sum \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz.sha256sum"
+          (cd /tmp && sed "s|containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz|containerd.tar.gz|" containerd.tar.gz.sha256sum | sha256sum --check -)
+          tar -zxf /tmp/containerd.tar.gz -C /usr/local
+          rm /tmp/containerd.tar.gz /tmp/containerd.tar.gz.sha256sum
+          # `containerd config default` emits a version=3 config with the
+          # runc handler pre-populated; patch SystemdCgroup to match the
+          # kubelet's cgroup driver. No kata-qemu handler here, and no
+          # snapshotter override: the default overlayfs is what a database
+          # node wants.
+          mkdir -p /etc/containerd
+          /usr/local/bin/containerd config default > /etc/containerd/config.toml
+          sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+      # Two-label gate, both required for caph to claim a host. See the
+      # header note on why a third (role) label is owed before a Robot
+      # runner pool can coexist with this one.
+      hostSelector:
+        matchLabels:
+          app.kubernetes.io/managed-by: hetzner-robot-controller
+      sshSpec:
+        # The same SSH key the operator selects on the Robot order form, so
+        # caph can SSH into rescue mode without a separate credential set.
+        secretRef:
+          name: hetzner-bare-metal-ssh-key
+          key:
+            name: sshkey-name
+            publicKey: ssh-publickey
+            privateKey: ssh-privatekey
+        portAfterInstallImage: 22
+        portAfterCloudInit: 22
+
+---
+# Bootstrap template for the stateful-worker MachineDeployment.
+# cloud-init drops the containerd unit, installs kubeadm/kubelet, runs
+# kubeadm join, and taints the node so only workloads that opt in land here.
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-stateful-worker-bootstraptemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      files:
+        # containerd's GitHub-released tarball does NOT ship a systemd unit
+        # (the older cri-containerd-cni- bundle did, the plain containerd-
+        # one does not). Without this, `systemctl enable --now containerd`
+        # below fails with "Unit file containerd.service does not exist" and
+        # the subsequent `kubeadm join` times out waiting for the CRI socket.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0644"
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data.local_hostname }}'
+          # No `--provider-id` and no `--cloud-provider=external`, for the
+          # same two reasons as the runner substrate: the NoCloud datasource
+          # resolves `instance_id` to the literal string `nocloud`, and caph
+          # stamps the correct `hcloud://bm-<serverNumber>` on the
+          # HetznerBareMetalMachine for CAPI to patch onto the Node; and
+          # there is no CCM for Robot hosts, so `external` would add an
+          # uninitialized taint nothing ever removes.
+          taints:
+            # Only workloads that explicitly tolerate this land here. The
+            # ClickHouse Operator's installation and Keeper pods carry the
+            # matching toleration; nothing else in the cluster does.
+            - key: tuist.dev/stateful
+              value: clickhouse
+              effect: NoSchedule
+          # Same reservation shape as the runner substrate. The flat
+          # system/kube reserves cover the host daemons (kubelet,
+          # containerd, Cilium, Alloy), and the percentage eviction
+          # thresholds scale with box size across a template shared by
+          # 64 GB non-production and 256 GB production hosts. ClickHouse's
+          # own memory ceiling is set well below allocatable by the
+          # operator, so these are a backstop rather than the primary bound.
+          kubeletExtraArgs:
+            - name: system-reserved
+              value: "cpu=1,memory=2Gi"
+            - name: kube-reserved
+              value: "cpu=1,memory=2Gi"
+            - name: eviction-hard
+              value: "memory.available<10%,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%"
+      preKubeadmCommands:
+        # No `set -euo pipefail`: CAPI renders each entry as its own
+        # cloud-init `runcmd` step under /bin/sh (dash on Ubuntu), which
+        # does not know `set -o pipefail` and would abort the whole block.
+        - mkdir -p /etc/apt/keyrings
+        # containerd is NOT installed via apt here — postInstallScript
+        # pre-bakes containerd 2.x from the upstream tarball and the unit
+        # file above points at that path.
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - 'echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /" > /etc/apt/sources.list.d/kubernetes.list'
+        - apt-get update
+        - apt-get install -y kubeadm kubelet kubectl
+        # kubeadm preflight rejects with `FileContent--proc-sys-net-ipv4-ip_forward
+        # contents are not set to 1` on Hetzner's stock Ubuntu image, which
+        # ships ip_forward=0. Also load bridge netfilter so the matching
+        # sysctls become writable. Both set persistently.
+        - modprobe overlay
+        - modprobe br_netfilter
+        - 'printf "overlay\nbr_netfilter\n" > /etc/modules-load.d/k8s.conf'
+        - 'printf "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n" > /etc/sysctl.d/k8s.conf'
+        - sysctl --system
+        # write_files drops the unit at /etc/systemd/system/, but systemd
+        # does not rescan between boot and the next user action, so without
+        # daemon-reload the enable below errors on a file that is on disk.
+        - systemctl daemon-reload
+        - systemctl enable --now containerd
+        - systemctl enable kubelet
+      # No postKubeadmCommands. The runner substrate needs them to stamp the
+      # kata labels by hand; the only label this pool needs is
+      # `node.cluster.x-k8s.io/pool`, which CAPI's label sync propagates from
+      # the MachineDeployment's own metadata.
