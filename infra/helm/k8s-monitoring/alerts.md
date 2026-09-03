@@ -2070,6 +2070,28 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `The public endpoint check stopped producing telemetry`
 
+### Keep the probe timing labels unaggregated
+
+Adaptive Metrics must not aggregate `instance`, `job`, `probe` or `phase` away
+from `probe_duration_seconds`, `probe_http_duration_seconds` or
+`probe_http_content_length`. Add all three to the exclusion list under
+**Metrics > Adaptive Metrics** in Grafana Cloud.
+
+Without those labels the metrics cannot answer which location is slow or
+whether a page got heavier, which is the only external page-timing signal we
+have. A rule applied between 00:00 and 06:00 UTC on 2026-08-29 collapsed all
+three to `instance="<aggregated>"` and left `probe_success` as the only
+per-location series.
+
+Verify with:
+
+```promql
+group by (instance, probe, phase) (probe_http_duration_seconds)
+```
+
+Every probe location must come back as its own series. A single
+`instance="<aggregated>"` row means the rule is still applied.
+
 ## Warning alerts
 
 ### Kura shedding cache reads under capacity pressure
