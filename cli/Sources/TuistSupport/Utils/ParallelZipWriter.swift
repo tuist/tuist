@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ZIPFoundation
@@ -154,21 +155,30 @@ struct ParallelZipWriter {
     private static let bufferSize = 256 * 1024
 
     private let concurrency: Int
+    private let fileSystem: FileSysteming
 
-    init(concurrency: Int = ProcessInfo.processInfo.activeProcessorCount) {
+    init(
+        concurrency: Int = ProcessInfo.processInfo.activeProcessorCount,
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.concurrency = max(1, concurrency)
+        self.fileSystem = fileSystem
     }
 
     func write(contentsOf source: AbsolutePath, to destination: AbsolutePath) async throws {
         let entries = try plannedEntries(in: source)
         guard entries.count <= Int(UInt16.max) else { throw ParallelZipWriterError.zip64Required }
 
-        let scratch = try scratchDirectory(nextTo: destination)
-        defer { try? FileManager.default.removeItem(atPath: scratch.pathString) }
-
-        let payloads = try await compress(entries, into: scratch)
-        try requireNonZip64(entries: entries, payloads: payloads)
-        try assemble(entries: entries, payloads: payloads, at: destination)
+        let scratch = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-parallel-zip")
+        do {
+            let payloads = try await compress(entries, into: scratch)
+            try requireNonZip64(entries: entries, payloads: payloads)
+            try assemble(entries: entries, payloads: payloads, at: destination)
+        } catch {
+            try? await fileSystem.remove(scratch)
+            throw error
+        }
+        try await fileSystem.remove(scratch)
     }
 
     // MARK: - Planning
@@ -356,12 +366,6 @@ struct ParallelZipWriter {
             total += Int64(ZipContainer.localHeaderByteCount + entry.name.utf8.count) + payload.compressedSize
             guard total <= limit else { throw ParallelZipWriterError.zip64Required }
         }
-    }
-
-    private func scratchDirectory(nextTo destination: AbsolutePath) throws -> AbsolutePath {
-        let path = destination.parentDirectory.appending(component: ".\(UUID().uuidString)-deflate")
-        try FileManager.default.createDirectory(atPath: path.pathString, withIntermediateDirectories: true)
-        return path
     }
 }
 

@@ -70,7 +70,6 @@ public class FileArchiver: FileArchiving {
             return try await ParallelZipWriter().write(contentsOf: path, to: destination)
         } catch ParallelZipWriterError.zip64Required {
             Logger.current.debug("The archive requires ZIP64 extensions, falling back to a serial writer.")
-            try? FileManager.default.removeItem(atPath: destination.pathString)
         }
 
         let sourceURL = URL(fileURLWithPath: path.pathString)
