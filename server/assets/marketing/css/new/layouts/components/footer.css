@@ -153,6 +153,28 @@
     }
   }
 
+  /* "Ask about Tuist on ..." row: a centered label followed by one
+     secondary icon button per assistant. */
+  & [data-part="ask"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-4) var(--noora-spacing-5);
+    margin-top: var(--noora-spacing-12);
+
+    & > [data-part="ask-label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="ask-assistants"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
   /* Full-width tuist wordmark: the dither canvas's own blurred-silhouette
      mask (data-mask) shapes the field, so the logo's edges dissolve into
      particles instead of being hard-clipped. The aspect ratio matches the
