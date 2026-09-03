@@ -37,7 +37,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
 
-    html = render_async(lv)
+    html = render_async(lv, 2000)
 
     assert has_element?(lv, "#all-modules-table")
     assert html =~ "Core"

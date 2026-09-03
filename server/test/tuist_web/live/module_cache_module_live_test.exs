@@ -49,12 +49,16 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core")
 
-    html = render_async(lv)
+    html = render_async(lv, 2000)
 
-    assert has_element?(lv, "#widget-module-invalidations")
-    assert has_element?(lv, "#module-invalidations-timeline-chart")
-    assert html =~ "Invalidates downstream"
-    # Core's downstream blast radius includes Networking.
-    assert html =~ "Networking"
+    assert has_element?(lv, "#widget-cache-activity")
+    assert has_element?(lv, "#module-cache-activity-chart")
+
+    # Networking depends on Core, so Core has exactly one dependent.
+    assert html
+           |> Floki.parse_document!()
+           |> Floki.find(~s(#widget-blast-radius [data-part="value"]))
+           |> Floki.text()
+           |> String.trim() == "1"
   end
 end

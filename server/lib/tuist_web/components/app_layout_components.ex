@@ -179,6 +179,17 @@ defmodule TuistWeb.AppLayoutComponents do
               (not is_nil(@selected_run) and @selected_run.name == "generate")
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Modules")}
+          icon="git_branch"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/modules"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/modules"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.xcode_project?(@selected_project)}

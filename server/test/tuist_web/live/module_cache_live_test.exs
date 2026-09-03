@@ -67,7 +67,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
-      html = render_async(lv)
+      html = render_async(lv, 2000)
 
       # Then
       assert has_element?(lv, "#module-invalidations-table")
