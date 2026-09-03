@@ -85,18 +85,19 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
-      - uses: ./.github/actions/github-deps-auth
-        with:
-          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install server deps
-        working-directory: server
-        run: mix deps.get
+        uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
       - name: Install cache deps
-        working-directory: cache
-        run: mix deps.get
+        uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: cache
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Setup main server
         working-directory: server
         run: |
