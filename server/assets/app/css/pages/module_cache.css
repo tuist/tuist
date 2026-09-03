@@ -202,7 +202,7 @@
 
         & > [data-part="widgets"] {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(2, 1fr);
           gap: var(--noora-spacing-4);
 
           @media (max-width: 768px) {

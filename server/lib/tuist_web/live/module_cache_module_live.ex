@@ -4,7 +4,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Components.ModuleInvalidationsTable, only: [why_split: 1]
   import TuistWeb.Components.Skeleton
 
   alias Tuist.Builds.Analytics
@@ -38,6 +37,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
             Map.take(params, [
               "analytics-selected-widget",
               "cache-count",
+              "miss-reason",
               "analytics-environment",
               "analytics-branch",
               "analytics-date-range",
@@ -94,6 +94,16 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
+  def handle_event("select_miss_reason", %{"type" => type}, socket) when type in ["changed", "upstream", "cold"] do
+    query = Query.put(socket.assigns.uri.query, "miss-reason", type)
+
+    {:noreply,
+     socket
+     |> assign(:selected_miss_reason, type)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info(_event, socket), do: {:noreply, socket}
 
   # The hit rate chart is derived from the same daily counts rather than a
@@ -115,6 +125,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     analytics_branch = params["analytics-branch"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
     selected_cache_count = params["cache-count"] || "hits"
+    selected_miss_reason = params["miss-reason"] || "changed"
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -125,47 +136,57 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_branch, analytics_branch)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:selected_cache_count, selected_cache_count)
+      |> assign(:selected_miss_reason, selected_miss_reason)
 
     {start_datetime, end_datetime} = period
     project_id = socket.assigns.selected_project.id
     opts = analytics_opts(socket.assigns)
 
-    assign_async(socket, [:module, :timeseries, :invalidated_by, :dependents_series, :cache_branches], fn ->
-      all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
-      index = Map.new(all_modules, &{&1.name, &1})
-      %{edges: edges} = Analytics.module_dependency_graph(opts)
-      timeseries =
-        opts
-        |> Keyword.put(:name, name)
-        |> Analytics.module_invalidation_timeseries()
-        |> with_hit_rates()
+    assign_async(
+      socket,
+      [:module, :timeseries, :invalidated_by, :dependents_series, :miss_reasons_series, :cache_branches],
+      fn ->
+        all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
+        index = Map.new(all_modules, &{&1.name, &1})
+        %{edges: edges} = Analytics.module_dependency_graph(opts)
 
-      module = build_module(index[name], name, timeseries)
+        timeseries =
+          opts
+          |> Keyword.put(:name, name)
+          |> Analytics.module_invalidation_timeseries()
+          |> with_hit_rates()
 
-      invalidated_by =
-        (edges[name] || [])
-        |> Enum.map(fn dep -> %{name: dep, self_changes: index[dep][:self_changes] || 0} end)
-        |> Enum.sort_by(& &1.self_changes, :desc)
+        module = build_module(index[name], name, timeseries)
 
-      dependents_series =
-        Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
+        invalidated_by =
+          (edges[name] || [])
+          |> Enum.map(fn dep -> %{name: dep, self_changes: index[dep][:self_changes] || 0} end)
+          |> Enum.sort_by(& &1.self_changes, :desc)
 
-      branches =
-        Analytics.cache_branches(
-          project_id: project_id,
-          start_datetime: start_datetime,
-          end_datetime: end_datetime
-        )
+        dependents_series =
+          Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
 
-      {:ok,
-       %{
-         module: module,
-         timeseries: timeseries,
-         invalidated_by: invalidated_by,
-         dependents_series: dependents_series,
-         cache_branches: branches
-       }}
-    end)
+        miss_reasons_series =
+          Analytics.module_miss_reasons_timeseries(Keyword.put(opts, :name, name))
+
+        branches =
+          Analytics.cache_branches(
+            project_id: project_id,
+            start_datetime: start_datetime,
+            end_datetime: end_datetime
+          )
+
+        {:ok,
+         %{
+           module: module,
+           timeseries: timeseries,
+           invalidated_by: invalidated_by,
+           dependents_series: dependents_series,
+           miss_reasons_series: miss_reasons_series,
+           cache_branches: branches
+         }}
+      end
+    )
   end
 
   # When a module has invalidations its row exists; otherwise synthesize a

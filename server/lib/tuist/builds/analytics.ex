@@ -2567,7 +2567,8 @@ defmodule Tuist.Builds.Analytics do
       end
 
     dates =
-      DateTime.to_date(start_datetime)
+      start_datetime
+      |> DateTime.to_date()
       |> Date.range(DateTime.to_date(end_datetime))
       |> Enum.to_list()
 
@@ -2575,6 +2576,102 @@ defmodule Tuist.Builds.Analytics do
       dates: Enum.map(dates, &Date.to_iso8601/1),
       invalidations: Enum.map(dates, fn date -> get_in(by_day, [date, :invalidations]) || 0 end),
       reuses: Enum.map(dates, fn date -> get_in(by_day, [date, :reuses]) || 0 end)
+    }
+  end
+
+  @doc """
+  Returns a daily breakdown of why a module missed: `changed` (its own content
+  differed from its previous build), `upstream` (only a dependency differed), and
+  `cold` (a miss with no comparable prior build — first-seen or evicted).
+
+  Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
+  day instead of by module. Requires `:name`.
+  """
+  def module_miss_reasons_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start: start_datetime, end: end_datetime, name: name},
+        filter_params
+      )
+
+    query = """
+    SELECT
+      day,
+      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
+      countIf(
+        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
+      ) AS upstream,
+      countIf(hit = 'miss') AS misses
+    FROM (
+      SELECT
+        day, hit, own, deps, ext,
+        row_number() OVER w AS rn,
+        lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(deps, 1) OVER w AS prev_deps,
+        lagInFrame(ext, 1) OVER w AS prev_ext
+      FROM (
+        SELECT
+          toDate(e.ran_at) AS day,
+          e.ran_at AS ran_at,
+          coalesce(e.git_branch, '') AS branch,
+          xt.binary_cache_hit AS hit,
+          cityHash64(
+            xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
+            xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
+            xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
+            xt.target_settings_hash, xt.buildable_folders_hash
+          ) AS own,
+          xt.dependencies_hash AS deps,
+          xt.external_hash AS ext
+        FROM xcode_targets AS xt
+        INNER JOIN command_events AS e ON xt.command_event_id = e.id
+        WHERE e.project_id = {project_id:Int64}
+          AND e.ran_at >= {start:DateTime64(6)}
+          AND e.ran_at <= {end:DateTime64(6)}
+          AND xt.binary_cache_hash IS NOT NULL
+          AND xt.name = {name:String}#{filter_sql}
+      )
+      WINDOW w AS (
+        PARTITION BY branch
+        ORDER BY ran_at ASC
+        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+      )
+    )
+    GROUP BY day
+    ORDER BY day
+    """
+
+    by_day =
+      case ClickHouseRepo.query(query, params) do
+        {:ok, %{rows: rows}} ->
+          Map.new(rows, fn [day, changed, upstream, misses] ->
+            {normalize_date(day), %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
+          end)
+
+        _ ->
+          %{}
+      end
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
+      upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
+      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
     }
   end
 
@@ -2628,7 +2725,8 @@ defmodule Tuist.Builds.Analytics do
       end
 
     dates =
-      DateTime.to_date(start_datetime)
+      start_datetime
+      |> DateTime.to_date()
       |> Date.range(DateTime.to_date(end_datetime))
       |> Enum.to_list()
 
