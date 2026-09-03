@@ -1,4 +1,4 @@
-# Stateful bare-metal substrate — the pool that carries ClickHouse.
+# Stateful bare-metal substrate: the pool that carries ClickHouse.
 #
 # Separate from `bare-metal.yaml` (the runner substrate) because the two
 # shapes disagree on three things that cannot be expressed in one template:
@@ -10,16 +10,16 @@
 #   2. RAID. The runner hosts are all two-disk (AX42/AX162), where mirroring
 #      is the only choice. The stateful pool spans two-disk non-production
 #      boxes and four-disk production ones, and installimage reads
-#      SWRAIDLEVEL 1 on four disks as a FOUR-WAY MIRROR — a 4x3.84 TB
+#      SWRAIDLEVEL 1 on four disks as a FOUR-WAY MIRROR, so a 4x3.84 TB
 #      EX131-2 would come back with 3.84 TB usable instead of 7.68 TB. The
 #      level is therefore a per-cluster variable, not a constant.
 #   3. Kata. Runner hosts pre-bake Kata Containers and advertise the
 #      `katacontainers.io/kata-runtime` label; a database host runs ordinary
 #      runc workloads and should not carry a second VMM it never uses.
 #
-# Everything else is deliberately identical to the runner substrate — the
+# Everything else is deliberately identical to the runner substrate: the
 # installimage flow, the containerd 2.x tarball install, the netplan and
-# cloud-init fixes, the kubelet reservations — because that path is proven
+# cloud-init fixes, the kubelet reservations. That path is proven
 # on this hardware and divergence is the expensive kind of bug here.
 #
 # Applied by `.github/workflows/mgmt-cluster-apply.yml`, which globs
@@ -58,7 +58,7 @@ spec:
         # patch from the `statefulRaidLevel` variable. The default suits the
         # two-disk non-production boxes; a four-disk production box MUST set
         # 10 on its Cluster or half its capacity disappears into a mirror.
-        # Do not set 0 — caph rewrites it to 1 in the installimage wrapper.
+        # Do not set 0: caph rewrites it to 1 in the installimage wrapper.
         swraidLevel: 1
         # Root is capped rather than `all` so the database cannot fill the
         # filesystem the kubelet, containerd and the container images live
@@ -67,7 +67,7 @@ spec:
         # ClickHouse local PersistentVolume.
         #
         # The ESP uses `fileSystem: esp` (an installimage keyword, not one
-        # of caph's documented filesystems — its schema is an unconstrained
+        # of caph's documented filesystems: its schema is an unconstrained
         # string that passes through to the autosetup file). That marks it
         # as an EFI System Partition, formats FAT32, and places it OUTSIDE
         # the RAID array; `vfat` makes installimage reject it as malformed
@@ -124,7 +124,7 @@ spec:
           # already wrote /etc/netplan/01-netcfg.yaml with the static
           # IPv4/IPv6 assignment. Default cloud-init writes a
           # 50-cloud-init.yaml with dhcp4/dhcp6 enabled on the same
-          # interface, which netplan merges as an override — and DHCP fails
+          # interface, which netplan merges as an override, and DHCP fails
           # on Hetzner since they assign static IPs.
           mkdir -p /etc/cloud/cloud.cfg.d
           cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CICFG'
@@ -284,7 +284,7 @@ spec:
         # cloud-init `runcmd` step under /bin/sh (dash on Ubuntu), which
         # does not know `set -o pipefail` and would abort the whole block.
         - mkdir -p /etc/apt/keyrings
-        # containerd is NOT installed via apt here — postInstallScript
+        # containerd is NOT installed via apt here. postInstallScript
         # pre-bakes containerd 2.x from the upstream tarball and the unit
         # file above points at that path.
         - apt-get update

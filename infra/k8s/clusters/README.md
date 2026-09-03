@@ -25,7 +25,7 @@ clusters/
 │                              bare-metal-worker class (Kata, whole-disk root)
 ├── bare-metal-stateful.yaml   stateful substrate: templates for the
 │                              stateful-worker class (separate /data, no Kata,
-│                              per-cluster RAID level) — carries ClickHouse
+│                              per-cluster RAID level): carries ClickHouse
 ├── machinedrainrules.yaml     per-workload drain behaviour
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml

@@ -138,12 +138,12 @@ spec:
         #
         # `statefulRaidLevel` is left at its default of 1, which is correct
         # for this two-disk box. A four-disk production host must override
-        # it to 10 — see the variable's definition in `clusterclass-tuist.yaml`.
+        # it to 10. See the variable's definition in `clusterclass-tuist.yaml`.
         #
         # PREREQ: the Robot server must be named `tuist-bm-staging-ch-1` so
         # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
         # stamped for this cluster. Unlike the in-house CAPI fleets, an
-        # unclaimable replica here does not wedge a Helm release — caph just
+        # unclaimable replica here does not wedge a Helm release: caph just
         # parks the Machine as `NoAvailableHost` until a host appears.
         - class: stateful-worker
           name: md-clickhouse

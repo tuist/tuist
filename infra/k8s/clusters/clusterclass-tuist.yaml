@@ -176,7 +176,7 @@ spec:
               # auto-remediation chewing through Robot reinstalls if a
               # box is briefly NotReady. Operator investigates instead.
               unhealthyInRange: "[0-0]"
-      # Stateful bare-metal pool — ClickHouse today, and the place other
+      # Stateful bare-metal pool: ClickHouse today, and the place other
       # carefully scheduled stateful workloads can join once its headroom is
       # measured. Templates live in `bare-metal-stateful.yaml`, which also
       # explains why this cannot share `bare-metal-worker`'s templates
@@ -206,7 +206,7 @@ spec:
               # The cost here is different from the runner pool's, and
               # worth stating: rolling a stateful node destroys its local
               # PV, because the reinstall wipes `/data`. The replica comes
-              # back empty and refills from its peer — roughly four hours
+              # back empty and refills from its peer, roughly four hours
               # for a production-sized copy over a 1 Gbit/s uplink. So a
               # template change to this class is a real operation, not a
               # routine roll, and it must never run against both replicas
@@ -418,7 +418,7 @@ spec:
     # Set it on the Cluster next to `bareMetalCluster`, and set it BEFORE
     # the host is claimed: the layout is fixed at install, so changing it
     # afterwards means a reinstall and a replica rebuild from the peer.
-    # Do not set 0 — caph rewrites RAID 0 to 1 in the installimage wrapper.
+    # Do not set 0: caph rewrites RAID 0 to 1 in the installimage wrapper.
     - name: statefulRaidLevel
       required: false
       schema:
