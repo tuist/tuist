@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
@@ -367,6 +368,17 @@ func linuxProvisioningStartedAt(pod *corev1.Pod) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+// nodeMissing reports whether the Pod's node is gone from the API. A Pod that
+// never scheduled has no node to have owned anything on it. Only a definitive
+// NotFound counts: a transient API error proves nothing, and treating it as
+// "gone" would strip a finalizer whose owner is alive and mid-cleanup.
+func (r *RunnerPoolReconciler) nodeMissing(ctx context.Context, nodeName string) bool {
+	if nodeName == "" {
+		return true
+	}
+	return apierrors.IsNotFound(r.Get(ctx, client.ObjectKey{Name: nodeName}, &corev1.Node{}))
 }
 
 func (r *RunnerPoolReconciler) nodeConditionSummary(ctx context.Context, nodeName string) string {
