@@ -30,373 +30,6 @@
     "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle traffic on the same route families in Prometheus, with REAPI as a Kura-only lane. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
-      "panel-1": {
-        "kind": "Panel",
-        "spec": {
-          "id": 1,
-          "title": "Kura share of module cache runs",
-          "description": "Module (binary) cache lane only. Share of CLI runs (`generate`, `test`, `cache`, `run`, `warm`) whose resolved module cache endpoint was a Kura instance (`*.kura.tuist.dev`) rather than the legacy hosted cache (`cache-*.tuist.dev`) or a self-hosted endpoint. From ClickHouse `command_events.cache_endpoint`, weighted by invocation. The Xcode compilation cache, Gradle and REAPI lanes are not in command events; see the per-lane row.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-clickhouse-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "dexgs9hv7rjswd"
-                      },
-                      "spec": {
-                        "editorType": "sql",
-                        "format": 1,
-                        "queryType": "table",
-                        "range": true,
-                        "rawSql": "SELECT round(100 * countIf(cache_endpoint LIKE '%.kura.tuist.dev') / count(), 1) AS \"Kura share\"\nFROM command_events\nWHERE $__timeFilter(ran_at) AND cache_endpoint != ''"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "stat",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "value",
-                "wideLayout": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "percent",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "red"
-                      },
-                      {
-                        "value": 25,
-                        "color": "orange"
-                      },
-                      {
-                        "value": 75,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  },
-                  "decimals": 1
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-2": {
-        "kind": "Panel",
-        "spec": {
-          "id": 2,
-          "title": "Projects by module cache backend",
-          "description": "Module cache lane only. Distinct projects with at least one cache run against each backend in the range. \"Both\" is the overlap: projects that reached Kura and the legacy hosted cache in the same range (mid-migration, or a mix of CLI versions).",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-clickhouse-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "dexgs9hv7rjswd"
-                      },
-                      "spec": {
-                        "editorType": "sql",
-                        "format": 1,
-                        "queryType": "table",
-                        "range": true,
-                        "rawSql": "SELECT uniqExactIf(project_id, cache_endpoint LIKE '%.kura.tuist.dev') AS \"Kura\",\n  uniqExactIf(project_id, cache_endpoint LIKE 'https://cache-%.tuist.dev') AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, cache_endpoint LIKE '%.kura.tuist.dev') + uniqExactIf(project_id, cache_endpoint LIKE 'https://cache-%.tuist.dev') - uniqExactIf(project_id, (cache_endpoint LIKE '%.kura.tuist.dev') OR (cache_endpoint LIKE 'https://cache-%.tuist.dev')) AS \"Both\",\n  uniqExactIf(project_id, cache_endpoint != '' AND NOT (cache_endpoint LIKE '%.kura.tuist.dev') AND NOT (cache_endpoint LIKE 'https://cache-%.tuist.dev')) AS \"Self-hosted / custom\"\nFROM command_events\nWHERE $__timeFilter(ran_at) AND cache_endpoint != ''"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "stat",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "value_and_name",
-                "wideLayout": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "fixed",
-                    "fixedColor": "green"
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Kura"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "green"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Legacy hosted cache"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "orange"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Both"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "yellow"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Self-hosted / custom"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "blue"
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "panel-3": {
-        "kind": "Panel",
-        "spec": {
-          "id": 3,
-          "title": "Accounts asking for Kura",
-          "description": "Accounts whose CLI asked the server for a Kura endpoint (`demand_count`) versus accounts with any cache run (`run_count`), from Postgres `kura_origin_rollups` over the range. A Kura-default CLI (4.207.0-canary.15+) always asks, so this is the account-level adoption of the new default. Rollups start on 2026-08-31.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "afscyehfnzg8wf"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT count(DISTINCT account_id) FILTER (WHERE demand_count > 0) AS \"Asking for Kura\",\n  count(DISTINCT account_id) AS \"With cache runs\",\n  round(100.0 * count(DISTINCT account_id) FILTER (WHERE demand_count > 0) / NULLIF(count(DISTINCT account_id), 0), 1) AS \"Share %\"\nFROM public.kura_origin_rollups\nWHERE date BETWEEN $__timeFrom()::date AND $__timeTo()::date"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "stat",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "value_and_name",
-                "wideLayout": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "fixed",
-                    "fixedColor": "green"
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Asking for Kura"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "green"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "With cache runs"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "blue"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Share %"
-                    },
-                    "properties": [
-                      {
-                        "id": "unit",
-                        "value": "percent"
-                      },
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "purple"
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
       "panel-4": {
         "kind": "Panel",
         "spec": {
@@ -580,12 +213,12 @@
           }
         }
       },
-      "panel-6": {
+      "panel-8": {
         "kind": "Panel",
         "spec": {
-          "id": 6,
-          "title": "Cache runs from Kura-default CLI",
-          "description": "Share of cache runs coming from a CLI version that enables Kura by default (4.207.0-canary.15 and later). Runs from older CLIs only reach Kura through an explicit opt-in.",
+          "id": 8,
+          "title": "Projects by cache backend",
+          "description": "Distinct projects with cache traffic in the selected range, per backend. \"Both\" reached Kura and the legacy hosted cache in the same range; \"Kura only\" have fully moved. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Kura rows from account-scoped tokens carry no project id and are not counted, so the Kura side is a floor.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -608,7 +241,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "WITH splitByChar('-', tuist_version) AS ver_parts,\n  splitByChar('.', ver_parts[1]) AS core,\n  toUInt32OrZero(core[1]) AS v_major,\n  toUInt32OrZero(core[2]) AS v_minor,\n  ver_parts[2] AS pre,\n  toUInt32OrZero(splitByChar('.', pre)[2]) AS pre_n,\n  (v_major > 4) OR (v_major = 4 AND v_minor > 207)\n    OR (v_major = 4 AND v_minor = 207 AND (pre = '' OR NOT startsWith(pre, 'canary') OR pre_n >= 15)) AS kura_default\nSELECT round(100 * countIf(kura_default) / count(), 1) AS \"Kura-default CLI share\"\nFROM command_events\nWHERE $__timeFilter(ran_at) AND cache_endpoint != ''"
+                        "rawSql": "SELECT uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\",\n  uniqExactIf(project_id, has_kura AND NOT has_legacy) AS \"Kura only\",\n  round(100 * uniqExactIf(project_id, has_kura) / uniqExact(project_id), 1) AS \"Kura share\"\nFROM (\n  SELECT project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toDateTime(0) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY project_id\n)"
                       }
                     }
                   }
@@ -637,97 +270,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "value",
-                "wideLayout": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "percent",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "red"
-                      },
-                      {
-                        "value": 25,
-                        "color": "orange"
-                      },
-                      {
-                        "value": 75,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  },
-                  "decimals": 1
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-7": {
-        "kind": "Panel",
-        "spec": {
-          "id": 7,
-          "title": "Explicit Kura opt-ins",
-          "description": "Accounts with an active `account_cache_endpoints` row of technology `kura`, i.e. the pre-default opt-in path. These accounts were on Kura before the CLI default flipped.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "afscyehfnzg8wf"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT count(DISTINCT account_id) AS \"Opted-in accounts\"\nFROM public.account_cache_endpoints WHERE technology = 1 AND deactivated_at IS NULL"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "stat",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "value",
+                "textMode": "value_and_name",
                 "wideLayout": true
               },
               "fieldConfig": {
@@ -744,10 +287,252 @@
                   },
                   "color": {
                     "mode": "fixed",
-                    "fixedColor": "purple"
+                    "fixedColor": "green"
                   }
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy hosted cache"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "orange"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Both"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura only"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "dark-green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura share"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "percent"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "purple"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-9": {
+        "kind": "Panel",
+        "spec": {
+          "id": 9,
+          "title": "Projects by cache backend over time",
+          "description": "Distinct projects with cache traffic per bucket against Kura, against the legacy hosted cache, and against both in the same bucket. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Kura rows from account-scoped tokens carry no project id and are not counted, so the Kura side is a floor.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-clickhouse-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dexgs9hv7rjswd"
+                      },
+                      "spec": {
+                        "editorType": "sql",
+                        "format": 1,
+                        "queryType": "table",
+                        "range": true,
+                        "rawSql": "SELECT time,\n  uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\"\nFROM (\n  SELECT time, project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n    UNION ALL\n    SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY time, project_id\n)\nGROUP BY time ORDER BY time"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.0-22478626928",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Kura"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Legacy hosted cache"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "orange"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Both"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -1190,339 +975,6 @@
                           "mode": "fixed",
                           "fixedColor": "yellow"
                         }
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "panel-13": {
-        "kind": "Panel",
-        "spec": {
-          "id": 13,
-          "title": "Accounts: cache runs vs asking for Kura vs Kura transfers",
-          "description": "Per day: accounts with any cache run and accounts whose CLI asked for a Kura endpoint (Postgres `kura_origin_rollups`, from 2026-08-31), plus accounts with real Kura transfers (ClickHouse `kura_usage_events`). The gap between \"asking\" and \"transfers\" is accounts whose instance is still provisioning or that fell back to the legacy cache.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "afscyehfnzg8wf"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT date::timestamptz AS time,\n  count(DISTINCT account_id) AS \"With cache runs\",\n  count(DISTINCT account_id) FILTER (WHERE demand_count > 0) AS \"Asking for Kura\"\nFROM public.kura_origin_rollups\nWHERE date BETWEEN $__timeFrom()::date AND $__timeTo()::date\nGROUP BY 1 ORDER BY 1"
-                      }
-                    }
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "B",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-clickhouse-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "dexgs9hv7rjswd"
-                      },
-                      "spec": {
-                        "editorType": "sql",
-                        "format": 1,
-                        "queryType": "table",
-                        "range": true,
-                        "rawSql": "SELECT toStartOfInterval(window_start, INTERVAL 1 day) AS time,\n  uniqExact(account_id) AS \"With Kura transfers\"\nFROM kura_usage_events\nWHERE $__timeFilter(window_start)\nGROUP BY time ORDER BY time"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.8,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 4,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "With cache runs"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "blue"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Asking for Kura"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "purple"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "With Kura transfers"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "green"
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "panel-14": {
-        "kind": "Panel",
-        "spec": {
-          "id": 14,
-          "title": "Accounts with a live Kura instance (cumulative)",
-          "description": "Accounts that currently own a non-destroyed Kura instance, accumulated by the day their first instance was provisioned. From Postgres `kura_servers`.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "A",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "afscyehfnzg8wf"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "WITH live_accounts AS (\n  SELECT account_id, min(inserted_at) AS first_at FROM public.kura_servers WHERE status NOT IN (2, 3, 4) GROUP BY account_id\n), daily AS (\n  SELECT date_trunc('day', first_at) AS time, count(*) AS new_accounts FROM live_accounts GROUP BY 1\n)\nSELECT time, new_accounts AS \"New accounts\", sum(new_accounts) OVER (ORDER BY time)::bigint AS \"Accounts with an instance\"\nFROM daily WHERE time <= $__timeTo() ORDER BY time"
-                      }
-                    }
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.8,
-                    "drawStyle": "line",
-                    "fillOpacity": 20,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 4,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Accounts with an instance"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "green"
-                        }
-                      },
-                      {
-                        "id": "custom.lineInterpolation",
-                        "value": "stepAfter"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "New accounts"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "mode": "fixed",
-                          "fixedColor": "blue"
-                        }
-                      },
-                      {
-                        "id": "custom.drawStyle",
-                        "value": "bars"
-                      },
-                      {
-                        "id": "custom.fillOpacity",
-                        "value": 80
                       }
                     ]
                   }
@@ -5145,34 +4597,21 @@
                       "spec": {
                         "x": 0,
                         "y": 0,
-                        "width": 6,
-                        "height": 4,
+                        "width": 15,
+                        "height": 5,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-1"
+                          "name": "panel-8"
                         }
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 6,
-                        "y": 0,
-                        "width": 12,
-                        "height": 4,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-2"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 18,
+                        "x": 15,
                         "y": 0,
                         "width": 6,
-                        "height": 4,
+                        "height": 5,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-4"
@@ -5182,36 +4621,10 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 4,
-                        "width": 6,
-                        "height": 4,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-6"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 6,
-                        "y": 4,
-                        "width": 12,
-                        "height": 4,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-3"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 18,
-                        "y": 4,
+                        "x": 21,
+                        "y": 0,
                         "width": 3,
-                        "height": 4,
+                        "height": 5,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-5"
@@ -5221,13 +4634,13 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 21,
-                        "y": 4,
-                        "width": 3,
-                        "height": 4,
+                        "x": 0,
+                        "y": 5,
+                        "width": 24,
+                        "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-7"
+                          "name": "panel-9"
                         }
                       }
                     }
@@ -5394,32 +4807,6 @@
                       "spec": {
                         "x": 12,
                         "y": 9,
-                        "width": 12,
-                        "height": 9,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-13"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 0,
-                        "y": 18,
-                        "width": 12,
-                        "height": 9,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-14"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 12,
-                        "y": 18,
                         "width": 12,
                         "height": 9,
                         "element": {
