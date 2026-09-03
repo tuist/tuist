@@ -18,7 +18,7 @@
       </div>
       <div :if={@module.ok? && @module.result.product != ""} data-part="badges">
         <.badge
-          label={@module.result.product}
+          label={dgettext("dashboard_cache", "Product: %{product}", product: @module.result.product)}
           color="primary"
           style="light-fill"
           size="large"
