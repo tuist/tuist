@@ -307,7 +307,7 @@ impl ReapiService {
             return;
         };
 
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
             context: Arc::clone(context),
             operation: observation.operation,
             outcome: observation.outcome,
