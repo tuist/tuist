@@ -270,6 +270,75 @@ reclaimPolicy: Retain
 allowVolumeExpansion: false
 {{- end }}
 ---
+{{- /*
+Creates the application database on the in-cluster server.
+
+This cannot be done by the release task that clones the schema into it. A
+ClickHouse connection names its database when it opens, so a repository
+configured for `tuist` cannot connect at all until `tuist` exists: the
+failure is at connect time, before any statement runs, and no amount of
+`CREATE DATABASE IF NOT EXISTS` from that repository can break the cycle.
+
+So the server's own database is part of standing up the server, the same way
+the embedded mode has always created its database with a small Job. It uses
+the ClickHouse image and its own credentials rather than the release image,
+so it needs nothing from the application.
+
+`Replicated` is the engine because that is what makes DDL reach every replica
+without each migration carrying `ON CLUSTER`, and it is required even at one
+replica since the table engines write their metadata to Keeper regardless.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $chName }}-init
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-init
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    # Ahead of the migration Job at weight 5, which is the thing that needs
+    # the database to exist.
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-init") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          imagePullPolicy: {{ $m.image.pullPolicy }}
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $chSecretName }}
+                  key: password
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              # The server answers /ping before it is ready for DDL on a cold
+              # start, and this Job races the StatefulSet's own rollout.
+              until clickhouse-client --host {{ $chName }} --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1" >/dev/null 2>&1; do
+                echo "waiting for {{ $chName }}"
+                sleep 3
+              done
+              clickhouse-client --host {{ $chName }} --password "$CLICKHOUSE_PASSWORD" --query \
+                "CREATE DATABASE IF NOT EXISTS {{ $m.database }} ENGINE = Replicated('/clickhouse/databases/{{ $m.database }}', '{shard}', '{replica}')"
+              echo "database {{ $m.database }} ready"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
 apiVersion: v1
 kind: Service
 metadata:

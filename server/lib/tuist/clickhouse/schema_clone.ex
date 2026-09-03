@@ -60,8 +60,6 @@ defmodule Tuist.ClickHouse.SchemaClone do
   """
   def run(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      ensure_database(target)
-
       objects = read_objects(source)
 
       Logger.info(
@@ -127,22 +125,6 @@ defmodule Tuist.ClickHouse.SchemaClone do
     |> String.replace(~r/\ACREATE MATERIALIZED VIEW (?!IF NOT EXISTS)/, "CREATE MATERIALIZED VIEW IF NOT EXISTS ")
     |> String.replace(~r/\ACREATE VIEW (?!IF NOT EXISTS)/, "CREATE VIEW IF NOT EXISTS ")
     |> String.replace(~r/\ACREATE DICTIONARY (?!IF NOT EXISTS)/, "CREATE DICTIONARY IF NOT EXISTS ")
-  end
-
-  # A `Replicated` database is what makes DDL reach every replica without each
-  # migration carrying `ON CLUSTER`. It is required even at one replica,
-  # because that is the shape the engines above expect.
-  defp ensure_database(target) do
-    target.repo.query!(
-      """
-      CREATE DATABASE IF NOT EXISTS #{Endpoints.quote_ident(target.database)}
-      ENGINE = Replicated('/clickhouse/databases/#{target.database}', '{shard}', '{replica}')
-      """,
-      [],
-      log: false
-    )
-
-    :ok
   end
 
   defp read_objects(source) do
