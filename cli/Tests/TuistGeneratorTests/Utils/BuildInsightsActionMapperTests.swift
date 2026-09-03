@@ -49,7 +49,7 @@ struct BuildInsightsActionMapperTests {
             postActions: [
                 ExecutionAction(
                     title: "Push build insights",
-                    scriptText: "/mise/tuist inspect build",
+                    scriptText: "/mise/tuist inspect build || echo \"warning: tuist inspect build failed, build insights were not uploaded\"",
                     target: nil,
                     shellPath: nil
                 ),
@@ -79,7 +79,7 @@ struct BuildInsightsActionMapperTests {
             postActions: [
                 ExecutionAction(
                     title: "Push build insights",
-                    scriptText: "/mise/tuist inspect build",
+                    scriptText: "/mise/tuist inspect build || echo \"warning: tuist inspect build failed, build insights were not uploaded\"",
                     target: TargetReference(projectPath: "/tmp/project", name: "TargetA"),
                     shellPath: nil
                 ),

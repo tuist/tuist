@@ -62,7 +62,7 @@ struct TestInsightsActionMapperTests {
             postActions: [
                 ExecutionAction(
                     title: "Push test insights",
-                    scriptText: "/mise/tuist inspect test",
+                    scriptText: "/mise/tuist inspect test || echo \"warning: tuist inspect test failed, test insights were not uploaded\"",
                     target: target,
                     shellPath: nil
                 ),
