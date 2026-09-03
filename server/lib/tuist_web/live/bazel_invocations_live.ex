@@ -25,7 +25,7 @@ defmodule TuistWeb.BazelInvocationsLive do
     page = parse_page(params["page"])
     status = params["status"]
 
-    filters = maybe_append_status([%{field: :project_id, op: :==, value: project.id}], status)
+    filters = maybe_append_status([], status)
 
     {invocations, meta} =
       Bazel.list_invocations(project.id, %{
@@ -41,8 +41,7 @@ defmodule TuistWeb.BazelInvocationsLive do
      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
      |> assign(:invocations, invocations)
      |> assign(:current_page, meta.current_page)
-     |> assign(:total_pages, meta.total_pages)
-     |> assign(:status, status)}
+     |> assign(:total_pages, meta.total_pages)}
   end
 
   def render(assigns) do
@@ -92,10 +91,7 @@ defmodule TuistWeb.BazelInvocationsLive do
               }
               value={
                 if @invocation_summary.ok?,
-                  do:
-                    DateFormatter.format_duration_from_milliseconds(
-                      @invocation_summary.result.median_duration_ms
-                    )
+                  do: format_duration(@invocation_summary.result.median_duration_ms)
               }
               empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
             />
@@ -111,10 +107,7 @@ defmodule TuistWeb.BazelInvocationsLive do
               }
               value={
                 if @invocation_summary.ok?,
-                  do:
-                    DateFormatter.format_duration_from_milliseconds(
-                      @invocation_summary.result.p90_duration_ms
-                    )
+                  do: format_duration(@invocation_summary.result.p90_duration_ms)
               }
               empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
             />
@@ -185,6 +178,9 @@ defmodule TuistWeb.BazelInvocationsLive do
 
   defp success_rate(%{total: 0}), do: nil
   defp success_rate(summary), do: "#{Float.round(summary.successful / summary.total * 100, 1)}%"
+
+  defp format_duration(nil), do: nil
+  defp format_duration(duration_ms), do: DateFormatter.format_duration_from_milliseconds(duration_ms)
 
   defp cache_hit_rate(%{hit_rate: nil}), do: dgettext("dashboard_projects", "No cache lookups")
   defp cache_hit_rate(%{hit_rate: hit_rate}), do: "#{hit_rate}%"

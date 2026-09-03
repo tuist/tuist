@@ -52,6 +52,14 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-invocations-table", "2.0 KB")
   end
 
+  test "renders an empty invocation state", %{conn: conn, organization: organization, project: project} do
+    {:ok, live_view, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/invocations")
+    render_async(live_view, @render_async_timeout)
+
+    assert has_element?(live_view, "#bazel-total-invocations", "0")
+    assert has_element?(live_view, "[data-part=empty-bazel-invocations]")
+  end
+
   defp create_invocation(project) do
     Bazel.create_invocations([
       %{

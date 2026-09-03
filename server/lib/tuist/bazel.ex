@@ -9,7 +9,7 @@ defmodule Tuist.Bazel do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
 
-  def create_invocations([]), do: {:ok, 0}
+  def create_invocations([]), do: {0, nil}
 
   def create_invocations(invocations) when is_list(invocations) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
@@ -38,7 +38,7 @@ defmodule Tuist.Bazel do
 
   def list_invocations(project_id, flop_params \\ %{}) do
     {invocations, meta} =
-      Invocation
+      from(invocation in Invocation, hints: ["FINAL"])
       |> where([invocation], invocation.project_id == ^project_id)
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
@@ -49,6 +49,7 @@ defmodule Tuist.Bazel do
     invocation =
       ClickHouseRepo.one(
         from(invocation in Invocation,
+          hints: ["FINAL"],
           where: invocation.project_id == ^project_id and invocation.invocation_id == ^invocation_id,
           order_by: [desc: invocation.inserted_at],
           limit: 1
@@ -65,12 +66,13 @@ defmodule Tuist.Bazel do
     result =
       ClickHouseRepo.one(
         from(invocation in Invocation,
+          hints: ["FINAL"],
           where: invocation.project_id == ^project_id,
           select: %{
             total: count(invocation.id),
             successful: coalesce(sum(fragment("if(? = 'success', 1, 0)", invocation.status)), 0),
-            median_duration_ms: fragment("quantile(0.5)(?)", invocation.duration_ms),
-            p90_duration_ms: fragment("quantile(0.9)(?)", invocation.duration_ms)
+            median_duration_ms: fragment("quantileOrNull(0.5)(?)", invocation.duration_ms),
+            p90_duration_ms: fragment("quantileOrNull(0.9)(?)", invocation.duration_ms)
           }
         )
       )

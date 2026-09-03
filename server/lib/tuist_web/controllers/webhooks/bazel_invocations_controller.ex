@@ -74,11 +74,17 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
       }
     else
       nil ->
-        Logger.warning("Project not found for Bazel invocation")
+        Logger.warning(
+          "Project not found for Bazel invocation: #{Map.get(event, "account_handle", "unknown")}/#{Map.get(event, "project_handle", "unknown")}"
+        )
+
         nil
 
       _ ->
-        Logger.warning("Invalid Bazel invocation")
+        Logger.warning(
+          "Invalid Bazel invocation for #{Map.get(event, "account_handle", "unknown")}/#{Map.get(event, "project_handle", "unknown")}"
+        )
+
         nil
     end
   end
