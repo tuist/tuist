@@ -13,7 +13,7 @@ use std::{
 };
 
 use futures_util::stream::{self, FuturesUnordered, StreamExt};
-use reqwest::header::{CONTENT_TYPE, HeaderValue};
+use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
     io::AsyncWriteExt,
@@ -1193,6 +1193,11 @@ async fn replicate_message(
                     CONTENT_TYPE,
                     HeaderValue::from_static("application/octet-stream"),
                 );
+                // A streamed body has no length of its own, so without this
+                // the request goes out chunked and the receiver, sizing its
+                // staging reservation from Content-Length, has to assume the
+                // route ceiling for a body that is usually a few kilobytes.
+                headers.insert(CONTENT_LENGTH, HeaderValue::from(size));
 
                 let send = state
                     .upload_client()
@@ -2319,6 +2324,89 @@ mod tests {
             .await
             .expect("artifact bytes should read");
         assert_eq!(bytes, b"payload");
+    }
+
+    // Regression test: the sender streamed the artifact without a
+    // Content-Length, so the request went out chunked and the receiver
+    // reserved its 2 GiB route ceiling for every body, whatever its size.
+    #[tokio::test]
+    async fn segment_artifact_replication_declares_the_body_length() {
+        let seen = Arc::new(std::sync::Mutex::new(None));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let seen = seen.clone();
+                move |headers: axum::http::HeaderMap, body: axum::body::Bytes| {
+                    let seen = seen.clone();
+                    async move {
+                        let content_length = headers
+                            .get(axum::http::header::CONTENT_LENGTH)
+                            .map(|value| value.to_str().expect("ascii length").to_owned());
+                        let transfer_encoding = headers
+                            .get(axum::http::header::TRANSFER_ENCODING)
+                            .map(|value| value.to_str().expect("ascii encoding").to_owned());
+                        *seen.lock().expect("headers lock") =
+                            Some((content_length, transfer_encoding, body.len()));
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context(|_| {}).await;
+        let payload = vec![0xAB_u8; 2691];
+        let manifest = ctx
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "tuist/kura",
+                "blob/deadbeef/2691",
+                "application/octet-stream",
+                &payload,
+            )
+            .await
+            .expect("artifact should persist");
+        assert!(
+            !manifest.inline,
+            "fixture must take the segment-backed path"
+        );
+
+        let message = OutboxMessage {
+            target: peer_url,
+            operation: ReplicationOperation::UpsertArtifact {
+                producer: manifest.producer,
+                namespace_id: manifest.namespace_id.clone(),
+                key: manifest.key.clone(),
+                content_type: manifest.content_type.clone(),
+                artifact_id: manifest.artifact_id.clone(),
+                version_ms: manifest.version_ms,
+                inline: false,
+                branch: None,
+                trunk: None,
+            },
+        };
+        let outcome = replicate_message(&ctx.state, &message)
+            .await
+            .expect("replication should succeed");
+        assert!(matches!(outcome, ReplicationOutcome::Delivered));
+
+        let (content_length, transfer_encoding, received) = seen
+            .lock()
+            .expect("headers lock")
+            .take()
+            .expect("the peer must have received the upload");
+        assert_eq!(
+            content_length.as_deref(),
+            Some("2691"),
+            "the upload must declare the artifact size so the receiver reserves only that"
+        );
+        assert_eq!(
+            transfer_encoding, None,
+            "a body with a declared length must not be sent chunked"
+        );
+        assert_eq!(received, payload.len());
     }
 
     #[tokio::test]
