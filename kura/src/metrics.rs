@@ -266,6 +266,9 @@ struct HotReadMetrics {
     streaming_serves: Counter,
     segment_handle_hits: Counter,
     manifest_hits: Counter,
+    http_immediate_admissions: Counter,
+    http_elastic_admissions: Counter,
+    http_wait_duration: Histogram,
     bytestream_immediate_admissions: Counter,
     bytestream_elastic_admissions: Counter,
     bytestream_wait_duration: Histogram,
@@ -766,6 +769,9 @@ impl Metrics {
         let bytestream_labels = ResponseStreamProtocolLabels {
             protocol: "bytestream".to_owned(),
         };
+        let http_labels = ResponseStreamProtocolLabels {
+            protocol: "http".to_owned(),
+        };
         let hot_read = Arc::new(HotReadMetrics {
             reapi_ok_reads: artifact_reads.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_read_bytes: artifact_read_bytes.get_or_create_owned(&reapi_ok_labels),
@@ -782,6 +788,19 @@ impl Metrics {
             manifest_hits: manifest_cache_lookups.get_or_create_owned(&ManifestCacheLookupLabels {
                 result: "hit".to_owned(),
             }),
+            http_immediate_admissions: response_stream_admissions.get_or_create_owned(
+                &ResponseStreamAdmissionLabels {
+                    protocol: "http".to_owned(),
+                    outcome: "immediate".to_owned(),
+                },
+            ),
+            http_elastic_admissions: response_stream_admissions.get_or_create_owned(
+                &ResponseStreamAdmissionLabels {
+                    protocol: "http".to_owned(),
+                    outcome: "elastic".to_owned(),
+                },
+            ),
+            http_wait_duration: response_stream_wait_duration.get_or_create_owned(&http_labels),
             bytestream_immediate_admissions: response_stream_admissions.get_or_create_owned(
                 &ResponseStreamAdmissionLabels {
                     protocol: "bytestream".to_owned(),
@@ -2797,19 +2816,29 @@ impl Metrics {
         outcome: &str,
         duration: Duration,
     ) {
-        if protocol == "bytestream" {
-            let admissions = match outcome {
-                "immediate" => Some(&self.hot_read.bytestream_immediate_admissions),
-                "elastic" => Some(&self.hot_read.bytestream_elastic_admissions),
-                _ => None,
-            };
-            if let Some(admissions) = admissions {
-                admissions.inc();
-                self.hot_read
-                    .bytestream_wait_duration
-                    .observe(duration.as_secs_f64());
-                return;
-            }
+        let hot_metrics = match (protocol, outcome) {
+            ("http", "immediate") => Some((
+                &self.hot_read.http_immediate_admissions,
+                &self.hot_read.http_wait_duration,
+            )),
+            ("http", "elastic") => Some((
+                &self.hot_read.http_elastic_admissions,
+                &self.hot_read.http_wait_duration,
+            )),
+            ("bytestream", "immediate") => Some((
+                &self.hot_read.bytestream_immediate_admissions,
+                &self.hot_read.bytestream_wait_duration,
+            )),
+            ("bytestream", "elastic") => Some((
+                &self.hot_read.bytestream_elastic_admissions,
+                &self.hot_read.bytestream_wait_duration,
+            )),
+            _ => None,
+        };
+        if let Some((admissions, wait_duration)) = hot_metrics {
+            admissions.inc();
+            wait_duration.observe(duration.as_secs_f64());
+            return;
         }
         self.response_stream_admissions
             .get_or_create(&ResponseStreamAdmissionLabels {
@@ -3516,6 +3545,93 @@ mod tests {
                 && line.contains("producer=\"reapi\"")
                 && line.ends_with(" 1")
         }));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn http_response_admission_metric_handles_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 100_000;
+        const SAMPLES: usize = 7;
+
+        let measure = |direct_handles: bool| {
+            let metrics = Arc::new(Metrics::new("benchmark".into(), "benchmark".into()));
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            if direct_handles {
+                                metrics.record_response_stream_admission(
+                                    "http",
+                                    "immediate",
+                                    Duration::ZERO,
+                                );
+                            } else {
+                                metrics
+                                    .response_stream_admissions
+                                    .get_or_create(&ResponseStreamAdmissionLabels {
+                                        protocol: "http".to_owned(),
+                                        outcome: "immediate".to_owned(),
+                                    })
+                                    .inc();
+                                metrics
+                                    .response_stream_wait_duration
+                                    .get_or_create(&ResponseStreamProtocolLabels {
+                                        protocol: "http".to_owned(),
+                                    })
+                                    .observe(0.0);
+                            }
+                        }
+                    });
+                }
+                barrier.wait();
+                std::time::Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = measure(!baseline_first);
+            let second = measure(baseline_first);
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+
+        println!(
+            "METRIC http_response_admission_metric_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC family_lookup_admissions_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC resolved_handle_admissions_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
+        );
     }
 
     #[test]
