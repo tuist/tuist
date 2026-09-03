@@ -68,7 +68,7 @@ components:
           x-validate:
         build_system:
           default: xcode
-          description: The build system used by the project.
+          description: The build system used by the test run.
           enum:
             - xcode
             - gradle
@@ -2724,6 +2724,7 @@ components:
           enum:
             - xcode
             - gradle
+            - bazel
           type: string
           x-struct:
           x-validate:
@@ -9108,7 +9109,7 @@ paths:
                   x-validate:
                 build_system:
                   default: xcode
-                  description: The build system used by the project.
+                  description: The build system used by the test run.
                   enum:
                     - xcode
                     - gradle
@@ -10539,6 +10540,22 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -10553,22 +10570,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -24088,6 +24089,27 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
                   duration_ms:
                     type: integer
                     x-struct:
@@ -25033,6 +25055,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by a custom build tag.
+          in: query
+          name: tag
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -25097,6 +25127,27 @@ paths:
                         configuration_cache_status:
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          type: object
                           x-struct:
                           x-validate:
                         duration_ms:
@@ -25363,6 +25414,35 @@ paths:
                     x-validate:
                   nullable: true
                   type: array
+                  x-struct:
+                  x-validate:
+                custom_metadata:
+                  description: Custom metadata for the build.
+                  properties:
+                    tags:
+                      description: Simple labels for filtering and grouping.
+                      items:
+                        maxLength: 50
+                        pattern: ^[a-zA-Z0-9_-]+$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxItems: 50
+                      type: array
+                      x-struct:
+                      x-validate:
+                    values:
+                      additionalProperties:
+                        maxLength: 500
+                        type: string
+                        x-struct:
+                        x-validate:
+                      description: Key-value pairs for structured build data.
+                      maxProperties: 20
+                      type: object
+                      x-struct:
+                      x-validate:
+                  type: object
                   x-struct:
                   x-validate:
                 duration_ms:
@@ -25689,6 +25769,7 @@ paths:
                   enum:
                     - xcode
                     - gradle
+                    - bazel
                   type: string
                   x-struct:
                   x-validate:
