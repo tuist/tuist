@@ -3,7 +3,7 @@ set -euo pipefail
 
 mise exec -- bazel test //:kura_lib_test \
   --cache_test_results=no \
-  --test_arg=lean_keyvalue_authorization_context_benchmark \
+  --test_arg=authorization_query_scan_benchmark \
   --test_arg=--ignored \
   --test_arg=--nocapture \
   --test_output=streamed

@@ -1326,7 +1326,7 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
     }
 
     let method = req.method().to_string();
-    let query = parse_query_map(req.uri().query());
+    let query = AuthorizationQuery::parse(req.uri().query());
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
@@ -1337,7 +1337,7 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
         HttpRequestFacts {
             route: &route,
             method: &method,
-            query: &query,
+            query,
             authorization,
         },
     )
@@ -1406,8 +1406,51 @@ async fn request_context_from_http(
 struct HttpRequestFacts<'a> {
     route: &'a str,
     method: &'a str,
-    query: &'a HashMap<String, String>,
+    query: AuthorizationQuery<'a>,
     authorization: Option<String>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct AuthorizationQuery<'a> {
+    tenant_id: Option<&'a str>,
+    account_handle: Option<&'a str>,
+    namespace_id: Option<&'a str>,
+    project_handle: Option<&'a str>,
+    upload_id: Option<&'a str>,
+}
+
+impl<'a> AuthorizationQuery<'a> {
+    fn parse(query: Option<&'a str>) -> Self {
+        let mut parsed = Self::default();
+        for pair in query
+            .unwrap_or_default()
+            .split('&')
+            .filter(|pair| !pair.is_empty())
+        {
+            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+            match key {
+                "tenant_id" => parsed.tenant_id = Some(value),
+                "account_handle" => parsed.account_handle = Some(value),
+                "namespace_id" => parsed.namespace_id = Some(value),
+                "project_handle" => parsed.project_handle = Some(value),
+                "upload_id" => parsed.upload_id = Some(value),
+                _ => {}
+            }
+        }
+        parsed
+    }
+
+    fn tenant_id(self) -> Option<&'a str> {
+        self.tenant_id
+            .or(self.account_handle)
+            .filter(|value| !value.is_empty())
+    }
+
+    fn namespace_id(self) -> Option<&'a str> {
+        self.namespace_id
+            .or(self.project_handle)
+            .filter(|value| !value.is_empty())
+    }
 }
 
 struct HttpRequestMetadata {
@@ -1420,10 +1463,10 @@ async fn http_request_metadata(
     state: &SharedState,
     route: &str,
     method: &str,
-    query: &HashMap<String, String>,
+    query: AuthorizationQuery<'_>,
 ) -> HttpRequestMetadata {
-    let tenant_id = param_value(query, "tenant_id").cloned();
-    let mut namespace_id = param_value(query, "namespace_id").cloned();
+    let tenant_id = query.tenant_id().map(ToOwned::to_owned);
+    let mut namespace_id = query.namespace_id().map(ToOwned::to_owned);
 
     match route {
         ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
@@ -1471,7 +1514,7 @@ async fn http_request_metadata(
         | ROUTE_API_CACHE_MODULE_PART
         | ROUTE_API_CACHE_MODULE_COMPLETE => {
             let multipart_upload = query
-                .get("upload_id")
+                .upload_id
                 .and_then(|upload_id| state.store.multipart_upload(upload_id).ok().flatten());
             let tenant_id = multipart_upload
                 .as_ref()
@@ -1529,7 +1572,8 @@ async fn http_request_metadata(
     }
 }
 
-fn parse_query_map(query: Option<&str>) -> HashMap<String, String> {
+#[cfg(test)]
+fn allocating_authorization_query(query: Option<&str>) -> HashMap<String, String> {
     query
         .unwrap_or_default()
         .split('&')
@@ -7784,14 +7828,15 @@ mod tests {
             .store
             .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
-        let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
+        let query_text = format!("upload_id={upload_id}&part_number=1");
+        let query = AuthorizationQuery::parse(Some(&query_text));
 
         let request_context = request_context_from_http(
             &context.state,
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_MODULE_PART,
                 method: "POST",
-                query: &query,
+                query,
                 authorization: None,
             },
         )
@@ -7804,7 +7849,8 @@ mod tests {
     #[tokio::test]
     async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
-        let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
+        let query =
+            AuthorizationQuery::parse(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
         let authorization = "Bearer credential".to_owned();
         let authorization_allocation = authorization.as_ptr();
         let request_context = request_context_from_http(
@@ -7812,7 +7858,7 @@ mod tests {
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
-                query: &query,
+                query,
                 authorization: Some(authorization),
             },
         )
@@ -7838,13 +7884,13 @@ mod tests {
     #[tokio::test]
     async fn request_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
-        let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
+        let query = AuthorizationQuery::parse(Some("tenant_id=acme&hash=hash-1"));
         let request_context = request_context_from_http(
             &context.state,
             HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
-                query: &query,
+                query,
                 authorization: None,
             },
         )
@@ -7852,6 +7898,104 @@ mod tests {
 
         assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(request_context.namespace_id, None);
+    }
+
+    #[test]
+    fn authorization_query_preserves_alias_precedence_empty_values_and_duplicates() {
+        let query = AuthorizationQuery::parse(Some(
+            "account_handle=alias&tenant_id=first&tenant_id=last&project_handle=project",
+        ));
+        assert_eq!(query.tenant_id(), Some("last"));
+        assert_eq!(query.namespace_id(), Some("project"));
+
+        let empty_canonical = AuthorizationQuery::parse(Some(
+            "account_handle=alias&tenant_id=&project_handle=project&namespace_id=",
+        ));
+        assert_eq!(empty_canonical.tenant_id(), None);
+        assert_eq!(empty_canonical.namespace_id(), None);
+
+        let aliases = AuthorizationQuery::parse(Some(
+            "account_handle=first&account_handle=last&project_handle=ios&upload_id=upload-1",
+        ));
+        assert_eq!(aliases.tenant_id(), Some("last"));
+        assert_eq!(aliases.namespace_id(), Some("ios"));
+        assert_eq!(aliases.upload_id, Some("upload-1"));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn authorization_query_scan_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 250_000;
+        const SAMPLES: usize = 6;
+        const QUERY: &str = "cache_category=builds&hash=0123456789abcdef&name=Module.framework&part_number=7&account_handle=acme&project_handle=ios&upload_id=upload-1&branch=main&platform=ios&configuration=debug";
+
+        let measure = |selective: bool| {
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            let query = std::hint::black_box(QUERY);
+                            if selective {
+                                let parsed = AuthorizationQuery::parse(Some(query));
+                                std::hint::black_box((
+                                    parsed.tenant_id().map(ToOwned::to_owned),
+                                    parsed.namespace_id().map(ToOwned::to_owned),
+                                    parsed.upload_id,
+                                ));
+                            } else {
+                                let parsed = allocating_authorization_query(Some(query));
+                                std::hint::black_box((
+                                    param_value(&parsed, "tenant_id").cloned(),
+                                    param_value(&parsed, "namespace_id").cloned(),
+                                    parsed.get("upload_id"),
+                                ));
+                            }
+                        }
+                    });
+                }
+                barrier.wait();
+                Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC authorization_query_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC authorization_query_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC authorization_query_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
@@ -7863,7 +8007,7 @@ mod tests {
 
         let context = test_context(|_| {}).await;
         let state = context.state;
-        let query = Arc::new(parse_query_map(Some(
+        let query = Arc::new(allocating_authorization_query(Some(
             "tenant_id=test-tenant&namespace_id=ios",
         )));
         let body = Arc::new(
@@ -7893,7 +8037,9 @@ mod tests {
                                 let request = HttpRequestFacts {
                                     route: ROUTE_API_CACHE_KEYVALUE,
                                     method: "PUT",
-                                    query: &query,
+                                    query: AuthorizationQuery::parse(Some(
+                                        "tenant_id=test-tenant&namespace_id=ios",
+                                    )),
                                     authorization: Some("Bearer credential".to_owned()),
                                 };
                                 std::hint::black_box(
