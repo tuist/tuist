@@ -445,8 +445,11 @@ server:
   faro:
     collectorUrl: ""
     # In-cluster address of the Faro receiver. Setting it renders an
-    # ExternalName Service and routes collectorUrl's path at it from the server
-    # Ingress, which is what keeps the collector same-origin with the site.
+    # ExternalName Service plus a dedicated Ingress that routes collectorUrl's
+    # path at it, which is what keeps the collector same-origin with the site.
+    # That Ingress rewrites to /collect, the only path Alloy's faro.receiver
+    # serves, so collectorUrl can be any path that does not collide with a
+    # route the server itself answers.
     receiverHost: ""
     receiverPort: 12347
   # Refuse a new Kura instance before it can use the region's reserved storage
