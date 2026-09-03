@@ -16,7 +16,10 @@ use tokio::{
 };
 use tracing::error;
 
-use crate::{config::AnalyticsConfig, metrics::Metrics};
+use crate::{
+    config::AnalyticsConfig,
+    metrics::{AnalyticsQueueMetrics, Metrics},
+};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -29,7 +32,7 @@ pub struct Analytics {
     sender: mpsc::Sender<AnalyticsEvent>,
     pending: Arc<AtomicUsize>,
     queue_capacity: usize,
-    metrics: Metrics,
+    queue_metrics: Arc<AnalyticsQueueMetrics>,
 }
 
 #[derive(Clone, Debug)]
@@ -45,6 +48,7 @@ struct AnalyticsRuntime {
     config: AnalyticsConfig,
     cache_endpoint: String,
     metrics: Metrics,
+    queue_metrics: Arc<AnalyticsQueueMetrics>,
     pending: Arc<AtomicUsize>,
 }
 
@@ -147,15 +151,17 @@ impl Analytics {
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
         let pending = Arc::new(AtomicUsize::new(0));
+        let queue_metrics = metrics.analytics_queue_metrics();
         let runtime = AnalyticsRuntime {
             client,
             config: config.clone(),
             cache_endpoint: analytics_endpoint(node_url),
             metrics: metrics.clone(),
+            queue_metrics: queue_metrics.clone(),
             pending: pending.clone(),
         };
 
-        metrics.update_analytics_queue(config.queue_capacity, 0);
+        queue_metrics.update(config.queue_capacity, 0);
         tokio::spawn(async move {
             runtime.run(receiver).await;
         });
@@ -164,7 +170,7 @@ impl Analytics {
             sender,
             pending,
             queue_capacity: config.queue_capacity,
-            metrics,
+            queue_metrics,
         }))
     }
 
@@ -246,14 +252,13 @@ impl Analytics {
 
     fn enqueue(&self, event: impl FnOnce() -> AnalyticsEvent) {
         let Ok(permit) = self.sender.try_reserve() else {
-            self.metrics.record_analytics_event("queue", "dropped", 1);
+            self.queue_metrics.record_dropped();
             return;
         };
         let event = event();
         let depth = self.pending.fetch_add(1, Ordering::Relaxed) + 1;
-        self.metrics.record_analytics_event("queue", "enqueued", 1);
-        self.metrics
-            .update_analytics_queue(self.queue_capacity, depth);
+        self.queue_metrics
+            .record_enqueued(self.queue_capacity, depth);
         permit.send(event);
     }
 }
@@ -288,8 +293,7 @@ impl AnalyticsRuntime {
                     };
 
                     let depth = self.pending.fetch_sub(1, Ordering::Relaxed).saturating_sub(1);
-                    self.metrics
-                        .update_analytics_queue(self.config.queue_capacity, depth);
+                    self.queue_metrics.update(self.config.queue_capacity, depth);
 
                     match event {
                         AnalyticsEvent::Xcode(event) => {
@@ -685,11 +689,12 @@ mod tests {
     async fn a_full_queue_does_not_construct_an_event_that_will_be_dropped() {
         let (sender, mut receiver) = mpsc::channel(1);
         let pending = Arc::new(AtomicUsize::new(0));
+        let metrics = Metrics::new("test".into(), "test".into());
         let analytics = Analytics {
             sender,
             pending: pending.clone(),
             queue_capacity: 1,
-            metrics: Metrics::new("test".into(), "test".into()),
+            queue_metrics: metrics.analytics_queue_metrics(),
         };
         let context = reapi_cache_context();
         let constructed = AtomicUsize::new(0);
@@ -705,6 +710,27 @@ mod tests {
 
         assert_eq!(constructed.load(Ordering::Relaxed), 1);
         assert_eq!(pending.load(Ordering::Relaxed), 1);
+        let rendered = metrics.render();
+        assert!(
+            rendered.lines().any(
+                |line| line.starts_with("kura_analytics_events_total_total{")
+                    && line.contains("pipeline=\"queue\"")
+                    && line.contains("result=\"enqueued\"")
+                    && line.ends_with(" 1")
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.lines().any(
+                |line| line.starts_with("kura_analytics_events_total_total{")
+                    && line.contains("pipeline=\"queue\"")
+                    && line.contains("result=\"dropped\"")
+                    && line.ends_with(" 1")
+            ),
+            "{rendered}"
+        );
+        assert!(rendered.contains("kura_analytics_queue_capacity 1"));
+        assert!(rendered.contains("kura_analytics_queue_depth 1"));
         assert!(receiver.recv().await.is_some());
     }
 
@@ -794,6 +820,95 @@ mod tests {
         );
         println!(
             "METRIC reserve_then_construct_attempts_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn analytics_queue_metric_handles_benchmark() {
+        const WORKERS: usize = 8;
+        const ATTEMPTS_PER_WORKER: usize = 100_000;
+        const SAMPLES: usize = 9;
+
+        fn measure_family_lookup(metrics: &Metrics) -> f64 {
+            let started_at = Instant::now();
+            std::thread::scope(|scope| {
+                for worker in 0..WORKERS {
+                    scope.spawn(move || {
+                        for attempt in 0..ATTEMPTS_PER_WORKER {
+                            metrics.record_analytics_event("queue", "enqueued", 1);
+                            metrics.update_analytics_queue(1_024, (worker + attempt) % 1_024);
+                        }
+                    });
+                }
+            });
+            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_resolved_handles(
+            queue_metrics: &Arc<crate::metrics::AnalyticsQueueMetrics>,
+        ) -> f64 {
+            let started_at = Instant::now();
+            std::thread::scope(|scope| {
+                for worker in 0..WORKERS {
+                    scope.spawn(move || {
+                        for attempt in 0..ATTEMPTS_PER_WORKER {
+                            queue_metrics.record_enqueued(1_024, (worker + attempt) % 1_024);
+                        }
+                    });
+                }
+            });
+            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let metrics = Metrics::new("test".into(), "test".into());
+        let queue_metrics = metrics.analytics_queue_metrics();
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_family_lookup(&metrics)
+            } else {
+                measure_resolved_handles(&queue_metrics)
+            };
+            let second = if baseline_first {
+                measure_resolved_handles(&queue_metrics)
+            } else {
+                measure_family_lookup(&metrics)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC analytics_queue_metric_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC family_lookup_events_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC resolved_handle_events_per_second={:.3}",
             candidate_rates[candidate_rates.len() / 2]
         );
         println!(

@@ -237,6 +237,29 @@ pub(crate) struct ResponseStreamReservationMetrics {
     active: Gauge,
 }
 
+pub(crate) struct AnalyticsQueueMetrics {
+    enqueued: Counter,
+    dropped: Counter,
+    depth: Gauge,
+    capacity: Gauge,
+}
+
+impl AnalyticsQueueMetrics {
+    pub(crate) fn record_enqueued(&self, capacity: usize, depth: usize) {
+        self.enqueued.inc();
+        self.update(capacity, depth);
+    }
+
+    pub(crate) fn record_dropped(&self) {
+        self.dropped.inc();
+    }
+
+    pub(crate) fn update(&self, capacity: usize, depth: usize) {
+        self.capacity.set(capacity as i64);
+        self.depth.set(depth as i64);
+    }
+}
+
 struct HotReadMetrics {
     reapi_ok_reads: Counter,
     reapi_ok_read_bytes: Counter,
@@ -2280,6 +2303,21 @@ impl Metrics {
 
     pub(crate) fn grpc_write_admission_metrics(&self) -> Arc<GrpcWriteAdmissionMetrics> {
         self.grpc_write_admission.clone()
+    }
+
+    pub(crate) fn analytics_queue_metrics(&self) -> Arc<AnalyticsQueueMetrics> {
+        let counter = |result: &str| {
+            self.analytics_events.get_or_create_owned(&AnalyticsLabels {
+                pipeline: "queue".to_owned(),
+                result: result.to_owned(),
+            })
+        };
+        Arc::new(AnalyticsQueueMetrics {
+            enqueued: counter("enqueued"),
+            dropped: counter("dropped"),
+            depth: self.analytics_queue_depth.clone(),
+            capacity: self.analytics_queue_capacity.clone(),
+        })
     }
 
     pub fn update_segment_handles_cached(&self, cached: usize) {
