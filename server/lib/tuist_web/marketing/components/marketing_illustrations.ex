@@ -46,7 +46,7 @@ defmodule TuistWeb.Marketing.MarketingIllustrations do
 
   # {rendered name, source file, color map}
   @svg_specs Enum.map(
-               ~w(cache compute tests transparency-windows transparency-open-source transparency-stacked-faces transparency-stacked-faces-wide),
+               ~w(cache compute tests previews-iphone transparency-windows transparency-open-source transparency-stacked-faces transparency-stacked-faces-wide),
                &{&1, &1, @color_tokens}
              ) ++
                [
