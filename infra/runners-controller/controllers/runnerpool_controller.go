@@ -497,6 +497,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
 					"cap", admission.cap,
+					"poolCap", admission.poolCap,
 					"healthyNodes", admission.healthyNodes,
 				)
 			}

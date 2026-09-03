@@ -82,6 +82,7 @@ type provisioningAdmission struct {
 	pendingForPool  int
 	pendingForFleet int
 	cap             int
+	poolCap         int
 	healthyNodes    int
 	blockedReason   string
 }
@@ -157,17 +158,23 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	// rather than by being discounted here.
 	observed := make(map[string]struct{}, len(pods.Items))
 	pendingForFleet := 0
-	pendingForPool := 0
+	pendingByPool := make(map[string]int, len(poolNames))
+	aliveByPool := make(map[string]int, len(poolNames))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		observed[pod.Namespace+"/"+pod.Name] = struct{}{}
-		if _, ok := poolNames[pod.Labels["tuist.dev/runner-pool"]]; !ok || !isLinuxProvisioningPod(pod) {
+		owner := pod.Labels["tuist.dev/runner-pool"]
+		if _, ok := poolNames[owner]; !ok {
+			continue
+		}
+		if isAlive(pod) {
+			aliveByPool[owner]++
+		}
+		if !isLinuxProvisioningPod(pod) {
 			continue
 		}
 		pendingForFleet++
-		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
-			pendingForPool++
-		}
+		pendingByPool[owner]++
 	}
 
 	reserved, reservedByPool := r.creationReservations.reconcile(
@@ -177,7 +184,38 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		r.now(),
 	)
 	pendingForFleet += reserved
-	pendingForPool += reservedByPool[pool.Name]
+	for name, count := range reservedByPool {
+		pendingByPool[name] += count
+	}
+	pendingForPool := pendingByPool[pool.Name]
+
+	// The ceiling is shared, so one pool can hold all of it. Four Pods of a
+	// shape no node can seat sit Unschedulable until unschedulableTimedOut
+	// reaps them, the pool recreates them at once, and every sibling shape
+	// is refused creation for as long as the shortfall lasts: the default
+	// shape stayed at zero Pods for an hour with a full queue while a
+	// larger shape held the whole budget with Pods that could never bind.
+	//
+	// So a pool's own share of the ceiling shrinks by one for each sibling
+	// that has a replica gap and nothing provisioning. The fleet count is
+	// untouched (the burst guarantee is that at most cap sandboxes can start
+	// together, and that still holds); what changes is who may top the count
+	// back up after a reap. A hog at its share cannot recreate the Pod the
+	// timeout released, so the slot goes to the sibling that had none.
+	siblingsNeedingSlot := 0
+	for i := range pools.Items {
+		sibling := &pools.Items[i]
+		if _, ok := poolNames[sibling.Name]; !ok || sibling.Name == pool.Name {
+			continue
+		}
+		if int(sibling.Spec.Replicas) > aliveByPool[sibling.Name] && pendingByPool[sibling.Name] == 0 {
+			siblingsNeedingSlot++
+		}
+	}
+	poolCap := capN - siblingsNeedingSlot
+	if poolCap < 1 {
+		poolCap = 1
+	}
 
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
@@ -193,6 +231,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		pendingForPool:  pendingForPool,
 		pendingForFleet: pendingForFleet,
 		cap:             capN,
+		poolCap:         poolCap,
 		healthyNodes:    healthyNodes,
 	}
 	if healthyNodes == 0 {
@@ -203,7 +242,14 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		admission.blockedReason = "fleet_cap"
 		return admission, nil
 	}
+	if pendingForPool >= poolCap {
+		admission.blockedReason = "pool_share"
+		return admission, nil
+	}
 	admission.available = capN - pendingForFleet
+	if share := poolCap - pendingForPool; share < admission.available {
+		admission.available = share
+	}
 	return admission, nil
 }
 

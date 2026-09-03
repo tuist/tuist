@@ -1370,6 +1370,82 @@ them:
 kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
 ```
 
+### Runner pool starved
+
+The queue-age alert above says work is waiting; this one says why, and
+says it twenty minutes sooner. A Linux pool with dispatchable queued
+jobs and zero Pods of any phase for ten minutes is being refused
+creation, not waiting on capacity.
+
+On 2026-09-02 `linux-4vcpu-16gb`, with every Linux shape allowed
+`maxReplicas: 120`, was targeted at 67 replicas on a fleet that seats
+24 of that shape. The excess sat Pending on `Insufficient memory`,
+and because the provisioning admission budgets Pending Pods fleet-wide
+(`maxConcurrentPerFleetSelector`, default 4), those four dead Pods held
+the whole budget and every sibling shape was refused with
+`reason="fleet_cap"`. `linux-2vcpu-8gb` sat at zero Pods for over an
+hour with 143 `tuist-linux` jobs queued, one of them the production
+cascade's own first job, so nothing could deploy. The 300-second
+unschedulable reap did not help: the hog recreated each Pod the moment
+it was released.
+
+```promql
+(
+  max by (cluster, env, fleet) (tuist_runners_queue_length{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})
+  - max by (cluster, env, fleet) (tuist_runners_queue_withheld{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})
+) > 0
+unless on (cluster, fleet) (
+  max by (cluster, fleet) (
+    label_replace(tuist_runners_pool_replicas_observed{env="production", pool=~"tuist-tuist-runner-pool-linux-.*"}, "fleet", "$1", "pool", "(.*)")
+  ) > 0
+)
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- Summary: `Runner pool {{ $labels.fleet }} ({{ $labels.cluster }}) has
+  {{ $values.A.Value }} dispatchable queued job(s) and zero Pods`
+
+The queue side is the server's `tuist_runners_queue_length` minus
+`tuist_runners_queue_withheld` (labelled `fleet`), so an account parked
+at its concurrency limit does not count. The Pod side is the
+controller's `tuist_runners_pool_replicas_observed` (labelled `pool`,
+same value), which counts Pods of every phase, so a pool whose Pods are
+merely Pending does not fire this; only a pool that has been admitted
+nothing at all does.
+
+When it fires, find the hog:
+
+```bash
+kubectl get runnerpools -n tuist-runners
+kubectl get pods -n tuist-runners --field-selector status.phase=Pending
+```
+
+A sibling pool with `replicas` far above the fleet's seats for its shape
+and Pending Pods failing scheduling on `Insufficient memory` is the
+signature; the controller logs `Linux provisioning admission left
+replica gap` with `creating: 0` for the starved pool. Cap the hog at the
+seat count (`kubectl patch runnerpool <pool> -n tuist-runners --type
+merge -p '{"spec":{"autoscaling":{"maxReplicas":N}}}'`); the autoscaler
+honours it after its 300-second scale-down cooldown, reaps the parked
+Pods, and the starved pool is admitted within seconds. That patch is an
+incident lever only: it takes `maxReplicas` away from Helm until the
+next chart apply, so drop it once the fleet has recovered.
+
+Two changes made this shape of incident rarer rather than merely
+visible, and both are in the controller rather than in values. The
+autoscaler's shape placement cap now covers Linux, deriving per
+reconcile from live node allocatable how many Pods of each shape the
+fleet can actually seat, so a pool can no longer be targeted above what
+will fit. And the provisioning admission gives each pool a share of the
+Pending budget (`reason="pool_share"` in
+`infra/runners-controller/controllers/provisioning.go`), which stops a
+pool from topping the budget back up after a reap while a sibling with
+a gap holds nothing. If a pool is still targeted far above its fleet's
+seats, suspect the cap rather than reaching for a values change:
+`tuist_runners_fleet_ready_nodes` going to zero, or a RuntimeClass the
+controller cannot read, both degrade it to the byte budget alone.
+
 ### Why there is no alert on withheld runner queue depth
 
 `tuist_runners_queue_withheld` is deliberately **not** alerted on, and the
