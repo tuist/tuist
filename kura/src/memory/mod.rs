@@ -84,6 +84,8 @@ struct MemoryControllerInner {
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
     response_stream_waiters: AtomicU64,
+    #[cfg(test)]
+    response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
     pools: MemoryPools,
@@ -203,6 +205,8 @@ impl MemoryController {
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
                 response_stream_waiters: AtomicU64::new(0),
+                #[cfg(test)]
+                response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
                 pools,
@@ -573,17 +577,17 @@ impl MemoryController {
             "degraded",
             started_at.elapsed(),
         );
-        self.inner
+        let metrics = self
+            .inner
             .metrics
-            .add_response_stream_reservation(protocol, bytes);
+            .begin_response_stream_reservation(protocol, bytes);
         Ok(ResponseStreamMemoryPermit {
             concurrency: Some(slot),
             foreground_concurrency: None,
             background_concurrency: None,
             elastic_concurrency: None,
             transient: Some(transient),
-            metrics: self.inner.metrics.clone(),
-            protocol,
+            metrics,
             bytes,
         })
     }
@@ -781,11 +785,10 @@ impl MemoryController {
                 .inner
                 .pools
                 .try_acquire_foreground_response_streaming(permits)?;
-            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
             Ok(self.response_stream_memory_permit(
-                (Some(concurrency), Some(foreground_concurrency), None, None),
+                (None, Some(foreground_concurrency), None, None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -834,11 +837,10 @@ impl MemoryController {
                 .inner
                 .pools
                 .try_acquire_background_response_streaming(permits)?;
-            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::PeerResponse)?;
             Ok(self.response_stream_memory_permit(
-                (Some(concurrency), None, Some(background_concurrency), None),
+                (None, None, Some(background_concurrency), None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -876,17 +878,17 @@ impl MemoryController {
         protocol: &'static str,
         bytes: u64,
     ) -> ResponseStreamMemoryPermit {
-        self.inner
+        let metrics = self
+            .inner
             .metrics
-            .add_response_stream_reservation(protocol, bytes);
+            .begin_response_stream_reservation(protocol, bytes);
         ResponseStreamMemoryPermit {
             concurrency,
             foreground_concurrency,
             background_concurrency,
             elastic_concurrency,
             transient: Some(transient),
-            metrics: self.inner.metrics.clone(),
-            protocol,
+            metrics,
             bytes,
         }
     }
@@ -976,6 +978,78 @@ mod tests {
     };
     use tokio::sync::Barrier;
     use tokio::task::JoinSet;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn response_stream_uncontended_admission_benchmark() {
+        const WORKERS: usize = 8;
+        const ADMISSIONS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(controller: MemoryController, always_notify: bool) -> f64 {
+            controller
+                .inner
+                .response_stream_notify_without_waiters
+                .store(always_notify, Ordering::Release);
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let mut workers = JoinSet::new();
+            for _ in 0..WORKERS {
+                let controller = controller.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for _ in 0..ADMISSIONS_PER_WORKER {
+                        let (permit, _) = controller
+                            .try_acquire_response_stream_memory(1, "http")
+                            .expect("benchmark admission should have headroom");
+                        std::hint::black_box(&permit);
+                        drop(permit);
+                    }
+                });
+            }
+
+            let started_at = Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * ADMISSIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("benchmark".into(), "benchmark".into()),
+            2 * 1024 * 1024 * 1024,
+            1024 * 1024 * 1024,
+            1536 * 1024 * 1024,
+        );
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut paired_speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = measure(controller.clone(), baseline_first).await;
+            let second = measure(controller.clone(), !baseline_first).await;
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                paired_speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        paired_speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC response_stream_admissions_per_second={:.3} baseline_admissions_per_second={:.3} paired_speedup_ratio={:.6}",
+            candidate_rates[candidate_rates.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            paired_speedups[paired_speedups.len() / 2],
+        );
+    }
 
     #[test]
     fn forced_pressure_override_parses_only_known_spellings() {
@@ -1729,7 +1803,60 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn degraded_streams_are_capped_at_the_real_per_stream_send_buffer() {
+    async fn releasing_a_response_stream_wakes_a_queued_waiter() {
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256 * 1024 * 1024,
+            128 * 1024 * 1024,
+            192 * 1024 * 1024,
+        );
+        let held = controller
+            .try_acquire_response_stream_memory(
+                controller.foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the fixed response pool should start empty")
+            .0;
+        let _elastic = controller
+            .try_acquire_response_stream_memory(
+                controller.elastic_foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the elastic response pool should start empty")
+            .0;
+
+        let waiter = tokio::spawn({
+            let controller = controller.clone();
+            async move {
+                controller
+                    .acquire_response_stream_memory(
+                        1024 * 1024,
+                        "http",
+                        ResponseStreamAdmissionPatience::Blocking,
+                    )
+                    .await
+            }
+        });
+        while controller
+            .inner
+            .response_stream_waiters
+            .load(Ordering::SeqCst)
+            == 0
+        {
+            tokio::task::yield_now().await;
+        }
+
+        drop(held);
+        let admitted = tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
+            .await
+            .expect("a released response permit should wake the queued waiter")
+            .expect("the waiter task should not panic")
+            .expect("the queued response should acquire released capacity");
+        drop(admitted);
+    }
+
+    #[tokio::test]
+    async fn degraded_streams_are_capped_at_the_complete_live_buffer_charge() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(
             metrics,
@@ -1739,19 +1866,21 @@ mod tests {
         );
         controller.observe(0);
 
-        // The cap counts Hyper's per-stream send buffer, not the degraded
-        // reader's 8 KiB chunk floor, so the aggregate stays bounded.
+        let degraded_stream_bytes =
+            RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        // The cap counts Hyper's per-stream send buffer and both live reader
+        // chunks, so the aggregate stays bounded.
         let slots = controller.degraded_response_stream_slots();
         assert_eq!(
             slots,
-            controller.response_streaming_pool_bytes() / RESPONSE_STREAM_SEND_BUFFER_BYTES
+            controller.response_streaming_pool_bytes() / degraded_stream_bytes
         );
 
         let mut held = Vec::new();
         for _ in 0..slots {
             held.push(
                 controller
-                    .acquire_degraded_response_stream_memory(8 * 1024, "http")
+                    .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
                     .await
                     .expect("a stream inside the cap must be admitted"),
             );
@@ -1762,14 +1891,14 @@ mod tests {
         );
         assert_eq!(
             controller.transient_reserved_bytes(),
-            (slots * RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
-            "each degraded stream must reserve its complete transport buffer cost"
+            (slots * degraded_stream_bytes) as u64,
+            "each degraded stream must reserve its complete live-buffer cost"
         );
 
         // Past the cap the wait stays bounded and no unaccounted stream is
         // returned to the caller.
         let overflow = controller
-            .acquire_degraded_response_stream_memory(8 * 1024, "http")
+            .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
             .await;
         assert_eq!(overflow.err(), Some(ResponseStreamAdmissionError::Timeout));
         assert!(
@@ -1783,7 +1912,7 @@ mod tests {
         drop(held.pop());
         assert!(
             controller
-                .acquire_degraded_response_stream_memory(8 * 1024, "http")
+                .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
                 .await
                 .expect("a released slot must admit another stream")
                 .holds_degraded_slot(),

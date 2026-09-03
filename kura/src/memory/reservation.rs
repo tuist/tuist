@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::OwnedSemaphorePermit;
 
-use crate::metrics::Metrics;
+use crate::metrics::ResponseStreamReservationMetrics;
 
 use super::{MemoryController, MemoryControllerInner};
 
@@ -56,8 +56,7 @@ pub struct ResponseStreamMemoryPermit {
     pub(super) background_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) elastic_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) transient: Option<TransientMemoryReservation>,
-    pub(super) metrics: Metrics,
-    pub(super) protocol: &'static str,
+    pub(super) metrics: Arc<ResponseStreamReservationMetrics>,
     pub(super) bytes: u64,
 }
 
@@ -79,19 +78,30 @@ impl ResponseStreamMemoryPermit {
 
 impl Drop for ResponseStreamMemoryPermit {
     fn drop(&mut self) {
-        let controller = self
-            .transient
-            .as_ref()
-            .map(|transient| transient.controller.clone());
-        self.metrics
-            .remove_response_stream_reservation(self.protocol, self.bytes);
+        let mut transient = self.transient.take();
+        self.metrics.remove(self.bytes);
         drop(self.concurrency.take());
         drop(self.foreground_concurrency.take());
         drop(self.background_concurrency.take());
         drop(self.elastic_concurrency.take());
-        drop(self.transient.take());
-        if let Some(controller) = controller {
-            controller.inner.pressure_changed.notify_waiters();
+        if let Some(transient) = transient.as_mut() {
+            drop(transient.permit.take());
+            let has_waiters = transient
+                .controller
+                .inner
+                .response_stream_waiters
+                .load(Ordering::SeqCst)
+                > 0;
+            #[cfg(test)]
+            let has_waiters = has_waiters
+                || transient
+                    .controller
+                    .inner
+                    .response_stream_notify_without_waiters
+                    .load(Ordering::Acquire);
+            if has_waiters {
+                transient.controller.inner.pressure_changed.notify_waiters();
+            }
         }
     }
 }
@@ -185,7 +195,7 @@ impl ResponseStreamWaiter {
         protocol: &'static str,
         queue: OwnedSemaphorePermit,
     ) -> Self {
-        inner.response_stream_waiters.fetch_add(1, Ordering::AcqRel);
+        inner.response_stream_waiters.fetch_add(1, Ordering::SeqCst);
         inner.metrics.add_response_stream_waiter(protocol);
         Self {
             inner,
@@ -199,7 +209,7 @@ impl Drop for ResponseStreamWaiter {
     fn drop(&mut self) {
         self.inner
             .response_stream_waiters
-            .fetch_sub(1, Ordering::AcqRel);
+            .fetch_sub(1, Ordering::SeqCst);
         self.inner
             .metrics
             .remove_response_stream_waiter(self.protocol);

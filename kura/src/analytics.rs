@@ -8,7 +8,7 @@ use std::{
 
 use hmac::{Hmac, Mac};
 use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
-use serde::Serialize;
+use serde::{Serialize, Serializer, ser::SerializeStruct};
 use sha2::Sha256;
 use tokio::{
     sync::mpsc,
@@ -16,7 +16,10 @@ use tokio::{
 };
 use tracing::error;
 
-use crate::{config::AnalyticsConfig, metrics::Metrics};
+use crate::{
+    config::AnalyticsConfig,
+    metrics::{AnalyticsQueueMetrics, Metrics},
+};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -29,7 +32,7 @@ pub struct Analytics {
     sender: mpsc::Sender<AnalyticsEvent>,
     pending: Arc<AtomicUsize>,
     queue_capacity: usize,
-    metrics: Metrics,
+    queue_metrics: Arc<AnalyticsQueueMetrics>,
 }
 
 #[derive(Clone, Debug)]
@@ -45,6 +48,7 @@ struct AnalyticsRuntime {
     config: AnalyticsConfig,
     cache_endpoint: String,
     metrics: Metrics,
+    queue_metrics: Arc<AnalyticsQueueMetrics>,
     pending: Arc<AtomicUsize>,
 }
 
@@ -66,21 +70,49 @@ struct GradleAnalyticsEvent {
     cache_key: String,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-pub struct ReapiCacheAnalyticsEvent {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReapiCacheAnalyticsContext {
     pub account_handle: String,
     pub project_handle: String,
-    pub client_kind: String,
-    pub operation: String,
-    pub outcome: String,
-    pub action_digest: String,
-    pub size: u64,
-    pub duration_ms: u64,
-    pub observed_at_ms: u64,
+    pub client_kind: &'static str,
     pub invocation_id: String,
     pub action_mnemonic: String,
     pub target_label: String,
     pub configuration_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReapiCacheAnalyticsEvent {
+    pub context: Arc<ReapiCacheAnalyticsContext>,
+    pub operation: &'static str,
+    pub outcome: &'static str,
+    pub action_digest: String,
+    pub size: u64,
+    pub duration_ms: u64,
+    pub observed_at_ms: u64,
+}
+
+impl Serialize for ReapiCacheAnalyticsEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 13)?;
+        event.serialize_field("account_handle", &self.context.account_handle)?;
+        event.serialize_field("project_handle", &self.context.project_handle)?;
+        event.serialize_field("client_kind", self.context.client_kind)?;
+        event.serialize_field("operation", self.operation)?;
+        event.serialize_field("outcome", self.outcome)?;
+        event.serialize_field("action_digest", &self.action_digest)?;
+        event.serialize_field("size", &self.size)?;
+        event.serialize_field("duration_ms", &self.duration_ms)?;
+        event.serialize_field("observed_at_ms", &self.observed_at_ms)?;
+        event.serialize_field("invocation_id", &self.context.invocation_id)?;
+        event.serialize_field("action_mnemonic", &self.context.action_mnemonic)?;
+        event.serialize_field("target_label", &self.context.target_label)?;
+        event.serialize_field("configuration_id", &self.context.configuration_id)?;
+        event.end()
+    }
 }
 
 #[derive(Serialize)]
@@ -119,15 +151,17 @@ impl Analytics {
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
         let pending = Arc::new(AtomicUsize::new(0));
+        let queue_metrics = metrics.analytics_queue_metrics();
         let runtime = AnalyticsRuntime {
             client,
             config: config.clone(),
             cache_endpoint: analytics_endpoint(node_url),
             metrics: metrics.clone(),
+            queue_metrics: queue_metrics.clone(),
             pending: pending.clone(),
         };
 
-        metrics.update_analytics_queue(config.queue_capacity, 0);
+        queue_metrics.update(config.queue_capacity, 0);
         tokio::spawn(async move {
             runtime.run(receiver).await;
         });
@@ -136,7 +170,7 @@ impl Analytics {
             sender,
             pending,
             queue_capacity: config.queue_capacity,
-            metrics,
+            queue_metrics,
         }))
     }
 
@@ -147,13 +181,15 @@ impl Analytics {
         cas_id: &str,
         size: u64,
     ) {
-        self.enqueue(AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
-            account_handle: tenant_id.to_owned(),
-            project_handle: namespace_id.to_owned(),
-            action: "download".into(),
-            size,
-            cas_id: cas_id.to_owned(),
-        }));
+        self.enqueue(|| {
+            AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                account_handle: tenant_id.to_owned(),
+                project_handle: namespace_id.to_owned(),
+                action: "download".into(),
+                size,
+                cas_id: cas_id.to_owned(),
+            })
+        });
     }
 
     pub fn enqueue_xcode_upload(
@@ -163,13 +199,15 @@ impl Analytics {
         cas_id: &str,
         size: u64,
     ) {
-        self.enqueue(AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
-            account_handle: tenant_id.to_owned(),
-            project_handle: namespace_id.to_owned(),
-            action: "upload".into(),
-            size,
-            cas_id: cas_id.to_owned(),
-        }));
+        self.enqueue(|| {
+            AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                account_handle: tenant_id.to_owned(),
+                project_handle: namespace_id.to_owned(),
+                action: "upload".into(),
+                size,
+                cas_id: cas_id.to_owned(),
+            })
+        });
     }
 
     pub fn enqueue_gradle_download(
@@ -179,13 +217,15 @@ impl Analytics {
         cache_key: &str,
         size: u64,
     ) {
-        self.enqueue(AnalyticsEvent::Gradle(GradleAnalyticsEvent {
-            account_handle: tenant_id.to_owned(),
-            project_handle: namespace_id.to_owned(),
-            action: "download".into(),
-            size,
-            cache_key: cache_key.to_owned(),
-        }));
+        self.enqueue(|| {
+            AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                account_handle: tenant_id.to_owned(),
+                project_handle: namespace_id.to_owned(),
+                action: "download".into(),
+                size,
+                cache_key: cache_key.to_owned(),
+            })
+        });
     }
 
     pub fn enqueue_gradle_upload(
@@ -195,31 +235,31 @@ impl Analytics {
         cache_key: &str,
         size: u64,
     ) {
-        self.enqueue(AnalyticsEvent::Gradle(GradleAnalyticsEvent {
-            account_handle: tenant_id.to_owned(),
-            project_handle: namespace_id.to_owned(),
-            action: "upload".into(),
-            size,
-            cache_key: cache_key.to_owned(),
-        }));
+        self.enqueue(|| {
+            AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                account_handle: tenant_id.to_owned(),
+                project_handle: namespace_id.to_owned(),
+                action: "upload".into(),
+                size,
+                cache_key: cache_key.to_owned(),
+            })
+        });
     }
 
-    pub fn enqueue_reapi_cache_event(&self, event: ReapiCacheAnalyticsEvent) {
-        self.enqueue(AnalyticsEvent::ReapiCache(event));
+    pub fn enqueue_reapi_cache_event(&self, event: impl FnOnce() -> ReapiCacheAnalyticsEvent) {
+        self.enqueue(|| AnalyticsEvent::ReapiCache(event()));
     }
 
-    fn enqueue(&self, event: AnalyticsEvent) {
-        match self.sender.try_send(event) {
-            Ok(()) => {
-                let depth = self.pending.fetch_add(1, Ordering::Relaxed) + 1;
-                self.metrics.record_analytics_event("queue", "enqueued", 1);
-                self.metrics
-                    .update_analytics_queue(self.queue_capacity, depth);
-            }
-            Err(_) => {
-                self.metrics.record_analytics_event("queue", "dropped", 1);
-            }
-        }
+    fn enqueue(&self, event: impl FnOnce() -> AnalyticsEvent) {
+        let Ok(permit) = self.sender.try_reserve() else {
+            self.queue_metrics.record_dropped();
+            return;
+        };
+        let event = event();
+        let depth = self.pending.fetch_add(1, Ordering::Relaxed) + 1;
+        self.queue_metrics
+            .record_enqueued(self.queue_capacity, depth);
+        permit.send(event);
     }
 }
 
@@ -253,8 +293,7 @@ impl AnalyticsRuntime {
                     };
 
                     let depth = self.pending.fetch_sub(1, Ordering::Relaxed).saturating_sub(1);
-                    self.metrics
-                        .update_analytics_queue(self.config.queue_capacity, depth);
+                    self.queue_metrics.update(self.config.queue_capacity, depth);
 
                     match event {
                         AnalyticsEvent::Xcode(event) => {
@@ -591,7 +630,10 @@ impl CircuitState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     use axum::{
         Router, body::Bytes, extract::Request, http::StatusCode, response::IntoResponse,
@@ -599,12 +641,16 @@ mod tests {
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
-    use tokio::time::{Duration, Instant, sleep, timeout};
+    use tokio::{
+        sync::mpsc,
+        time::{Duration, Instant, sleep, timeout},
+    };
 
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsContext,
+        ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
     };
 
     #[derive(Clone, Debug)]
@@ -612,6 +658,263 @@ mod tests {
         path: String,
         headers: Vec<(String, String)>,
         body: Vec<u8>,
+    }
+
+    fn reapi_cache_event(context: &Arc<ReapiCacheAnalyticsContext>) -> ReapiCacheAnalyticsEvent {
+        ReapiCacheAnalyticsEvent {
+            context: Arc::clone(context),
+            operation: "cas",
+            outcome: "hit",
+            action_digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                .into(),
+            size: 4_096,
+            duration_ms: 1,
+            observed_at_ms: 1,
+        }
+    }
+
+    fn reapi_cache_context() -> Arc<ReapiCacheAnalyticsContext> {
+        Arc::new(ReapiCacheAnalyticsContext {
+            account_handle: "acme".into(),
+            project_handle: "ios".into(),
+            client_kind: "bazel",
+            invocation_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_label: "//Sources/App:App".into(),
+            configuration_id: "darwin-arm64-fastbuild".into(),
+        })
+    }
+
+    #[tokio::test]
+    async fn a_full_queue_does_not_construct_an_event_that_will_be_dropped() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let pending = Arc::new(AtomicUsize::new(0));
+        let metrics = Metrics::new("test".into(), "test".into());
+        let analytics = Analytics {
+            sender,
+            pending: pending.clone(),
+            queue_capacity: 1,
+            queue_metrics: metrics.analytics_queue_metrics(),
+        };
+        let context = reapi_cache_context();
+        let constructed = AtomicUsize::new(0);
+
+        analytics.enqueue(|| {
+            constructed.fetch_add(1, Ordering::Relaxed);
+            super::AnalyticsEvent::ReapiCache(reapi_cache_event(&context))
+        });
+        analytics.enqueue(|| {
+            constructed.fetch_add(1, Ordering::Relaxed);
+            super::AnalyticsEvent::ReapiCache(reapi_cache_event(&context))
+        });
+
+        assert_eq!(constructed.load(Ordering::Relaxed), 1);
+        assert_eq!(pending.load(Ordering::Relaxed), 1);
+        let rendered = metrics.render();
+        assert!(
+            rendered.lines().any(
+                |line| line.starts_with("kura_analytics_events_total_total{")
+                    && line.contains("pipeline=\"queue\"")
+                    && line.contains("result=\"enqueued\"")
+                    && line.ends_with(" 1")
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.lines().any(
+                |line| line.starts_with("kura_analytics_events_total_total{")
+                    && line.contains("pipeline=\"queue\"")
+                    && line.contains("result=\"dropped\"")
+                    && line.ends_with(" 1")
+            ),
+            "{rendered}"
+        );
+        assert!(rendered.contains("kura_analytics_queue_capacity 1"));
+        assert!(rendered.contains("kura_analytics_queue_depth 1"));
+        assert!(receiver.recv().await.is_some());
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn saturated_analytics_queue_benchmark() {
+        const ATTEMPTS: usize = 1_000_000;
+        const SAMPLES: usize = 9;
+
+        fn measure_construct_then_send(
+            sender: &mpsc::Sender<super::AnalyticsEvent>,
+            context: &Arc<ReapiCacheAnalyticsContext>,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..ATTEMPTS {
+                let result = sender.try_send(super::AnalyticsEvent::ReapiCache(reapi_cache_event(
+                    context,
+                )));
+                std::hint::black_box(result.is_err());
+            }
+            ATTEMPTS as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_reserve_then_construct(
+            sender: &mpsc::Sender<super::AnalyticsEvent>,
+            context: &Arc<ReapiCacheAnalyticsContext>,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..ATTEMPTS {
+                match sender.try_reserve() {
+                    Ok(permit) => permit.send(super::AnalyticsEvent::ReapiCache(
+                        reapi_cache_event(context),
+                    )),
+                    Err(error) => {
+                        std::hint::black_box(error);
+                    }
+                }
+            }
+            ATTEMPTS as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let context = reapi_cache_context();
+        let (sender, _receiver) = mpsc::channel(1);
+        sender
+            .try_send(super::AnalyticsEvent::ReapiCache(reapi_cache_event(
+                &context,
+            )))
+            .expect("benchmark queue should accept its first event");
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_construct_then_send(&sender, &context)
+            } else {
+                measure_reserve_then_construct(&sender, &context)
+            };
+            let second = if baseline_first {
+                measure_reserve_then_construct(&sender, &context)
+            } else {
+                measure_construct_then_send(&sender, &context)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC saturated_analytics_enqueue_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC construct_then_send_attempts_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC reserve_then_construct_attempts_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn analytics_queue_metric_handles_benchmark() {
+        const WORKERS: usize = 8;
+        const ATTEMPTS_PER_WORKER: usize = 100_000;
+        const SAMPLES: usize = 9;
+
+        fn measure_family_lookup(metrics: &Metrics) -> f64 {
+            let started_at = Instant::now();
+            std::thread::scope(|scope| {
+                for worker in 0..WORKERS {
+                    scope.spawn(move || {
+                        for attempt in 0..ATTEMPTS_PER_WORKER {
+                            metrics.record_analytics_event("queue", "enqueued", 1);
+                            metrics.update_analytics_queue(1_024, (worker + attempt) % 1_024);
+                        }
+                    });
+                }
+            });
+            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_resolved_handles(
+            queue_metrics: &Arc<crate::metrics::AnalyticsQueueMetrics>,
+        ) -> f64 {
+            let started_at = Instant::now();
+            std::thread::scope(|scope| {
+                for worker in 0..WORKERS {
+                    scope.spawn(move || {
+                        for attempt in 0..ATTEMPTS_PER_WORKER {
+                            queue_metrics.record_enqueued(1_024, (worker + attempt) % 1_024);
+                        }
+                    });
+                }
+            });
+            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let metrics = Metrics::new("test".into(), "test".into());
+        let queue_metrics = metrics.analytics_queue_metrics();
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_family_lookup(&metrics)
+            } else {
+                measure_resolved_handles(&queue_metrics)
+            };
+            let second = if baseline_first {
+                measure_resolved_handles(&queue_metrics)
+            } else {
+                measure_family_lookup(&metrics)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC analytics_queue_metric_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC family_lookup_events_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC resolved_handle_events_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
+        );
     }
 
     #[tokio::test]
@@ -637,20 +940,22 @@ mod tests {
 
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "action_cache".into(),
-            outcome: "hit".into(),
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::new(ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "SwiftCompile".into(),
+                target_label: "//app:app".into(),
+                configuration_id: "config-1".into(),
+            }),
+            operation: "action_cache",
+            outcome: "hit",
             action_digest: "digest-1".into(),
             size: 128,
             duration_ms: 9,
             observed_at_ms: 1_700_000_000_123,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "SwiftCompile".into(),
-            target_label: "//app:app".into(),
-            configuration_id: "config-1".into(),
         });
 
         timeout(Duration::from_secs(2), async {
@@ -761,20 +1066,22 @@ mod tests {
         .expect("analytics should initialize")
         .expect("analytics should be enabled");
 
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "cas".into(),
-            outcome: "write".into(),
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::new(ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "".into(),
+                target_label: "".into(),
+                configuration_id: "".into(),
+            }),
+            operation: "cas",
+            outcome: "write",
             action_digest: "content-digest".into(),
             size: 4_096,
             duration_ms: 14,
             observed_at_ms: 1_700_000_000_456,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "".into(),
-            target_label: "".into(),
-            configuration_id: "".into(),
         });
 
         timeout(Duration::from_secs(2), async {
