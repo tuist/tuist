@@ -1416,9 +1416,20 @@ Third, the ceiling itself may have shrunk. It is
 `maxConcurrentPerNode` times the fleet's healthy node count, published
 as `tuist_runners_fleet_provisioning_ceiling`, so nodes leaving the
 fleet — cordoned, NotReady, or under memory/disk/PID pressure — lower it
-with no configuration change. A ceiling well below `4 * <node count>`
-with `reason="fleet_cap"` on every pool is a node problem, and
+with no configuration change. A ceiling well below
+`maxConcurrentPerNode * <node count>` (6 per node by default) with
+`reason="fleet_cap"` on every pool is a node problem, and
 `tuist_runners_fleet_filtered_nodes` says which reason took them out.
+
+A ceiling that is intact and still saturated, on hosts with obvious
+headroom, is the opposite reading: the budget is genuinely too small for
+the fleet's boot time. Check
+`tuist_runners_pool_pod_start_timeouts_total{reason="poller_not_started"}`
+before raising `maxConcurrentPerNode` — a flat counter means boots are
+comfortably inside the 300s budget and there is room to raise it; a
+rising one means hosts are already being asked to start more microVMs
+than they can, and a bigger budget will only convert refusals into
+timeouts.
 
 ```promql
 (

@@ -282,7 +282,7 @@ independent workqueues:
   dispatch poller has not started across sibling pools sharing
   the same operating system and `FleetSelector`. It creates only up to
   the fleet ceiling, `spec.provisioning.maxConcurrentPerNode` (default
-  4) times the fleet's healthy node count, using the lowest sibling
+  6) times the fleet's healthy node count, using the lowest sibling
   per-node value so one mismatched pool cannot weaken the fleet
   boundary. Excess demand remains a replica gap and is retried every
   five seconds. macOS pools skip this gate.
@@ -298,6 +298,18 @@ independent workqueues:
   raising the ceiling by hand filled the idle machines inside one
   reconcile tick (`linux-4vcpu-16gb` went from 1 Pod to 18).
 
+  The per-node figure is what bounds how fast queued Linux work can
+  start: the fleet's fill rate is the ceiling divided by sandbox boot
+  time. Three per node was measured saturated on 2026-09-03, refusing
+  admission 737 times in ten minutes while the four hosts sat at 0-17%
+  CPU and 1-37% memory and boots completed in 82s to 3m37s with no start
+  timeouts, so both the hosts and the 300s budget had room. Hence 6.
+  `tuist_runners_pool_pod_start_timeouts_total{reason="poller_not_started"}`
+  is the signal that says whether there is still room: flat means boots
+  sit comfortably inside the timeout, rising means a host is already
+  being asked for more microVMs than it can start and a bigger budget
+  would only turn refusals into timeouts.
+
   The node count is `summarizeFleetNodes`, so it already excludes
   cordoned, NotReady and pressured nodes. That is deliberate and it is
   what makes the documented remedy below — cordon a host that accepts
@@ -309,12 +321,13 @@ independent workqueues:
   fleet-wide integer. Nothing reads the old name: structural-schema
   pruning drops it from any CR that still carries it, including the
   value patched onto production by hand during the 2026-09-03 incident.
-  The CRD lives in `crds/`, which helm does not touch on upgrade, so the
-  schema has to be re-applied out of band as usual — and until it is,
-  `maxConcurrentPerNode` is pruned on the way in and the accessor's
-  default (4 per node) applies, which is the intended behaviour anyway.
-  A stale schema therefore degrades to the right answer rather than to
-  the old one.
+  No operator step is needed for the schema: `server-deployment.yml`
+  runs `kubectl apply -f crds/` before every helm upgrade, precisely
+  because helm skips `crds/` on upgrade, so the new schema lands with
+  the deploy. The Go default, the CRD default and the chart value are
+  still kept equal, so that a cluster whose schema has somehow not
+  caught up prunes `maxConcurrentPerNode` on the way in and lands on the
+  same figure through the accessor instead of an older one.
 
   The count deliberately includes Pods with no node. An unbound Pod is
   one the scheduler may bind at any moment, and nothing re-checks
