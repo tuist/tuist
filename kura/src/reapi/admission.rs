@@ -30,10 +30,19 @@ type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
 pub(super) const BYTESTREAM_WRITE_PATH: &str = "/google.bytestream.ByteStream/Write";
 pub(super) const BYTESTREAM_READ_PATH: &str = "/google.bytestream.ByteStream/Read";
+const BYTESTREAM_QUERY_WRITE_STATUS_PATH: &str = "/google.bytestream.ByteStream/QueryWriteStatus";
+const CAPABILITIES_GET_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+const ACTION_CACHE_GET_PATH: &str = "/build.bazel.remote.execution.v2.ActionCache/GetActionResult";
 pub(super) const ACTION_CACHE_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
+const CAS_FIND_MISSING_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs";
 pub(super) const CAS_BATCH_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs";
+const CAS_BATCH_READ_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs";
+const CAS_GET_TREE_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree";
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
@@ -502,6 +511,14 @@ fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
     match path {
         BYTESTREAM_READ_PATH => Cow::Borrowed(BYTESTREAM_READ_PATH),
         BYTESTREAM_WRITE_PATH => Cow::Borrowed(BYTESTREAM_WRITE_PATH),
+        BYTESTREAM_QUERY_WRITE_STATUS_PATH => Cow::Borrowed(BYTESTREAM_QUERY_WRITE_STATUS_PATH),
+        CAPABILITIES_GET_PATH => Cow::Borrowed(CAPABILITIES_GET_PATH),
+        ACTION_CACHE_GET_PATH => Cow::Borrowed(ACTION_CACHE_GET_PATH),
+        ACTION_CACHE_UPDATE_PATH => Cow::Borrowed(ACTION_CACHE_UPDATE_PATH),
+        CAS_FIND_MISSING_PATH => Cow::Borrowed(CAS_FIND_MISSING_PATH),
+        CAS_BATCH_UPDATE_PATH => Cow::Borrowed(CAS_BATCH_UPDATE_PATH),
+        CAS_BATCH_READ_PATH => Cow::Borrowed(CAS_BATCH_READ_PATH),
+        CAS_GET_TREE_PATH => Cow::Borrowed(CAS_GET_TREE_PATH),
         path => Cow::Owned(path.to_owned()),
     }
 }
@@ -566,14 +583,20 @@ mod tests {
 
     #[test]
     fn bytestream_accounting_routes_are_borrowed() {
-        assert!(matches!(
-            grpc_accounting_route(BYTESTREAM_READ_PATH),
-            Cow::Borrowed(BYTESTREAM_READ_PATH)
-        ));
-        assert!(matches!(
-            grpc_accounting_route(BYTESTREAM_WRITE_PATH),
-            Cow::Borrowed(BYTESTREAM_WRITE_PATH)
-        ));
+        for route in [
+            BYTESTREAM_READ_PATH,
+            BYTESTREAM_WRITE_PATH,
+            BYTESTREAM_QUERY_WRITE_STATUS_PATH,
+            CAPABILITIES_GET_PATH,
+            ACTION_CACHE_GET_PATH,
+            ACTION_CACHE_UPDATE_PATH,
+            CAS_FIND_MISSING_PATH,
+            CAS_BATCH_UPDATE_PATH,
+            CAS_BATCH_READ_PATH,
+            CAS_GET_TREE_PATH,
+        ] {
+            assert!(matches!(grpc_accounting_route(route), Cow::Borrowed(_)));
+        }
         assert!(matches!(grpc_accounting_route("/unknown"), Cow::Owned(_)));
     }
 

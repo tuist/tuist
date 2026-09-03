@@ -93,6 +93,7 @@ pub struct MetricsInner {
     inflight: Arc<InflightMetrics>,
     hot_read: Arc<HotReadMetrics>,
     hot_write: Arc<HotWriteMetrics>,
+    reapi_latency: ReapiLatencyMetrics,
     grpc_write_admission: Arc<GrpcWriteAdmissionMetrics>,
     public_request_latency_ewma_ms: Gauge,
     segment_handles_cached: Gauge,
@@ -251,6 +252,56 @@ struct HotWriteMetrics {
     reapi_ok_write_bytes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
+}
+
+#[derive(Default)]
+struct ReapiLatencyMetrics {
+    query_write_status: OnceLock<Histogram>,
+    get_capabilities: OnceLock<Histogram>,
+    get_action_result: OnceLock<Histogram>,
+    update_action_result: OnceLock<Histogram>,
+    find_missing_blobs: OnceLock<Histogram>,
+    batch_update_blobs: OnceLock<Histogram>,
+    batch_read_blobs: OnceLock<Histogram>,
+    get_tree: OnceLock<Histogram>,
+}
+
+impl ReapiLatencyMetrics {
+    fn histogram<'a>(
+        &'a self,
+        family: &Family<PublicRequestLatencyLabels, Histogram>,
+        route: &str,
+    ) -> Option<&'a Histogram> {
+        let slot = match route {
+            "/google.bytestream.ByteStream/QueryWriteStatus" => &self.query_write_status,
+            "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities" => {
+                &self.get_capabilities
+            }
+            "/build.bazel.remote.execution.v2.ActionCache/GetActionResult" => {
+                &self.get_action_result
+            }
+            "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult" => {
+                &self.update_action_result
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs" => {
+                &self.find_missing_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs" => {
+                &self.batch_update_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs" => {
+                &self.batch_read_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree" => &self.get_tree,
+            _ => return None,
+        };
+        Some(slot.get_or_init(|| {
+            family.get_or_create_owned(&PublicRequestLatencyLabels {
+                transport: "grpc".to_owned(),
+                route: route.to_owned(),
+            })
+        }))
+    }
 }
 
 pub(crate) struct GrpcWriteAdmissionMetrics {
@@ -1545,6 +1596,7 @@ impl Metrics {
                 inflight,
                 hot_read,
                 hot_write,
+                reapi_latency: ReapiLatencyMetrics::default(),
                 grpc_write_admission,
                 public_request_latency_ewma_ms,
                 segment_handles_cached,
@@ -1865,6 +1917,13 @@ impl Metrics {
                 _ => None,
             };
             if let Some(histogram) = histogram {
+                histogram.observe(duration.as_secs_f64());
+                return;
+            }
+            if let Some(histogram) = self
+                .reapi_latency
+                .histogram(&self.public_request_latency, route)
+            {
                 histogram.observe(duration.as_secs_f64());
                 return;
             }
@@ -3369,6 +3428,87 @@ mod tests {
                 && line.contains("route=\"/google.bytestream.ByteStream/Write\"")
                 && line.ends_with(" 1")
         }));
+    }
+
+    #[test]
+    fn metadata_latency_uses_the_registered_metric_series() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.observe_public_request_latency(
+            "grpc",
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+            Duration::from_millis(3),
+        );
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_public_request_latency_seconds_count")
+                && line.contains("transport=\"grpc\"")
+                && line.contains("route=\"/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs\"")
+                && line.ends_with(" 1")
+        }));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn metadata_latency_direct_handle_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const ROUTE: &str =
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs";
+
+        let measure = |direct_handle: bool| {
+            let metrics = Metrics::new("benchmark".into(), "benchmark".into());
+            metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if direct_handle {
+                    metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
+                } else {
+                    metrics
+                        .public_request_latency
+                        .get_or_create(&PublicRequestLatencyLabels {
+                            transport: "grpc".to_owned(),
+                            route: ROUTE.to_owned(),
+                        })
+                        .observe(0.0);
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC reapi_metadata_latency_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC reapi_metadata_latency_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC reapi_metadata_latency_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 
     #[test]
