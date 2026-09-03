@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -350,6 +351,227 @@ func TestProvisioningAdmissionStarvedPoolKeepsFullFleetCeiling(t *testing.T) {
 	if admission.fleetCap != admission.cap {
 		t.Fatalf("fleetCap = %d, cap = %d, want a starved pool to keep the whole ceiling", admission.fleetCap, admission.cap)
 	}
+}
+
+// The ceiling is per-node arithmetic, so hardware raises start throughput.
+// Under the fleet-wide constant this pool was refused at four in flight no
+// matter how many machines stood idle: measured on 2026-09-03 with 62 jobs
+// queued, one node at 0% CPU and 0% memory, and every pool on `fleet_cap`.
+func TestProvisioningAdmissionCeilingScalesWithHealthyNodes(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 20, 4)
+	objs := []client.Object{pool}
+	for _, name := range []string{"node-a", "node-b", "node-c"} {
+		objs = append(objs, readyLinuxRunnerNode(name, pool.Spec.FleetSelector))
+	}
+	for i, node := range []string{"node-a", "node-a", "node-b", "node-b", "node-c"} {
+		objs = append(objs, boundRunnerPod(fmt.Sprintf("linux-a-runner-%d", i), pool.Name, node))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.cap != 12 {
+		t.Fatalf("cap = %d, want the per-node budget times three healthy nodes", admission.cap)
+	}
+	if admission.blockedReason != "" || admission.available != 4 {
+		t.Fatalf("admission = %+v, want a full node's worth of creations, not a fleet-wide four", admission)
+	}
+}
+
+// Scaling the ceiling with the fleet must not stop it being a ceiling.
+func TestProvisioningAdmissionBlocksWhenTheDerivedCeilingIsFull(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 20, 2)
+	objs := []client.Object{pool}
+	for _, name := range []string{"node-a", "node-b", "node-c"} {
+		objs = append(objs, readyLinuxRunnerNode(name, pool.Spec.FleetSelector))
+	}
+	for i, node := range []string{"node-a", "node-a", "node-b", "node-b", "node-c", "node-c"} {
+		objs = append(objs, boundRunnerPod(fmt.Sprintf("linux-a-runner-%d", i), pool.Name, node))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.cap != 6 || admission.blockedReason != "fleet_cap" || admission.available != 0 {
+		t.Fatalf("admission = %+v, want the six-slot ceiling held by six in-flight Pods", admission)
+	}
+}
+
+// A node that cannot take Pods must not lend the fleet start budget. This is
+// what makes the documented remedy for a host that accepts sandboxes it cannot
+// start — cordon it — shrink the ceiling rather than leave it inflated.
+func TestProvisioningAdmissionCeilingExcludesUnusableNodes(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 20, 4)
+	cordoned := readyLinuxRunnerNode("node-cordoned", pool.Spec.FleetSelector)
+	cordoned.Spec.Unschedulable = true
+	notReady := readyLinuxRunnerNode("node-down", pool.Spec.FleetSelector)
+	notReady.Status.Conditions = []corev1.NodeCondition{{
+		Type:   corev1.NodeReady,
+		Status: corev1.ConditionFalse,
+	}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		pool, readyLinuxRunnerNode("node-a", pool.Spec.FleetSelector), cordoned, notReady,
+	).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.healthyNodes != 1 || admission.cap != 4 {
+		t.Fatalf("admission = %+v, want only the one usable node to contribute budget", admission)
+	}
+}
+
+// The ceiling bounds sandboxes coming up across the fleet; it cannot bound how
+// many land on one host, because the controller does not place Pods. What it
+// bounds instead is how many are handed to the scheduler at once — the batch
+// that can arrive on one kubelet together, since the scheduler prefers the
+// least-allocated node and an idle host attracts all of them.
+func TestProvisioningAdmissionLimitsSimultaneousPlacement(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 40, 4)
+	objs := []client.Object{pool}
+	for _, name := range []string{"node-a", "node-b", "node-c"} {
+		objs = append(objs, readyLinuxRunnerNode(name, pool.Spec.FleetSelector))
+	}
+	for i := 0; i < 4; i++ {
+		objs = append(objs, newRunnerPod(fmt.Sprintf("linux-a-runner-%d", i), "img", corev1.PodPending, pool.Name))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.awaitingPlacement != 4 {
+		t.Fatalf("awaitingPlacement = %d, want the four unbound Pods", admission.awaitingPlacement)
+	}
+	if admission.blockedReason != "placement_burst" || admission.available != 0 {
+		t.Fatalf("admission = %+v, want the twelve-slot ceiling still gated at one node's worth of placements", admission)
+	}
+}
+
+// A Pod the scheduler has already refused is not about to arrive anywhere, so
+// it must not hold the burst gate. Counting it would rebuild the 2026-09-02
+// starvation on the new gate: a shape no node can seat parks its Pods for a
+// whole start timeout and every sibling is refused creation behind them.
+func TestProvisioningAdmissionPlacementBurstIgnoresRejectedPods(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 40, 4)
+	objs := []client.Object{pool}
+	for _, name := range []string{"node-a", "node-b", "node-c"} {
+		objs = append(objs, readyLinuxRunnerNode(name, pool.Spec.FleetSelector))
+	}
+	for i := 0; i < 4; i++ {
+		objs = append(objs, unschedulableRunnerPod(fmt.Sprintf("linux-a-runner-%d", i), pool.Name, time.Unix(1000, 0)))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.awaitingPlacement != 0 {
+		t.Fatalf("awaitingPlacement = %d, want rejected Pods left out of the burst gate", admission.awaitingPlacement)
+	}
+	if admission.blockedReason != "" || admission.available != 4 {
+		t.Fatalf("admission = %+v, want creations to continue under the parked Pods", admission)
+	}
+}
+
+// The admission metric reports a reason whenever a replica gap survives the
+// tick, including the ordinary case of a gap larger than the slots on offer.
+// With three terms able to cap creations, attributing all of them to the
+// ceiling would make `reason="fleet_cap"` mean nothing.
+func TestProvisioningAdmissionNamesTheTermThatCappedCreations(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux-a", 40, 4)
+	objs := []client.Object{pool}
+	for _, name := range []string{"node-a", "node-b", "node-c"} {
+		objs = append(objs, readyLinuxRunnerNode(name, pool.Spec.FleetSelector))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.available != 4 || admission.limitedBy != "placement_burst" {
+		t.Fatalf("admission = %+v, want a ramp attributed to the burst gate, not the ceiling", admission)
+	}
+
+	// Nine of the twelve slots in flight: now the ceiling is what binds.
+	for i, node := range []string{"node-a", "node-a", "node-a", "node-b", "node-b", "node-b", "node-c", "node-c", "node-c"} {
+		objs = append(objs, boundRunnerPod(fmt.Sprintf("linux-a-runner-%d", i), pool.Name, node))
+	}
+	c = fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r = &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	admission, err = r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.available != 3 || admission.limitedBy != "fleet_cap" {
+		t.Fatalf("admission = %+v, want the remaining ceiling attributed to fleet_cap", admission)
+	}
+}
+
+// The fair-share reservation from the fleet-slot fix has to keep working
+// against a ceiling that is now derived rather than configured.
+func TestProvisioningAdmissionHoldsFleetSlotForStarvedSiblingOnMultiNodeFleet(t *testing.T) {
+	scheme := mustScheme(t)
+	starved := newLinuxKataPool("linux-starved", 19, 2)
+	hog := newLinuxKataPool("linux-hog", 33, 2)
+	objs := []client.Object{starved, hog}
+	for _, name := range []string{"node-a", "node-b"} {
+		objs = append(objs, readyLinuxRunnerNode(name, starved.Spec.FleetSelector))
+	}
+	// Four of the ceiling's four slots, so only the reservation can free one.
+	for i, node := range []string{"node-a", "node-a", "node-b", "node-b"} {
+		objs = append(objs, boundRunnerPod(fmt.Sprintf("linux-hog-runner-%d", i), hog.Name, node))
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	hogAdmission, err := r.provisioningAdmission(context.Background(), hog)
+	if err != nil {
+		t.Fatalf("provisioningAdmission(hog): %v", err)
+	}
+	if hogAdmission.cap != 4 || hogAdmission.fleetCap != 3 || hogAdmission.available != 0 {
+		t.Fatalf("hog admission = %+v, want a derived ceiling of 4 with one slot withheld", hogAdmission)
+	}
+
+	starvedAdmission, err := r.provisioningAdmission(context.Background(), starved)
+	if err != nil {
+		t.Fatalf("provisioningAdmission(starved): %v", err)
+	}
+	if starvedAdmission.fleetCap != starvedAdmission.cap {
+		t.Fatalf("starved admission = %+v, want the whole derived ceiling", starvedAdmission)
+	}
+}
+
+func boundRunnerPod(name, poolName, nodeName string) *corev1.Pod {
+	pod := newRunnerPod(name, "img", corev1.PodPending, poolName)
+	pod.Spec.NodeName = nodeName
+	pod.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(time.Unix(1000, 0)),
+	}}
+	return pod
 }
 
 func TestTerminationTimedOutIgnoresPodThatIsNotDeleting(t *testing.T) {

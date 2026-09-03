@@ -183,6 +183,11 @@ var (
 		Help: "Runner-fleet nodes excluded from capacity or provisioning admission, grouped by reason.",
 	}, []string{fleetSelectorLabel, operatingSystemLabel, reasonLabel})
 
+	fleetProvisioningCeiling = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_provisioning_ceiling",
+		Help: "Concurrent Linux Kata sandbox starts a runner fleet allows: the per-node budget times its healthy node count. Compare with the sum of tuist_runners_pool_pending_provisioning_pods to see how much of the ceiling is in use.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel})
+
 	podStartTimeoutsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "tuist_runners_pool_pod_start_timeouts_total",
 		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
@@ -195,7 +200,7 @@ var (
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal, stuckTerminationsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -249,6 +254,16 @@ func RecordFleetNodes(fleetSelector, operatingSystem string, ready int, filtered
 	for _, reason := range fleetNodeFilterReasons {
 		fleetFilteredNodes.WithLabelValues(fleetSelector, operatingSystem, reason).Set(float64(filtered[reason]))
 	}
+}
+
+// RecordFleetProvisioningCeiling publishes the fleet's derived concurrent-start
+// budget. It moves with the healthy node count, so a drop without a
+// configuration change means nodes left the fleet.
+func RecordFleetProvisioningCeiling(fleetSelector, operatingSystem string, ceiling int) {
+	if ceiling < 0 {
+		ceiling = 0
+	}
+	fleetProvisioningCeiling.WithLabelValues(fleetSelector, operatingSystem).Set(float64(ceiling))
 }
 
 func RecordPodStartTimeout(pool, reason string) {

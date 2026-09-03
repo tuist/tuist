@@ -59,13 +59,13 @@ func newPool(name, image string, replicas int32) *tuistv1.RunnerPool {
 	}
 }
 
-func newLinuxKataPool(name string, replicas, maxProvisioning int32) *tuistv1.RunnerPool {
+func newLinuxKataPool(name string, replicas, maxProvisioningPerNode int32) *tuistv1.RunnerPool {
 	pool := newPool(name, "ghcr.io/tuist/tuist-linux-runner:test", replicas)
 	pool.Spec.OS = "linux"
 	pool.Spec.RuntimeClass = "kata-qemu"
 	pool.Spec.Provisioning = &tuistv1.RunnerPoolProvisioning{
-		MaxConcurrentPerFleetSelector: ptr.To(maxProvisioning),
-		StartTimeoutSeconds:           ptr.To[int32](300),
+		MaxConcurrentPerNode: ptr.To(maxProvisioningPerNode),
+		StartTimeoutSeconds:  ptr.To[int32](300),
 	}
 	return pool
 }
