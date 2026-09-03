@@ -34,8 +34,8 @@
         "kind": "Panel",
         "spec": {
           "id": 4,
-          "title": "Accounts with a live Kura instance",
-          "description": "Accounts that own at least one Kura instance not destroyed/failed (statuses provisioning, active, replicating, drain_pending, archived), from Postgres `kura_servers`. Instances are demand-provisioned, so this grows as Kura-default CLIs reach new accounts.",
+          "title": "Live Kura instances",
+          "description": "From the Kura nodes themselves: `kura_node_info` exported by every production Kura pod, labelled with the tenant (account handle) and region. Accounts = distinct tenants, Instances = distinct tenant+region pairs (one per `KuraInstance`), Pods = replicas. Runner-cache instances in the `scw-fr-par-runners` region count too.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -48,16 +48,67 @@
                     "hidden": false,
                     "query": {
                       "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
+                      "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "afscyehfnzg8wf"
+                        "name": "grafanacloud-prom"
                       },
                       "spec": {
                         "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT count(DISTINCT account_id) AS \"Accounts\", count(*) AS \"Instances\"\nFROM public.kura_servers WHERE status NOT IN (2, 3, 4)"
+                        "expr": "count(count by (tenant_id) (kura_node_info{cluster=\"tuist-production\"}))",
+                        "legendFormat": "Accounts",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count(count by (tenant_id, region) (kura_node_info{cluster=\"tuist-production\"}))",
+                        "legendFormat": "Instances",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "C",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count(kura_node_info{cluster=\"tuist-production\"})",
+                        "legendFormat": "Pods",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "time_series"
                       }
                     }
                   }
@@ -110,6 +161,21 @@
                   {
                     "matcher": {
                       "id": "byName",
+                      "options": "Accounts"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
                       "options": "Instances"
                     },
                     "properties": [
@@ -118,6 +184,21 @@
                         "value": {
                           "mode": "fixed",
                           "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Pods"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "text"
                         }
                       }
                     ]
@@ -132,8 +213,8 @@
         "kind": "Panel",
         "spec": {
           "id": 5,
-          "title": "Kura tenants serving now",
-          "description": "Distinct `tenant_id` values (account handles) currently exported by `kura_node_info` in the production cluster.",
+          "title": "Live Kura instances over time",
+          "description": "Distinct tenants and tenant+region instances present in `kura_node_info` on production Kura pods, over the selected range. A step up is an account getting its first instance; a step down is an archive or teardown.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -154,11 +235,33 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "count(count by (tenant_id) (kura_node_info{cluster=\"tuist-production\"}))",
-                        "legendFormat": "Tenants",
-                        "instant": true,
-                        "range": false,
-                        "queryType": "instant",
-                        "format": "table"
+                        "legendFormat": "Accounts",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count(count by (tenant_id, region) (kura_node_info{cluster=\"tuist-production\"}))",
+                        "legendFormat": "Instances",
+                        "instant": false,
+                        "range": true,
+                        "queryType": "range"
                       }
                     }
                   }
@@ -170,29 +273,28 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "stat",
+            "group": "timeseries",
             "version": "13.0.0-22478626928",
             "spec": {
               "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
                 },
-                "showPercentChange": false,
-                "textMode": "value",
-                "wideLayout": true
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
                   "thresholds": {
                     "mode": "absolute",
                     "steps": [
@@ -202,12 +304,81 @@
                       }
                     ]
                   },
-                  "color": {
-                    "mode": "fixed",
-                    "fixedColor": "green"
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
                   }
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Accounts"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      },
+                      {
+                        "id": "custom.lineInterpolation",
+                        "value": "stepAfter"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Instances"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      },
+                      {
+                        "id": "custom.lineInterpolation",
+                        "value": "stepAfter"
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -4274,7 +4445,7 @@
         "spec": {
           "id": 34,
           "title": "Kura instances",
-          "description": "Every non-destroyed Kura instance from Postgres `kura_servers`, with the account, whether the account opted in explicitly before the default flip, and the demand-driven lifecycle state (`kura_account_region_lifecycles`).",
+          "description": "One row per tenant+region instance currently exporting `kura_node_info` on production, with its replica count and how many replicas report ready (`kura_ready_state`). The Postgres `kura_servers` table is not readable from Grafana, so lifecycle state and provisioning dates are not shown here.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4287,22 +4458,90 @@
                     "hidden": false,
                     "query": {
                       "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
+                      "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "afscyehfnzg8wf"
+                        "name": "grafanacloud-prom"
                       },
                       "spec": {
                         "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT a.name AS account_handle, s.region, CASE s.status WHEN 0 THEN 'provisioning' WHEN 1 THEN 'active' WHEN 2 THEN 'failed'\n  WHEN 3 THEN 'destroying' WHEN 4 THEN 'destroyed' WHEN 5 THEN 'replicating'\n  WHEN 6 THEN 'drain_pending' WHEN 7 THEN 'archived' END AS status, s.url, s.current_image_tag AS image_tag,\n  s.inserted_at AS provisioned_at, s.last_ready_at,\n  (ace.id IS NOT NULL) AS explicit_opt_in, l.keep_warm, l.last_cache_demand_at, l.archived_at\nFROM public.kura_servers s\nJOIN public.accounts a ON a.id = s.account_id\nLEFT JOIN public.account_cache_endpoints ace ON ace.account_id = s.account_id AND ace.technology = 1 AND ace.deactivated_at IS NULL\nLEFT JOIN public.kura_account_region_lifecycles l ON l.account_id = s.account_id AND l.service_region = s.region\nWHERE s.status NOT IN (2, 3, 4)\nORDER BY s.inserted_at DESC"
+                        "expr": "count by (tenant_id, region) (kura_node_info{cluster=\"tuist-production\"})",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "table"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count by (tenant_id, region) (kura_node_info{cluster=\"tuist-production\"} * on (cluster, pod) group_left() (max by (cluster, pod) (kura_ready_state{cluster=\"tuist-production\"}) == 1))",
+                        "legendFormat": "__auto",
+                        "instant": true,
+                        "range": false,
+                        "queryType": "instant",
+                        "format": "table"
                       }
                     }
                   }
                 }
               ],
-              "transformations": [],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "tenant_id": 0,
+                        "region": 1,
+                        "Value #A": 2,
+                        "Value #B": 3
+                      },
+                      "renameByName": {}
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "sortBy",
+                  "spec": {
+                    "options": {
+                      "fields": {},
+                      "sort": [
+                        {
+                          "desc": false,
+                          "field": "tenant_id"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
               "queryOptions": {}
             }
           },
@@ -4346,7 +4585,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "account_handle"
+                      "options": "tenant_id"
                     },
                     "properties": [
                       {
@@ -4355,7 +4594,7 @@
                       },
                       {
                         "id": "custom.width",
-                        "value": 180
+                        "value": 200
                       }
                     ]
                   },
@@ -4371,23 +4610,47 @@
                       },
                       {
                         "id": "custom.width",
-                        "value": 110
+                        "value": 160
                       }
                     ]
                   },
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "status"
+                      "options": "Value #A"
                     },
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Status"
+                        "value": "Pods"
                       },
                       {
                         "id": "custom.width",
-                        "value": 120
+                        "value": 90
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value #B"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Ready pods"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 110
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
                       },
                       {
                         "id": "custom.cellOptions",
@@ -4397,34 +4660,31 @@
                         }
                       },
                       {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "value": 0,
+                              "color": "red"
+                            },
+                            {
+                              "value": 1,
+                              "color": "green"
+                            }
+                          ]
+                        }
+                      },
+                      {
                         "id": "mappings",
                         "value": [
                           {
-                            "type": "value",
+                            "type": "special",
                             "options": {
-                              "active": {
-                                "color": "green",
-                                "index": 0
-                              },
-                              "provisioning": {
-                                "color": "blue",
-                                "index": 1
-                              },
-                              "replicating": {
-                                "color": "blue",
-                                "index": 2
-                              },
-                              "drain_pending": {
-                                "color": "orange",
-                                "index": 3
-                              },
-                              "archived": {
-                                "color": "text",
-                                "index": 4
-                              },
-                              "failed": {
-                                "color": "red",
-                                "index": 5
+                              "match": "null",
+                              "result": {
+                                "text": "0",
+                                "color": "red"
                               }
                             }
                           }
@@ -4435,140 +4695,12 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "url"
+                      "options": "Time"
                     },
                     "properties": [
                       {
-                        "id": "displayName",
-                        "value": "URL"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "image_tag"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Image"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 90
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "provisioned_at"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Provisioned"
-                      },
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsIso"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 170
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "last_ready_at"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Last ready"
-                      },
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsIso"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 170
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "explicit_opt_in"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Explicit opt-in"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 120
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "keep_warm"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Keep warm"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 100
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "last_cache_demand_at"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Last demand"
-                      },
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsIso"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 170
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "archived_at"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Archived"
-                      },
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsIso"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 170
+                        "id": "custom.hidden",
+                        "value": true
                       }
                     ]
                   }
@@ -4610,7 +4742,7 @@
                       "spec": {
                         "x": 15,
                         "y": 0,
-                        "width": 6,
+                        "width": 9,
                         "height": 5,
                         "element": {
                           "kind": "ElementReference",
@@ -4621,26 +4753,26 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 21,
-                        "y": 0,
-                        "width": 3,
-                        "height": 5,
+                        "x": 0,
+                        "y": 5,
+                        "width": 16,
+                        "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-5"
+                          "name": "panel-9"
                         }
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
+                        "x": 16,
                         "y": 5,
-                        "width": 24,
+                        "width": 8,
                         "height": 9,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-9"
+                          "name": "panel-5"
                         }
                       }
                     }
