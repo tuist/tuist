@@ -189,9 +189,17 @@ defmodule Tuist.ClickHouse.SchemaClone do
   # `Ecto.Migrator`, which would then replay every migration over a schema
   # that already matches them.
   defp copy_schema_migrations(source, target) do
+    # Column types are read from the destination rather than written down
+    # here. `ecto_ch` creates `inserted_at` as `DateTime`, not
+    # `DateTime64(6)` like the ingest tables, and a hardcoded list is a silent
+    # dependency on a schema this module does not own.
+    columns = migration_columns(target)
+    names = Enum.map_join(columns, ", ", fn {name, _type} -> Endpoints.quote_ident(name) end)
+    types = Enum.map(columns, fn {_name, type} -> type end)
+
     %{rows: rows} =
       source.repo.query!(
-        "SELECT version, inserted_at FROM #{Endpoints.quote_ident(source.database)}.schema_migrations ORDER BY version",
+        "SELECT #{names} FROM #{Endpoints.quote_ident(source.database)}.schema_migrations ORDER BY version",
         [],
         log: false
       )
@@ -200,14 +208,29 @@ defmodule Tuist.ClickHouse.SchemaClone do
       0
     else
       target.repo.query!(
-        "INSERT INTO #{Endpoints.quote_ident(target.database)}.schema_migrations (version, inserted_at) FORMAT RowBinary",
+        "INSERT INTO #{Endpoints.quote_ident(target.database)}.schema_migrations (#{names}) FORMAT RowBinary",
         rows,
-        types: ["Int64", "DateTime64(6)"],
+        types: types,
         log: false
       )
 
       length(rows)
     end
+  end
+
+  defp migration_columns(target) do
+    %{rows: rows} =
+      target.repo.query!(
+        """
+        SELECT name, type FROM system.columns
+        WHERE database = {database:String} AND table = 'schema_migrations'
+        ORDER BY position
+        """,
+        %{"database" => target.database},
+        log: false
+      )
+
+    Enum.map(rows, fn [name, type] -> {name, type} end)
   end
 
   defp summarize(results) do
