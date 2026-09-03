@@ -37,19 +37,20 @@ struct TuistCacheEECanaryAcceptanceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
 
-        // `ResourceLocator` and `ProjectMapperFactory` resolve the plugin and the proxy
-        // from `Environment.current`, which is mocked here and inherits only `PATH`, so
-        // CI's overrides are copied in rather than inherited.
-        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try #require(
-            ProcessInfo.processInfo.environment["TUIST_CAS_PLUGIN_PATH"],
-            "TUIST_CAS_PLUGIN_PATH is unset. Build the plugin with `mise run build` in `cas-plugin` and export it."
+        let casPluginBuildDirectory = try casPluginBuildDirectory()
+        let pluginPath = casPluginBuildDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        let proxyPath = casPluginBuildDirectory.appending(component: "tuist-cas-proxy")
+        try #require(
+            await fileSystem.exists(pluginPath),
+            "The CAS plugin is missing. Build it with `mise run build` in `cas-plugin`."
         )
-        let proxyPath = try AbsolutePath(
-            validating: try #require(
-                ProcessInfo.processInfo.environment["TUIST_CAS_PROXY_PATH"],
-                "TUIST_CAS_PROXY_PATH is unset. Build the proxy with `mise run build` in `cas-plugin` and export it."
-            )
+        try #require(
+            await fileSystem.exists(proxyPath),
+            "The cache proxy is missing. Build it with `mise run build` in `cas-plugin`."
         )
+        // `ProjectMapperFactory` resolves the plugin from `Environment.current`, which is
+        // mocked here and inherits only `PATH`.
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = pluginPath.pathString
 
         try await withShortStateDirectory(fileSystem: fileSystem) { stateDirectory in
             let previousStateDirectory = environment.stateDirectory
@@ -323,6 +324,21 @@ struct TuistCacheEECanaryAcceptanceTests {
             try await fileSystem.remove(directory)
         }
         try await fileSystem.makeDirectory(at: directory)
+    }
+
+    /// Where `mise run build` in `cas-plugin` leaves the plugin dylib and the proxy binary.
+    ///
+    /// Resolved from the source tree, the way `Fixtures.directory` is, rather than from
+    /// `TUIST_CAS_PLUGIN_PATH`: `xcodebuild test-without-building` runs the bundle with the
+    /// environment captured into the xctestrun at build time, so a variable exported by the
+    /// CI job never reaches this process.
+    private func casPluginBuildDirectory() throws -> AbsolutePath {
+        try AbsolutePath(validating: #filePath)
+            .parentDirectory
+            .parentDirectory
+            .parentDirectory
+            .parentDirectory
+            .appending(components: "cas-plugin", "target", "release")
     }
 
     /// The cache proxy exposes a Unix-domain socket under the state directory. macOS limits the full
