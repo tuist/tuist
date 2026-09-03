@@ -55,6 +55,14 @@ dependencies:
     version: 3.12.2
     repository: https://kubernetes-sigs.github.io/metrics-server/
     condition: metrics-server.enabled
+  # OCI rather than the project's HTTP chart repository. That repository
+  # is published at cloudnative-pg.github.io/charts but 301-redirects to
+  # the apex cloudnative-pg.io, whose authoritative DNS answers SERVFAIL
+  # — it resolves from some resolvers and not others, and GitHub runners
+  # land on the failing side, so `helm dependency update` times out and
+  # takes every chart in the lint and render matrix down with it. The OCI
+  # registry is the same publisher and the same chart versions with no
+  # redirect and no dependency on that domain.
   - name: cloudnative-pg
     version: 0.28.3
     repository: oci://ghcr.io/cloudnative-pg/charts

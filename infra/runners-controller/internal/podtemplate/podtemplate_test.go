@@ -189,7 +189,7 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	for _, mount := range []corev1.VolumeMount{
 		{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"},
 		{Name: "tuist-runner-jit", MountPath: jitMountPath},
-		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		{Name: "shell-sock", MountPath: shellSocketMountPath},
 	} {
 		if !hasVolumeMount(shell.VolumeMounts, mount) {
 			t.Errorf("shell sidecar missing mount %+v; got %+v", mount, shell.VolumeMounts)
@@ -207,8 +207,8 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_SOCKET"); got != shellSocketPath {
 		t.Errorf("shell socket path = %q, want %q", got, shellSocketPath)
 	}
-	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != "/home/runner/actions-runner/_work" {
-		t.Errorf("shell workdir = %q, want shared runner workspace", got)
+	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != workPath {
+		t.Errorf("shell workdir = %q, want the runner work directory %q", got, workPath)
 	}
 	if shell.SecurityContext == nil || shell.SecurityContext.RunAsUser == nil || *shell.SecurityContext.RunAsUser != 0 {
 		t.Errorf("shell sidecar must start as root to read the token before dropping PTY children; got %+v", shell.SecurityContext)
@@ -420,7 +420,7 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// docker-run -v bind-mounts resolve identically on both sides.
 	for _, vm := range []corev1.VolumeMount{
 		{Name: "dind-sock", MountPath: "/var/run"},
-		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		{Name: "work", MountPath: workPath},
 	} {
 		if !hasVolumeMount(runner.VolumeMounts, vm) {
 			t.Errorf("runner missing volumeMount %+v; got %+v", vm, runner.VolumeMounts)
@@ -507,6 +507,52 @@ func TestBuild_LinuxDindSharesRunnerExternals(t *testing.T) {
 	}
 	if !hasVolume(pod.Spec.Volumes, "dind-externals") {
 		t.Errorf("pod missing volume \"dind-externals\"; got %+v", pod.Spec.Volumes)
+	}
+}
+
+func TestBuild_LinuxDindSharesRunnerWorkDirectory(t *testing.T) {
+	// The runner honors the absolute `work_folder` the server mints
+	// into the JIT config (`Tuist.Runners`, /home/runner/work on
+	// Linux) and never touches its own `<runner root>/_work`
+	// default. Mount the shared volume anywhere else and the real
+	// work directory stays container-local: dockerd then bind-mounts
+	// a path that does not exist in the sidecar, docker creates it
+	// empty, and every step of a `jobs.<id>.container` job fails —
+	// `run:` steps on a missing /__w/_temp/<id>.sh, JS actions on a
+	// missing /__w/_actions/<owner>/<repo>/<ref>/dist/index.js.
+	pod := build(t, basePool("linux"))
+
+	if workPath != "/home/runner/work" {
+		t.Fatalf("workPath = %q, want the server-minted work_folder /home/runner/work", workPath)
+	}
+	work := corev1.VolumeMount{Name: "work", MountPath: workPath}
+	if !hasVolumeMount(pod.Spec.Containers[0].VolumeMounts, work) {
+		t.Errorf("runner missing %+v; got %+v", work, pod.Spec.Containers[0].VolumeMounts)
+	}
+	if !hasVolumeMount(initContainer(t, pod, "dind").VolumeMounts, work) {
+		t.Errorf("sidecar missing %+v; docker resolves /__w in its namespace", work)
+	}
+}
+
+func TestBuild_LinuxShellSocketIsNotInsideTheWorkTree(t *testing.T) {
+	// The runner bind-mounts the whole work directory into a job
+	// container as /__w. The PTY socket is the runner container's
+	// entry point, so it lives on its own volume rather than being
+	// handed to the workflow along with the workspace.
+	pod := build(t, basePool("linux"))
+
+	if strings.HasPrefix(shellSocketPath, workPath+"/") {
+		t.Errorf("shell socket %q sits under the work directory %q, which is bind-mounted into job containers as /__w", shellSocketPath, workPath)
+	}
+	sock := corev1.VolumeMount{Name: "shell-sock", MountPath: shellSocketMountPath}
+	if !hasVolumeMount(pod.Spec.Containers[0].VolumeMounts, sock) {
+		t.Errorf("runner missing %+v; got %+v", sock, pod.Spec.Containers[0].VolumeMounts)
+	}
+	if !hasVolumeMount(initContainer(t, pod, "shell").VolumeMounts, sock) {
+		t.Errorf("shell sidecar missing %+v; it brokers the PTY over that socket", sock)
+	}
+	if !hasVolume(pod.Spec.Volumes, "shell-sock") {
+		t.Errorf("pod missing volume \"shell-sock\"; got %+v", pod.Spec.Volumes)
 	}
 }
 

@@ -198,4 +198,5 @@ class GitInfoProviderTest {
 
         assertEquals(null, provider.remoteUrlOrigin())
     }
+
 }

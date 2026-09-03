@@ -312,12 +312,17 @@ CAS_ENABLED_MARKER="cas-enabled"
 VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
 VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 
-# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
-# subtrees whose churn means the job actually changed the cache: binaries
-# added/evicted, manifests or ProjectDescriptionHelpers compiled. Pure cache
-# hits only bump mtimes (they don't add/remove entries), so they don't move
-# this hash — matching the reconciler's rule that mtime-only deltas are not
-# dirty and must not trigger a promote that could clobber a concurrent writer.
+# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under EVERY cache
+# category, so any entry the job added or removed moves the hash: binaries
+# added/evicted, manifests or ProjectDescriptionHelpers compiled, and anything
+# the CLI's support-cache retention reclaimed. The list has to be every category
+# rather than the few that a job writes, because a job whose only change is a
+# retention pass freeing a leaked result bundle is exactly the job worth
+# promoting, and a digest blind to its subtree would report the branch clean and
+# the host would discard the cleaned image. Pure cache hits only bump mtimes
+# (they don't add/remove entries), so they don't move this hash — matching the
+# reconciler's rule that mtime-only deltas are not dirty and must not trigger a
+# promote that could clobber a concurrent writer.
 #
 # It takes the mountpoint to measure rather than reading CACHE_MOUNT, because the
 # two snapshots are read through DIFFERENT mounts: the pre-job one through the
@@ -340,7 +345,7 @@ cache_inventory() {
   # (Go sort.Strings is byte-wise). The `~cas/` lines sort LAST (0x7E > the
   # alphanumeric subdir names), matching the host's casLinePrefix placement.
   {
-    for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+    for d in Binaries EditProjects GenerationMetadata Manifests Plugins ProjectDescriptionHelpers Projects Runs SelectiveTests; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
     ( cd "${cas}" 2>/dev/null && find . -type f -not -path '*/.*' -exec stat -f "%N$(printf '\t')%z" {} + 2>/dev/null ) \

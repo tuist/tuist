@@ -102,16 +102,6 @@ const MAX_BATCH_BYTES: i64 = 32 << 20;
 // systematically.
 const RPC_TIMEOUT: Duration = Duration::from_secs(180);
 const ATTEMPTS: usize = 3;
-
-/// How much a single action lookup may spend. `Retried` is the ordinary policy
-/// (`ATTEMPTS` with backoff, under `RPC_TIMEOUT`), right for a resolve that is
-/// going to fetch blobs anyway. `Within` is one attempt under a deadline the
-/// caller names, for a lookup that is only worth having if it is quick.
-#[derive(Clone, Copy)]
-enum LookupBudget {
-    Retried,
-    Within(Duration),
-}
 // How many times `batch_read` re-requests the subset of blobs a `BatchReadBlobs`
 // call returned with a retryable per-blob status. This is a separate budget from
 // `ATTEMPTS`: that one retries the RPC itself, which succeeds here -- the
@@ -123,6 +113,17 @@ const BLOB_STATUS_ATTEMPTS: usize = 3;
 // each pay the retry ladder and pile read load onto it; short enough to re-probe
 // for recovery several times within one build.
 const PRESSURE_BACKOFF_MS: u64 = 30_000;
+// The same idea for the PUBLICATION write path, which had no equivalent: every
+// publication paid `retry_call`'s full ladder on every shed, and that ladder
+// sleeps 200ms. A build publishing thousands of keys against a node shedding
+// writes therefore spent hundreds of milliseconds per publication asleep in a
+// publisher thread -- invisible in wall clock, because publications are
+// background work, and visible only as `write_duration` in the build report.
+//
+// Shorter than the read window because a publication's retry is not a caller
+// blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
+// a node that recovers is picked up on the next one rather than waited out.
+const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
 
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -154,6 +155,77 @@ fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, 
         }
     }
     Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
+/// `retry_call` for a publication's write RPCs, with the ladder gated on a
+/// per-`Remote` breaker.
+///
+/// The ladder exists for a node that is briefly unavailable. It is the wrong
+/// answer for one that is deliberately shedding writes under load: the sleep
+/// buys nothing (the outbox is full for as long as it is full), it costs a
+/// publisher thread 200ms it could have spent on a publication that would
+/// succeed, and re-issuing adds load to the node that is already saying it has
+/// too much. So once a shed survives the ladder, the next publications make one
+/// fail-fast attempt for `WRITE_PRESSURE_BACKOFF_MS`.
+///
+/// Failing fast is safe here in a way it would not be on the read path: a
+/// publication's record is durable on disk and is deleted only once the
+/// publication succeeds, so a refusal is retried by the next sweep rather than
+/// lost. The one thing that must not happen is reporting it as published.
+fn retry_write<T>(
+    breaker: &AtomicU64,
+    mut op: impl FnMut() -> Result<T, tonic::Status>,
+) -> Result<T, tonic::Status> {
+    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) { 1 } else { ATTEMPTS };
+    for attempt in 0..attempts {
+        if attempt > 1 {
+            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
+        }
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < attempts => continue,
+            Err(status) => {
+                // Only a shed arms the breaker. An unreachable node
+                // (UNAVAILABLE) or a dropped connection is transient and
+                // unrelated to load, and failing publications fast for 5s
+                // because one connection blipped would turn a reconnect into a
+                // window of skipped publications.
+                if status.code() == tonic::Code::ResourceExhausted {
+                    arm_write_pressure_backoff(breaker);
+                }
+                return Err(status);
+            }
+        }
+    }
+    Err(tonic::Status::unknown("retry attempts exhausted"))
+}
+
+/// Opens a fresh fail-fast window, logging the transition once. Same
+/// compare-exchange discipline as `arm_pressure_backoff`: eight publisher
+/// threads race the same `Remote`, and a plain load-then-store would let every
+/// one of them arm and log.
+fn arm_write_pressure_backoff(breaker: &AtomicU64) {
+    let now = now_ms();
+    let mut current = breaker.load(Ordering::Relaxed);
+    loop {
+        if current > now {
+            return;
+        }
+        match breaker.compare_exchange_weak(
+            current,
+            now + WRITE_PRESSURE_BACKOFF_MS,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(observed) => current = observed,
+        }
+    }
+    crate::log_line(&format!(
+        "publish: server shedding writes under load; failing publications fast \
+         for {}s (their records are kept and the next sweep retries)",
+        WRITE_PRESSURE_BACKOFF_MS / 1000
+    ));
 }
 
 /// Async counterpart of `retry_call`, for calls issued from within a tokio task
@@ -277,6 +349,16 @@ pub struct Remote {
     // server-sent Internal), so once tripped we fail fast until it may have
     // recovered. 0 means healthy.
     pressure_backoff_until_ms: AtomicU64,
+    // The publication write path's own breaker. Separate from the read one
+    // because the two are shed independently: kura sheds WRITES when its
+    // outbox is at its cap while reads keep being served, and arming the read
+    // breaker on that would fail-fast cache hits that were never in trouble.
+    write_pressure_backoff_until_ms: AtomicU64,
+    // Publications this `Remote` refused to attempt because it was inside that
+    // window. Without it a build report cannot tell a `write_duration` that is
+    // flat because publishing is healthy from one that is flat because almost
+    // nothing was published.
+    shed_writes: AtomicU64,
 }
 
 fn retryable(status: &tonic::Status) -> bool {
@@ -463,7 +545,30 @@ impl Remote {
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
             pressure_backoff_until_ms: AtomicU64::new(0),
+            write_pressure_backoff_until_ms: AtomicU64::new(0),
+            shed_writes: AtomicU64::new(0),
         })
+    }
+
+    /// Whether this `Remote` is inside a window in which the server was last
+    /// seen shedding publication writes.
+    ///
+    /// The publication path asks BEFORE it does any work, not just before each
+    /// write RPC: a shedding node fails the write at the end either way, so
+    /// probing the action cache, walking the value closure and asking which
+    /// blobs are missing are three round trips and a pile of local reads spent
+    /// to arrive at a refusal that is already known.
+    pub fn shedding_writes(&self) -> bool {
+        now_ms() < self.write_pressure_backoff_until_ms.load(Ordering::Relaxed)
+    }
+
+    /// Counts a publication skipped because `shedding_writes` was true.
+    pub fn record_shed_write(&self) {
+        self.shed_writes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn shed_writes(&self) -> u64 {
+        self.shed_writes.load(Ordering::Relaxed)
     }
 
     /// The `authorization: Bearer <token>` header, or `None` when the endpoint
@@ -582,22 +687,7 @@ impl Remote {
     /// holds and will discard. Cold-store resolves -- the dominant remote-hit
     /// case -- waste nothing and save a full WAN round-trip per resolve.
     pub fn get_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
-        self.lookup_action(key, true, LookupBudget::Retried)
-    }
-
-    /// The same lookup with ONE attempt and a hard deadline, for a caller that is
-    /// asking on the build engine's serial task-setup path and would rather have
-    /// no answer than a late one. The deadline rides the request as
-    /// `grpc-timeout`, which the channel takes as the shorter of it and its own
-    /// `RPC_TIMEOUT`, and which the server sees too, so it can abandon the work
-    /// instead of finishing it for a client that has already stopped waiting.
-    /// `Err` is "could not tell", not a miss; only `Ok(None)` is.
-    pub fn get_action_within(
-        &self,
-        key: &[u8],
-        deadline: Duration,
-    ) -> Result<Option<Vec<ManifestEntry>>, String> {
-        self.lookup_action(key, true, LookupBudget::Within(deadline))
+        self.get_action_with_inline(key, true)
     }
 
     /// Existence probe for the publish path: the same lookup without the
@@ -607,14 +697,13 @@ impl Remote {
     /// pool, billed egress up to the response budget) would pay all of that
     /// for bytes that are immediately dropped.
     pub fn probe_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
-        self.lookup_action(key, false, LookupBudget::Retried)
+        self.get_action_with_inline(key, false)
     }
 
-    fn lookup_action(
+    fn get_action_with_inline(
         &self,
         key: &[u8],
         inline_outputs: bool,
-        budget: LookupBudget,
     ) -> Result<Option<Vec<ManifestEntry>>, String> {
         let started = Instant::now();
         let result = (|| {
@@ -635,16 +724,9 @@ impl Remote {
                 },
                 ..Default::default()
             };
-            let response = match budget {
-                LookupBudget::Retried => retry_call(|| {
-                    runtime().block_on(client.get_action_result(self.authed(request.clone())))
-                }),
-                LookupBudget::Within(deadline) => {
-                    let mut request = self.authed(request.clone());
-                    request.set_timeout(deadline);
-                    runtime().block_on(client.get_action_result(request))
-                }
-            };
+            let response = retry_call(|| {
+                runtime().block_on(client.get_action_result(self.authed(request.clone())))
+            });
             match response {
                 Ok(response) => {
                     let manifest = response
@@ -869,13 +951,26 @@ impl Remote {
                     requests: chunk,
                     ..Default::default()
                 };
-                let response = retry_call(|| {
+                let response = retry_write(&self.write_pressure_backoff_until_ms, || {
                     runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
                     if let Some(status) = entry.status {
                         if status.code != 0 {
+                            // A shed can arrive either way, and only the RPC-level
+                            // one goes through `retry_write`: kura refuses the whole
+                            // call when its outbox is already at its cap, but a call
+                            // that exhausts capacity mid-request comes back OK with
+                            // the refusal on the individual blob. Both mean the same
+                            // thing about the node, so both must arm the breaker.
+                            // Without this the per-blob shape left every later
+                            // publication paying a probe, a closure walk and a
+                            // missing-blob query to reach a refusal already known,
+                            // which is most of what the breaker exists to stop.
+                            if status.code == tonic::Code::ResourceExhausted as i32 {
+                                arm_write_pressure_backoff(&self.write_pressure_backoff_until_ms);
+                            }
                             return Err(format!("batch_update blob rejected: {}", status.message));
                         }
                     }
@@ -916,7 +1011,7 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
-            retry_call(|| {
+            retry_write(&self.write_pressure_backoff_until_ms, || {
                 // The trunk rides the write too: kura keeps trunk-baseline
                 // keys sticky against feature-branch republishes.
                 let mut request = self.authed_with(

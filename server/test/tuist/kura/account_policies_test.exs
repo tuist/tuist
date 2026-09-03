@@ -16,6 +16,15 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
   setup :set_mimic_from_context
 
+  # Resolution refuses a region the deployment does not serve, so every test
+  # states the deployment it assumes rather than inheriting the test env's
+  # local-controller-only catalog. `ap-southeast` is deliberately absent: it is
+  # assignment-only, and its tests turn it on where they need it.
+  setup do
+    serving(["us-east", "us-west", "eu-central"])
+    :ok
+  end
+
   describe "resolve/1" do
     test "resolves an account without a subscription to Air in United States East" do
       account = organization_account()
@@ -495,6 +504,59 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     stub(Environment, :kura_available_region_ids, fn -> region_ids end)
   end
 
+  describe "residency admits no served region" do
+    test "refuses rather than resolving into the residency default the deployment does not serve" do
+      # The trap the availability filter on `placeable` exists to close, reached
+      # through the fallback instead of through placement: a US-residency account
+      # in a deployment that serves neither American region has nothing placeable,
+      # and the residency default (`us-east`) names a region nothing provisions in.
+      # Resolving it records demand under a region `Lifecycle.lifecycle_regions/0`
+      # never iterates, so the account reports as provisioning forever while no
+      # instance is ever created.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      account = update_region!(account, :usa)
+      serving(["eu-central", "ca-east"])
+
+      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+    end
+
+    test "resolves again once the deployment serves a region the residency admits" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      account = update_region!(account, :usa)
+      serving(["eu-central", "us-east"])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
+    end
+  end
+
+  describe "Air funded in a region the deployment does not serve" do
+    test "refuses rather than resolving into an unserved funded region" do
+      # What canary was doing for 63 days: Air is funded in `us-east` by
+      # default, canary serves `eu-central`/`ca-east`, and resolution handed
+      # back `us-east` anyway. Demand landed in a region the lifecycle loop
+      # never iterates, no instance was ever created, and the endpoints API
+      # reported the account as provisioning on every poll.
+      account = organization_account()
+      account = update_region!(account, :all)
+      serving(["eu-central", "ca-east"])
+      stub(Environment, :kura_air_region_ids, fn -> ["us-east"] end)
+
+      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+    end
+
+    test "places Air in a funded region the deployment serves" do
+      account = organization_account()
+      account = update_region!(account, :all)
+      serving(["eu-central", "ca-east"])
+      stub(Environment, :kura_air_region_ids, fn -> ["ca-east", "eu-central"] end)
+
+      assert {:ok, %{plan: :air, service_region: service_region}} = AccountPolicies.resolve(account)
+      assert service_region in ["ca-east", "eu-central"]
+    end
+  end
+
   describe "placement by origin" do
     test "places a new account in the region nearest its traffic" do
       account = organization_account()
@@ -673,6 +735,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       account = Accounts.get_account_from_user(user)
 
       stub(Environment, :kura_air_region_ids, fn -> ["ca-east"] end)
+      serving(["ca-east"])
 
       assert {:ok, %{plan: :air, service_region: "ca-east"}} = AccountPolicies.resolve(account)
     end

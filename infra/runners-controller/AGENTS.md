@@ -105,9 +105,29 @@ independent workqueues:
     capped at the two M4-XL hosts compose to ten. Inside the cap, seats
     go load first, then warm floor, then headroom, one Pod per pool per
     round (so contenders do not both lose a seat) in name order (so the
-    split is stable across reconciles). darwin only — Linux kata pins
-    memory and oversubscribes CPU by design, and those hosts are
-    homogeneous, so the byte budget is already exact there.
+    split is stable across reconciles).
+
+    Both platforms. It was darwin-only until 2026-09-02, on the grounds
+    that kata pins memory and oversubscribes CPU so the byte budget was
+    already exact on a homogeneous Linux fleet. Neither half held.
+    `podtemplate` sets the runner container's CPU request equal to its
+    limit equal to the shape, so kube-scheduler bin-packs on the full
+    vCPU and a 16 vCPU Pod costing 16.25 with kata's overhead seats
+    exactly once on a 31-vCPU RISE-L, where the byte budget reads three.
+    And a fleet-wide byte sum cannot see per-node packing at all: six
+    `4vcpu-16gb` Pods fill 111 of a box's 117 GiB, so the leftovers add
+    up to budget that seats nothing. On 2026-09-02 the autoscaler
+    targeted 67 of that shape where 24 fit, and the excess held the
+    provisioning ceiling against every sibling.
+
+    The seat divisor is the *placement* shape (`placementShapeOf`): the
+    Pod's own request plus the RuntimeClass `podFixed` overhead the
+    scheduler charges at admission. `perPodCost` reads the same overhead
+    through the same helper, so the byte budget and the seat cap can
+    never disagree about what one Pod costs. Deriving the cap from live
+    node allocatable is also why no per-shape `maxReplicas` belongs in
+    values: that would be a second copy of this arithmetic, stale the
+    moment a box is added, lost, or re-SKU'd.
 
     **Node reservation.** Runs on BOTH fleets. A shape needing more of a
     host than any single smaller Pod does cannot accumulate the room on
@@ -274,6 +294,21 @@ independent workqueues:
   Scheduling gates do not help here either: a gate can be removed but
   never re-added, so a Pod that turns out to be unschedulable after
   ungating is back to holding a slot with no way to reclaim it.
+
+  The ceiling is shared, so it is also divided. A pool's own share
+  (`poolCap`) is the fleet ceiling minus one for every sibling pool that
+  has a replica gap and nothing provisioning; it never drops below one.
+  A pool at its share is refused with `reason="pool_share"` even when
+  the fleet count is under the ceiling. Without this, the first pool to
+  fill the budget kept it: on 2026-09-02 `linux-4vcpu-16gb`, targeted
+  far above what the fleet seats, held all four slots with Pods
+  Pending on `Insufficient memory`, recreated each one the instant the
+  unschedulable reap released it, and `linux-2vcpu-8gb` was refused
+  creation for over an hour with 143 jobs queued. The fleet count is
+  still what bounds the burst; the share only decides who may top it
+  back up after a reap, so the reap that already existed becomes the
+  moment a starved sibling gets its slot, within one
+  `startTimeoutSeconds`.
 
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
@@ -976,9 +1011,11 @@ Shape:
 
 - `dind-sock` emptyDir at `/var/run` (both containers) exposes
   `/var/run/docker.sock`.
-- `work` emptyDir at `/home/runner/actions-runner/_work` (both
-  containers) so `docker run -v $PWD:/x` paths resolve the same
-  on either side.
+- `work` emptyDir at `/home/runner/work` (both containers) so
+  `docker run -v $PWD:/x` paths resolve the same on either side.
+  That path is the `work_folder` the server mints into the JIT
+  config, **not** the runner's `<runner root>/_work` default —
+  see "Why the work directory is /home/runner/work" below.
 - `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
   (sidecar only), filled by the `dind-externals` init container —
   the runner image running `cp -a` out of its own image layer into
@@ -1004,28 +1041,52 @@ Shape:
 
 A workflow that declares `jobs.<id>.container` doesn't run its
 steps in the runner container at all: the runner asks dockerd to
-create a container and bind-mounts five well-known directories
-into it — work as `/__w`, temp as `/__t`, actions as `/__a`,
-tools as `/__o`, externals as `/__e`. Those source paths are
-resolved by **dockerd**, so they have to exist in the sidecar's
-mount namespace, not the runner's.
+create a container and bind-mounts its own directories into it —
+the work directory as `/__w`, then `_temp`, `_actions` and `_tool`
+under it, `_temp/_github_home` as `/github/home`,
+`_temp/_github_workflow` as `/github/workflow`, and `externals` as
+`/__e`. Those source paths are resolved by **dockerd**, so they
+have to exist in the sidecar's mount namespace, not the runner's,
+and docker silently creates an empty directory for any that don't.
 
-Four of the five already do: temp, actions and tools default to
-`_work/_temp`, `_work/_actions` and `_work/_tool` (the runner image
-sets no `RUNNER_TOOL_CACHE` / `AGENT_TOOLSDIRECTORY`), all under the
-shared `work` volume. `externals` — the node runtimes every JS
-action executes under — ships in the runner image alone. Without
-the staged copy docker creates an empty directory for it daemon-
-side and every step in the job container dies on a missing
-`/__e/node2x/bin/node`, which is what made `container:` jobs
-unusable on the fleet while plain `docker` commands in a `run:`
-step worked fine.
+Everything but `externals` hangs off the work directory, which the
+`work` volume shares with the sidecar. `externals` — the node
+runtimes every JS action executes under — ships in the runner
+image alone. Without the staged copy every step in the job
+container dies on a missing `/__e/node2x/bin/node`.
 
 Same fix ARC ships as `init-dind-externals`. The copy runs before
 the sidecar, so it is in place by the time dockerd can serve a
 container and a runner image that stops shipping externals fails
 the Pod early rather than at job time. Cost is a per-Pod copy of
 the node runtimes at warm-up, off the job's critical path.
+
+### Why the work directory is /home/runner/work
+
+`Tuist.Runners` mints the JIT config with an absolute
+`work_folder` — `/home/runner/work` on Linux, `/Users/runner/work`
+on macOS — to match GitHub-hosted's layout so on-disk artifacts
+that bake absolute paths stay interchangeable between hosted and
+self-hosted runs. The runner honors it and **never touches its own
+`<runner root>/_work` default**.
+
+So the `work` volume has to be mounted at `/home/runner/work`. Get
+this wrong and nothing looks broken from the outside: normal jobs
+keep passing, because the runner just writes to a container-local
+directory instead of the shared volume. Only `container:` jobs
+notice — dockerd bind-mounts a path that doesn't exist on its
+side, docker creates it empty, and every step fails. `run:` steps
+die first, on a missing `/__w/_temp/<id>.sh`; JS actions die on a
+missing `/__w/_actions/<owner>/<repo>/<ref>/dist/index.js`.
+
+Keep the two in sync: the podtemplate constant `workPath` and the
+`work_folder` in `Tuist.Runners`. `TestBuild_LinuxDindSharesRunnerWorkDirectory`
+pins the constant.
+
+The PTY socket deliberately lives on its own `shell-sock` volume
+rather than under the work directory: the runner hands the whole
+work tree to a job container as `/__w`, and the runner container's
+shell entry point has no business in there.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 

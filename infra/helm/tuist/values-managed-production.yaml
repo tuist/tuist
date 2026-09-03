@@ -56,6 +56,12 @@ registry:
 server:
   replicaCount: 2
 
+  turnstile:
+    enabled: true
+
+  kuraCapacityAdmission:
+    enabled: true
+
   appUrl: https://tuist.dev
 
   config:
@@ -704,12 +710,27 @@ kuraFleet:
 # self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
-# adoptable box hangs helm --wait. NOTE: eu-central is a shared public region
-# (many accounts, each with its own storageSize cache), so size the box for the
-# account count; Start-9-M is the staging-validated shape, but a larger Dedibox
-# offer may be needed for production.
+# adoptable box hangs helm --wait.
+#
+# eu-central is a shared public region, so its capacity is the sum of its boxes
+# and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
+# ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
+# allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
+# 4096 MiB) while the 2x1 TB NVMe would hold eight.
+#
+# Every box in this fleet must be the same offer AND datacenter: Dedibox
+# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which substring-match the offer and prefix-match the datacenter. A
+# box of any other shape is never adopted, and nothing reports why.
+#
+# Raise replicas only once each box reports `installed`. Prep is
+# `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
+# which lays down the mirrored root plus the separate XFS /data that carries the
+# per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
+  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
+  replicas: 2
   machine:
     adoptTag: tuist-kura-production
     offer: Pro-9-XS
@@ -1404,6 +1425,11 @@ runnersFleetLinux:
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
+    # A per-pool safety ceiling, not a capacity bound. What the fleet can
+    # actually seat for each shape is derived per reconcile by the
+    # autoscaler's `shapePlacementCaps` from live node allocatable, so a
+    # hardcoded per-shape number here would be a second copy of that
+    # arithmetic, stale the moment a box is added, lost, or re-SKU'd.
     maxReplicas: 120
     scaleDownCooldownSeconds: 300
   shapes:

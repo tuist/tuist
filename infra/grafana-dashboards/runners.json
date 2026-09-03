@@ -692,7 +692,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Age of the oldest still-queued job per fleet, polled from ClickHouse `runner_jobs` every 30s (0 when nothing is queued). Read it against \"Queue time\" above: that histogram is recorded on claim, so a job that is never claimed never appears in it, and its top bucket is 300s \u2014 a 4h wait and a 6m wait plot identically. This gauge is what moves while a job is stuck. A fleet climbing here while its Pods sit idle points at allocation or boot rather than capacity. Backs the `Runner queue age` alert, which fires past 30m.",
+        "description": "Age of the oldest still-queued job per fleet, polled from Postgres `runner_workflow_jobs` every 30s (0 when nothing is queued).\n\nTwo lines. **Dispatchable** excludes queued work whose account is at its runner concurrency limit; **all queued** counts everything. The `Runner queue age` alert reads the dispatchable one, because work the server withholds on purpose is admission control working, not a fault. When the two diverge, an account is parked at its cap \u2014 see the withheld panel below, and treat it as an entitlement question rather than an incident.\n\nRead it against \"Queue time\" above: that histogram is recorded on claim, so a job that is never claimed never appears in it, and its top bucket is 300s \u2014 a 4h wait and a 6m wait plot identically. This gauge is what moves while a job is stuck. A fleet climbing here while its Pods sit idle points at allocation or boot rather than capacity. Backs the `Runner queue age` alert, which fires past 30m.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -743,12 +743,73 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
+            "expr": "max by (fleet) (tuist_runners_queue_oldest_dispatchable_age_seconds{fleet=~\".*$platform.*\", env=\"$env\"})",
+            "legendFormat": "{{fleet}} dispatchable",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
             "expr": "max by (fleet) (tuist_runners_queue_oldest_age_seconds{fleet=~\".*$platform.*\", env=\"$env\"})",
+            "legendFormat": "{{fleet}} all queued",
+            "refId": "B"
+          }
+        ],
+        "title": "Oldest queued job age by fleet (dispatchable vs all)",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Queued jobs per fleet that dispatch will not hand out because the owning account is at its runner concurrency limit.\n\n**This is not a fault and there is deliberately no alert on it.** The server withholds this work on purpose, and the autoscaler declines to grow the fleet for it for the same reason. An account using the concurrency it bought is steady state, not an event.\n\nIt is here as the discriminator for the panel above: queue age high and this at zero is a fleet problem worth chasing; queue age high and this tracking the queue depth is an account at its cap, which is an entitlement question \u2014 either an upsell or a limit misconfigured against what they bought.\n\nThe limit is a resource budget (vCPU and memory) per account and platform, shared across every shape on it, so an account's smaller jobs consume the same budget its large-shape jobs need. Identify the account by cross-referencing the fleet's queued rows in `runner_workflow_jobs` against `runner_concurrency_limits`.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 48
+        },
+        "id": 314,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (fleet) (tuist_runners_queue_withheld{fleet=~\".*$platform.*\", env=\"$env\"})",
             "legendFormat": "{{fleet}}",
             "refId": "A"
           }
         ],
-        "title": "Oldest queued job age by fleet",
+        "title": "Queue withheld at account concurrency limit by fleet",
         "type": "timeseries"
       },
       {

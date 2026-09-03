@@ -140,6 +140,7 @@ msgstr ""
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:69
 #: lib/tuist_web/live/project_automations_live.html.heex:898
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:350
@@ -157,7 +158,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:109
+#: lib/tuist_web/live/create_project_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -456,7 +457,7 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.ex:17
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:15
-#: lib/tuist_web/live/projects_live.ex:495
+#: lib/tuist_web/live/projects_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -476,6 +477,7 @@ msgstr ""
 msgid "since last year"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:76
 #: lib/tuist_web/live/xcode_overview_live.html.heex:80
 #: lib/tuist_web/live/xcode_overview_live.html.heex:678
 #: lib/tuist_web/live/xcode_overview_live.html.heex:858
@@ -483,6 +485,7 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:60
 #: lib/tuist_web/live/xcode_overview_live.html.heex:62
 #: lib/tuist_web/live/xcode_overview_live.html.heex:660
 #: lib/tuist_web/live/xcode_overview_live.html.heex:842
@@ -490,6 +493,7 @@ msgstr ""
 msgid "Custom"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:57
 #: lib/tuist_web/live/xcode_overview_live.html.heex:59
 #: lib/tuist_web/live/xcode_overview_live.html.heex:657
 #: lib/tuist_web/live/xcode_overview_live.html.heex:839
@@ -497,12 +501,14 @@ msgstr ""
 msgid "Last 12 months"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:42
 #: lib/tuist_web/live/xcode_overview_live.html.heex:44
 #: lib/tuist_web/live/xcode_overview_live.html.heex:824
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:52
 #: lib/tuist_web/live/xcode_overview_live.html.heex:54
 #: lib/tuist_web/live/xcode_overview_live.html.heex:652
 #: lib/tuist_web/live/xcode_overview_live.html.heex:834
@@ -510,6 +516,7 @@ msgstr ""
 msgid "Last 30 days"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_overview_live.ex:47
 #: lib/tuist_web/live/xcode_overview_live.html.heex:49
 #: lib/tuist_web/live/xcode_overview_live.html.heex:647
 #: lib/tuist_web/live/xcode_overview_live.html.heex:829
@@ -757,7 +764,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:909
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:503
-#: lib/tuist_web/live/projects_live.ex:426
+#: lib/tuist_web/live/projects_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -1780,4 +1787,59 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:787
 #, elixir-autogen, elixir-format
 msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Action cache hit rate"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:110
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:34
+#, elixir-autogen, elixir-format
+msgid "Bazel remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "Downloaded from remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:112
+#, elixir-autogen, elixir-format
+msgid "Remote action-cache hits and misses observed by Kura."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "The share of action-cache lookups that Kura served from the remote cache."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "These are remote-cache observations from Kura. They do not include build or test results."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:145
+#, elixir-autogen, elixir-format
+msgid "Uploaded to remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:147
+#, elixir-autogen, elixir-format
+msgid "Bytes Kura accepted for the remote cache."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Bytes Kura served from the remote cache."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Latest observation:"
 msgstr ""
