@@ -72,7 +72,7 @@ defmodule Tuist.ClickHouse.SchemaClone do
       report = %{
         tables: summarize(tables),
         views: summarize(views),
-        migrations_copied: copy_schema_migrations(source, target),
+        migrations_copied: copy_schema_migrations(source, sync_replica(target)),
         skipped_inner_tables: length(objects.skipped_inner)
       }
 
@@ -222,6 +222,24 @@ defmodule Tuist.ClickHouse.SchemaClone do
     :ok
   rescue
     error -> {:error, Exception.message(error)}
+  end
+
+  # DDL in a `Replicated` database is applied through a queue, so a table can
+  # exist in the metadata while its local replica is still initializing.
+  # Writing to it in that window fails with `NOT_INITIALIZED`, which is what
+  # the migration-version copy hit immediately after creating its own table.
+  # This waits for the replica to finish applying everything the clone just
+  # queued, and is the difference between a copy that races the DDL and one
+  # that follows it.
+  defp sync_replica(target) do
+    target.repo.query!(
+      "SYSTEM SYNC DATABASE REPLICA #{Endpoints.quote_ident(target.database)}",
+      [],
+      timeout: to_timeout(minute: 5),
+      log: false
+    )
+
+    target
   end
 
   # Without this the destination looks like an empty database to
