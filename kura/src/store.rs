@@ -16863,6 +16863,24 @@ mod tests {
             "expected concurrent writes to batch WAL flushes (<=4) but observed {} for {writers} writers",
             wal_flushes_after - wal_flushes_before,
         );
+
+        let store = Arc::try_unwrap(store)
+            .unwrap_or_else(|_| panic!("all concurrent writer references should be released"));
+        drop(store);
+        let reopened = reopen_store(&config);
+        for (manifest, expected) in persisted {
+            let manifest = reopened
+                .manifest(&manifest.artifact_id)
+                .expect("reopened manifest lookup should succeed")
+                .expect("concurrent artifact should survive reopen");
+            assert_eq!(
+                reopened
+                    .read_artifact_bytes(&manifest)
+                    .await
+                    .expect("reopened concurrent artifact should remain readable"),
+                expected
+            );
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
