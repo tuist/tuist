@@ -1,6 +1,6 @@
 <div id="module-cache-module">
   <.button
-    label={dgettext("dashboard_cache", "All modules")}
+    label={dgettext("dashboard_cache", "Modules")}
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -50,31 +50,6 @@
         >
           <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
         </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        id="module-detail-branch-dropdown"
-        label={branch_label(@analytics_branch)}
-        secondary_text={dgettext("dashboard_cache", "Branch:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_cache", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-branch", "any")}"}
-          data-selected={@analytics_branch == "any"}
-        >
-          <:right_icon :if={@analytics_branch == "any"}><.check /></:right_icon>
-        </.dropdown_item>
-        <%= if @cache_branches.ok? do %>
-          <.dropdown_item
-            :for={branch <- @cache_branches.result}
-            value={branch}
-            label={branch}
-            patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
-            data-selected={@analytics_branch == branch}
-          >
-            <:right_icon :if={@analytics_branch == branch}><.check /></:right_icon>
-          </.dropdown_item>
-        <% end %>
       </.dropdown>
       <.date_picker
         id="module-detail-date-range-picker"

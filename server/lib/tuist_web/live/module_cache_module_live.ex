@@ -38,7 +38,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
               "cache-count",
               "miss-reason",
               "analytics-environment",
-              "analytics-branch",
               "analytics-date-range",
               "analytics-start-date",
               "analytics-end-date"
@@ -121,7 +120,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_branch = params["analytics-branch"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
     selected_cache_count = params["cache-count"] || "hits"
     selected_miss_reason = params["miss-reason"] || "changed"
@@ -133,18 +131,15 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_preset, preset)
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
-      |> assign(:analytics_branch, analytics_branch)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:selected_cache_count, selected_cache_count)
       |> assign(:selected_miss_reason, selected_miss_reason)
 
-    {start_datetime, end_datetime} = period
-    project_id = socket.assigns.selected_project.id
     opts = analytics_opts(socket.assigns)
 
     assign_async(
       socket,
-      [:module, :timeseries, :dependents_series, :miss_reasons_series, :cache_branches],
+      [:module, :timeseries, :dependents_series, :miss_reasons_series],
       fn ->
         all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
         index = Map.new(all_modules, &{&1.name, &1})
@@ -163,20 +158,12 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         miss_reasons_series =
           Analytics.module_miss_reasons_timeseries(Keyword.put(opts, :name, name))
 
-        branches =
-          Analytics.cache_branches(
-            project_id: project_id,
-            start_datetime: start_datetime,
-            end_datetime: end_datetime
-          )
-
         {:ok,
          %{
            module: module,
            timeseries: timeseries,
            dependents_series: dependents_series,
-           miss_reasons_series: miss_reasons_series,
-           cache_branches: branches
+           miss_reasons_series: miss_reasons_series
          }}
       end
     )
@@ -219,28 +206,18 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   defp analytics_opts(%{
          selected_project: project,
          analytics_period: {start_datetime, end_datetime},
-         analytics_environment: env,
-         analytics_branch: branch
+         analytics_environment: env
        }) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
-    opts =
-      case env do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    case branch do
-      "any" -> opts
-      branch -> Keyword.put(opts, :git_branch, branch)
+    case env do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
     end
   end
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
   defp environment_label(_), do: dgettext("dashboard_cache", "Any")
-
-  defp branch_label("any"), do: dgettext("dashboard_cache", "Any")
-  defp branch_label(branch), do: branch
 end
