@@ -147,6 +147,7 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: var(--noora-spacing-3);
 
     & > [data-part="title"] {
@@ -157,7 +158,7 @@
 
       & > [data-part="name"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-semibold) var(--noora-font-title-medium);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
       }
     }
   }
