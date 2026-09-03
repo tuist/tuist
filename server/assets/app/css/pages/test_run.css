@@ -766,7 +766,6 @@
                 flex-direction: row;
                 align-items: center;
                 gap: var(--noora-spacing-2);
-                margin-left: auto;
                 color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
