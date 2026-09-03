@@ -50,28 +50,61 @@ an unmatched label value is silently ignored.
 
 ## Recording rules for Kura regions
 
-No `kura_*` request, memory, disk or egress series carries a `region` label,
-and `kube_node_labels` keeps only the `kubernetes.io/*` labels, so a node has
-no region either. The only carriers are `kura_node_geo_info` and
-`kura_node_info`, which exist once per Kura pod. Every region-scoped rule in
-this document therefore joins through them, and two recording rules make that
-join once so the rules stay readable and the join has one place to change.
+No `kura_*` request, memory, disk or egress series carries a `region` label.
+The only carriers are `kura_node_geo_info` and `kura_node_info`, which exist
+once per Kura cache pod. Every region-scoped rule in this document therefore
+joins through them, and four recording rules make that join once so the rules
+stay readable and the join has one place to change.
+
+A node reaches its region through its CAPI pool, which is what a KuraInstance's
+`nodeSelector` pins (`Tuist.Kura.Regions` `node_pool`, one pool per region).
+`kube_node_labels` carries it as `label_node_cluster_x_k8s_io_pool`, which the
+chart allow-lists (`telemetryServices.kube-state-metrics.metricLabelsAllowlist`
+in `infra/helm/k8s-monitoring/values.yaml`; kube-state-metrics exposes no node
+label that is not allow-listed). Going through the pool is what lets a node
+that hosts no cache pod count towards its region: one cache pod anywhere in the
+pool names the region, and every node of that pool inherits it.
 
 Create them under **Alerting → Recording rules**, folder `Alerts`, group
-`Kura region joins`, evaluated every minute.
+`Kura region joins`, evaluated every minute. Rules in a group evaluate in
+order, so keep the order below: `kura:pool_region` reads the two rules above
+it and `kura:node_region` reads them both.
 
 ```promql
-# kura:pod_region — one series per Kura pod, carrying its region
+# kura:pod_region
+# One series per Kura cache pod, carrying its region.
 max by (cluster, pod, region) (kura_node_geo_info)
 ```
 
 ```promql
-# kura:node_region — one series per node that hosts at least one Kura pod
-max by (cluster, node, region) (
-  kube_pod_info{namespace="kura"}
-  * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info)
+# kura:node_pool
+# One series per node that carries a CAPI pool label.
+max by (cluster, node, pool) (
+  label_replace(
+    kube_node_labels{label_node_cluster_x_k8s_io_pool!=""},
+    "pool", "$1", "label_node_cluster_x_k8s_io_pool", "(.*)")
 )
 ```
+
+```promql
+# kura:pool_region
+# One series per pool that Kura serves a region from.
+max by (cluster, pool, region) (
+  (kube_pod_info{namespace="kura"} * on (cluster, pod) group_left(region) kura:pod_region)
+  * on (cluster, node) group_left(pool) kura:node_pool
+)
+```
+
+```promql
+# kura:node_region
+# One series per node of a pool that Kura serves a region from.
+max by (cluster, node, region) (
+  kura:node_pool * on (cluster, pool) group_left(region) kura:pool_region
+)
+```
+
+`kura:node_region` keeps the `(cluster, node, region)` shape it had when it was
+derived from cache pods alone, so every rule that joins through it is unchanged.
 
 Usage, for a per-pod and a per-node series respectively:
 
@@ -95,17 +128,21 @@ are about customer capacity.
 
 Two limits to keep in mind:
 
-- A node is attributable to a region only once it hosts a Kura pod. A freshly
-  added, still empty node is invisible to every region rollup until the first
-  placement lands on it. The fix is upstream: allow-list a `tuist.dev/region`
-  node label into `kube_node_labels` and read it here instead.
+- A region is attributable only once it runs a cache pod somewhere in its pool.
+  A region whose boxes are provisioned ahead of its first tenant, or whose
+  instances have all been archived, has no row until the first placement lands.
+  An empty node in a pool that runs a cache pod on another node does count, so
+  a node added to a live region contributes its capacity immediately.
 - Grafana Cloud Adaptive Metrics can aggregate a label away without the series
   disappearing. It has already done so for `tuist_kura_capacity_reserved_gibibytes`
   and `tuist_kura_capacity_allocatable_gibibytes` (`cluster`, `region` and
   `pod` are gone; only a fleet-wide sum is queryable), which is why no rule
   below reads them. A rule that selects on `region` then **errors** rather than
   returning nothing, so set **Error** to **Alerting** on the region rules and
-  check the Adaptive Metrics recommendations before trusting a new one.
+  check the Adaptive Metrics recommendations before trusting a new one. The
+  same applies to `label_node_cluster_x_k8s_io_pool` on `kube_node_labels`:
+  if it is aggregated away, `kura:node_pool` empties and every region rollup
+  goes with it.
 
 ## Critical alerts
 
@@ -831,25 +868,29 @@ of the older ones too.
 ```promql
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"})
-         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})) / (2 * 4096))
+         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})
+            or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"}) * 0)) / (2 * 4096))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "ceiling", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="memory"})
-         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})) / 1048576 / (2 * 1024))
+         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})
+            or max by (cluster, node) (kube_node_status_allocatable{resource="memory"}) * 0)) / 1048576 / (2 * 1024))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
-         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})) / (2 * 50 * 1073741824))
+         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
+            or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "disk", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
-         - sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_egress_mbps"})) / (2 * 25))
+         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_egress_mbps"})
+            or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}) * 0)) / (2 * 25))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
 ), "constraint", "egress", "", "")
 ```
@@ -935,14 +976,22 @@ reads as zero. The `constraint` label is what lets the summary say which lever
 to pull; the `or` makes one row per constraint, and a box that advertises no
 ceiling (the kura-fleet pool today) simply has no `ceiling` row.
 
-Measured on 2026-09-02: one production region already cannot place another
-enterprise instance by ceiling and would fire on creation, which is a real
-finding rather than noise; the other regions have room for two or more. By
-native memory every region has room for many, so the ceiling is the binding
-constraint everywhere it is advertised. By disk the tightest production
-regions fit two more instances and the widest five, so the disk row is quiet
-on creation; the staging runner region fits one, which is why the scope is
-production. By egress every governed region fits at least a dozen more.
+Each row subtracts `... or <capacity> * 0` rather than the request sum alone. A
+node running no cache pod has no `kube_pod_container_resource_requests` series
+for that resource at all, and a binary operator drops a node that is missing
+from either side, so without the default an empty node contributes nothing and
+the region reads as the occupied nodes only. That is the same blind spot the
+pool-derived `kura:node_region` closes, and both halves are needed: the join
+puts the node in the region, the default gives it its capacity.
+
+Measured on 2026-09-03, per constraint, as `eu-central` / `us-east` /
+`us-west`: ceiling 6 / 1 / 4, memory 20 / 8 / 10, disk 10 / 3 / 5, egress
+34 / 96 / 58. The ceiling binds first in every region that advertises one, and
+`us-east` is the region to watch. Most of `eu-central`'s ceiling room is a
+second node that carries no cache pod yet, which is the case the pool-derived
+join and the zero default exist to count: read against its occupied node alone
+the region reports 0 and fires. Staging and canary regions are out of scope, so
+a staging runner region past the disk pressure line does not fire.
 
 ### Kura cache box out of memory
 
