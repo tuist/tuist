@@ -29,17 +29,7 @@ pub struct StreamId {
 }
 /// Nested message and enum types in `StreamId`.
 pub mod stream_id {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum BuildComponent {
         UnknownComponent = 0,
@@ -109,10 +99,10 @@ pub mod publish_build_event_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct PublishBuildEventClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -151,14 +141,13 @@ pub mod publish_build_event_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::Body>,
-                Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                    http::Request<tonic::body::Body>,
+                    Response = http::Response<
+                        <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                    >,
                 >,
-            >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::Body>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::Body>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             PublishBuildEventClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -197,26 +186,18 @@ pub mod publish_build_event_client {
             &mut self,
             request: impl tonic::IntoRequest<super::PublishLifecycleEventRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/google.devtools.build.v1.PublishBuildEvent/PublishLifecycleEvent",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "google.devtools.build.v1.PublishBuildEvent",
-                        "PublishLifecycleEvent",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "google.devtools.build.v1.PublishBuildEvent",
+                "PublishLifecycleEvent",
+            ));
             self.inner.unary(req, path, codec).await
         }
         pub async fn publish_build_tool_event_stream(
@@ -225,31 +206,21 @@ pub mod publish_build_event_client {
                 Message = super::PublishBuildToolEventStreamRequest,
             >,
         ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<super::PublishBuildToolEventStreamResponse>,
-            >,
+            tonic::Response<tonic::codec::Streaming<super::PublishBuildToolEventStreamResponse>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream",
             );
             let mut req = request.into_streaming_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "google.devtools.build.v1.PublishBuildEvent",
-                        "PublishBuildToolEventStream",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "google.devtools.build.v1.PublishBuildEvent",
+                "PublishBuildToolEventStream",
+            ));
             self.inner.streaming(req, path, codec).await
         }
     }
@@ -261,7 +232,7 @@ pub mod publish_build_event_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with PublishBuildEventServer.
@@ -277,14 +248,11 @@ pub mod publish_build_event_server {
                     super::PublishBuildToolEventStreamResponse,
                     tonic::Status,
                 >,
-            >
-            + std::marker::Send
+            > + std::marker::Send
             + 'static;
         async fn publish_build_tool_event_stream(
             &self,
-            request: tonic::Request<
-                tonic::Streaming<super::PublishBuildToolEventStreamRequest>,
-            >,
+            request: tonic::Request<tonic::Streaming<super::PublishBuildToolEventStreamRequest>>,
         ) -> std::result::Result<
             tonic::Response<Self::PublishBuildToolEventStreamStream>,
             tonic::Status,
@@ -311,10 +279,7 @@ pub mod publish_build_event_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -369,25 +334,19 @@ pub mod publish_build_event_server {
                 "/google.devtools.build.v1.PublishBuildEvent/PublishLifecycleEvent" => {
                     #[allow(non_camel_case_types)]
                     struct PublishLifecycleEventSvc<T: PublishBuildEvent>(pub Arc<T>);
-                    impl<
-                        T: PublishBuildEvent,
-                    > tonic::server::UnaryService<super::PublishLifecycleEventRequest>
-                    for PublishLifecycleEventSvc<T> {
+                    impl<T: PublishBuildEvent>
+                        tonic::server::UnaryService<super::PublishLifecycleEventRequest>
+                        for PublishLifecycleEventSvc<T>
+                    {
                         type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::PublishLifecycleEventRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PublishBuildEvent>::publish_lifecycle_event(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as PublishBuildEvent>::publish_lifecycle_event(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -417,20 +376,15 @@ pub mod publish_build_event_server {
                 }
                 "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream" => {
                     #[allow(non_camel_case_types)]
-                    struct PublishBuildToolEventStreamSvc<T: PublishBuildEvent>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: PublishBuildEvent,
-                    > tonic::server::StreamingService<
-                        super::PublishBuildToolEventStreamRequest,
-                    > for PublishBuildToolEventStreamSvc<T> {
+                    struct PublishBuildToolEventStreamSvc<T: PublishBuildEvent>(pub Arc<T>);
+                    impl<T: PublishBuildEvent>
+                        tonic::server::StreamingService<super::PublishBuildToolEventStreamRequest>
+                        for PublishBuildToolEventStreamSvc<T>
+                    {
                         type Response = super::PublishBuildToolEventStreamResponse;
                         type ResponseStream = T::PublishBuildToolEventStreamStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -440,10 +394,9 @@ pub mod publish_build_event_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PublishBuildEvent>::publish_build_tool_event_stream(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -470,25 +423,19 @@ pub mod publish_build_event_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        let mut response = http::Response::new(
-                            tonic::body::Body::default(),
-                        );
-                        let headers = response.headers_mut();
-                        headers
-                            .insert(
-                                tonic::Status::GRPC_STATUS,
-                                (tonic::Code::Unimplemented as i32).into(),
-                            );
-                        headers
-                            .insert(
-                                http::header::CONTENT_TYPE,
-                                tonic::metadata::GRPC_CONTENT_TYPE,
-                            );
-                        Ok(response)
-                    })
-                }
+                _ => Box::pin(async move {
+                    let mut response = http::Response::new(tonic::body::Body::default());
+                    let headers = response.headers_mut();
+                    headers.insert(
+                        tonic::Status::GRPC_STATUS,
+                        (tonic::Code::Unimplemented as i32).into(),
+                    );
+                    headers.insert(
+                        http::header::CONTENT_TYPE,
+                        tonic::metadata::GRPC_CONTENT_TYPE,
+                    );
+                    Ok(response)
+                }),
             }
         }
     }
