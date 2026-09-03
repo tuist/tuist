@@ -110,17 +110,22 @@ struct TuistCacheEECanaryAcceptanceTests {
                     "CODE_SIGNING_REQUIRED=NO",
                     "CODE_SIGNING_ALLOWED=NO",
                 ]
-                let coldDerivedDataPath = temporaryDirectory.appending(component: "cold")
+                // Every build writes to this same derived data path: the absolute path of a
+                // compilation's outputs is part of its cache key, so a rebuild that writes
+                // elsewhere cannot hit what this one publishes.
+                let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+                let buildArguments = baseArguments + ["-derivedDataPath", derivedDataPath.pathString]
                 try await TuistTest.run(
                     XcodeBuildBuildCommand.self,
-                    baseArguments + ["-derivedDataPath", coldDerivedDataPath.pathString]
+                    buildArguments + casArguments(in: temporaryDirectory, name: "cold")
                 )
                 TuistTest.expectLogs("cacheable tasks (0%)")
                 resetUI()
 
                 try await expectFullyCachedRebuild(
-                    arguments: baseArguments,
-                    derivedDataParentDirectory: temporaryDirectory,
+                    arguments: buildArguments,
+                    derivedDataPath: derivedDataPath,
+                    casParentDirectory: temporaryDirectory,
                     fileSystem: fileSystem
                 )
             }
@@ -251,8 +256,9 @@ struct TuistCacheEECanaryAcceptanceTests {
     /// polls the same backend instead of asserting on the first attempt.
     private func expectFullyCachedRebuild(
         arguments: [String],
-        derivedDataParentDirectory: AbsolutePath,
-        fileSystem _: FileSysteming,
+        derivedDataPath: AbsolutePath,
+        casParentDirectory: AbsolutePath,
+        fileSystem: FileSysteming,
         sourceLocation: SourceLocation = #_sourceLocation
     ) async throws {
         let clock = ContinuousClock()
@@ -260,18 +266,15 @@ struct TuistCacheEECanaryAcceptanceTests {
         var attempt = 0
 
         while true {
-            // A fresh directory rather than deleting the previous one: the running
-            // proxy keeps its store and spool under the derived data path, so a
-            // wholesale remove races its writes and throws on a spool file that the
-            // walk enumerated and the proxy has since rotated away. A new directory
-            // is also a colder local CAS than a deleted one, which is what makes a
-            // hit here evidence of the remote.
             attempt += 1
-            let derivedDataPath =
-                derivedDataParentDirectory.appending(component: "warm-\(attempt)")
+            // Removing derived data is what forces the rebuild, and recreating it at the
+            // same path is what keeps the outputs, and with them the cache keys, equal to
+            // the ones the cold build published. The local CAS is elsewhere, so this
+            // neither warms the rebuild nor races the proxy's spool.
+            try await fileSystem.remove(derivedDataPath)
             try await TuistTest.run(
                 XcodeBuildBuildCommand.self,
-                arguments + ["-derivedDataPath", derivedDataPath.pathString]
+                arguments + casArguments(in: casParentDirectory, name: "warm-\(attempt)")
             )
 
             if Logger.testingLogHandler.collected[.warning, >=].contains("cacheable tasks (100%)") {
@@ -285,6 +288,17 @@ struct TuistCacheEECanaryAcceptanceTests {
 
             resetUI()
         }
+    }
+
+    /// Puts the local CAS in a caller-owned directory outside derived data.
+    ///
+    /// The CAS path is not part of a compilation's cache key, so a fresh directory per build
+    /// leaves the keys untouched while emptying the local store: what a build hits then came
+    /// from the remote. Keeping it out of derived data also keeps the proxy's write-ahead
+    /// spool, which lives at `<cas path>/tuist-spool`, clear of what the rebuild loop removes.
+    private func casArguments(in parentDirectory: AbsolutePath, name: String) -> [String] {
+        let casPath = parentDirectory.appending(component: "cas-\(name)")
+        return ["COMPILATION_CACHE_CAS_PATH=\(casPath.pathString)"]
     }
 
     private func selectiveTestingHash(
