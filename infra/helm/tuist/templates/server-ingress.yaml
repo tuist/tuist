@@ -29,15 +29,6 @@ spec:
           {{- with .Values.server.ingress.extraPaths }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
-          {{- if and .Values.server.faro.receiverHost (hasPrefix "/" .Values.server.faro.collectorUrl) }}
-          - path: {{ .Values.server.faro.collectorUrl | quote }}
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "tuist.componentName" (dict "root" . "component" "faro-receiver") }}
-                port:
-                  number: {{ .Values.server.faro.receiverPort }}
-          {{- end }}
           - path: /
             pathType: Prefix
             backend:
