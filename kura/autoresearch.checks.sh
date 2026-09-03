@@ -2,5 +2,5 @@
 set -euo pipefail
 
 mise exec -- bazel test //:kura_lib_test \
-  --test_arg=response_stream \
+  --test_arg=io::tests \
   --test_output=errors

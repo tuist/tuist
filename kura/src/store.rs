@@ -8546,7 +8546,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new_with_forced_pressure(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
             pressure,
@@ -8643,7 +8643,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -10209,7 +10209,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -10237,7 +10237,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15557,7 +15557,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15608,7 +15608,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15654,7 +15654,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15906,7 +15906,7 @@ mod tests {
         )
         .expect("failed to recreate io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -16249,7 +16249,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -16307,7 +16307,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -16669,7 +16669,7 @@ mod tests {
         )
         .expect("io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );

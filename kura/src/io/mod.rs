@@ -474,8 +474,8 @@ impl IoController {
         }
     }
 
-    pub fn metrics(&self) -> Metrics {
-        self.inner.metrics.clone()
+    pub fn metrics(&self) -> &Metrics {
+        &self.inner.metrics
     }
 
     async fn run<T, F>(&self, operation: &'static str, bytes: u64, future: F) -> Result<T, String>
@@ -768,6 +768,8 @@ fn normalize_path(cwd: &Path, path: &Path) -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::hint::black_box;
+
     use tempfile::tempdir;
     use tokio::{sync::oneshot, time::timeout};
 
@@ -869,5 +871,74 @@ mod tests {
         assert_eq!(offset, 0);
         assert_eq!(length.get(), 12_288);
         assert_eq!(aligned_advice_range(0, 0, 4_096), None);
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn borrowed_metrics_access_benchmark() {
+        const ITERATIONS: usize = 200_000;
+        const SAMPLES: usize = 7;
+
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create benchmark directory");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        controller
+            .metrics()
+            .record_manifest_cache_lookup("hit");
+
+        let measure = |clone_metrics: bool| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if clone_metrics {
+                    black_box(controller.inner.metrics.clone())
+                        .record_manifest_cache_lookup("hit");
+                } else {
+                    black_box(controller.metrics()).record_manifest_cache_lookup("hit");
+                }
+            }
+            started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES);
+        for sample in 0..=SAMPLES {
+            let (baseline_seconds, candidate_seconds) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample == 0 {
+                continue;
+            }
+            let baseline_rate = ITERATIONS as f64 / baseline_seconds;
+            let candidate_rate = ITERATIONS as f64 / candidate_seconds;
+            baseline_rates.push(baseline_rate);
+            candidate_rates.push(candidate_rate);
+            speedups.push(candidate_rate / baseline_rate);
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = SAMPLES / 2;
+        println!(
+            "METRIC io_metrics_borrow_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC io_metrics_clone_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC io_metrics_borrow_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
     }
 }
