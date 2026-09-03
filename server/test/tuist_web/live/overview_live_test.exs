@@ -297,8 +297,8 @@ defmodule TuistWeb.OverviewLiveTest do
 
       assert has_element?(lv, "#bazel-action-cache-hit-rate", "50.0%")
       assert has_element?(lv, "#bazel-action-cache-lookups", "2")
-      assert has_element?(lv, "#bazel-cache-downloads", "6.0 KB")
-      assert has_element?(lv, "#bazel-cache-uploads", "3.0 KB")
+      assert has_element?(lv, "#bazel-cache-downloads", "6.1 KB")
+      assert has_element?(lv, "#bazel-cache-uploads", "3.1 KB")
       assert has_element?(lv, "[data-part=bazel-latest-observation]", "Latest observation:")
     end
   end
