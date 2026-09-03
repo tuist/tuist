@@ -21,6 +21,7 @@ use crate::{
         FOREGROUND_STAGING_WINDOW_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
     },
     memory::{MemoryController, MemoryPressure},
+    metrics::GrpcWriteAdmissionMetrics,
     state::SharedState,
 };
 
@@ -36,7 +37,7 @@ pub(super) const CAS_BATCH_UPDATE_PATH: &str =
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
-    metrics: crate::metrics::Metrics,
+    metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
 }
 
 struct GrpcWriteReservation {
@@ -142,7 +143,7 @@ impl GrpcWriteAdmission {
     pub(super) fn new(
         memory: &MemoryController,
         decode_copy_multiplier: u64,
-        metrics: crate::metrics::Metrics,
+        metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
     ) -> Result<Self, ()> {
         Ok(Self {
             reservation: std::sync::Arc::new(std::sync::Mutex::new(GrpcWriteReservation::new(
@@ -165,10 +166,7 @@ impl GrpcWriteAdmission {
         reservation
             .try_grow_decode(encoded_message_bytes, decoded_structural_bytes)
             .map_err(|_| {
-                self.metrics
-                    .record_memory_action("grpc_write_decode_admission_rejected");
-                self.metrics
-                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
+                self.metrics.record_decode_rejected();
                 Status::resource_exhausted(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
@@ -186,10 +184,7 @@ impl GrpcWriteAdmission {
         reservation
             .try_configure_staging(declared_or_max_bytes)
             .map_err(|_| {
-                self.metrics
-                    .record_memory_action("bytestream_staging_admission_rejected");
-                self.metrics
-                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
+                self.metrics.record_staging_rejected();
                 Status::resource_exhausted(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
@@ -405,7 +400,7 @@ pub(super) async fn admit_grpc_write_decode(
     let admission = match GrpcWriteAdmission::new(
         &state.memory,
         policy.decode_copy_multiplier(),
-        state.metrics.clone(),
+        state.metrics.grpc_write_admission_metrics(),
     ) {
         Ok(admission) => admission,
         Err(()) => {
@@ -516,6 +511,60 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn write_admission_narrow_metric_clone_benchmark() {
+        const ITERATIONS: usize = 200_000;
+        const SAMPLES: usize = 8;
+
+        let measure = |narrow: bool| {
+            let metrics = crate::metrics::Metrics::new("benchmark".into(), "benchmark".into());
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if narrow {
+                    std::hint::black_box(metrics.grpc_write_admission_metrics());
+                } else {
+                    std::hint::black_box(metrics.clone());
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC write_admission_metrics_clone_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC write_admission_metrics_clone_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC write_admission_metrics_clone_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
     fn bytestream_accounting_routes_are_borrowed() {
         assert!(matches!(
             grpc_accounting_route(BYTESTREAM_READ_PATH),
@@ -544,7 +593,7 @@ mod tests {
         );
         memory.observe(mebibyte);
 
-        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
         // Far past the whole transient budget, so admission must refuse it.
         admission
@@ -582,7 +631,7 @@ mod tests {
         memory.observe(mebibyte);
         assert_eq!(memory.transient_capacity_bytes(), 32 * mebibyte);
 
-        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
         // The codec reserves the first chunk's decode buffers before the
         // handler reaches staging, so staging sees a budget already spent into.
@@ -619,7 +668,7 @@ mod tests {
         memory.observe(mebibyte);
         assert!(memory.transient_capacity_bytes() >= 2 * FOREGROUND_STAGING_WINDOW_BYTES);
 
-        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
         admission
             .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
@@ -643,7 +692,7 @@ mod tests {
         );
         memory.observe(32 * mebibyte);
 
-        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
         admission
             .try_grow_decode(mebibyte, 0)
@@ -679,8 +728,8 @@ mod tests {
             FileCachePolicy::Bounded
         );
 
-        let second =
-            GrpcWriteAdmission::new(&memory, 2, metrics).expect("zero-byte admission should fit");
+        let second = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("zero-byte admission should fit");
         assert!(
             second.try_grow_decode(64 * mebibyte, 0).is_err(),
             "a second decoder must be rejected before it can allocate"

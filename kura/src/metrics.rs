@@ -88,6 +88,7 @@ pub struct Metrics {
     inflight: Arc<InflightMetrics>,
     hot_read: Arc<HotReadMetrics>,
     hot_write: Arc<HotWriteMetrics>,
+    grpc_write_admission: Arc<GrpcWriteAdmissionMetrics>,
     public_request_latency_ewma_ms: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -237,6 +238,24 @@ struct HotWriteMetrics {
     reapi_ok_write_bytes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
+}
+
+pub(crate) struct GrpcWriteAdmissionMetrics {
+    decode_rejected: Counter,
+    staging_rejected: Counter,
+    capacity_shed: Counter,
+}
+
+impl GrpcWriteAdmissionMetrics {
+    pub(crate) fn record_decode_rejected(&self) {
+        self.decode_rejected.inc();
+        self.capacity_shed.inc();
+    }
+
+    pub(crate) fn record_staging_rejected(&self) {
+        self.staging_rejected.inc();
+        self.capacity_shed.inc();
+    }
 }
 
 impl ResponseStreamReservationMetrics {
@@ -616,6 +635,17 @@ impl Metrics {
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
         let memory_action_bytes = Family::<MemoryActionLabels, Counter>::default();
+        let grpc_write_admission = Arc::new(GrpcWriteAdmissionMetrics {
+            decode_rejected: memory_actions.get_or_create_owned(&MemoryActionLabels {
+                action: "grpc_write_decode_admission_rejected".to_owned(),
+            }),
+            staging_rejected: memory_actions.get_or_create_owned(&MemoryActionLabels {
+                action: "bytestream_staging_admission_rejected".to_owned(),
+            }),
+            capacity_shed: capacity_sheds.get_or_create_owned(&CapacityShedLabels {
+                kind: shed_kind::REAPI_WRITE_DECODE.to_owned(),
+            }),
+        });
         let snapshot_cache_bytes = Gauge::default();
         let snapshot_cache_capacity_bytes = Gauge::default();
         let snapshot_cache_namespaces = Gauge::default();
@@ -1501,6 +1531,7 @@ impl Metrics {
             inflight,
             hot_read,
             hot_write,
+            grpc_write_admission,
             public_request_latency_ewma_ms,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -2063,6 +2094,10 @@ impl Metrics {
 
     pub(crate) fn inflight_metrics(&self) -> Arc<InflightMetrics> {
         self.inflight.clone()
+    }
+
+    pub(crate) fn grpc_write_admission_metrics(&self) -> Arc<GrpcWriteAdmissionMetrics> {
+        self.grpc_write_admission.clone()
     }
 
     pub fn update_segment_handles_cached(&self, cached: usize) {

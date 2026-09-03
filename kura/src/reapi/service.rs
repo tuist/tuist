@@ -3297,8 +3297,12 @@ mod tests {
             hard_limit_bytes,
         );
         memory.observe(0);
-        let admission = GrpcWriteAdmission::new(&memory, decode_copy_multiplier, metrics)
-            .expect("zero-byte initial reservation should fit");
+        let admission = GrpcWriteAdmission::new(
+            &memory,
+            decode_copy_multiplier,
+            metrics.grpc_write_admission_metrics(),
+        )
+        .expect("zero-byte initial reservation should fit");
         (memory, admission)
     }
 
@@ -3308,8 +3312,12 @@ mod tests {
         decode_copy_multiplier: u64,
     ) {
         request.extensions_mut().insert(
-            GrpcWriteAdmission::new(&state.memory, decode_copy_multiplier, state.metrics.clone())
-                .expect("test write admission should fit"),
+            GrpcWriteAdmission::new(
+                &state.memory,
+                decode_copy_multiplier,
+                state.metrics.grpc_write_admission_metrics(),
+            )
+            .expect("test write admission should fit"),
         );
     }
 
