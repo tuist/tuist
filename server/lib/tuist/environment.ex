@@ -704,7 +704,7 @@ defmodule Tuist.Environment do
   end
 
   def analytics_enabled?(secrets \\ secrets()) do
-    not is_nil(posthog_api_key(secrets)) && not is_nil(posthog_url(secrets))
+    not is_nil(faro_collector_url(secrets))
   end
 
   def error_tracking_enabled? do
@@ -813,12 +813,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def posthog_api_key(secrets \\ secrets()) do
-    get([:posthog, :api_key], secrets)
-  end
-
-  def posthog_url(secrets \\ secrets()) do
-    get([:posthog, :url], secrets)
+  def faro_collector_url(secrets \\ secrets()) do
+    System.get_env("TUIST_FARO_COLLECTOR_URL") || get([:faro, :collector_url], secrets)
   end
 
   def object_storage_provider(secrets \\ secrets()) do

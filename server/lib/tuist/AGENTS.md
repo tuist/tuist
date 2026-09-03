@@ -38,7 +38,6 @@ This directory contains the core business logic and domain modules for the serve
 - Namespace: `server/lib/tuist/namespace/AGENTS.md`
 - Oauth: `server/lib/tuist/oauth/AGENTS.md`
 - Ops: `server/lib/tuist/ops/AGENTS.md`
-- Posthog: `server/lib/tuist/posthog/AGENTS.md`
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
 - Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`

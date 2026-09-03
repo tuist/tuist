@@ -53,10 +53,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://*.posthog.com https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
+      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 

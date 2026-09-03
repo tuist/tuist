@@ -245,6 +245,15 @@ server:
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
   # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
   # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
+  # Browser RUM. The collector is a path on tuist.dev rather than its own
+  # hostname so the payload is same-origin: no CORS preflight, no CSP change,
+  # and no separate domain for content blockers to filter, which would skew the
+  # web-vital percentiles the LCP alerts read.
+  faro:
+    collectorUrl: /-/faro
+    receiverHost: k8s-monitoring-alloy-receiver.observability.svc.cluster.local
+    receiverPort: 12347
+
   ingress:
     enabled: true
     className: nginx

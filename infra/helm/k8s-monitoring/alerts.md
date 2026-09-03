@@ -3825,6 +3825,129 @@ sum by (cluster) (
 - Pending period: 2 minutes
 - Summary: `Stable outbound controller reconciliation is failing in {{ $labels.cluster }}`
 
+### Browser LCP percentiles
+
+Real user monitoring for tuist.dev. These are the only rules in this document
+that read Loki rather than Prometheus, because browser telemetry arrives as log
+entries and never becomes a metric.
+
+**How the data gets here.** The Grafana Faro Web SDK is an npm dependency
+bundled into the server's own JavaScript, so there is no third-party script and
+no extra request origin. It posts to `https://tuist.dev/-/faro`, which the
+`tuist` chart routes at the `faro.receiver` on the `alloy-receiver` collector
+through an ExternalName Service (`server.faro` in `infra/helm/tuist`). Alloy
+forwards to Grafana Cloud Loki.
+
+Keeping the collector on a path of the site rather than its own hostname is
+deliberate: it makes the request same-origin, so there is no CORS preflight and
+no Content Security Policy change, and no separate domain for content blockers
+to filter. A blocked collector would not look like an outage, it would quietly
+bias the percentiles toward the users who do not block, which is exactly the
+population least likely to be slow.
+
+**The shape of the data.** Web vitals arrive as `kind=measurement` entries with
+`type=web-vitals`. The logfmt line carries one field per vital (`lcp`, `cls`,
+`inp`, `fcp`, `ttfb`) **in milliseconds**, so every rule divides by 1000 to
+alert in seconds. Faro metadata is prefixed: `app_name`, `app_environment`,
+`page_url`, `session_id`, `browser_*`, `view_name`. LCP attribution lands
+alongside the value (`resource_load_delay`, `resource_load_duration`,
+`element_render_delay`, `time_to_first_byte`) and the measurement context is
+prefixed `context_` (`context_rating`, `context_element`).
+
+Because `| logfmt` promotes every field to a label, each query needs an explicit
+`by (app_environment)` or `sum by (...)`. Without it a range aggregation returns
+one series per unique field combination, which is per-session.
+
+```logql
+quantile_over_time(0.95,
+  {service_name="tuist-web", kind="measurement"}
+    | logfmt
+    | type="web-vitals"
+    | app_environment="production"
+    | lcp!=""
+    | unwrap lcp [6h]
+) by (app_environment) / 1000
+```
+
+Every rule pairs that with a sample-count query and fires only when both the
+threshold is crossed and enough samples exist, so a handful of overnight
+visitors on bad connections cannot manufacture a percentile.
+
+| Rule | Percentile | Window | Threshold | Min samples | Pending |
+| --- | --- | --- | --- | --- | --- |
+| LCP p50 above the Core Web Vitals good threshold | 0.50 | 1h | > 2.5s | 50 | 15m |
+| LCP p90 in the Core Web Vitals poor band | 0.90 | 1h | > 4.0s | 100 | 15m |
+| LCP p95 sustained slow tail | 0.95 | 6h | > 5.0s | 200 | 30m |
+| LCP p99 pathological tail | 0.99 | 6h | > 8.0s | 200 | 30m |
+
+The higher percentiles use a 6h window because a stable estimate needs roughly
+ten times `1/(1-q)` samples and tuist.dev does not produce that in an hour
+outside peak.
+
+**THESE THRESHOLDS ARE NOT MEASUREMENTS OF TUIST.DEV.** They anchor on Google's
+Core Web Vitals boundaries — good at or below 2.5s, poor above 4.0s — because
+when the rules were written no LCP history existed to derive anything from:
+PostHog held the only real-user vitals and was being removed in the same change.
+Re-derive all four from two weeks of this stream before treating any of them as
+an SLO. The p95 rule tracks the percentile the retired PostHog daily report
+watched, so it is the one with continuity to what came before.
+
+Note that the Core Web Vitals assessment is defined at p75, which none of these
+rules use. p75 is the right number for judging the site against the standard;
+p50/p90/p95/p99 are chosen here because they separate failure shapes: a p50
+regression changed something for everyone, p90 and p95 point at a segment, and
+p99 finds individual broken pages.
+
+These rules are warnings and carry no `affected_service` label. A slow marketing
+page is not a customer-visible outage and must not open a status-page incident.
+
+### Browser vitals telemetry missing
+
+The paired telemetry rule for the four LCP rules above, which are threshold
+rules with No Data: OK and therefore cannot tell a fast site from a collector
+that stopped receiving. Without this rule, breaking the Faro pipeline would
+silence all four permanently and read as health.
+
+```logql
+sum(count_over_time(
+  {service_name="tuist-web", kind="measurement"}
+    | logfmt
+    | type="web-vitals"
+    | app_environment="production"
+    | lcp!="" [2h]
+)) < 1
+```
+
+- Pending period: 2 hours
+- No Data: **Alerting**, and Error: **Alerting**
+- Summary: `No browser LCP measurements have reached Loki for 2h - the four LCP percentile rules are blind`
+
+The polarity is inverted relative to the rules it guards. If the stream vanishes
+entirely, `sum(count_over_time(...))` returns nothing rather than zero, so the
+threshold alone would never fire and No Data has to be the alerting state. The
+same inversion applies to the `absent_over_time` rules elsewhere in this
+document.
+
+**It ships paused.** It was created alongside the Faro pipeline but before that
+pipeline was deployed, so leaving it active would have fired continuously from
+creation. Unpause it once the deploy has landed and Explore shows measurements
+arriving; while it is paused the percentile rules are unguarded.
+
+Triage follows the payload:
+
+1. **Browser** — view source on tuist.dev and check `globalThis.analytics` has a
+   `collector_url`. Empty means `TUIST_FARO_COLLECTOR_URL` is unset, i.e.
+   `server.faro.collectorUrl` is empty in the chart.
+2. **Ingress** — `curl -i https://tuist.dev/-/faro` should not 404. A 404 means
+   `server.faro.receiverHost` is empty so the ExternalName Service and its
+   ingress path were not rendered.
+3. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
+   collector counts what it ingested. Rising there but absent in Loki is a
+   forwarding problem, not a browser one.
+
+Content blockers cannot explain a total outage; the collector is same-origin
+precisely so no blocklist matches it.
+
 ## Useful investigation queries
 
 Current Kubernetes requests in flight:

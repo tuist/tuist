@@ -1620,6 +1620,10 @@ k8s-monitoring:
             port: 3100
             targetPort: 3100
             protocol: TCP
+          - name: faro
+            port: 12347
+            targetPort: 12347
+            protocol: TCP
       extraConfig: |
         loki.source.api "tuist_tart_guests" {
           http {
@@ -1627,4 +1631,28 @@ k8s-monitoring:
             listen_port = 3100
           }
           forward_to = [loki.write.grafana_cloud_logs.receiver]
+        }
+
+        // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
+        // bundled into the server's JavaScript posts here through the tuist.dev
+        // Ingress (server.faro in the tuist chart routes /-/faro at this port
+        // via an ExternalName Service), so the request stays same-origin.
+        //
+        // Web vitals arrive as `kind=measurement` entries whose logfmt line
+        // carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert
+        // rules unwrap `lcp` off this stream; see alerts.md.
+        faro.receiver "tuist_web" {
+          server {
+            listen_address = "0.0.0.0"
+            listen_port = 12347
+            cors_allowed_origins = ["https://tuist.dev"]
+          }
+
+          extra_log_labels = {
+            service_name = "tuist-web",
+          }
+
+          output {
+            logs = [loki.write.grafana_cloud_logs.receiver]
+          }
         }
