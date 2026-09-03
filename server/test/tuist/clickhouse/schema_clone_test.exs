@@ -88,25 +88,9 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
 
   describe "run/1" do
     test "does nothing when no destination is configured" do
-      assert {:error, :no_target_configured} = SchemaClone.run(target_url: nil, source_url: "http://localhost:8123/x")
-      assert {:error, :no_target_configured} = SchemaClone.run(target_url: "", source_url: "http://localhost:8123/x")
-    end
-
-    test "reports an unreachable destination separately from a failed clone" do
-      # This distinction is what lets the deploy hook tolerate the release
-      # that first introduces the ClickHouse workload, when nothing is
-      # listening yet, while still failing on a clone that goes wrong.
-      assert {:error, {:target_unreachable, _}} =
-               SchemaClone.run(
-                 source_url: "http://127.0.0.1:1/source",
-                 target_url: "http://127.0.0.1:1/target"
-               )
-    end
-
-    test "rejects a URL that is not absolute http" do
-      assert_raise ArgumentError, ~r/must be an absolute http/, fn ->
-        SchemaClone.run(source_url: "localhost:8123", target_url: "http://127.0.0.1:1/target")
-      end
+      # `TUIST_CLICKHOUSE_BARE_METAL_URL` is unset in test, so this must not
+      # try to start a repository that is not configured.
+      assert {:error, :no_target_configured} = SchemaClone.run()
     end
   end
 end

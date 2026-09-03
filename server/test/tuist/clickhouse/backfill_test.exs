@@ -86,9 +86,8 @@ defmodule Tuist.ClickHouse.BackfillTest do
   end
 
   describe "run/1" do
-    test "refuses to start without both endpoints" do
-      assert {:error, :no_target_configured} = Backfill.run(source_url: "http://127.0.0.1:1/s", target_url: nil)
-      assert {:error, :no_source_configured} = Backfill.run(source_url: nil, target_url: "http://127.0.0.1:1/t")
+    test "refuses to start without a destination" do
+      assert {:error, :no_target_configured} = Backfill.run()
     end
   end
 end

@@ -18,7 +18,7 @@ defmodule Tuist.ClickHouse.Parity do
   would have passed.
   """
 
-  alias Tuist.ClickHouse.SchemaClone
+  alias Tuist.ClickHouse.Endpoints
 
   require Logger
 
@@ -29,62 +29,41 @@ defmodule Tuist.ClickHouse.Parity do
   tables, so a caller can gate on `differing == []` rather than reading logs.
   """
   def compare(opts \\ []) do
-    source_url = Keyword.get_lazy(opts, :source_url, fn -> Tuist.Environment.clickhouse_url() end)
-    target_url = Keyword.get_lazy(opts, :target_url, fn -> Tuist.Environment.clickhouse_bare_metal_url() end)
+    Endpoints.with_repos(opts, fn source, target ->
+      tables = Keyword.get_lazy(opts, :tables, fn -> comparable_tables(target) end)
 
-    cond do
-      is_nil(target_url) or target_url == "" ->
-        {:error, :no_target_configured}
+      rows =
+        Enum.map(tables, fn table ->
+          left = fingerprint(source, table)
+          right = fingerprint(target, table)
 
-      is_nil(source_url) or source_url == "" ->
-        {:error, :no_source_configured}
+          %{table: table, source: left, destination: right, matches: left == right}
+        end)
 
-      true ->
-        do_compare(
-          SchemaClone.parse_url!(source_url, "source"),
-          SchemaClone.parse_url!(target_url, "target"),
-          opts
-        )
-    end
-  end
+      {matching, differing} = Enum.split_with(rows, & &1.matches)
 
-  defp do_compare(source, target, opts) do
-    {:ok, source_conn} = connect(source)
-    {:ok, target_conn} = connect(target)
+      report = %{
+        compared: length(rows),
+        matching: Enum.map(matching, & &1.table),
+        differing: Enum.map(differing, &Map.delete(&1, :matches))
+      }
 
-    tables = Keyword.get_lazy(opts, :tables, fn -> comparable_tables(target_conn, target.database) end)
+      if report.differing == [] do
+        Logger.info("ClickHouse parity: all #{report.compared} table(s) agree")
+      else
+        Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} table(s) differ")
+      end
 
-    rows =
-      Enum.map(tables, fn table ->
-        left = fingerprint(source_conn, source.database, table)
-        right = fingerprint(target_conn, target.database, table)
-
-        %{table: table, source: left, destination: right, matches: left == right}
-      end)
-
-    {matching, differing} = Enum.split_with(rows, & &1.matches)
-
-    report = %{
-      compared: length(rows),
-      matching: Enum.map(matching, & &1.table),
-      differing: Enum.map(differing, &Map.delete(&1, :matches))
-    }
-
-    if report.differing == [] do
-      Logger.info("ClickHouse parity: all #{report.compared} table(s) agree")
-    else
-      Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} table(s) differ")
-    end
-
-    {:ok, report}
+      {:ok, report}
+    end)
   end
 
   # A count, the time bounds, and a sum over every numeric column. The sum is
   # what catches a copy that moved the right number of rows with the wrong
   # values in them, which a count cannot see.
-  defp fingerprint(conn, database, table) do
-    numeric = numeric_columns(conn, database, table)
-    time = time_column(conn, database, table)
+  defp fingerprint(endpoint, table) do
+    numeric = numeric_columns(endpoint, table)
+    time = time_column(endpoint, table)
 
     selects =
       ["count() AS rows"] ++
@@ -92,22 +71,22 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(database)}.#{quote_ident(table)}#{final_clause(conn, database, table)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final_clause(endpoint, table)}"
 
-    case Ch.query(conn, statement) do
-      {:ok, %{rows: [values]}} -> selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
-      {:error, error} -> %{error: Exception.message(error)}
-    end
+    %{rows: [values]} = endpoint.repo.query!(statement, [], log: false)
+    selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
+  rescue
+    error -> %{error: Exception.message(error)}
   end
 
   # `FINAL` is only valid on an engine that deduplicates, and applying it to a
   # plain MergeTree is an error rather than a no-op.
-  defp final_clause(conn, database, table) do
-    {:ok, %{rows: rows}} =
-      Ch.query(
-        conn,
+  defp final_clause(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
         "SELECT engine FROM system.tables WHERE database = {database:String} AND name = {table:String}",
-        %{"database" => database, "table" => table}
+        %{"database" => endpoint.database, "table" => table},
+        log: false
       )
 
     case rows do
@@ -116,10 +95,9 @@ defmodule Tuist.ClickHouse.Parity do
     end
   end
 
-  defp numeric_columns(conn, database, table) do
-    {:ok, %{rows: rows}} =
-      Ch.query(
-        conn,
+  defp numeric_columns(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
         """
         SELECT name FROM system.columns
         WHERE database = {database:String} AND table = {table:String}
@@ -127,23 +105,24 @@ defmodule Tuist.ClickHouse.Parity do
                OR type LIKE 'Nullable(UInt%' OR type LIKE 'Nullable(Int%' OR type LIKE 'Nullable(Float%')
         ORDER BY position
         """,
-        %{"database" => database, "table" => table}
+        %{"database" => endpoint.database, "table" => table},
+        log: false
       )
 
     List.flatten(rows)
   end
 
-  defp time_column(conn, database, table) do
-    {:ok, %{rows: rows}} =
-      Ch.query(
-        conn,
+  defp time_column(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
         """
         SELECT name FROM system.columns
         WHERE database = {database:String} AND table = {table:String}
           AND name IN ('inserted_at', 'ran_at', 'ingested_at', 'window_start', 'ts', 'created_at')
         ORDER BY position
         """,
-        %{"database" => database, "table" => table}
+        %{"database" => endpoint.database, "table" => table},
+        log: false
       )
 
     case List.flatten(rows) do
@@ -152,10 +131,9 @@ defmodule Tuist.ClickHouse.Parity do
     end
   end
 
-  defp comparable_tables(conn, database) do
-    {:ok, %{rows: rows}} =
-      Ch.query(
-        conn,
+  defp comparable_tables(target) do
+    %{rows: rows} =
+      target.repo.query!(
         """
         SELECT name FROM system.tables
         WHERE database = {database:String}
@@ -164,7 +142,8 @@ defmodule Tuist.ClickHouse.Parity do
           AND name != 'schema_migrations'
         ORDER BY name
         """,
-        %{"database" => database}
+        %{"database" => target.database},
+        log: false
       )
 
     List.flatten(rows)
@@ -172,17 +151,5 @@ defmodule Tuist.ClickHouse.Parity do
 
   defp label(select), do: select |> String.split(" AS ") |> List.last()
 
-  defp connect(endpoint) do
-    Ch.start_link(
-      scheme: endpoint.scheme,
-      hostname: endpoint.hostname,
-      port: endpoint.port,
-      database: endpoint.database,
-      username: endpoint.username,
-      password: endpoint.password,
-      timeout: to_timeout(minute: 10)
-    )
-  end
-
-  defp quote_ident(name), do: "`" <> String.replace(to_string(name), "`", "``") <> "`"
+  defp quote_ident(name), do: Endpoints.quote_ident(name)
 end

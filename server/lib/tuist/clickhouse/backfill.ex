@@ -34,7 +34,7 @@ defmodule Tuist.ClickHouse.Backfill do
 
   import Ecto.Query
 
-  alias Tuist.ClickHouse.SchemaClone
+  alias Tuist.ClickHouse.Endpoints
   alias Tuist.Repo
 
   require Logger
@@ -53,28 +53,23 @@ defmodule Tuist.ClickHouse.Backfill do
   schema clone is a hard prerequisite: this will not create anything.
   """
   def run(opts \\ []) do
-    with {:ok, source, target} <- endpoints(opts),
-         {:ok, source_conn} <- connect(source),
-         {:ok, target_conn} <- connect(target) do
-      tables = Keyword.get_lazy(opts, :tables, fn -> destination_tables(target_conn, target.database) end)
+    Endpoints.with_repos(opts, fn source, target ->
+      tables = Keyword.get_lazy(opts, :tables, fn -> destination_tables(target) end)
 
       Logger.info("Backfilling #{length(tables)} table(s) from #{source.database} into #{target.database}")
 
-      results =
-        Enum.map(tables, fn table ->
-          {table, backfill_table(source_conn, target_conn, source, target, table)}
-        end)
+      results = Enum.map(tables, fn table -> {table, backfill_table(source, target, table)} end)
 
       {:ok, Map.new(results)}
-    end
+    end)
   end
 
-  defp backfill_table(source_conn, target_conn, source, target, table) do
-    chunks = chunks_for(source_conn, source.database, table)
+  defp backfill_table(source, target, table) do
+    chunks = chunks_for(source, table)
     Logger.info("#{table}: #{length(chunks)} chunk(s)")
 
     Enum.reduce(chunks, %{copied: 0, skipped: 0, failed: 0}, fn chunk, acc ->
-      case copy_chunk(source_conn, target_conn, source, target, table, chunk) do
+      case copy_chunk(source, target, table, chunk) do
         :already_done -> %{acc | skipped: acc.skipped + 1}
         :ok -> %{acc | copied: acc.copied + 1}
         {:error, _} -> %{acc | failed: acc.failed + 1}
@@ -82,34 +77,46 @@ defmodule Tuist.ClickHouse.Backfill do
     end)
   end
 
-  defp copy_chunk(source_conn, target_conn, source, target, table, chunk) do
+  defp copy_chunk(source, target, table, chunk) do
     if chunk_done?(table, chunk) do
       :already_done
     else
       claim_chunk(table, chunk)
 
+      # The credentials are query parameters rather than interpolated text, so
+      # the statement carries no secret even if something logs it. `log: false`
+      # as well, because a driver-level error can echo the parameters too.
       statement = """
       INSERT INTO #{quote_ident(target.database)}.#{quote_ident(table)}
-      SELECT * FROM remoteSecure(#{literal(native_address(source))}, #{literal(source.database)}, #{literal(table)}, #{literal(source.username)}, #{literal(source.password)})
+      SELECT * FROM remoteSecure({address:String}, {database:String}, {table:String}, {user:String}, {password:String})
       WHERE #{predicate(chunk)}
       """
 
-      case Ch.query(target_conn, statement, [], timeout: to_timeout(minute: 30)) do
-        {:ok, _} ->
-          source_rows = count(source_conn, source.database, table, chunk)
-          destination_rows = count(target_conn, target.database, table, chunk)
-          finish_chunk(table, chunk, source_rows, destination_rows)
+      params = %{
+        "address" => source_address(source),
+        "database" => source.database,
+        "table" => table,
+        "user" => source_credential(source, :username),
+        "password" => source_credential(source, :password)
+      }
 
-          if source_rows == destination_rows do
-            :ok
-          else
-            # Recorded rather than raised: one mismatched chunk should not stop
-            # the run, and the parity report is what gates the stage.
-            Logger.error("#{table} #{inspect(chunk)}: source #{source_rows} rows, destination #{destination_rows}")
-            :ok
-          end
+      try do
+        target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
 
-        {:error, error} ->
+        source_rows = count(source, table, chunk)
+        destination_rows = count(target, table, chunk)
+        finish_chunk(table, chunk, source_rows, destination_rows)
+
+        if source_rows == destination_rows do
+          :ok
+        else
+          # Recorded rather than raised: one mismatched chunk should not stop
+          # the run, and the parity report is what gates the stage.
+          Logger.error("#{table} #{inspect(chunk)}: source #{source_rows} rows, destination #{destination_rows}")
+          :ok
+        end
+      rescue
+        error ->
           fail_chunk(table, chunk, Exception.message(error))
           Logger.error("#{table} #{inspect(chunk)} failed: #{Exception.message(error)}")
           {:error, Exception.message(error)}
@@ -119,41 +126,41 @@ defmodule Tuist.ClickHouse.Backfill do
 
   # Divides by month over a time column, or by a hash of the sorting key when
   # the table has none.
-  defp chunks_for(conn, database, table) do
-    case time_column(conn, database, table) do
+  defp chunks_for(source, table) do
+    case time_column(source, table) do
       nil ->
-        key = sorting_key(conn, database, table)
+        key = sorting_key(source, table)
         Enum.map(0..(@hash_buckets - 1), &{:hash, key, &1, @hash_buckets})
 
       column ->
-        case bounds(conn, database, table, column) do
+        case bounds(source, table, column) do
           {nil, nil} -> []
           {from, to} -> month_chunks(column, from, to)
         end
     end
   end
 
-  defp time_column(conn, database, table) do
-    {:ok, result} =
-      Ch.query(
-        conn,
+  defp time_column(source, table) do
+    result =
+      source.repo.query!(
         """
         SELECT name FROM system.columns
         WHERE database = {database:String} AND table = {table:String} AND name IN {names:Array(String)}
         """,
-        %{"database" => database, "table" => table, "names" => @time_columns}
+        %{"database" => source.database, "table" => table, "names" => @time_columns},
+        log: false
       )
 
     present = List.flatten(result.rows)
     Enum.find(@time_columns, &(&1 in present))
   end
 
-  defp sorting_key(conn, database, table) do
-    {:ok, result} =
-      Ch.query(
-        conn,
+  defp sorting_key(source, table) do
+    result =
+      source.repo.query!(
         "SELECT sorting_key FROM system.tables WHERE database = {database:String} AND name = {table:String}",
-        %{"database" => database, "table" => table}
+        %{"database" => source.database, "table" => table},
+        log: false
       )
 
     case result.rows do
@@ -162,11 +169,12 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
-  defp bounds(conn, database, table, column) do
-    {:ok, result} =
-      Ch.query(
-        conn,
-        "SELECT toStartOfMonth(min(#{quote_ident(column)})), toStartOfMonth(max(#{quote_ident(column)})) FROM #{quote_ident(database)}.#{quote_ident(table)}"
+  defp bounds(source, table, column) do
+    result =
+      source.repo.query!(
+        "SELECT toStartOfMonth(min(#{quote_ident(column)})), toStartOfMonth(max(#{quote_ident(column)})) FROM #{quote_ident(source.database)}.#{quote_ident(table)}",
+        [],
+        log: false
       )
 
     case result.rows do
@@ -209,11 +217,12 @@ defmodule Tuist.ClickHouse.Backfill do
     "cityHash64(#{key}) % #{buckets} = #{bucket}"
   end
 
-  defp count(conn, database, table, chunk) do
-    {:ok, result} =
-      Ch.query(
-        conn,
-        "SELECT count() FROM #{quote_ident(database)}.#{quote_ident(table)} WHERE #{predicate(chunk)}"
+  defp count(endpoint, table, chunk) do
+    result =
+      endpoint.repo.query!(
+        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)} WHERE #{predicate(chunk)}",
+        [],
+        log: false
       )
 
     case result.rows do
@@ -297,10 +306,9 @@ defmodule Tuist.ClickHouse.Backfill do
     )
   end
 
-  defp destination_tables(conn, database) do
-    {:ok, result} =
-      Ch.query(
-        conn,
+  defp destination_tables(target) do
+    result =
+      target.repo.query!(
         """
         SELECT name FROM system.tables
         WHERE database = {database:String}
@@ -309,43 +317,23 @@ defmodule Tuist.ClickHouse.Backfill do
           AND name != 'schema_migrations'
         ORDER BY total_bytes ASC
         """,
-        %{"database" => database}
+        %{"database" => target.database},
+        log: false
       )
 
     List.flatten(result.rows)
   end
 
-  defp endpoints(opts) do
-    source = Keyword.get_lazy(opts, :source_url, fn -> Tuist.Environment.clickhouse_url() end)
-    target = Keyword.get_lazy(opts, :target_url, fn -> Tuist.Environment.clickhouse_bare_metal_url() end)
-
-    cond do
-      is_nil(target) or target == "" -> {:error, :no_target_configured}
-      is_nil(source) or source == "" -> {:error, :no_source_configured}
-      true -> {:ok, SchemaClone.parse_url!(source, "source"), SchemaClone.parse_url!(target, "target")}
-    end
-  end
-
-  defp connect(endpoint) do
-    case Ch.start_link(
-           scheme: endpoint.scheme,
-           hostname: endpoint.hostname,
-           port: endpoint.port,
-           database: endpoint.database,
-           username: endpoint.username,
-           password: endpoint.password,
-           timeout: to_timeout(minute: 30)
-         ) do
-      {:ok, conn} -> {:ok, conn}
-      {:error, error} -> {:error, {:unreachable, inspect(error)}}
-    end
-  end
-
   # `remoteSecure` speaks the native protocol, which is a different port from
-  # the HTTP interface the URL names.
-  defp native_address(%{hostname: hostname}), do: "#{hostname}:9440"
+  # the HTTP interface the repository is configured with.
+  defp source_address(source) do
+    config = source.repo.config()
+    "#{Keyword.fetch!(config, :hostname)}:9440"
+  end
 
-  defp literal(value), do: "'" <> String.replace(to_string(value), "'", "\\'") <> "'"
+  defp source_credential(source, key) do
+    source.repo.config() |> Keyword.get(key, "") |> to_string()
+  end
 
   defp quote_ident(name), do: "`" <> String.replace(to_string(name), "`", "``") <> "`"
 end
