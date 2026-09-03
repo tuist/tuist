@@ -90,4 +90,39 @@ struct BuildInsightsActionMapperTests {
             got == expectedBuildAction
         )
     }
+
+    @Test(.withMockedEnvironment()) func map_generates_a_script_that_cannot_fail_the_build() async throws {
+        // Given
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.currentExecutablePathStub = "/nonexistent/tuist"
+
+        let buildAction: BuildAction = .test()
+
+        // When
+        let got = try await subject.map(
+            buildAction,
+            target: nil,
+            buildInsightsDisabled: false
+        )
+
+        // Then
+        let scriptText = try #require(got.postActions.first?.scriptText)
+        let result = try runThroughShell(scriptText)
+        #expect(result.exitCode == 0)
+        #expect(result.standardOutput.contains("warning: tuist inspect build failed"))
+    }
+}
+
+func runThroughShell(_ scriptText: String) throws -> (exitCode: Int32, standardOutput: String) {
+    // Xcode runs an execution action with no explicit shellPath through /bin/sh.
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", scriptText]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = pipe
+    try process.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return (process.terminationStatus, String(decoding: data, as: UTF8.self))
 }
