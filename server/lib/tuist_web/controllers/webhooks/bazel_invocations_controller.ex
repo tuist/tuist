@@ -92,9 +92,18 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   defp invocation_from_event(_, _, _), do: nil
 
   defp valid_event?(invocation_id, command, status, exit_code, started_at_ms, finished_at_ms) do
-    is_binary(invocation_id) and invocation_id != "" and is_binary(command) and status in ["success", "failure"] and
-      is_integer(exit_code) and is_integer(started_at_ms) and started_at_ms >= 0 and is_integer(finished_at_ms) and
-      finished_at_ms >= 0 and plausible_timestamp?(started_at_ms) and plausible_timestamp?(finished_at_ms)
+    valid_identifiers?(invocation_id, command) and valid_result?(status, exit_code) and
+      valid_timestamps?(started_at_ms, finished_at_ms)
+  end
+
+  defp valid_identifiers?(invocation_id, command),
+    do: is_binary(invocation_id) and invocation_id != "" and is_binary(command)
+
+  defp valid_result?(status, exit_code), do: status in ["success", "failure"] and is_integer(exit_code)
+
+  defp valid_timestamps?(started_at_ms, finished_at_ms) do
+    is_integer(started_at_ms) and started_at_ms >= 0 and is_integer(finished_at_ms) and finished_at_ms >= 0 and
+      plausible_timestamp?(started_at_ms) and plausible_timestamp?(finished_at_ms)
   end
 
   defp plausible_timestamp?(timestamp_ms) do
