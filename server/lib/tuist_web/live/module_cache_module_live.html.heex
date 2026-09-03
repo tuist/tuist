@@ -1,21 +1,29 @@
 <div id="module-cache-module">
+  <.button
+    label={dgettext("dashboard_cache", "All modules")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
   <div data-part="header">
-    <.button
-      variant="secondary"
-      size="small"
-      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
-      label={dgettext("dashboard_cache", "All modules")}
-    >
-      <:icon_left><.arrow_left /></:icon_left>
-    </.button>
-    <div data-part="title">
-      <span data-part="name">{@module_name}</span>
-      <.badge
-        :if={@module.ok? && @module.result.product != ""}
-        label={@module.result.product}
-        color="neutral"
-        size="small"
-      />
+    <div data-part="title-group">
+      <div data-part="title">
+        <h1 data-part="label">{@module_name}</h1>
+      </div>
+      <div :if={@module.ok? && @module.result.product != ""} data-part="badges">
+        <.badge
+          label={@module.result.product}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+      </div>
     </div>
   </div>
 

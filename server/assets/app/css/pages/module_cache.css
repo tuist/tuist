@@ -144,21 +144,42 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
   & > [data-part="header"] {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    justify-content: space-between;
     align-items: flex-start;
-    gap: var(--noora-spacing-3);
+    gap: var(--noora-spacing-4);
 
-    & > [data-part="title"] {
+    & > [data-part="title-group"] {
       display: flex;
-      flex-direction: row;
-      align-items: center;
+      flex-direction: column;
       gap: var(--noora-spacing-4);
+      min-width: 0;
 
-      & > [data-part="name"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      & > [data-part="title"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="label"] {
+          margin: var(--noora-spacing-0);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+          word-break: break-word;
+        }
+      }
+
+      & > [data-part="badges"] {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--noora-spacing-3);
       }
     }
   }
