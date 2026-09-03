@@ -2800,7 +2800,7 @@ pub(super) async fn authorize_build_event_request(
     state: &SharedState,
     metadata: &tonic::metadata::MetadataMap,
     project_handle: &str,
-    route: &str,
+    _route: &str,
 ) -> Result<String, Status> {
     if state.runtime.is_draining() {
         return Err(Status::unavailable("server is draining"));
@@ -2812,14 +2812,10 @@ pub(super) async fn authorize_build_event_request(
     };
 
     let spec = GrpcRequestSpec {
-        route,
         operation: "build_event_stream",
         namespace_id: Some(project_handle),
-        producer: None,
-        artifact_key: None,
-        artifact_hash: None,
     };
-    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata, None);
+    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
 
     match auth.evaluate_access(&context).await {
         AccessDecision::Allow => Ok(account_handle),

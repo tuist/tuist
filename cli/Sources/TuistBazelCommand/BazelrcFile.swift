@@ -25,18 +25,24 @@ enum BazelrcFile {
         endpoint: GRPCEndpoint,
         accountHandle: String,
         projectHandle: String,
-        credentialHelperPath: AbsolutePath
+        credentialHelperPath: AbsolutePath,
+        buildInsights: Bool = true
     ) -> String {
-        """
-        \(remoteCacheFlag)\(endpoint.url)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
-        \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
-        build --remote_instance_name=\(projectHandle)
+        let buildEventServiceConfiguration = buildInsights ? """
         \(buildEventServiceFlag)\(endpoint.url)
         build --bes_header=x-tuist-account-handle=\(accountHandle)
         build --bes_header=x-tuist-project-handle=\(projectHandle)
         build --bes_timeout=30s
         build --bes_upload_mode=fully_async
+
+        """ : ""
+
+        return """
+        \(remoteCacheFlag)\(endpoint.url)
+        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
+        build --remote_instance_name=\(projectHandle)
+        \(buildEventServiceConfiguration)
 
         """
     }
@@ -51,7 +57,7 @@ enum BazelrcFile {
 
     /// `contents` pointed at `endpoint`, or `nil` when it already is.
     ///
-    /// The three lines naming the host are rewritten and everything else is left
+    /// The endpoint lines are rewritten and everything else is left
     /// alone, so anything a developer added to the file survives a move. The
     /// credential helper's own path is carried across rather than recomputed:
     /// the file records where Bazel was told to find it, and that is not this

@@ -764,20 +764,22 @@ mod tests {
 
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "action_cache".into(),
-            outcome: "hit".into(),
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::new(super::ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "SwiftCompile".into(),
+                target_label: "//app:app".into(),
+                configuration_id: "config-1".into(),
+            }),
+            operation: "action_cache",
+            outcome: "hit",
             action_digest: "digest-1".into(),
             size: 128,
             duration_ms: 9,
             observed_at_ms: 1_700_000_000_123,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "SwiftCompile".into(),
-            target_label: "//app:app".into(),
-            configuration_id: "config-1".into(),
         });
         analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
             account_handle: "acme".into(),
@@ -925,20 +927,22 @@ mod tests {
         .expect("analytics should initialize")
         .expect("analytics should be enabled");
 
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: "acme".into(),
-            project_handle: "bazel".into(),
-            client_kind: "bazel".into(),
-            operation: "cas".into(),
-            outcome: "write".into(),
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::new(super::ReapiCacheAnalyticsContext {
+                account_handle: "acme".into(),
+                project_handle: "bazel".into(),
+                client_kind: "bazel",
+                invocation_id: "invocation-1".into(),
+                action_mnemonic: "".into(),
+                target_label: "".into(),
+                configuration_id: "".into(),
+            }),
+            operation: "cas",
+            outcome: "write",
             action_digest: "content-digest".into(),
             size: 4_096,
             duration_ms: 14,
             observed_at_ms: 1_700_000_000_456,
-            invocation_id: "invocation-1".into(),
-            action_mnemonic: "".into(),
-            target_label: "".into(),
-            configuration_id: "".into(),
         });
 
         timeout(Duration::from_secs(2), async {

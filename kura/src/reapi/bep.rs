@@ -39,6 +39,8 @@ const BAZEL_BUILD_EVENT_TYPE_URL: &str = "type.googleapis.com/build_event_stream
 const MAX_IN_FLIGHT_INVOCATIONS: usize = 4_096;
 const MAX_IN_FLIGHT_INVOCATIONS_PER_PROJECT: usize = 256;
 const MAX_INVOCATION_LIFETIME: Duration = Duration::from_secs(24 * 60 * 60);
+const MAX_INVOCATION_ID_BYTES: usize = 256;
+const MAX_COMMAND_BYTES: usize = 256;
 
 #[derive(Clone)]
 pub struct BuildEventService {
@@ -208,7 +210,10 @@ impl BuildEventService {
         };
 
         if let Some(started) = event.started {
-            let invocation_id = invocation_id(&ordered_event, &started.uuid);
+            let invocation_id = truncate_wire_string(
+                &invocation_id(&ordered_event, &started.uuid),
+                MAX_INVOCATION_ID_BYTES,
+            );
             if invocation_id.is_empty() {
                 return;
             }
@@ -217,7 +222,7 @@ impl BuildEventService {
                 account_handle: account_handle.to_owned(),
                 project_handle: project_handle.to_owned(),
                 invocation_id: invocation_id.clone(),
-                command: started.command,
+                command: truncate_wire_string(&started.command, MAX_COMMAND_BYTES),
                 started_at_ms: timestamp_millis(started.start_time, started.start_time_millis),
                 inserted_at: Instant::now(),
             };
@@ -249,7 +254,8 @@ impl BuildEventService {
         }
 
         if let Some(finished) = event.finished {
-            let invocation_id = invocation_id(&ordered_event, "");
+            let invocation_id =
+                truncate_wire_string(&invocation_id(&ordered_event, ""), MAX_INVOCATION_ID_BYTES);
             if invocation_id.is_empty() {
                 return;
             }
@@ -282,16 +288,12 @@ impl BuildEventService {
             let status = invocation_status(finished.overall_success, exit_code);
 
             if let Some(analytics) = self.state.analytics.as_ref() {
-                analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
-                    account_handle: start.account_handle,
-                    project_handle: start.project_handle,
-                    invocation_id: start.invocation_id,
-                    command: start.command,
-                    status: status.into(),
-                    exit_code: exit_code.unwrap_or(if status == "success" { 0 } else { 1 }),
-                    started_at_ms: start.started_at_ms,
+                analytics.enqueue_bazel_invocation_event(completed_invocation_event(
+                    start,
+                    status,
+                    exit_code,
                     finished_at_ms,
-                });
+                ));
             }
         }
     }
@@ -332,6 +334,36 @@ fn invocation_id(event: &OrderedBuildEvent, started_uuid: &str) -> String {
 
 fn invocation_key(account_handle: &str, project_handle: &str, invocation_id: &str) -> String {
     format!("{account_handle}:{project_handle}:{invocation_id}")
+}
+
+fn completed_invocation_event(
+    start: InvocationStart,
+    status: &str,
+    exit_code: Option<i32>,
+    finished_at_ms: u64,
+) -> BazelInvocationAnalyticsEvent {
+    BazelInvocationAnalyticsEvent {
+        account_handle: start.account_handle,
+        project_handle: start.project_handle,
+        invocation_id: start.invocation_id,
+        command: start.command,
+        status: status.into(),
+        exit_code: exit_code.unwrap_or(if status == "success" { 0 } else { 1 }),
+        started_at_ms: start.started_at_ms,
+        finished_at_ms,
+    }
+}
+
+fn truncate_wire_string(value: &str, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value.to_owned();
+    }
+
+    value
+        .char_indices()
+        .take_while(|(index, _)| *index < max_bytes)
+        .map(|(_, character)| character)
+        .collect()
 }
 
 fn evict_expired_invocations(invocations: &mut HashMap<String, InvocationStart>) {
@@ -465,6 +497,41 @@ mod tests {
             .await;
 
         assert!(service.invocations.lock().await.is_empty());
+    }
+
+    #[test]
+    fn maps_a_completed_invocation_to_analytics() {
+        let event = completed_invocation_event(
+            InvocationStart {
+                account_handle: "acme".into(),
+                project_handle: "ios".into(),
+                invocation_id: "invocation-1".into(),
+                command: "test //app:tests".into(),
+                started_at_ms: 1_700_000_000_000,
+                inserted_at: Instant::now(),
+            },
+            "failure",
+            None,
+            1_700_000_015_000,
+        );
+
+        assert_eq!(event.account_handle, "acme");
+        assert_eq!(event.project_handle, "ios");
+        assert_eq!(event.invocation_id, "invocation-1");
+        assert_eq!(event.command, "test //app:tests");
+        assert_eq!(event.status, "failure");
+        assert_eq!(event.exit_code, 1);
+        assert_eq!(event.started_at_ms, 1_700_000_000_000);
+        assert_eq!(event.finished_at_ms, 1_700_000_015_000);
+    }
+
+    #[test]
+    fn bounds_retained_wire_strings_without_breaking_unicode() {
+        assert_eq!(truncate_wire_string("aébc", 3), "aé");
+        assert_eq!(
+            truncate_wire_string(&"x".repeat(MAX_COMMAND_BYTES + 1), MAX_COMMAND_BYTES).len(),
+            MAX_COMMAND_BYTES
+        );
     }
 
     fn ordered_bazel_event(invocation_id: &str, event: BazelBuildEvent) -> OrderedBuildEvent {

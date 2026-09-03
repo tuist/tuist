@@ -20,9 +20,17 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: "Configure Bazel to send build insights through the Build Event Service."
+    )
+    var buildInsights = true
+
     public func run() async throws {
         try await BazelSetupCommandService().run(
-            directory: path
+            directory: path,
+            buildInsights: buildInsights
         )
     }
 }

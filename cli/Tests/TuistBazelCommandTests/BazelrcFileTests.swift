@@ -67,6 +67,20 @@ struct BazelrcFileTests {
         #expect(rewritten.contains("build --bes_header=x-tuist-project-handle=app"))
     }
 
+    @Test func omits_build_event_service_settings_when_insights_are_disabled() throws {
+        let contents = BazelrcFile.render(
+            endpoint: moved,
+            accountHandle: "acme",
+            projectHandle: "app",
+            credentialHelperPath: try AbsolutePath(
+                validating: "/Users/dev/.config/tuist/credentials/tuist-bazel-credential-helper"
+            ),
+            buildInsights: false
+        )
+
+        #expect(!contents.contains("--bes_"))
+    }
+
     @Test func is_nothing_to_do_when_the_file_names_no_endpoint() throws {
         #expect(BazelrcFile.replacingRemoteCache(in: "build --jobs=8\n", with: moved) == nil)
     }

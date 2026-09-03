@@ -31,7 +31,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
       conn
       |> put_status(:accepted)
-      |> json(%{})
+      |> json(%{accepted: length(invocations), rejected: length(events) - length(invocations)})
       |> halt()
     end
   end
@@ -94,6 +94,14 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   defp valid_event?(invocation_id, command, status, exit_code, started_at_ms, finished_at_ms) do
     is_binary(invocation_id) and invocation_id != "" and is_binary(command) and status in ["success", "failure"] and
       is_integer(exit_code) and is_integer(started_at_ms) and started_at_ms >= 0 and is_integer(finished_at_ms) and
-      finished_at_ms >= 0
+      finished_at_ms >= 0 and plausible_timestamp?(started_at_ms) and plausible_timestamp?(finished_at_ms)
+  end
+
+  defp plausible_timestamp?(timestamp_ms) do
+    with {:ok, timestamp} <- DateTime.from_unix(timestamp_ms, :millisecond) do
+      DateTime.compare(timestamp, DateTime.add(DateTime.utc_now(), 1, :hour)) != :gt
+    else
+      _ -> false
+    end
   end
 end

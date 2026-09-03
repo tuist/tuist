@@ -25,6 +25,8 @@ try-import %workspace%/.bazelrc.tuist
 
 The generated configuration points both Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache and Build Event Service at Kura. It uses the existing Tuist credential helper for both connections.
 
+Build Event Service uploads the complete event stream from the machine running Bazel. That stream can include command-line arguments, environment values, and command output. Kura retains only the completed-command fields documented below and discards the other events, but teams that do not want to transmit this telemetry can run `tuist bazel setup --no-build-insights` to configure only the remote cache.
+
 Run a normal Bazel command to verify the integration:
 
 ```bash

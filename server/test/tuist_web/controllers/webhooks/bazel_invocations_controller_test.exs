@@ -51,7 +51,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
         |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
         |> post(~p"/webhooks/bazel-invocations", json_body)
 
-      assert json_response(conn, 202) == %{}
+      assert json_response(conn, 202) == %{"accepted" => 1, "rejected" => 0}
 
       [invocation] =
         ClickHouseRepo.all(from(i in Invocation, where: i.project_id == ^project.id))
@@ -89,7 +89,41 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
         |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
         |> post(~p"/webhooks/bazel-invocations", json_body)
 
-      assert json_response(conn, 202) == %{}
+      assert json_response(conn, 202) == %{"accepted" => 0, "rejected" => 1}
+      assert ClickHouseRepo.all(from(i in Invocation, where: i.project_id == ^project.id)) == []
+    end
+
+    test "does not store invocations with implausible future timestamps", %{conn: conn, project: project} do
+      future_timestamp_ms =
+        DateTime.utc_now()
+        |> DateTime.add(2, :hour)
+        |> DateTime.to_unix(:millisecond)
+
+      body = %{
+        "events" => [
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "invocation_id" => "invocation-1",
+            "command" => "build",
+            "status" => "success",
+            "exit_code" => 0,
+            "started_at_ms" => future_timestamp_ms,
+            "finished_at_ms" => future_timestamp_ms
+          }
+        ]
+      }
+
+      {json_body, signature} = sign_request(body)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/bazel-invocations", json_body)
+
+      assert json_response(conn, 202) == %{"accepted" => 0, "rejected" => 1}
       assert ClickHouseRepo.all(from(i in Invocation, where: i.project_id == ^project.id)) == []
     end
   end
