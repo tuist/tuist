@@ -247,7 +247,7 @@ server:
   # and no separate domain for content blockers to filter, which would skew the
   # web-vital percentiles the LCP alerts read.
   faro:
-    collectorUrl: /-/faro
+    collectorUrl: /-/faro/collect
     receiverHost: k8s-monitoring-alloy-receiver.observability.svc.cluster.local
     receiverPort: 12347
 

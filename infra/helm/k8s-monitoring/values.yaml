@@ -1635,8 +1635,9 @@ k8s-monitoring:
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
         // bundled into the server's JavaScript posts here through the tuist.dev
-        // Ingress (server.faro in the tuist chart routes /-/faro at this port
-        // via an ExternalName Service), so the request stays same-origin.
+        // Ingress (server.faro in the tuist chart routes /-/faro/collect at
+        // this port via an ExternalName Service), so the request stays
+        // same-origin.
         //
         // Web vitals arrive as `kind=measurement` entries whose logfmt line
         // carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert
