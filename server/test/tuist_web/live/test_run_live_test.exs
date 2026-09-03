@@ -111,17 +111,21 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "[data-part='metadata']", "Stress gate")
     assert has_element?(lv, "[data-part='metadata']", "Would have blocked the run")
 
-    # A gate finding counts as a failure, so the widget and the failures card agree.
-    assert has_element?(lv, "#widget-failed-test-cases", "1")
+    # A test that disagreed with itself is flaky, not failed.
+    assert has_element?(lv, "#widget-flaky-test-cases", "1")
+    assert has_element?(lv, "#widget-failed-test-cases", "0")
 
     # The candidate is badged where the reader already reads the test cases.
     assert has_element?(lv, "#test-cases-table", "2 of 10 repetitions failed")
 
-    # And the finding sits in the run's failures, expandable to its repetitions.
-    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "testAppliesDiscount")
-    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Stress gate")
-    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Repetition 2")
-    assert has_element?(lv, "#overview-stress-failure-#{test_case_id}", "Bool.random()")
+    # And the finding sits with the run's flaky tests, expandable to its repetitions.
+    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "testAppliesDiscount")
+    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Stress gate")
+    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Repetition 2")
+    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Bool.random()")
+
+    # It is not presented as one of the run's failures.
+    refute has_element?(lv, "[data-part='failures-overview-card']")
   end
 
   test "does not show the stress gate for a run that did not carry it", %{

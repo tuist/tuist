@@ -213,14 +213,14 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@failures_count > 0 or @stress_failures != []}
+      :if={@failures_count > 0}
       label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={Enum.any?(@flaky_runs_grouped)}
+      :if={Enum.any?(@flaky_runs_grouped) or @stress_flaky_candidates != []}
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
@@ -386,21 +386,19 @@
           />
           <.widget
             title={dgettext("dashboard_tests", "Failed test cases")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Number of test cases that failed, including those the stress gate caught failing under repetition."
-              )
-            }
-            value={@test_metrics.failed_count + length(@stress_failures)}
+            description={dgettext("dashboard_tests", "Number of test cases that failed.")}
+            value={@test_metrics.failed_count}
             id="widget-failed-test-cases"
           />
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
             description={
-              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that disagreed with themselves, whether across retries or under the stress gate's repetitions."
+              )
             }
-            value={@test_metrics.flaky_count}
+            value={@test_metrics.flaky_count + length(@stress_flaky_candidates)}
             id="widget-flaky-test-cases"
           />
           <.widget
@@ -581,7 +579,7 @@
     </.card>
 
     <.card
-      :if={@failures_count > 0 or @stress_failures != []}
+      :if={@failures_count > 0}
       title={dgettext("dashboard_tests", "Test Failures")}
       icon="alert_circle"
       data-part="failures-overview-card"
@@ -595,7 +593,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {@failures_count + length(@stress_failures)}
+            {@failures_count}
           </span>
           <.button
             variant="secondary"
@@ -605,12 +603,6 @@
           />
         </div>
         <div data-part="failures-list">
-          <.stress_failure_card
-            :for={candidate <- @stress_failures}
-            candidate={candidate}
-            run={@run}
-            id_prefix="overview"
-          />
           <div
             :for={test_case_run <- Enum.take(@failed_test_case_runs, 4)}
             id={"test-failure-overview-#{test_case_run.id}"}
@@ -930,7 +922,7 @@
     </.card>
 
     <.card
-      :if={Enum.any?(@flaky_runs_grouped)}
+      :if={Enum.any?(@flaky_runs_grouped) or @stress_flaky_candidates != []}
       title={dgettext("dashboard_tests", "Flaky Runs")}
       icon="alert_triangle"
       data-part="flaky-runs-card"
@@ -944,7 +936,8 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end)}
+            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end) +
+              length(@stress_flaky_candidates)}
           </span>
           <.button
             variant="secondary"
@@ -954,6 +947,13 @@
           />
         </div>
         <div data-part="flaky-runs-list">
+          <.stress_flaky_card
+            :for={candidate <- @stress_flaky_candidates}
+            candidate={candidate}
+            run={@run}
+            project={@selected_project}
+            id_prefix="overview"
+          />
           <div
             :for={group <- Enum.take(@flaky_runs_grouped, 4)}
             id={"flaky-group-#{group.test_case_id}"}
@@ -1804,16 +1804,10 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@failures_count + length(@stress_failures)}
+          {@failures_count}
         </span>
       </div>
       <div data-part="failures-list">
-        <.stress_failure_card
-          :for={candidate <- @stress_failures}
-          candidate={candidate}
-          run={@run}
-          id_prefix="failures"
-        />
         <div
           :for={test_case_run <- @failed_test_case_runs}
           id={"test-failure-#{test_case_run.id}"}
@@ -2013,10 +2007,7 @@
           </div>
         </div>
       </div>
-      <div
-        :if={Enum.empty?(@failed_test_case_runs) and @stress_failures == []}
-        data-part="empty-state"
-      >
+      <div :if={Enum.empty?(@failed_test_case_runs)} data-part="empty-state">
         <span data-part="title">{dgettext("dashboard_tests", "No failures detected")}</span>
         <span data-part="subtitle">{dgettext("dashboard_tests", "All tests passed!")}</span>
       </div>
@@ -2048,9 +2039,16 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@flaky_runs_meta.total_runs_count}
+          {@flaky_runs_meta.total_runs_count + length(@stress_flaky_candidates)}
         </span>
       </div>
+      <.stress_flaky_card
+        :for={candidate <- @stress_flaky_candidates}
+        candidate={candidate}
+        run={@run}
+        project={@selected_project}
+        id_prefix="flaky-tab"
+      />
       <div
         :for={group <- @flaky_runs_grouped}
         id={"flaky-tab-group-#{group.test_case_id}"}

@@ -126,13 +126,13 @@ defmodule TuistWeb.TestRunLive do
   defp assign_stress_gate(socket, %{stress_mode: ""}) do
     socket
     |> assign(:stress_candidates_by_identity, %{})
-    |> assign(:stress_failures, [])
+    |> assign(:stress_flaky_candidates, [])
   end
 
   defp assign_stress_gate(socket, run) do
     socket
     |> assign(:stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
-    |> assign(:stress_failures, StressNewTests.blocking_candidates_with_repetitions(run.id))
+    |> assign(:stress_flaky_candidates, StressNewTests.blocking_candidates_with_repetitions(run.id))
   end
 
   @doc false
@@ -1395,108 +1395,123 @@ defmodule TuistWeb.TestRunLive do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
   end
 
-  # A finding from the stress gate, rendered with the same collapsible card the
-  # run's own failures use. The badge is the only thing marking it as solicited
-  # rather than observed, and the repetitions are the gate's evidence.
+  # A finding from the stress gate: a test case whose repetitions disagreed. It is
+  # flaky, so it belongs with the run's flaky tests rather than its failures, in
+  # the same collapsible card and under its own label so the provenance is visible.
   attr :candidate, :map, required: true
   attr :run, :map, required: true
+  attr :project, :map, required: true
   attr :id_prefix, :string, required: true
+  attr :user_timezone, :string, default: nil
 
-  def stress_failure_card(assigns) do
+  def stress_flaky_card(assigns) do
     ~H"""
     <div
-      id={"#{@id_prefix}-stress-failure-#{@candidate.test_case_id}"}
+      id={"#{@id_prefix}-stress-flaky-#{@candidate.test_case_id}"}
       phx-hook="NooraCollapsible"
       data-part="collapsible"
       data-state="closed"
-      class="test-failure-card"
     >
       <div data-part="root">
-        <div data-part="trigger">
-          <div data-part="header">
-            <div data-part="icon">
-              <.alert_circle />
-            </div>
-            <div data-part="title-and-subtitle">
-              <h3 data-part="title">
+        <div data-part="header-row">
+          <div data-part="title-and-subtitle">
+            <h3 data-part="title">
+              <.link
+                navigate={
+                  ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/#{@candidate.test_case_id}"
+                }
+                data-part="test-case-link"
+              >
                 {@candidate.name}
-                <.badge
-                  label={dgettext("dashboard_tests", "Stress gate")}
-                  color="attention"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={@candidate.is_quarantined}
-                  label={dgettext("dashboard_tests", "Quarantined")}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-              </h3>
-              <span :if={@candidate.suite_name != ""} data-part="subtitle">
-                {@candidate.module_name} • {@candidate.suite_name}
-              </span>
-              <span :if={@candidate.suite_name == ""} data-part="subtitle">
-                {@candidate.module_name}
+              </.link>
+              <.badge
+                label={dgettext("dashboard_tests", "Stress gate")}
+                color="attention"
+                style="light-fill"
+                size="large"
+              />
+              <.badge
+                :if={@candidate.is_quarantined}
+                label={dgettext("dashboard_tests", "Quarantined")}
+                color="information"
+                style="light-fill"
+                size="large"
+              />
+            </h3>
+            <span
+              :if={@candidate.module_name != "" and @candidate.suite_name != ""}
+              data-part="subtitle"
+            >
+              {@candidate.module_name} • {@candidate.suite_name}
+            </span>
+            <span
+              :if={@candidate.module_name != "" and @candidate.suite_name == ""}
+              data-part="subtitle"
+            >
+              {@candidate.module_name}
+            </span>
+          </div>
+          <div data-part="stats">
+            <span data-part="time-ago">
+              {Timex.from_now(@run.ran_at)}
+            </span>
+            <div data-part="passed-count">
+              <.circle_check />
+              <span data-part="label">
+                {@candidate.repetitions - @candidate.failed_repetitions}
               </span>
             </div>
-            <.badge
-              label={
-                dgettext("dashboard_tests", "%{failed} of %{total}",
-                  failed: @candidate.failed_repetitions,
-                  total: @candidate.repetitions
-                )
-              }
-              color="destructive"
-              style="light-fill"
-              size="large"
-            />
+            <div data-part="failed-count">
+              <.circle_x />
+              <span data-part="label">{@candidate.failed_repetitions}</span>
+            </div>
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
-            <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
-            <.chevron_up />
+          <.neutral_button data-part="trigger" variant="secondary" size="medium">
+            <span data-part="icon-closed"><.chevron_down /></span>
+            <span data-part="icon-open"><.chevron_up /></span>
           </.neutral_button>
         </div>
         <div data-part="content" data-state="closed">
-          <div data-part="repetitions">
-            <div
-              :for={repetition <- @candidate.stress_repetitions}
-              data-part="repetition-wrapper"
-            >
-              <div data-part="repetition-item">
-                <.badge
-                  :if={repetition.status == "success"}
-                  label={dgettext("dashboard_tests", "Passed")}
-                  color="success"
-                  style="light-fill"
-                  size="small"
-                />
-                <.badge
-                  :if={repetition.status == "failure"}
-                  label={dgettext("dashboard_tests", "Failed")}
-                  color="destructive"
-                  style="light-fill"
-                  size="small"
-                />
-                <span data-part="repetition-name">
-                  {dgettext("dashboard_tests", "Repetition %{number}",
-                    number: repetition.repetition_number
-                  )}
-                </span>
+          <div data-part="flaky-run-item-wrapper">
+            <div data-part="flaky-run-item">
+              <div :if={@candidate.stress_repetitions != []} data-part="repetitions">
+                <div
+                  :for={repetition <- @candidate.stress_repetitions}
+                  data-part="repetition-wrapper"
+                >
+                  <div data-part="repetition-item">
+                    <.badge
+                      :if={repetition.status == "success"}
+                      label={dgettext("dashboard_tests", "Passed")}
+                      color="success"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <.badge
+                      :if={repetition.status == "failure"}
+                      label={dgettext("dashboard_tests", "Failed")}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <span data-part="repetition-name">
+                      {dgettext("dashboard_tests", "Repetition %{number}",
+                        number: repetition.repetition_number
+                      )}
+                    </span>
+                  </div>
+                  <.failure_message_span
+                    :if={TestRunStressRepetition.failure(repetition)}
+                    failure={TestRunStressRepetition.failure(repetition)}
+                    context={@run}
+                  />
+                </div>
               </div>
-              <.failure_message_span
-                :if={TestRunStressRepetition.failure(repetition)}
-                failure={TestRunStressRepetition.failure(repetition)}
-                context={@run}
-              />
+              <span :if={@candidate.stress_repetitions == []} data-part="repetition-name">
+                {dgettext("dashboard_tests", "This run recorded no per-repetition detail.")}
+              </span>
             </div>
           </div>
-          <span :if={@candidate.stress_repetitions == []} data-part="repetition-name">
-            {dgettext("dashboard_tests", "This run recorded no per-repetition detail.")}
-          </span>
         </div>
       </div>
     </div>
