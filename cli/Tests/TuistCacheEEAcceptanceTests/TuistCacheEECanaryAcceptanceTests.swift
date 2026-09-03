@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
+import TuistCache
 import TuistCacheCommand
 import TuistCAS
 import TuistConfigLoader
@@ -373,6 +374,10 @@ struct TuistCacheEECanaryAcceptanceTests {
     /// configured the way `CacheProxyCommandService` configures it, except that the
     /// bearer is passed as `TUIST_CAS_TOKEN` because the proxy's other option is to
     /// shell out to a `tuist` binary this process does not have.
+    ///
+    /// That bearer is the cache-scoped token from `CacheTokenStore`, not the session
+    /// token `tuist auth token` prints: kura rejects the latter with "Invalid or
+    /// expired token" and serves nothing.
     private func withCacheProxy(
         executablePath: AbsolutePath,
         fullHandle: String,
@@ -386,8 +391,8 @@ struct TuistCacheEECanaryAcceptanceTests {
         let accountHandle = String(fullHandle.split(separator: "/")[0])
         let endpoint = try await CacheURLStore().getCacheURL(for: serverURL, accountHandle: accountHandle)
         let token = try #require(
-            await ServerAuthenticationController().authenticationToken(serverURL: serverURL),
-            "The acceptance test is not authenticated against \(serverURL.absoluteString)"
+            await CacheTokenStore.shared.cacheToken(authenticationURL: serverURL, fullHandle: fullHandle),
+            "The acceptance test could not mint a cache token for \(fullHandle) against \(serverURL.absoluteString)"
         )
 
         let process = Process()
@@ -396,7 +401,7 @@ struct TuistCacheEECanaryAcceptanceTests {
             "TUIST_CAS_PROXY_SOCKET": socketPath.pathString,
             "TUIST_CAS_REMOTE_GRPC_URL": endpoint.absoluteString,
             "TUIST_CAS_SERVER_URL": serverURL.absoluteString,
-            "TUIST_CAS_TOKEN": token.value,
+            "TUIST_CAS_TOKEN": token,
             // The proxy and the build start together, so there is no window to warm a
             // byte closure in. This is what `tuist setup cache` selects on CI.
             "TUIST_CAS_PREFETCH": "keys",
