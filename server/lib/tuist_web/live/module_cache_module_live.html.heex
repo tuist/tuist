@@ -130,7 +130,7 @@
   </div>
 
   <.card
-    title={dgettext("dashboard_cache", "Cache hits vs misses")}
+    title={dgettext("dashboard_cache", "Cache activity")}
     icon="chart_arcs"
     data-part="timeline-card"
   >
@@ -143,7 +143,7 @@
         type="bar"
         extra_options={
           %{
-            grid: %{width: "96%", left: "0.4%", right: "3%", height: "78%", top: "8%"},
+            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
             tooltip: %{},
             xAxis: %{
               type: "category",
@@ -161,11 +161,7 @@
               splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
               axisLabel: %{color: "var:noora-surface-label-secondary"}
             },
-            legend: %{
-              show: true,
-              bottom: 0,
-              textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 11}
-            }
+            legend: %{show: false}
           }
         }
         series={[
