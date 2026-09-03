@@ -269,9 +269,11 @@ struct HotReadMetrics {
     http_immediate_admissions: Counter,
     http_elastic_admissions: Counter,
     http_wait_duration: Histogram,
+    http_waiters: Gauge,
     bytestream_immediate_admissions: Counter,
     bytestream_elastic_admissions: Counter,
     bytestream_wait_duration: Histogram,
+    bytestream_waiters: Gauge,
     bytestream_public_latency: Histogram,
 }
 
@@ -801,6 +803,7 @@ impl Metrics {
                 },
             ),
             http_wait_duration: response_stream_wait_duration.get_or_create_owned(&http_labels),
+            http_waiters: response_stream_waiters.get_or_create_owned(&http_labels),
             bytestream_immediate_admissions: response_stream_admissions.get_or_create_owned(
                 &ResponseStreamAdmissionLabels {
                     protocol: "bytestream".to_owned(),
@@ -815,6 +818,7 @@ impl Metrics {
             ),
             bytestream_wait_duration: response_stream_wait_duration
                 .get_or_create_owned(&bytestream_labels),
+            bytestream_waiters: response_stream_waiters.get_or_create_owned(&bytestream_labels),
             bytestream_public_latency: public_request_latency.get_or_create_owned(
                 &PublicRequestLatencyLabels {
                     transport: "grpc".to_owned(),
@@ -2795,6 +2799,17 @@ impl Metrics {
     }
 
     pub fn add_response_stream_waiter(&self, protocol: &str) {
+        match protocol {
+            "http" => {
+                self.hot_read.http_waiters.inc();
+                return;
+            }
+            "bytestream" => {
+                self.hot_read.bytestream_waiters.inc();
+                return;
+            }
+            _ => {}
+        }
         self.response_stream_waiters
             .get_or_create(&ResponseStreamProtocolLabels {
                 protocol: protocol.to_owned(),
@@ -2803,6 +2818,17 @@ impl Metrics {
     }
 
     pub fn remove_response_stream_waiter(&self, protocol: &str) {
+        match protocol {
+            "http" => {
+                self.hot_read.http_waiters.dec();
+                return;
+            }
+            "bytestream" => {
+                self.hot_read.bytestream_waiters.dec();
+                return;
+            }
+            _ => {}
+        }
         self.response_stream_waiters
             .get_or_create(&ResponseStreamProtocolLabels {
                 protocol: protocol.to_owned(),
@@ -3626,6 +3652,89 @@ mod tests {
         );
         println!(
             "METRIC resolved_handle_admissions_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn response_waiter_metric_handles_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 100_000;
+        const SAMPLES: usize = 7;
+
+        let measure = |direct_handle: bool| {
+            let metrics = Arc::new(Metrics::new("benchmark".into(), "benchmark".into()));
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            if direct_handle {
+                                metrics.add_response_stream_waiter("http");
+                                metrics.remove_response_stream_waiter("http");
+                            } else {
+                                for delta in [1, -1] {
+                                    let waiters = metrics.response_stream_waiters.get_or_create(
+                                        &ResponseStreamProtocolLabels {
+                                            protocol: "http".to_owned(),
+                                        },
+                                    );
+                                    if delta > 0 {
+                                        waiters.inc();
+                                    } else {
+                                        waiters.dec();
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                barrier.wait();
+                std::time::Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = measure(!baseline_first);
+            let second = measure(baseline_first);
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+
+        println!(
+            "METRIC response_waiter_metric_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC family_lookup_waiter_cycles_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC resolved_handle_waiter_cycles_per_second={:.3}",
             candidate_rates[candidate_rates.len() / 2]
         );
         println!(
