@@ -1,5 +1,6 @@
 #if os(macOS)
     import Foundation
+    import Noora
     import Path
     import TuistConfigLoader
     import TuistCore
@@ -27,7 +28,8 @@
 
         func run(
             path: String?,
-            inspectionTypes: Set<DependencyInspectionType>
+            inspectionTypes: Set<DependencyInspectionType>,
+            json: Bool = false
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -53,6 +55,17 @@
                     ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
                 )
                 checksRun.append("redundant")
+            }
+
+            if json {
+                try Noora.current.json(
+                    jsonResults(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
+                )
+
+                if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
+                    throw DependencyInspectionJSONIssuesFoundError()
+                }
+                return
             }
 
             if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
@@ -83,5 +96,32 @@
                 ignoreTagsMatching: ignoreTagsMatching
             )
         }
+
+        private func jsonResults(
+            implicitIssues: [InspectImportsIssue],
+            redundantIssues: [InspectImportsIssue]
+        ) -> [DependencyInspectionJSONResult] {
+            var resultsByTarget: [String: DependencyInspectionJSONResult] = [:]
+
+            for issue in implicitIssues {
+                resultsByTarget[issue.target, default: .init(target: issue.target)].implicit = issue.dependencies.sorted()
+            }
+            for issue in redundantIssues {
+                resultsByTarget[issue.target, default: .init(target: issue.target)].redundant = issue.dependencies.sorted()
+            }
+
+            return resultsByTarget.values.sorted { $0.target < $1.target }
+        }
+    }
+
+    private struct DependencyInspectionJSONResult: Codable {
+        let target: String
+        var implicit: [String]?
+        var redundant: [String]?
+    }
+
+    struct DependencyInspectionJSONIssuesFoundError: FatalError, Equatable {
+        let description = ""
+        let type = ErrorType.abortSilent
     }
 #endif

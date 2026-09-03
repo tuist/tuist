@@ -26,6 +26,12 @@
         )
         var only: [DependencyInspectionType] = []
 
+        @Flag(
+            name: .long,
+            help: "Output the result as JSON."
+        )
+        var json: Bool = false
+
         @OptionGroup
         var loggingOptions: LoggingOptions
 
@@ -37,7 +43,7 @@
             }
 
             try await InspectDependenciesCommandService()
-                .run(path: path, inspectionTypes: inspectionTypes)
+                .run(path: path, inspectionTypes: inspectionTypes, json: json)
         }
     }
 #endif
