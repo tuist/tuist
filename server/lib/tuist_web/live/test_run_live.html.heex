@@ -323,17 +323,6 @@
                 data-part="value"
               />
             </div>
-            <div :if={@run.stress_mode != ""} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Stress gate")}</div>
-              <span data-part="value">
-                <.badge
-                  label={stress_verdict_label(@run)}
-                  color={stress_verdict_color(@run)}
-                  style="light-fill"
-                  size="large"
-                />
-              </span>
-            </div>
             <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">

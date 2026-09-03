@@ -107,10 +107,6 @@ defmodule TuistWeb.TestRunLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-    # The verdict is one line in the run's details, not a panel of its own.
-    assert has_element?(lv, "[data-part='metadata']", "Stress gate")
-    assert has_element?(lv, "[data-part='metadata']", "Would have blocked the run")
-
     # A test that disagreed with itself is flaky, not failed.
     assert has_element?(lv, "#widget-flaky-test-cases", "1")
     assert has_element?(lv, "#widget-failed-test-cases", "0")
@@ -120,7 +116,6 @@ defmodule TuistWeb.TestRunLiveTest do
 
     # And the finding sits with the run's flaky tests, expandable to its repetitions.
     assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "testAppliesDiscount")
-    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Stress gate")
     assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Repetition 2")
     assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Bool.random()")
 
@@ -137,7 +132,7 @@ defmodule TuistWeb.TestRunLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-    refute has_element?(lv, "[data-part='metadata']", "Stress gate")
+    refute has_element?(lv, "[data-part='flaky-runs-card']")
   end
 
   test "surfaces linked runner CI context when test run came from a Tuist runner job", %{

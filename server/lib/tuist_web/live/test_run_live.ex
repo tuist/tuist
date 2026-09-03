@@ -144,12 +144,6 @@ defmodule TuistWeb.TestRunLive do
   end
 
   @doc false
-  def stress_verdict_color(%{stress_outcome: "disagreed", stress_mode: "enforce"}), do: "destructive"
-  def stress_verdict_color(%{stress_outcome: "disagreed"}), do: "attention"
-  def stress_verdict_color(%{stress_outcome: "skipped"}), do: "warning"
-  def stress_verdict_color(_), do: "neutral"
-
-  @doc false
   def stress_badge_label(%{outcome: "disagreed"} = candidate) do
     dgettext("dashboard_tests", "%{failed} of %{total} repetitions failed",
       failed: candidate.failed_repetitions,
@@ -178,53 +172,6 @@ defmodule TuistWeb.TestRunLive do
   def stress_badge_color(%{outcome: "disagreed", is_quarantined: false}), do: "attention"
   def stress_badge_color(%{outcome: "passed"}), do: "neutral"
   def stress_badge_color(_), do: "neutral"
-
-  @doc false
-  def stress_verdict_label(run) do
-    case run.stress_outcome do
-      "disagreed" ->
-        if run.stress_mode == "enforce" do
-          dgettext("dashboard_tests", "Blocked the run")
-        else
-          dgettext("dashboard_tests", "Would have blocked the run")
-        end
-
-      "passed" ->
-        dngettext(
-          "dashboard_tests",
-          "%{count} new test held up",
-          "%{count} new tests held up",
-          run.stress_stressed_count,
-          count: run.stress_stressed_count
-        )
-
-      "no_candidates" ->
-        dgettext("dashboard_tests", "No new tests")
-
-      "skipped" ->
-        stress_skip_label(run)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp stress_skip_label(%{stress_skip_reason: "first_pass_failed"}),
-    do: dgettext("dashboard_tests", "Skipped, the run already failed")
-
-  defp stress_skip_label(%{stress_skip_reason: "no_default_branch"}),
-    do: dgettext("dashboard_tests", "Skipped, no default branch is set")
-
-  defp stress_skip_label(%{stress_skip_reason: "no_default_branch_history"}),
-    do: dgettext("dashboard_tests", "Skipped, no history on the default branch yet")
-
-  defp stress_skip_label(%{stress_skip_reason: "bulk_change", stress_new_count: new_count}),
-    do: dgettext("dashboard_tests", "Skipped, %{count} test cases read as new", count: new_count)
-
-  defp stress_skip_label(%{stress_skip_reason: "verdict_unavailable"}),
-    do: dgettext("dashboard_tests", "Skipped, Tuist could not be reached")
-
-  defp stress_skip_label(_), do: dgettext("dashboard_tests", "Skipped")
 
   # The `Download result` button and its route are keyed on the id under which
   # the bundle was stored: the command_event id for CLI `tuist test` runs, and
@@ -1424,12 +1371,6 @@ defmodule TuistWeb.TestRunLive do
               >
                 {@candidate.name}
               </.link>
-              <.badge
-                label={dgettext("dashboard_tests", "Stress gate")}
-                color="attention"
-                style="light-fill"
-                size="large"
-              />
               <.badge
                 :if={@candidate.is_quarantined}
                 label={dgettext("dashboard_tests", "Quarantined")}
