@@ -45,6 +45,29 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
       refute rewritten =~ "default."
     end
 
+    test "only requalifies a database name that starts a qualified name" do
+      # Staging's source database is literally called `database`, so a plain
+      # string replace would rewrite `system.database_name` and anything
+      # ending in the same word. Only a leading qualifier may move.
+      ddl =
+        "CREATE MATERIALIZED VIEW database.mv TO database.target (`database_id` UUID, `x` String DEFAULT 'my database.thing') AS SELECT database_id FROM database.source"
+
+      rewritten = SchemaClone.rewrite(ddl, "database", "tuist")
+
+      assert rewritten =~ "tuist.mv TO tuist.target"
+      assert rewritten =~ "FROM tuist.source"
+      # Neither the column nor the text inside the literal is a qualifier.
+      assert rewritten =~ "`database_id` UUID"
+      assert rewritten =~ "SELECT database_id FROM"
+      assert rewritten =~ "'my database.thing'"
+    end
+
+    test "does not rewrite a system-qualified reference" do
+      ddl = "CREATE VIEW default.v AS SELECT name FROM system.default_roles"
+
+      assert SchemaClone.rewrite(ddl, "default", "tuist") =~ "FROM system.default_roles"
+    end
+
     test "is idempotent so a partial clone can be re-run" do
       ddl = "CREATE TABLE default.t (`id` UUID) ENGINE = SharedMergeTree ORDER BY id"
 

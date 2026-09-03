@@ -104,10 +104,21 @@ defmodule Tuist.ClickHouse.SchemaClone do
 
   defp requalify_database(ddl, database, database), do: ddl
 
+  # Only where a database qualifier can legally appear, rather than everywhere
+  # the name occurs. The name is not guaranteed to be distinctive: staging's
+  # source database is literally called `database`, so replacing every
+  # occurrence of `database.` would rewrite `system.database_roles`, a column
+  # called `database_id`, and the contents of a string literal in a DEFAULT
+  # expression. Matching the keyword that introduces the qualifier is what
+  # keeps the rewrite to object names.
   defp requalify_database(ddl, source_database, target_database) do
-    ddl
-    |> String.replace("`#{source_database}`.", "`#{target_database}`.")
-    |> String.replace("#{source_database}.", "#{target_database}.")
+    escaped = Regex.escape(source_database)
+
+    Regex.replace(
+      ~r/\b(TABLE|VIEW|DICTIONARY|TO|FROM|JOIN|INTO)(\s+)`?#{escaped}`?\./i,
+      ddl,
+      fn _match, keyword, whitespace -> "#{keyword}#{whitespace}#{target_database}." end
+    )
   end
 
   defp add_if_not_exists(ddl) do
