@@ -66,6 +66,13 @@ public class FileArchiver: FileArchiving {
     }
 
     private static func deflate(directoryContentAt path: AbsolutePath, to destination: AbsolutePath) async throws {
+        do {
+            return try await ParallelZipWriter().write(contentsOf: path, to: destination)
+        } catch ParallelZipWriterError.zip64Required {
+            Logger.current.debug("The archive requires ZIP64 extensions, falling back to a serial writer.")
+            try? FileManager.default.removeItem(atPath: destination.pathString)
+        }
+
         let sourceURL = URL(fileURLWithPath: path.pathString)
         let destinationURL = URL(fileURLWithPath: destination.pathString)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
