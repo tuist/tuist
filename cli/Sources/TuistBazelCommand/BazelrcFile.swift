@@ -18,6 +18,8 @@ enum BazelrcFile {
     private static let remoteCacheFlag = "build --remote_cache="
     private static let credentialHelperFlag = "build --credential_helper="
     private static let buildEventServiceFlag = "build --bes_backend="
+    private static let remoteHeaderFlag = "build --remote_header=x-tuist-account-handle="
+    private static let remoteInstanceNameFlag = "build --remote_instance_name="
 
     static func render(
         endpoint: GRPCEndpoint,
@@ -55,7 +57,7 @@ enum BazelrcFile {
     /// the file records where Bazel was told to find it, and that is not this
     /// code's to change.
     static func replacingRemoteCache(in contents: String, with endpoint: GRPCEndpoint) -> String? {
-        guard let current = remoteCache(in: contents), current != endpoint.url else { return nil }
+        guard remoteCache(in: contents) != nil else { return nil }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -77,6 +79,26 @@ enum BazelrcFile {
             }
             .joined(separator: "\n")
 
-        return rewritten
+        let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+        guard !lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) else {
+            return rewritten == contents ? nil : rewritten
+        }
+        guard let accountHandle = lines.first(where: { $0.hasPrefix(remoteHeaderFlag) })
+            .map({ String($0.dropFirst(remoteHeaderFlag.count)) }),
+            let projectHandle = lines.first(where: { $0.hasPrefix(remoteInstanceNameFlag) })
+            .map({ String($0.dropFirst(remoteInstanceNameFlag.count)) })
+        else {
+            return rewritten == contents ? nil : rewritten
+        }
+
+        let suffix = """
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        build --bes_timeout=30s
+        build --bes_upload_mode=fully_async
+        """
+
+        return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
     }
 }

@@ -51,6 +51,22 @@ struct BazelrcFileTests {
         #expect(BazelrcFile.replacingRemoteCache(in: rendered(), with: unchanged) == nil)
     }
 
+    @Test func adds_build_event_service_settings_to_an_existing_remote_cache_file() throws {
+        let legacy = """
+        build --remote_cache=grpcs://acme-eu-central-1.kura.tuist.dev
+        build --remote_header=x-tuist-account-handle=acme
+        build --credential_helper=acme-eu-central-1.kura.tuist.dev=/opt/tuist
+        build --remote_instance_name=app
+
+        """
+
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: moved))
+
+        #expect(rewritten.contains("build --bes_backend=grpcs://acme-ca-east-1.kura.tuist.dev"))
+        #expect(rewritten.contains("build --bes_header=x-tuist-account-handle=acme"))
+        #expect(rewritten.contains("build --bes_header=x-tuist-project-handle=app"))
+    }
+
     @Test func is_nothing_to_do_when_the_file_names_no_endpoint() throws {
         #expect(BazelrcFile.replacingRemoteCache(in: "build --jobs=8\n", with: moved) == nil)
     }
