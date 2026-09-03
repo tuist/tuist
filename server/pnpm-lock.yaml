@@ -11,6 +11,7 @@ overrides:
   defu: 6.1.5
   dompurify: 3.4.13
   fast-uri: 3.1.7
+  fflate: 0.4.9
   flatted: 3.4.2
   follow-redirects: 1.16.0
   form-data: 4.0.6
@@ -47,6 +48,7 @@ time:
   dompurify@3.4.13: 2026-08-03T14:16:00.210Z
   echarts@6.1.0: 2026-05-19T17:52:11.076Z
   fast-uri@3.1.7: 2026-09-02T11:06:41.962Z
+  fflate@0.4.9: 2026-07-20T16:20:26.758Z
   form-data@4.0.6: 2026-06-12T17:37:53.689Z
   hasown@2.0.4: 2026-05-28T18:11:39.940Z
   https-proxy-agent@5.0.1: 2022-04-14T18:42:00.761Z
@@ -864,8 +866,8 @@ packages:
   fast-uri@3.1.7:
     resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
 
-  fflate@0.4.8:
-    resolution: {integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==}
+  fflate@0.4.9:
+    resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
 
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
@@ -2680,7 +2682,7 @@ snapshots:
 
   fast-uri@3.1.7: {}
 
-  fflate@0.4.8: {}
+  fflate@0.4.9: {}
 
   flatted@3.4.2: {}
 
@@ -3362,7 +3364,7 @@ snapshots:
       '@posthog/types': 1.363.2
       core-js: 3.49.0
       dompurify: 3.4.13
-      fflate: 0.4.8
+      fflate: 0.4.9
       preact: 10.29.0
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.2.0
