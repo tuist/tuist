@@ -19,7 +19,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{dgettext("dashboard_cache", "Module invalidations")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_cache", "Modules")} · #{slug} · Tuist")
       |> assign(:search, "")
       |> assign(OpenGraph.og_image_assigns("module-cache"))
 
@@ -140,7 +140,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Blast radius")
   def sort_label("self_changes"), do: dgettext("dashboard_cache", "Changed")
   def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Upstream")
-  def sort_label(_), do: dgettext("dashboard_cache", "Invalidations")
+  def sort_label(_), do: dgettext("dashboard_cache", "Misses")
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")

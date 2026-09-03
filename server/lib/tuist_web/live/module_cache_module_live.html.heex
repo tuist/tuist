@@ -92,23 +92,23 @@
   <div :if={@module.ok?} data-part="widgets">
     <.widget
       id="widget-module-invalidations"
-      title={dgettext("dashboard_cache", "Invalidations")}
+      title={dgettext("dashboard_cache", "Misses")}
       legend_color="destructive"
       description={dgettext("dashboard_cache", "Builds where this module was a cache miss and had to be rebuilt.")}
       value={Integer.to_string(@module.result.invalidations)}
     />
     <.widget
       id="widget-module-reuses"
-      title={dgettext("dashboard_cache", "Reuses")}
+      title={dgettext("dashboard_cache", "Hits")}
       legend_color="primary"
       description={dgettext("dashboard_cache", "Builds where this module was served from cache instead of rebuilt.")}
       value={Integer.to_string(@module.result.reuses)}
     />
     <.widget
       id="widget-module-rate"
-      title={dgettext("dashboard_cache", "Invalidation rate")}
+      title={dgettext("dashboard_cache", "Miss rate")}
       legend_color="secondary"
-      description={dgettext("dashboard_cache", "Share of this module's builds that were invalidated.")}
+      description={dgettext("dashboard_cache", "Share of this module's builds that were a cache miss.")}
       value={dgettext("dashboard_cache", "%{rate}%", rate: @module.result.invalidation_rate)}
     />
     <.widget
@@ -130,7 +130,7 @@
   </div>
 
   <.card
-    title={dgettext("dashboard_cache", "Invalidations vs reuses")}
+    title={dgettext("dashboard_cache", "Cache hits vs misses")}
     icon="chart_arcs"
     data-part="timeline-card"
   >
@@ -170,7 +170,7 @@
         }
         series={[
           %{
-            name: dgettext("dashboard_cache", "Reuses"),
+            name: dgettext("dashboard_cache", "Hits"),
             data: @timeseries.result.reuses,
             type: "bar",
             stack: "total",
@@ -178,7 +178,7 @@
             barMaxWidth: 18
           },
           %{
-            name: dgettext("dashboard_cache", "Invalidations"),
+            name: dgettext("dashboard_cache", "Misses"),
             data: @timeseries.result.invalidations,
             type: "bar",
             stack: "total",
@@ -194,7 +194,7 @@
 
   <div data-part="reasons-grid">
     <.card
-      title={dgettext("dashboard_cache", "Why it invalidates")}
+      title={dgettext("dashboard_cache", "Why it misses")}
       icon="git_branch"
       data-part="reasons-card"
     >
@@ -203,7 +203,7 @@
         <p data-part="reasons-note">
           {dgettext(
             "dashboard_cache",
-            "%{self} invalidations from its own changes, %{deps} from an upstream dependency changing, %{other} cold or first-seen.",
+            "%{self} misses from its own changes, %{deps} from an upstream dependency changing, %{other} cold or first-seen.",
             self: @module.result.self_changes,
             deps: @module.result.dependency_induced,
             other: @module.result.unclassified
@@ -257,7 +257,7 @@
         <:col :let={dependent} label={dgettext("dashboard_cache", "Module")}>
           <.text_cell label={dependent.name} />
         </:col>
-        <:col :let={dependent} label={dgettext("dashboard_cache", "Invalidations")}>
+        <:col :let={dependent} label={dgettext("dashboard_cache", "Misses")}>
           <.text_cell label={Integer.to_string(dependent.invalidations)} />
         </:col>
       </.table>

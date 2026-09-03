@@ -22,7 +22,7 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
           description={if module.product != "", do: module.product}
         />
       </:col>
-      <:col :let={module} label={dgettext("dashboard_cache", "Invalidations")}>
+      <:col :let={module} label={dgettext("dashboard_cache", "Misses")}>
         <.text_and_description_cell
           label={"#{module.invalidations}"}
           description={

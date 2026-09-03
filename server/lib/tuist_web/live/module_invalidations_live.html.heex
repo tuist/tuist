@@ -10,7 +10,7 @@
     </.button>
   </div>
   <.card
-    title={dgettext("dashboard_cache", "Module invalidations")}
+    title={dgettext("dashboard_cache", "Modules")}
     icon="git_branch"
     data-part="modules-card"
   >
@@ -122,7 +122,7 @@
 
       <.empty_card_section
         :if={@modules.ok? && Enum.empty?(@modules.result)}
-        title={dgettext("dashboard_cache", "No invalidations yet")}
+        title={dgettext("dashboard_cache", "No cache misses yet")}
         get_started_href="https://tuist.dev/en/docs/guides/features/cache"
       >
         <:image>
