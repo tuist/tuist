@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistLogging
+import ZIPFoundation
 
 /// An interface to archive files in a zip file.
 @Mockable
@@ -50,7 +51,7 @@ public class FileArchiver: FileArchiving {
         Logger.current.debug("Staging copy for \(name).zip finished in \(String(format: "%.2fs", copyElapsed))")
 
         let zipStart = Date()
-        try await fileSystem.zipFileOrDirectoryContent(at: pathsDirectoryPath, to: destinationZipPath)
+        try await Self.deflate(directoryContentAt: pathsDirectoryPath, to: destinationZipPath)
         let zipElapsed = Date().timeIntervalSince(zipStart)
         let zipBytes = (try? await fileSystem.fileMetadata(at: destinationZipPath)?.size) ?? 0
         Logger.current.debug(
@@ -62,5 +63,31 @@ public class FileArchiver: FileArchiving {
 
     public func delete() async throws {
         try await fileSystem.remove(temporaryDirectory)
+    }
+
+    private static func deflate(directoryContentAt path: AbsolutePath, to destination: AbsolutePath) async throws {
+        do {
+            return try await ParallelZipWriter().write(contentsOf: path, to: destination)
+        } catch ParallelZipWriterError.zip64Required {
+            Logger.current.debug("The archive requires ZIP64 extensions, falling back to a serial writer.")
+        }
+
+        let sourceURL = URL(fileURLWithPath: path.pathString)
+        let destinationURL = URL(fileURLWithPath: destination.pathString)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    try FileManager().zipItem(
+                        at: sourceURL,
+                        to: destinationURL,
+                        shouldKeepParent: false,
+                        compressionMethod: .deflate
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }

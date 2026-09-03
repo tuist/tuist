@@ -374,7 +374,7 @@ struct RunCommandServiceTests {
             .willReturn(.test(url: .test()))
 
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(nil)
 
         // When / Then
@@ -423,7 +423,7 @@ struct RunCommandServiceTests {
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -478,7 +478,7 @@ struct RunCommandServiceTests {
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -599,7 +599,7 @@ struct RunCommandServiceTests {
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -669,7 +669,7 @@ struct RunCommandServiceTests {
 
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -737,7 +737,7 @@ struct RunCommandServiceTests {
 
         let downloadedArchive = try AbsolutePath(validating: "/tmp/archive")
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -795,7 +795,7 @@ struct RunCommandServiceTests {
 
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -904,7 +904,7 @@ struct RunCommandServiceTests {
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .any, progress: .any)
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
