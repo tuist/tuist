@@ -2,5 +2,5 @@
 set -euo pipefail
 
 mise exec -- bazel test //:kura_lib_test \
-  --test_arg=parses_read_resource_names_with_and_without_instance_names \
+  --test_arg=successful_reapi_writes_use_the_registered_metric_series \
   --test_output=errors

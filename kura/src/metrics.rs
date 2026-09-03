@@ -87,6 +87,7 @@ pub struct Metrics {
     file_descriptor_capacity: Gauge,
     inflight: Arc<InflightMetrics>,
     hot_read: Arc<HotReadMetrics>,
+    hot_write: Arc<HotWriteMetrics>,
     public_request_latency_ewma_ms: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -229,6 +230,12 @@ struct HotReadMetrics {
     bytestream_elastic_admissions: Counter,
     bytestream_wait_duration: Histogram,
     bytestream_public_latency: Histogram,
+}
+
+struct HotWriteMetrics {
+    reapi_ok_writes: Counter,
+    reapi_ok_write_bytes: Counter,
+    reapi_write_size_bytes: Histogram,
 }
 
 impl ResponseStreamReservationMetrics {
@@ -585,6 +592,15 @@ impl Metrics {
                 &PublicRequestLatencyLabels {
                     transport: "grpc".to_owned(),
                     route: "/google.bytestream.ByteStream/Read".to_owned(),
+                },
+            ),
+        });
+        let hot_write = Arc::new(HotWriteMetrics {
+            reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
+            reapi_ok_write_bytes: artifact_write_bytes.get_or_create_owned(&reapi_ok_labels),
+            reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
+                &ArtifactRouteLabels {
+                    producer: "reapi".to_owned(),
                 },
             ),
         });
@@ -1477,6 +1493,7 @@ impl Metrics {
             file_descriptor_capacity,
             inflight,
             hot_read,
+            hot_write,
             public_request_latency_ewma_ms,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -1724,6 +1741,14 @@ impl Metrics {
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
+        if producer == ArtifactProducer::Reapi && result == "ok" {
+            self.hot_write.reapi_ok_writes.inc();
+            if bytes > 0 {
+                self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
+                self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+            }
+            return;
+        }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
             result: result.to_owned(),
@@ -3134,6 +3159,100 @@ mod tests {
         assert!(lines.iter().all(|line| !line.contains("tenant")
             && !line.contains("namespace")
             && !line.contains("result=")));
+    }
+
+    #[test]
+    fn successful_reapi_writes_use_the_registered_metric_series() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Reapi, "ok", 262_144);
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"ok\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_write_bytes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"ok\"")
+                && line.ends_with(" 262144")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_write_size_bytes_count")
+                && line.contains("producer=\"reapi\"")
+                && line.ends_with(" 1")
+        }));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn successful_reapi_write_metrics_direct_handles_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const BYTES: u64 = 262_144;
+
+        let measure = |direct_handles: bool| {
+            let metrics = Metrics::new("benchmark".into(), "benchmark".into());
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if direct_handles {
+                    metrics.record_artifact_write(ArtifactProducer::Reapi, "ok", BYTES);
+                } else {
+                    let labels = ArtifactOpLabels {
+                        producer: "reapi".to_owned(),
+                        result: "ok".to_owned(),
+                    };
+                    metrics.artifact_writes.get_or_create(&labels).inc();
+                    metrics
+                        .artifact_write_bytes
+                        .get_or_create(&labels)
+                        .inc_by(BYTES);
+                    metrics
+                        .artifact_write_size_bytes
+                        .get_or_create(&ArtifactRouteLabels {
+                            producer: "reapi".to_owned(),
+                        })
+                        .observe(BYTES as f64);
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC reapi_write_metrics_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC reapi_write_metrics_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC reapi_write_metrics_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 
     #[test]
