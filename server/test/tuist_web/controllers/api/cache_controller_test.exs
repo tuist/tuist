@@ -205,6 +205,9 @@ defmodule TuistWeb.API.CacheControllerTest do
       # The stand-in answer stops being right the moment the account's own
       # instance starts serving, so it must not be held for the usual interval.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
