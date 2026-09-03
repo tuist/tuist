@@ -20,6 +20,8 @@ const MIN_RESPONSE_STREAM_POOL_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + MAX_RESPONSE_STREAM_RESERVATION_BYTES;
 const MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + RESPONSE_STREAM_CHUNK_BYTES * 4;
+const DEGRADED_FILE_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+    RESPONSE_STREAM_MIN_CHUNK_BYTES * 2 + RESPONSE_STREAM_SEND_BUFFER_BYTES;
 
 pub(super) struct MemoryPools {
     transient: Arc<Semaphore>,
@@ -86,14 +88,11 @@ impl MemoryPools {
         // promised to binary serving. The global response pool leaves exactly
         // this quantum outside the foreground pool.
         let background_response_streaming_bytes = backfill_reserved_bytes;
-        // A degraded reader uses the 8 KiB chunk floor, but Hyper can still
-        // hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer per
-        // stream for a slow client. The shared transient budget charges that real
-        // cost; sizing this concurrency pool from the same value keeps the
-        // aggregate bounded instead of letting it grow with the file-descriptor
-        // pool.
+        // A degraded file response keeps two reader chunks live alongside
+        // Hyper's send buffer. Size admission from that complete charge so
+        // concurrent degraded responses cannot exceed the response budget.
         let degraded_response_stream_slots =
-            (response_streaming_bytes / RESPONSE_STREAM_SEND_BUFFER_BYTES).max(1);
+            (response_streaming_bytes / DEGRADED_FILE_RESPONSE_STREAM_RESERVATION_BYTES).max(1);
         Self {
             transient: Arc::new(Semaphore::new(transient_capacity_bytes)),
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),

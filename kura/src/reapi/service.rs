@@ -2811,7 +2811,6 @@ fn grpc_request_context(
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
         authorization,
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
     }
 }
 
@@ -2858,6 +2857,13 @@ impl BlobResource {
 }
 
 fn digest_matches_hex(actual: &[u8], expected_hex: &str) -> bool {
+    if expected_hex.len() != 64
+        || !expected_hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return false;
+    }
     let mut expected = [0_u8; 32];
     hex::decode_to_slice(expected_hex, &mut expected).is_ok() && actual == expected
 }
@@ -6751,6 +6757,7 @@ mod tests {
         assert!(!digest_matches_hex(&[0xAC; 32], &expected));
         assert!(!digest_matches_hex(&actual, "not-a-digest"));
         assert!(!digest_matches_hex(&actual, &"ab".repeat(31)));
+        assert!(!digest_matches_hex(&actual, &"AB".repeat(32)));
     }
 
     #[test]

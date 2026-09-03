@@ -1399,7 +1399,6 @@ async fn request_context_from_http(
         namespace_id: metadata.namespace_id,
         authorization: request.authorization,
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
     }
 }
 
@@ -1412,11 +1411,31 @@ struct HttpRequestFacts<'a> {
 
 #[derive(Clone, Copy, Default)]
 struct AuthorizationQuery<'a> {
-    tenant_id: Option<&'a str>,
-    account_handle: Option<&'a str>,
-    namespace_id: Option<&'a str>,
-    project_handle: Option<&'a str>,
+    tenant: AuthorizationTargetQuery<'a>,
+    namespace: AuthorizationTargetQuery<'a>,
     upload_id: Option<&'a str>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct AuthorizationTargetQuery<'a> {
+    canonical: Option<&'a str>,
+    alias: Option<&'a str>,
+}
+
+impl<'a> AuthorizationTargetQuery<'a> {
+    fn observe(&mut self, canonical_key: &str, key: &str, value: &'a str) {
+        if key == canonical_key {
+            self.canonical = Some(value);
+        } else if alias_keys(canonical_key).contains(&key) {
+            self.alias = Some(value);
+        }
+    }
+
+    fn value(self) -> Option<&'a str> {
+        self.canonical
+            .or(self.alias)
+            .filter(|value| !value.is_empty())
+    }
 }
 
 impl<'a> AuthorizationQuery<'a> {
@@ -1428,28 +1447,21 @@ impl<'a> AuthorizationQuery<'a> {
             .filter(|pair| !pair.is_empty())
         {
             let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-            match key {
-                "tenant_id" => parsed.tenant_id = Some(value),
-                "account_handle" => parsed.account_handle = Some(value),
-                "namespace_id" => parsed.namespace_id = Some(value),
-                "project_handle" => parsed.project_handle = Some(value),
-                "upload_id" => parsed.upload_id = Some(value),
-                _ => {}
+            parsed.tenant.observe("tenant_id", key, value);
+            parsed.namespace.observe("namespace_id", key, value);
+            if key == "upload_id" {
+                parsed.upload_id = Some(value);
             }
         }
         parsed
     }
 
     fn tenant_id(self) -> Option<&'a str> {
-        self.tenant_id
-            .or(self.account_handle)
-            .filter(|value| !value.is_empty())
+        self.tenant.value()
     }
 
     fn namespace_id(self) -> Option<&'a str> {
-        self.namespace_id
-            .or(self.project_handle)
-            .filter(|value| !value.is_empty())
+        self.namespace.value()
     }
 }
 
@@ -7878,7 +7890,6 @@ mod tests {
             Some(authorization_allocation)
         );
         assert!(request_context.headers.is_empty());
-        assert!(request_context.query.is_empty());
     }
 
     #[tokio::test]

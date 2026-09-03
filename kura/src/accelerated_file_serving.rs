@@ -1338,7 +1338,6 @@ fn request_context(
         },
         authorization: parsed.headers.get("authorization").cloned(),
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
     }
 }
 

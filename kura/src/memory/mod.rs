@@ -1856,7 +1856,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn degraded_streams_are_capped_at_the_real_per_stream_send_buffer() {
+    async fn degraded_streams_are_capped_at_the_complete_live_buffer_charge() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(
             metrics,
@@ -1866,19 +1866,21 @@ mod tests {
         );
         controller.observe(0);
 
-        // The cap counts Hyper's per-stream send buffer, not the degraded
-        // reader's 8 KiB chunk floor, so the aggregate stays bounded.
+        let degraded_stream_bytes =
+            RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        // The cap counts Hyper's per-stream send buffer and both live reader
+        // chunks, so the aggregate stays bounded.
         let slots = controller.degraded_response_stream_slots();
         assert_eq!(
             slots,
-            controller.response_streaming_pool_bytes() / RESPONSE_STREAM_SEND_BUFFER_BYTES
+            controller.response_streaming_pool_bytes() / degraded_stream_bytes
         );
 
         let mut held = Vec::new();
         for _ in 0..slots {
             held.push(
                 controller
-                    .acquire_degraded_response_stream_memory(8 * 1024, "http")
+                    .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
                     .await
                     .expect("a stream inside the cap must be admitted"),
             );
@@ -1889,14 +1891,14 @@ mod tests {
         );
         assert_eq!(
             controller.transient_reserved_bytes(),
-            (slots * RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
-            "each degraded stream must reserve its complete transport buffer cost"
+            (slots * degraded_stream_bytes) as u64,
+            "each degraded stream must reserve its complete live-buffer cost"
         );
 
         // Past the cap the wait stays bounded and no unaccounted stream is
         // returned to the caller.
         let overflow = controller
-            .acquire_degraded_response_stream_memory(8 * 1024, "http")
+            .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
             .await;
         assert_eq!(overflow.err(), Some(ResponseStreamAdmissionError::Timeout));
         assert!(
@@ -1910,7 +1912,7 @@ mod tests {
         drop(held.pop());
         assert!(
             controller
-                .acquire_degraded_response_stream_memory(8 * 1024, "http")
+                .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
                 .await
                 .expect("a released slot must admit another stream")
                 .holds_degraded_slot(),

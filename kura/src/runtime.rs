@@ -199,6 +199,12 @@ impl RuntimeState {
         self.http_inflight() + self.grpc_inflight()
     }
 
+    /// Returns a notification for shutdown drain progress.
+    ///
+    /// Callers must invoke [`Self::request_drain`] before waiting because
+    /// completed requests notify waiters only while the runtime is draining.
+    /// Create this future before checking [`Self::total_inflight`] so a
+    /// completion cannot be missed between the check and the wait.
     pub fn inflight_changed(&self) -> Notified<'_> {
         self.inflight_changed.notified()
     }

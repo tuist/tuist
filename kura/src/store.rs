@@ -552,7 +552,7 @@ pub(crate) enum ApplyDurability {
     DeferredBatch,
 }
 
-const SEGMENT_DURABILITY_GROUP_COMMIT_MAX_DELAY_MS: u64 = 40;
+const SEGMENT_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
 const WAL_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
 
 struct PendingDurabilityWriter<'a> {
@@ -2953,6 +2953,7 @@ impl Store {
                 let fits = writer.segment_id.as_deref() == Some(segment.segment_id.as_str())
                     && writer.file.is_some()
                     && !writer.directory_sync_pending
+                    && !writer.len_unknown
                     && writer.len.saturating_add(size) <= MAX_SEGMENT_BYTES;
                 fits.then(|| {
                     let offset = writer.len;
@@ -3379,10 +3380,7 @@ impl Store {
             .segment_writers_ahead_of_durability
             .load(Ordering::Acquire);
         if writers_ahead > 0 {
-            tokio::time::sleep(Duration::from_millis(
-                writers_ahead.min(SEGMENT_DURABILITY_GROUP_COMMIT_MAX_DELAY_MS),
-            ))
-            .await;
+            tokio::time::sleep(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY).await;
         }
         self.hit_failpoint(FailpointName::BeforeSegmentFsync)
             .await?;
@@ -7301,7 +7299,6 @@ impl Store {
         match durability {
             ApplyDurability::Sync => {
                 write_options.set_sync(false);
-                self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
             }
             ApplyDurability::DeferredBatch => {
                 write_options.set_sync(false);
@@ -7350,11 +7347,11 @@ impl Store {
         self.hit_failpoint(FailpointName::BeforeWalFsync).await?;
         let target = self.wal_pending_seq.load(Ordering::Acquire);
         let db = Arc::clone(&self.db);
-        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         tokio::task::spawn_blocking(move || db.flush_wal(true))
             .await
             .map_err(|error| format!("WAL flush task failed: {error}"))?
             .map_err(|error| format!("failed to flush WAL: {error}"))?;
+        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         self.wal_durable_seq.store(target, Ordering::Release);
         Ok(())
     }
@@ -7362,14 +7359,16 @@ impl Store {
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
     /// makes every WAL-only commit before it durable.
     fn flush_wal_barrier(&self) -> Result<(), String> {
-        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         self.db
             .flush_wal(true)
-            .map_err(|error| format!("failed to flush WAL: {error}"))
+            .map_err(|error| format!("failed to flush WAL: {error}"))?;
+        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
+        Ok(())
     }
 
-    /// (sync WriteBatch commits, deferred WriteBatch commits, WAL flushes) —
-    /// the durability-accounting counters tests pin path semantics with.
+    /// (writes committed with sync enabled, deferred writes, successful synced
+    /// WAL flushes) — the durability-accounting counters tests pin path
+    /// semantics with.
     #[cfg(test)]
     pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
         (
@@ -8605,6 +8604,7 @@ where
             return Err(std::io::ErrorKind::UnexpectedEof.into());
         }
     }
+    bytes.truncate(size);
     Ok(bytes)
 }
 
@@ -9828,17 +9828,14 @@ mod tests {
         }
         drop(source_writer);
 
-        let mut valid_source = &b"valid"[..];
         let (location, _, _) = store
-            .append_reader_to_segment(
-                &mut valid_source,
-                5,
-                None,
-                FileCachePolicy::Adaptive,
+            .append_preloaded_to_reserved_segment(
+                b"valid",
                 ApplyDurability::Sync,
+                Some(FileCachePolicy::Adaptive),
             )
             .await
-            .expect("next append should succeed");
+            .expect("next positioned append should succeed");
         assert_eq!(location.offset, 6);
 
         let segment =
@@ -11646,7 +11643,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn live_apply_paths_keep_per_record_sync_commits() {
+    async fn live_apply_paths_flush_the_wal_before_returning() {
         let (_temp_dir, config, store) = temp_store();
         // Warm the store so the active segment exists: the first append's
         // ring-state initialization would otherwise pollute the deltas below.
@@ -11695,7 +11692,10 @@ mod tests {
             "live applies must not take deferred commits"
         );
         assert!(flush_after >= flush_before + 2);
-        assert!(sync_after >= sync_before + 2);
+        assert_eq!(
+            sync_after, sync_before,
+            "request-path writes use an explicit synced WAL flush, not sync-enabled writes"
+        );
 
         // The backfill batch path is the inverse: ceil(records / group size)
         // deferred group commits plus one WAL-flush barrier, zero sync

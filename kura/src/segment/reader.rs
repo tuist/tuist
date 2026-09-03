@@ -151,6 +151,7 @@ fn read_chunk_from_file(file: &std::fs::File, offset: u64, len: usize) -> Result
     let mut bytes = Vec::with_capacity(len);
     rustix::io::pread(file, rustix::buffer::spare_capacity(&mut bytes), offset)
         .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
+    bytes.truncate(len);
     Ok(bytes)
 }
 

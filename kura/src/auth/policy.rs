@@ -421,7 +421,6 @@ mod tests {
             namespace_id: Some("ios".into()),
             authorization: None,
             headers: BTreeMap::new(),
-            query: BTreeMap::new(),
         }
     }
 

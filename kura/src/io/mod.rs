@@ -1,10 +1,7 @@
 use std::{
     path::{Component, Path, PathBuf},
     pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -47,7 +44,6 @@ pub struct TrackedFile {
 
 pub struct PersistentFile {
     file: std::fs::File,
-    known_len: AtomicU64,
     _lease: FileDescriptorLease,
 }
 
@@ -187,15 +183,11 @@ impl IoController {
         let started_at = Instant::now();
         match tokio::task::spawn_blocking({
             let path = path.clone();
-            move || {
-                let file = std::fs::File::open(&path)?;
-                let known_len = file.metadata()?.len();
-                Ok::<_, io::Error>((file, known_len))
-            }
+            move || std::fs::File::open(&path)
         })
         .await
         {
-            Ok(Ok((file, known_len))) => {
+            Ok(Ok(file)) => {
                 self.inner.metrics.record_file_operation(
                     "open_persistent_read_file",
                     "ok",
@@ -204,7 +196,6 @@ impl IoController {
                 );
                 Ok(PersistentFile {
                     file,
-                    known_len: AtomicU64::new(known_len),
                     _lease: lease,
                 })
             }
@@ -254,13 +245,12 @@ impl IoController {
                     .write(true)
                     .read(true)
                     .open(&path)?;
-                let known_len = file.metadata()?.len();
-                Ok::<_, io::Error>((file, known_len))
+                Ok::<_, io::Error>(file)
             }
         })
         .await
         {
-            Ok(Ok((file, known_len))) => {
+            Ok(Ok(file)) => {
                 self.inner.metrics.record_file_operation(
                     "open_persistent_append_file",
                     "ok",
@@ -269,7 +259,6 @@ impl IoController {
                 );
                 Ok(PersistentFile {
                     file,
-                    known_len: AtomicU64::new(known_len),
                     _lease: lease,
                 })
             }
@@ -667,8 +656,6 @@ impl PersistentFile {
                 "positioned segment writes require Unix or Windows file support",
             ));
         }
-        self.known_len
-            .fetch_max(offset.saturating_add(bytes.len() as u64), Ordering::AcqRel);
         Ok(())
     }
 
@@ -676,18 +663,13 @@ impl PersistentFile {
         self.file.sync_data()
     }
 
-    /// Returns whether this append-only file has reached `needed` bytes.
-    /// The open-time length handles the common read path without a metadata
-    /// system call. A larger request refreshes the monotonic high-water mark;
-    /// the positional read still reports an explicit short-read error if the
-    /// append-only invariant is violated externally.
+    /// Returns whether the file currently has at least `needed` bytes.
+    ///
+    /// This deliberately asks the file system on every pre-stream guard. A
+    /// cached append-only high-water mark would hide external truncation and
+    /// let a response begin before the short read becomes visible.
     pub fn has_len(&self, needed: u64) -> Result<bool, io::Error> {
-        if self.known_len.load(Ordering::Acquire) >= needed {
-            return Ok(true);
-        }
-        let actual = self.file.metadata()?.len();
-        self.known_len.fetch_max(actual, Ordering::AcqRel);
-        Ok(actual >= needed)
+        Ok(self.file.metadata()?.len() >= needed)
     }
 
     pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {
@@ -924,10 +906,18 @@ mod tests {
         file.write_all_at(b"first", 0)
             .expect("first range should write");
 
-        assert!(file.has_len(11).expect("known length should read"));
+        assert!(file.has_len(11).expect("current length should read"));
         assert_eq!(
-            std::fs::read(path).expect("positioned file should read"),
+            std::fs::read(&path).expect("positioned file should read"),
             b"firstsecond"
+        );
+
+        file.as_std()
+            .set_len(5)
+            .expect("test truncation should succeed");
+        assert!(
+            !file.has_len(11).expect("truncated length should read"),
+            "the pre-stream length guard must observe external truncation"
         );
     }
 

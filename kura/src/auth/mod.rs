@@ -64,8 +64,6 @@ pub struct RequestContext {
     pub authorization: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    #[serde(default)]
-    pub query: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug)]

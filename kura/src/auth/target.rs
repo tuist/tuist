@@ -5,7 +5,7 @@
 //! tidied. Both sides of a deploy have to reach the same answer for the same
 //! request, or access flickers as pods roll.
 
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
 use crate::auth::{DenyDecision, RequestContext};
 
@@ -80,26 +80,16 @@ fn lowercase_is_identity(value: &str) -> bool {
     })
 }
 
-fn query_value<'a>(query: &'a BTreeMap<String, String>, key: &str) -> Option<Cow<'a, str>> {
-    normalized(query.get(key).map(String::as_str))
-}
-
 fn server_tenant(ctx: &RequestContext) -> Option<Cow<'_, str>> {
     normalized(Some(ctx.server_tenant_id.as_str()))
 }
 
-/// The tenant the request names, falling back to the query because some routes
-/// carry it there rather than in the path.
 fn request_tenant(ctx: &RequestContext) -> Option<Cow<'_, str>> {
     normalized(ctx.tenant_id.as_deref())
-        .or_else(|| query_value(&ctx.query, "account_handle"))
-        .or_else(|| query_value(&ctx.query, "tenant_id"))
 }
 
 fn request_namespace(ctx: &RequestContext) -> Option<Cow<'_, str>> {
     normalized(ctx.namespace_id.as_deref())
-        .or_else(|| query_value(&ctx.query, "project_handle"))
-        .or_else(|| query_value(&ctx.query, "namespace_id"))
 }
 
 /// Read or write, from the operation when it says, and from the method when it
@@ -177,6 +167,8 @@ pub fn request_target(ctx: &RequestContext) -> Result<RequestTarget<'_>, DenyDec
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use std::sync::{Arc, Barrier};
 
     use super::*;
@@ -220,9 +212,7 @@ mod tests {
                 message: "Server tenant is unavailable".into(),
             });
         };
-        let requested_tenant = allocating_normalized(ctx.tenant_id.as_deref())
-            .or_else(|| allocating_normalized(ctx.query.get("account_handle").map(String::as_str)))
-            .or_else(|| allocating_normalized(ctx.query.get("tenant_id").map(String::as_str)));
+        let requested_tenant = allocating_normalized(ctx.tenant_id.as_deref());
         if let Some(requested) = &requested_tenant
             && requested != &tenant
         {
@@ -237,9 +227,7 @@ mod tests {
                 message: "missing tenant".into(),
             });
         }
-        let namespace = allocating_normalized(ctx.namespace_id.as_deref())
-            .or_else(|| allocating_normalized(ctx.query.get("project_handle").map(String::as_str)))
-            .or_else(|| allocating_normalized(ctx.query.get("namespace_id").map(String::as_str)));
+        let namespace = allocating_normalized(ctx.namespace_id.as_deref());
 
         Ok(match namespace {
             None => (Scope::Account, tenant.clone(), None, tenant),
@@ -262,7 +250,6 @@ mod tests {
             namespace_id: None,
             authorization: None,
             headers: BTreeMap::new(),
-            query: BTreeMap::new(),
         }
     }
 
@@ -317,20 +304,6 @@ mod tests {
         context.tenant_id = Some("İstanbul".into());
         let expanding = request_target(&context).expect("should resolve");
         assert!(matches!(expanding.account, Cow::Owned(ref value) if value == "i̇stanbul"));
-    }
-
-    // Some routes carry the target in the query rather than the path.
-    #[test]
-    fn falls_back_to_the_query_for_the_target() {
-        let mut context = ctx();
-        context.tenant_id = None;
-        context.namespace_id = None;
-        context.query.insert("account_handle".into(), "ACME".into());
-        context.query.insert("project_handle".into(), "iOS".into());
-
-        let target = request_target(&context).expect("should resolve");
-
-        assert_eq!(target.identifier, "acme/ios");
     }
 
     #[test]
