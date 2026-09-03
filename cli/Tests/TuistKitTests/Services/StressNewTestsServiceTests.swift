@@ -247,12 +247,12 @@ struct StressNewTestsServiceTests {
             serverURL: serverURL,
             mutedTests: [],
             stressPass: { identifiers, repetitions, _ in
-                passes.record(identifiers: identifiers, repetitions: repetitions)
+                await passes.record(identifiers: identifiers, repetitions: repetitions)
                 if repetitions == 10 { throw TestError("xcodebuild exited with 65") }
             }
         )
 
-        let recorded = passes.passes
+        let recorded = await passes.passes
         #expect(recorded.map(\.repetitions) == [10, 3])
         #expect(try recorded[0].identifiers == [identifier("testFlaky()"), identifier("testStable()")])
         #expect(try recorded[1].identifiers == [identifier("testSlow()")])
@@ -351,13 +351,10 @@ struct StressNewTestsServiceTests {
     }
 }
 
-private final class PassRecorder: @unchecked Sendable {
-    private let lock = NSLock()
+private actor PassRecorder {
     private(set) var passes: [(identifiers: [TestIdentifier], repetitions: Int)] = []
 
     func record(identifiers: [TestIdentifier], repetitions: Int) {
-        lock.lock()
-        defer { lock.unlock() }
         passes.append((identifiers, repetitions))
     }
 }

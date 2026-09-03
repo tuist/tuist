@@ -339,35 +339,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
 
         let ceiling = Duration.milliseconds(verdict.parameters.wall_clock_ceiling_ms)
-        let start = ContinuousClock.now
-        let groups = Dictionary(
-            grouping: candidates.indices.filter { candidates[$0].repetitions > 0 },
-            by: { candidates[$0].repetitions }
-        )
-
-        for repetitions in groups.keys.sorted(by: >) {
-            let indices = groups[repetitions] ?? []
-            if start.duration(to: .now) >= ceiling {
-                for index in indices {
-                    candidates[index].outcome = .notStressedCeiling
-                }
-                continue
-            }
-
-            let identifiers = indices.map { candidates[$0].identifier }
-            let outcomes = await stress(identifiers: identifiers, repetitions: repetitions, stressPass: stressPass)
-            for index in indices {
-                let identifier = candidates[index].identifier
-                if let observed = outcomes[identifier] {
-                    candidates[index].repetitions = max(repetitions, observed.repetitions)
-                    candidates[index].failedRepetitions = observed.failed
-                    candidates[index].repetitionResults = observed.results
-                    candidates[index].outcome = observed.failed > 0 ? .disagreed : .passed
-                } else {
-                    candidates[index].outcome = .notStressedError
-                }
-            }
-        }
+        await stressCandidates(&candidates, ceiling: ceiling, stressPass: stressPass)
 
         let stressedCount = candidates.filter { $0.outcome == .passed || $0.outcome == .disagreed }.count
         let result = StressNewTestsResult(
@@ -383,10 +355,70 @@ public struct StressNewTestsService: StressNewTestsServicing {
         return result
     }
 
+    /// How many candidates share one xcodebuild invocation. Small enough that the
+    /// wall-clock ceiling is consulted often, large enough that the cap's 200
+    /// candidates do not become 200 invocations.
+    static let stressBatchSize = 10
+
     private struct ObservedRepetitions {
         let repetitions: Int
         let failed: Int
         let results: [StressNewTestsCandidate.Repetition]
+    }
+
+    private func stressCandidates(
+        _ candidates: inout [StressNewTestsCandidate],
+        ceiling: Duration,
+        stressPass: StressNewTestsPass
+    ) async {
+        let start = ContinuousClock.now
+        let groups = Dictionary(
+            grouping: candidates.indices.filter { candidates[$0].repetitions > 0 },
+            by: { candidates[$0].repetitions }
+        )
+
+        for repetitions in groups.keys.sorted(by: >) {
+            // The budget is rechecked between batches rather than between groups: a single
+            // group can hold every candidate the cap allows, so one invocation for the whole
+            // group would run far past the ceiling before anything looked at the clock.
+            let group = groups[repetitions] ?? []
+            for batchStart in stride(from: 0, to: group.count, by: Self.stressBatchSize) {
+                let indices = Array(group[batchStart ..< min(batchStart + Self.stressBatchSize, group.count)])
+                if start.duration(to: .now) >= ceiling {
+                    for index in indices {
+                        candidates[index].outcome = .notStressedCeiling
+                    }
+                    continue
+                }
+
+                let identifiers = indices.map { candidates[$0].identifier }
+                let outcomes = await stress(identifiers: identifiers, repetitions: repetitions, stressPass: stressPass)
+                for index in indices {
+                    let identifier = candidates[index].identifier
+                    guard let observed = outcomes[identifier] else {
+                        candidates[index].outcome = .notStressedError
+                        continue
+                    }
+
+                    // Record what actually ran, never what was asked for. A pass that dies
+                    // partway still leaves a parseable bundle, and reporting a test as having
+                    // held up over ten repetitions when three of them ran is the one lie this
+                    // gate must not tell. A failure, on the other hand, is proof however few
+                    // repetitions produced it.
+                    candidates[index].repetitions = observed.results.count
+                    candidates[index].failedRepetitions = observed.failed
+                    candidates[index].repetitionResults = observed.results
+                    candidates[index].outcome =
+                        if observed.failed > 0 {
+                            .disagreed
+                        } else if observed.results.count >= repetitions {
+                            .passed
+                        } else {
+                            .notStressedError
+                        }
+                }
+            }
+        }
     }
 
     private func stress(
