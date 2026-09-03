@@ -60,13 +60,13 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
       </div>
       <div style="display: flex; flex-direction: row; gap: var(--noora-spacing-3);">
         <.badge
-          label={dgettext("dashboard_cache", "%{count} self", count: @module.self_changes)}
+          label={dgettext("dashboard_cache", "%{count} changed", count: @module.self_changes)}
           color="primary"
           size="small"
           dot
         />
         <.badge
-          label={dgettext("dashboard_cache", "%{count} deps", count: @module.dependency_induced)}
+          label={dgettext("dashboard_cache", "%{count} upstream", count: @module.dependency_induced)}
           color="secondary"
           size="small"
           dot

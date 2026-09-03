@@ -138,8 +138,8 @@ defmodule TuistWeb.ModuleInvalidationsLive do
 
   def sort_label("invalidation_rate"), do: dgettext("dashboard_cache", "Rate")
   def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Blast radius")
-  def sort_label("self_changes"), do: dgettext("dashboard_cache", "Self-changes")
-  def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Dependency-induced")
+  def sort_label("self_changes"), do: dgettext("dashboard_cache", "Changed")
+  def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Upstream")
   def sort_label(_), do: dgettext("dashboard_cache", "Invalidations")
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")

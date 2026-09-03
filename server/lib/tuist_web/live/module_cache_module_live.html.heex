@@ -203,7 +203,7 @@
         <p data-part="reasons-note">
           {dgettext(
             "dashboard_cache",
-            "%{self} invalidations from its own changes, %{deps} from a dependency changing, %{other} cold or first-seen.",
+            "%{self} invalidations from its own changes, %{deps} from an upstream dependency changing, %{other} cold or first-seen.",
             self: @module.result.self_changes,
             deps: @module.result.dependency_induced,
             other: @module.result.unclassified

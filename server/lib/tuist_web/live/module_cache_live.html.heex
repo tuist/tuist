@@ -558,12 +558,12 @@
       />
       <.widget
         id="widget-dependency-induced"
-        title={dgettext("dashboard_cache", "Dependency-induced")}
+        title={dgettext("dashboard_cache", "Upstream share")}
         legend_color="secondary"
         description={
           dgettext(
             "dashboard_cache",
-            "Share of invalidations caused only by a dependency changing rather than the module's own code (dependency-induced ÷ self + dependency-induced). This is the fraction better module boundaries can remove."
+            "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
           )
         }
         value={
