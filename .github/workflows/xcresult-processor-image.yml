@@ -79,12 +79,13 @@ jobs:
           } >> "$GITHUB_ENV"
 
       # 1. Build the macOS Erlang release. Includes both the xcresult NIF
-      # (used by xcresult-processor mode) and the xcactivitylog NIF
-      # (used by build-processor mode). Both are macOS-only and both
-      # have `@on_load` that crashes the BEAM at boot if the .so is
-      # missing in a prod build — the xcresult-processor mode doesn't
-      # *call* xcactivitylog_nif but the Module still gets loaded
-      # eagerly, so the .so has to be present either way.
+      # (used by xcresult-processor mode) and the xcactivitylog parser
+      # executable (used by build-processor mode). The xcresult NIF is
+      # macOS-only and has an `@on_load` that crashes the BEAM at boot if
+      # the .so is missing in a prod build. The xcactivitylog parser is a
+      # plain executable that is only spawned on demand, so this mode never
+      # touches it, but it is built here so one release artifact covers
+      # both roles.
       - name: Build server release for macOS
         id: release
         working-directory: server
