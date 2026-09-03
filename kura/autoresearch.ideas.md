@@ -1,23 +1,10 @@
 # Kura bounded-resource optimization ideas
 
-- Avoid zero-filling segment read buffers before the operating system overwrites them.
-- Move owned segment chunks directly into replication request bodies.
-- Write owned segment chunks directly into backfill spool files.
-- Stream backfill spool responses through owned positional-read chunks.
-- Yield zero-copy slices from inline artifacts on byte-stream consumers.
-- Measure Tokio blocking-pool dispatch after copy removal before evaluating a ring-based file runtime.
-- Move accelerated-serving candidate fields instead of cloning the file handle, content type, namespace, analytics key, and tenant.
-- Move accelerated request headers and query parameters into authorization instead of cloning their complete maps.
-- Audit response-stream memory multipliers after every proven buffer removal.
 - Measure whether one-chunk read-ahead improves cold-disk throughput enough to justify its extra bounded buffer.
-- Audit manifest and handle cache key ownership for duplicate strings retained across indexes.
-- Avoid request-arrival shutdown notifications and steady-state completion notifications.
 - Measure authorization consultation-lock contention separately for cold misses and cache hits.
 - Check whether the response admission turn lock is reached only after bounded immediate admission fails.
-- Move manifest string cloning outside the global cache lock through shared retained values.
 - Measure whether sampled recency updates can safely reduce hot-key write-lock pressure without changing eviction quality.
-- Add a one-entry lock-free front for repeated hits to the same open segment handle.
-- Keep input/output metrics access borrowed on serving paths; callers only record and never need registry ownership.
-- Parse canonical ByteStream resource names without temporary component or digest allocations.
 - Measure client connection sharding before changing the per-connection stream ceiling; one protocol connection retains a shared frame state machine regardless of server worker count.
 - Evaluate Linux non-waiting positional reads only in a Linux benchmark with a guaranteed fallback for cold or unsupported filesystems.
+- Prototype direct reserved-offset segment writes only with hard caps for writable segments, incomplete reservations, wasted bytes, and commit cohorts.
+- Measure fixed metadata-method request throughput now that route and metric-family allocation are removed from those paths.
