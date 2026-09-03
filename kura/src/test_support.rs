@@ -74,6 +74,7 @@ where
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
         memory_floor_bytes: None,
+        anon_cache_fit: None,
         snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,
@@ -100,6 +101,9 @@ where
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
+        request_log_sample_rate: 0.0,
+        slow_request_threshold_ms: 30_000,
+        warning_log_interval_ms: 60_000,
         node_country_override: None,
         node_subdivision_override: None,
     };
@@ -189,6 +193,7 @@ where
         tmp_staging_budget,
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });

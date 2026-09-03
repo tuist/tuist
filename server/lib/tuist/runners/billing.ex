@@ -138,9 +138,15 @@ defmodule Tuist.Runners.Billing do
   end
 
   @doc """
-  Total billable milliseconds for `account_id` over
+  Total billable compute-unit milliseconds for `account_id` over
   `[period_start, period_end]`. Each Pod session contributes only
   the portion of its runtime that lies inside the window.
+
+  Compute units, not elapsed time: this is the quantity Stripe is
+  metered on, so a machine on a 2x multiplier contributes twice its
+  wall-clock milliseconds. An allowance or a dashboard reading elapsed
+  time would let that machine consume half the allowance it should and
+  read as half its real cost.
 
   Accepts the same scope opts (`:repository`, `:workflow_name`,
   `:platform`) as `compute_minutes/2` so a filtered query and a
@@ -148,32 +154,10 @@ defmodule Tuist.Runners.Billing do
   """
   def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
-    query =
-      account_id
-      |> sessions_overlapping(period_start, period_end)
-      |> scope(opts)
-      |> select([s], %{
-        total_ms:
-          fragment(
-            """
-            COALESCE(SUM(GREATEST(
-              0,
-              (EXTRACT(EPOCH FROM (
-                LEAST(?, ?) - GREATEST(?, ?)
-              )) * 1000)::bigint
-            )), 0)::bigint
-            """,
-            s.job_ended_at,
-            ^period_end,
-            s.job_started_at,
-            ^period_start
-          )
-      })
-
-    case Repo.one(query) do
-      %{total_ms: ms} when is_integer(ms) -> ms
-      _ -> 0
-    end
+    account_id
+    |> compute_units_by_platform(period_start, period_end, opts)
+    |> Enum.map(& &1.total_units)
+    |> Enum.sum()
   end
 
   @doc """
@@ -272,7 +256,7 @@ defmodule Tuist.Runners.Billing do
   end
 
   @doc """
-  Returns a bucket-keyed map of billable milliseconds within the
+  Returns a bucket-keyed map of billable compute-unit milliseconds within the
   window. Sessions crossing a bucket boundary contribute to each
   bucket they overlap. `bucket` is `:hour` (`%{DateTime.t() =>
   integer_ms}`) or `:day` (`%{Date.t() => integer_ms}`).
@@ -295,27 +279,153 @@ defmodule Tuist.Runners.Billing do
     #   2. `buckets` — explode each session into one row per bucket
     #      (UTC day, or hour) it overlaps using `generate_series`.
     #   3. Outer SELECT — per-bucket SUM of the intersection between
-    #      (session, bucket, billing-period). All math in Postgres,
-    #      so a busy window doesn't materialise thousands of rows
-    #      into the BEAM.
+    #      (session, bucket, billing-period), grouped by machine so the
+    #      multiplier can be applied per shape. All interval math in
+    #      Postgres, so a busy window doesn't materialise thousands of
+    #      rows into the BEAM.
     overlapping =
       account_id
       |> sessions_overlapping(period_start, period_end)
       |> scope(opts)
       |> select([s], %{
         started_at: s.job_started_at,
-        effective_end: s.job_ended_at
+        effective_end: s.job_ended_at,
+        fleet_name: s.fleet_name,
+        platform: s.platform,
+        vcpus: s.vcpus,
+        memory_gb: s.memory_gb,
+        billing_multiplier: s.billing_multiplier
       })
 
     buckets = buckets_query(overlapping, period_start, period_end, bucket)
 
     from(b in subquery(buckets),
-      group_by: b.day,
-      order_by: b.day,
-      select: {b.day, fragment("SUM(?)::bigint", b.intersection_ms)}
+      group_by: [b.day, b.fleet_name, b.platform, b.vcpus, b.memory_gb, b.billing_multiplier],
+      select: %{
+        day: b.day,
+        fleet_name: b.fleet_name,
+        platform: b.platform,
+        vcpus: b.vcpus,
+        memory_gb: b.memory_gb,
+        billing_multiplier: b.billing_multiplier,
+        total_ms: fragment("SUM(?)::bigint", b.intersection_ms)
+      }
     )
     |> Repo.all()
-    |> Map.new()
+    |> weigh_by(& &1.day)
+  end
+
+  # Elapsed milliseconds become the compute units Stripe is metered on:
+  # scaled by the multiplier the machine was admitted under, resolved the
+  # same way `compute_milliseconds_by_machine/4` resolves it so an
+  # aggregate can never disagree with the invoice. Grouping happens in
+  # Postgres; only the per-shape weighting is done here, because the
+  # multiplier for a session that never recorded one comes from the
+  # catalog rather than the row.
+  defp weigh_by(rows, key_fun) do
+    Enum.reduce(rows, %{}, fn row, acc ->
+      case resources_for_session(row) do
+        {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}} ->
+          multiplier = multiplier_for_session(row, platform, vcpus, memory_gb)
+          units = div(row.total_ms * multiplier, Catalog.compute_unit_basis_points())
+          Map.update(acc, key_fun.(row), units, &(&1 + units))
+
+        {:error, :invalid_resources} ->
+          Logger.warning(
+            "runners: omitting #{row.total_ms} billing milliseconds with unknown resources for fleet #{row.fleet_name}"
+          )
+
+          acc
+      end
+    end)
+  end
+
+  @doc """
+  Billable compute-unit milliseconds per day, split by the repository
+  whose workflow ran them.
+
+  Repository rather than project: a runner session records the
+  repository that triggered the job and nothing else, so that is the
+  finest attribution the data supports without inventing a mapping.
+  """
+  def compute_milliseconds_per_repository(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    overlapping =
+      account_id
+      |> sessions_overlapping(period_start, period_end)
+      |> scope(opts)
+      |> select([s], %{
+        started_at: s.job_started_at,
+        effective_end: s.job_ended_at,
+        repository: s.repository,
+        fleet_name: s.fleet_name,
+        platform: s.platform,
+        vcpus: s.vcpus,
+        memory_gb: s.memory_gb,
+        billing_multiplier: s.billing_multiplier
+      })
+
+    from(b in subquery(repository_buckets_query(overlapping, period_start, period_end)),
+      group_by: [b.day, b.repository, b.fleet_name, b.platform, b.vcpus, b.memory_gb, b.billing_multiplier],
+      select: %{
+        day: b.day,
+        repository: b.repository,
+        fleet_name: b.fleet_name,
+        platform: b.platform,
+        vcpus: b.vcpus,
+        memory_gb: b.memory_gb,
+        billing_multiplier: b.billing_multiplier,
+        total_ms: fragment("SUM(?)::bigint", b.intersection_ms)
+      }
+    )
+    |> Repo.all()
+    |> weigh_by(&{&1.day, &1.repository})
+    |> Enum.map(fn {{day, repository}, units} -> %{date: day, repository: repository, total_ms: units} end)
+    |> Enum.sort_by(&{Date.to_erl(&1.date), &1.repository})
+  end
+
+  defp repository_buckets_query(overlapping, period_start, period_end) do
+    from(o in subquery(overlapping),
+      inner_lateral_join:
+        bucket in fragment(
+          """
+          (SELECT generate_series(
+            (GREATEST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            (LEAST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            '1 day'::interval
+          )::date AS day)
+          """,
+          o.started_at,
+          ^period_start,
+          o.effective_end,
+          ^period_end
+        ),
+      on: true,
+      select: %{
+        day: bucket.day,
+        repository: o.repository,
+        fleet_name: o.fleet_name,
+        platform: o.platform,
+        vcpus: o.vcpus,
+        memory_gb: o.memory_gb,
+        billing_multiplier: o.billing_multiplier,
+        intersection_ms:
+          fragment(
+            """
+            GREATEST(0, (EXTRACT(EPOCH FROM (
+              LEAST(?, (?::date + INTERVAL '1 day') AT TIME ZONE 'UTC', ?) -
+              GREATEST(?, ?::date::timestamp AT TIME ZONE 'UTC', ?)
+            )) * 1000)::bigint)
+            """,
+            o.effective_end,
+            bucket.day,
+            ^period_end,
+            o.started_at,
+            bucket.day,
+            ^period_start
+          )
+      }
+    )
   end
 
   defp buckets_query(overlapping, period_start, period_end, :day) do
@@ -337,6 +447,11 @@ defmodule Tuist.Runners.Billing do
       on: true,
       select: %{
         day: bucket.day,
+        fleet_name: o.fleet_name,
+        platform: o.platform,
+        vcpus: o.vcpus,
+        memory_gb: o.memory_gb,
+        billing_multiplier: o.billing_multiplier,
         intersection_ms:
           fragment(
             """
@@ -375,6 +490,11 @@ defmodule Tuist.Runners.Billing do
       on: true,
       select: %{
         day: bucket.day,
+        fleet_name: o.fleet_name,
+        platform: o.platform,
+        vcpus: o.vcpus,
+        memory_gb: o.memory_gb,
+        billing_multiplier: o.billing_multiplier,
         intersection_ms:
           fragment(
             """
@@ -445,7 +565,15 @@ defmodule Tuist.Runners.Billing do
     |> maybe_eq(:repository, Keyword.get(opts, :repository))
     |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_platform(Keyword.get(opts, :platform))
+    |> maybe_platforms(Keyword.get(opts, :platforms))
   end
+
+  # The platform column rather than the fleet-name prefixes
+  # `maybe_platform/2` matches on, for callers that hold a list of
+  # platforms rather than one name typed by a user.
+  defp maybe_platforms(query, nil), do: query
+
+  defp maybe_platforms(query, platforms) when is_list(platforms), do: where(query, [s], s.platform in ^platforms)
 
   defp maybe_eq(query, _field, nil), do: query
   defp maybe_eq(query, _field, ""), do: query

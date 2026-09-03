@@ -63,6 +63,11 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      kura_expedite:
+        description: Expedite the Kura rollout of this deploy's runtime tag (all-at-once fan-out; for rollbacks to a tag that previously completed)
+        required: false
+        default: false
+        type: boolean
       linux_runner_image_tag:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
         required: false
@@ -74,6 +79,9 @@ on:
         required: false
       runners_controller_image_tag:
         description: Pre-built runners-controller image tag to pin (e.g. `sha-040775324f48`); wins over the resolved `runners-controller@*` semver. Same pre-release-flag use as capi_image_tag.
+        required: false
+      egress_tree_agent_image_tag:
+        description: Pre-built egress-tree-agent image tag to pin (e.g. `sha-537c990cae68`, built by egress-tree-agent-image.yml); wins over the resolved `egress-tree-agent@*` semver. Use to validate an in-flight BPF/HTB change on staging before tagging a release.
         required: false
   workflow_call:
     inputs:
@@ -120,6 +128,16 @@ on:
           tag prefix before passing it to Helm.
         required: false
         type: string
+      kura_expedite:
+        description: >-
+          Expedite the Kura rollout of this deploy's runtime tag
+          (all-at-once fan-out at rollout creation). Always an explicit
+          input — never inferred from commit messages or the hotfix
+          fast-path. Intended for rollbacks to a tag that previously
+          completed a rollout in the environment.
+        required: false
+        default: false
+        type: boolean
       linux_runner_image_tag:
         description: >-
           Pre-built Linux runner image tag to pin (e.g.
@@ -155,6 +173,15 @@ on:
           use as capi_image_tag.
         required: false
         type: string
+      egress_tree_agent_image_tag:
+        description: >-
+          Pre-built egress-tree-agent image tag to pin (e.g.
+          `sha-537c990cae68`, built by egress-tree-agent-image.yml). When
+          unset, the deploy job resolves the latest `egress-tree-agent@*`
+          semver tag. Use to validate an in-flight BPF/HTB change on
+          staging before tagging a release.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -167,6 +194,7 @@ env:
   REGISTRY_IMAGE_NAME: tuist/registry
   CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  EGRESS_TREE_AGENT_IMAGE_NAME: tuist/egress-tree-agent
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
@@ -675,6 +703,7 @@ jobs:
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
+      EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -685,26 +714,68 @@ jobs:
           fetch-depth: 0
       - name: Resolve fleet and runtime image versions from git tags
         # The version of each fleet/runtime image (xcresult-processor, CAPI
-        # provider, runners-controller, Kura runtime, macOS + Linux runner
-        # images) is the highest `<component>@<semver>` tag reachable from
+        # provider, runners-controller, egress-tree-agent, Kura runtime,
+        # macOS + Linux runner images) is the highest `<component>@<semver>`
+        # tag reachable from
         # the deployed commit, so a release that cuts a new tag rolls forward
         # on the next deploy. `--merged` makes a re-promote of an older SHA
         # resolve the versions as they were at that commit.
+        #
+        # A tag records that the release job reported success, not that its
+        # image reached GHCR, and nothing enforces that the two agree. A
+        # version pinned with no image behind it is the most expensive
+        # failure this workflow has: neither a Tart Pod (retries the pull
+        # forever in TartCreateFailed) nor a Linux Pod (ImagePullBackOff)
+        # fails on its own, so helm burns the full `--timeout` before rolling
+        # the release back, and every later deploy resolves the same dead
+        # tag. Walk the tags newest-first and pin the newest version that is
+        # actually pullable.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          resolve() {
-            git tag --list "${1}*" --merged "$DEPLOY_SHA" \
-              | sed "s|^${1}||" \
-              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-              | sort -V | tail -n1
+
+          # Shared with the release path's tag gate so the two can never
+          # disagree about the same image. The checkout is pinned to
+          # DEPLOY_SHA, so a re-promote of a commit predating the script
+          # simply skips the check — those pins already deployed once.
+          probe=.github/scripts/ghcr-image-published.sh
+          image_published() {
+            [ -x "$probe" ] || return 0
+            "$probe" "$1" "$2"
           }
+
+          # $1 tag prefix, $2 GHCR repository the version is pinned into.
+          # An empty $2 skips the publication check: the macOS runner image
+          # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
+          # profile, so there is no single manifest to probe here. The
+          # release path checks every profile tag before cutting the semver.
+          resolve() {
+            prefix="$1"
+            repository="${2:-}"
+            versions="$(
+              git tag --list "${prefix}*" --merged "$DEPLOY_SHA" \
+                | sed "s|^${prefix}||" \
+                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -rV
+            )"
+            for version in $versions; do
+              if [ -z "$repository" ] || image_published "$repository" "$version"; then
+                echo "$version"
+                return 0
+              fi
+              echo "::warning::${prefix}${version} is tagged but ghcr.io/${repository}:${version} was never published; falling back to the previous version." >&2
+            done
+          }
+
           {
-            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
-            echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
+            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
+            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
-            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
-            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
-            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
+            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
+            echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -759,6 +830,37 @@ jobs:
 
           echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
           echo "Kura controller: ${controller_source} image tag ${controller_tag}"
+      - name: Resolve egress-tree-agent image tag
+        # The git-tag resolution above returns nothing for a commit that
+        # predates the first `egress-tree-agent@` release — a re-promote or
+        # rollback of an older SHA, most of all. The chart refuses to render
+        # the privileged DaemonSet without a tag, so an empty resolution
+        # would fail the whole deploy over a component that did not change.
+        # Fall back to whatever the cluster is already running, the same way
+        # the Kura controller and codebase search tags are preserved. Still
+        # empty (no DaemonSet, i.e. the agent is disabled here) leaves the
+        # chart default and the template simply doesn't render.
+        run: |
+          set -euo pipefail
+
+          if [ -n "${EGRESS_TREE_AGENT_IMAGE_TAG_INPUT:-}" ] || [ -n "${EGRESS_TREE_AGENT_TAG:-}" ]; then
+            exit 0
+          fi
+
+          current_image="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get daemonsets \
+              -l app.kubernetes.io/component=egress-tree-agent \
+              -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="agent")].image}' \
+              2>/dev/null || true
+          )"
+          image_prefix="${REGISTRY}/${EGRESS_TREE_AGENT_IMAGE_NAME}:"
+          if [[ "$current_image" != "$image_prefix"* ]]; then
+            echo "egress-tree-agent: no released tag and no running DaemonSet; leaving the chart default."
+            exit 0
+          fi
+
+          echo "EGRESS_TREE_AGENT_TAG=${current_image#"$image_prefix"}" >> "$GITHUB_ENV"
+          echo "egress-tree-agent: preserving deployed image tag ${current_image#"$image_prefix"}"
       - name: Resolve codebase search image tag
         run: |
           set -euo pipefail
@@ -892,6 +994,15 @@ jobs:
               sleep 30
               echo "::group::cluster snapshot $(date -u +%H:%M:%SZ)"
               kubectl -n "$NAMESPACE" get pods -o wide 2>&1 | tail -40 || true
+              # A Tart Pod carries its provisioning failure in
+              # `.status.message` and never emits a Warning event for it, so
+              # the STATUS column above reads `TartCreateFailed` with no
+              # reason attached and the events below stay silent. Print the
+              # messages too, or a stuck macOS Pod is undiagnosable from the
+              # action log alone.
+              echo "--- pod status messages ---"
+              kubectl -n "$NAMESPACE" get pods \
+                -o jsonpath='{range .items[?(@.status.message)]}{.metadata.name}{": "}{.status.reason}{" — "}{.status.message}{"\n"}{end}' 2>&1 | tail -10 || true
               echo "--- recent events ---"
               kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -20 || true
               echo "::endgroup::"
@@ -967,6 +1078,13 @@ jobs:
             echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+          # Expediting the rollout is always an explicit deployment input,
+          # never inferred. The value pins this deploy's tag so a later
+          # unrelated rollout can never inherit the expedite.
+          if [ "${{ inputs.kura_expedite }}" = "true" ] && [ -n "$kura_runtime_tag" ]; then
+            echo "Kura runtime: expediting rollout of ${kura_runtime_tag} (deployment input)"
+            add_set "kuraRuntime.rollout.expediteTag" "$kura_runtime_tag"
+          fi
           # The explicit capi_image_tag / runners_controller_image_tag
           # inputs win over the resolved release tags — same pattern as the
           # runner images above. Needed when a chart change adds operator
@@ -987,6 +1105,13 @@ jobs:
             runners_controller_image_tag="${RUNNERS_CONTROLLER_TAG:-}"
           fi
           add_set "runnersController.image.tag" "$runners_controller_image_tag"
+          egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_IMAGE_TAG_INPUT:-}"
+          if [ -n "$egress_tree_agent_image_tag" ]; then
+            echo "Overriding resolved egress-tree-agent tag with input ${egress_tree_agent_image_tag}"
+          else
+            egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_TAG:-}"
+          fi
+          add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
 
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"
@@ -1028,6 +1153,93 @@ jobs:
           else
             registry_image_tag="registry-disabled"
           fi
+
+
+          # Helm patches custom resources with a two-way JSON merge between the
+          # previously released manifest and the new one. A field whose rendered
+          # value has not changed is therefore absent from the patch, so a manual
+          # `kubectl patch` to it survives every later deploy: the RunnerPool
+          # `linux-4vcpu-16gb` sat at `maxReplicas: 8` from 2026-08-14 while the
+          # chart said 120, capping the pool at a fifteenth of its siblings.
+          # Reassert the ceiling keys so the chart is the source of truth again.
+          #
+          # Scoped to the two keys nothing else writes. `minWarmPoolFloor` is
+          # excluded because live values are owned by other field managers, and
+          # `spec.replicas` because the chart only seeds it and the
+          # runners-controller owns it from then on. Reasserting either would
+          # have this step fight the controller on every deploy.
+          echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
+          runner_pools_render="$(mktemp)"
+          if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+               "${helm_values_args[@]}" \
+               --set server.image.tag="$IMAGE_TAG" \
+               --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+               --set registry.image.tag="$registry_probe_tag" \
+               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+               "${image_sets[@]}" \
+               --show-only templates/runner-pool.yaml \
+               > "$runner_pools_render" 2>/dev/null; then
+            # `mapfile` does not report failures from a process substitution, so
+            # the pipeline is captured first: a `kubectl` or `jq` error would
+            # otherwise read as "no pools to reconcile" and let the upgrade
+            # proceed unreconciled.
+            rendered_pools_json="$(
+              kubectl create --dry-run=client -o json -f "$runner_pools_render" |
+                jq -c -s '[.[] | if .kind == "List" then .items[] else . end
+                            | select(.kind == "RunnerPool" and .spec.autoscaling != null)
+                            | {name: .metadata.name, namespace: .metadata.namespace,
+                               autoscaling: (.spec.autoscaling
+                                 | with_entries(select(.key | . == "maxReplicas"
+                                                         or . == "scaleDownCooldownSeconds")))}
+                            | select(.autoscaling != {})]
+                          | .[]'
+            )"
+            rendered_pools=()
+            if [ -n "$rendered_pools_json" ]; then
+              mapfile -t rendered_pools <<< "$rendered_pools_json"
+            fi
+            for rendered_pool in "${rendered_pools[@]}"; do
+              pool_name="$(jq -r '.name' <<< "$rendered_pool")"
+              # RunnerPools render into the runners namespace, which is not the
+              # release namespace the rest of this step operates in.
+              pool_namespace="$(jq -r '.namespace' <<< "$rendered_pool")"
+              want="$(jq -Sc '.autoscaling' <<< "$rendered_pool")"
+
+              # `--ignore-not-found` separates the three states this read can be
+              # in: a missing pool prints nothing and exits 0, an existing one
+              # prints its JSON, and a genuine API error exits non-zero and stops
+              # the step instead of being swallowed into "nothing to do".
+              pool_json="$(
+                kubectl -n "$pool_namespace" get runnerpool "$pool_name" \
+                  --ignore-not-found -o json
+              )"
+              if [ -z "$pool_json" ]; then
+                # Not created yet; the upgrade below renders it from scratch.
+                continue
+              fi
+
+              # A pool whose autoscaling object was removed outright reads as
+              # `{}` and is drift the upgrade cannot repair either: an unset
+              # `maxReplicas` opts the pool out of autoscaling altogether.
+              have="$(jq -Sc '.spec.autoscaling // {}' <<< "$pool_json")"
+              # Merging the chart's keys over the live object is a no-op exactly
+              # when every reasserted key already matches, which leaves every
+              # other key alone rather than reporting it as drift.
+              if [ "$(jq -n --argjson h "$have" --argjson w "$want" '($h + $w) == $h')" = "true" ]; then
+                continue
+              fi
+
+              echo "RunnerPool $pool_namespace/$pool_name: scaling ceiling drifted from the chart; reasserting."
+              echo "  live:  $have"
+              echo "  chart: $want"
+              kubectl -n "$pool_namespace" patch runnerpool "$pool_name" --type=merge \
+                -p "$(jq -nc --argjson w "$want" '{spec: {autoscaling: $w}}')"
+            done
+          else
+            echo "Chart renders no RunnerPools for this environment; nothing to reassert."
+          fi
+          rm -f "$runner_pools_render"
+          echo "::endgroup::"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

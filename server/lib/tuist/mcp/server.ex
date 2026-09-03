@@ -20,9 +20,23 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.ListAccounts,
+    Tools.GetOrganization,
+    Tools.ListAccountTokens,
+    Tools.GetAccountToken,
     Tools.CreateOrganization,
     Tools.CreateProject,
     Tools.AddOrganizationMember,
+    Tools.ListRunnerJobs,
+    Tools.GetRunnerJob,
+    Tools.ListRunnerJobSteps,
+    Tools.ListRunnerJobMetrics,
+    Tools.ListRunnerJobLogs,
+    Tools.ListRunnerWorkflows,
+    Tools.ListRunnerProfiles,
+    Tools.ListWebhookEndpoints,
+    Tools.GetWebhookEndpoint,
+    Tools.ListWebhookDeliveryAttempts,
+    Tools.GetWebhookDeliveryAttempt,
     Tools.ListXcodeBuilds,
     Tools.GetXcodeBuild,
     Tools.ListXcodeBuildTargets,
@@ -51,9 +65,18 @@ defmodule Tuist.MCP.Server do
     Tools.GetGeneration,
     Tools.ListCacheRuns,
     Tools.GetCacheRun,
+    Tools.ListAutomationAlerts,
+    Tools.GetAutomationAlert,
+    Tools.ListAutomationAlertRevisions,
+    Tools.ListProjectNotificationAlerts,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
-    Tools.ListProjects
+    Tools.ListProjects,
+    Tools.GetProject,
+    Tools.ListProjectTokens,
+    Tools.ListPreviews,
+    Tools.GetPreview,
+    Tools.GetLatestPreview
   ]
 
   @prompts [
@@ -74,17 +97,17 @@ defmodule Tuist.MCP.Server do
   ]
 
   @source_answer_instructions """
-  Answer Tuist questions with the Tuist tools before using local files or general web search. Start with `search_tuist` for public explanations and terminology. When current behavior depends on implementation, use `search_tuist_code`, `list_tuist_files`, and `read_tuist_file`; inspect focused tests and call sites, treat truncated results as partial, and cite returned links and the source revision. Keep the answer focused on the user's question rather than describing the codebase.
+  Use the relevant Tuist tool when its documentation or source results are needed to answer a Tuist question. `search_tuist` covers public explanations and terminology. When current behavior depends on implementation, `search_tuist_code`, `list_tuist_files`, and `read_tuist_file` provide a fixed source revision; inspect focused tests and call sites, treat truncated results as partial, and cite returned links and the source revision. Keep the answer focused on the user's question rather than describing the codebase.
   """
 
   @agent_workflow_instructions """
-  If this server is unauthenticated, fetch the `auth_md` URL from the 401 response. If only the discovery documents are available, read `agent_auth.skill` from the authorization-server metadata. Follow that deployment-local document through registration, identity-assertion exchange, and claim polling before falling back to browser Open Authorization. Never invent credentials. Prefer anonymous registration when no trusted provider assertion is available. Before sending a service-authenticated email or starting an anonymous claim, explicitly ask the user to confirm the email address for their Tuist account; do not derive it from a provider profile, Git configuration, environment variables, or session metadata. During a claim, show the verification link and six-digit code together, and tell the user to enter the code on the Tuist page rather than sending it back to the agent. When a user asks to speed up or connect a Gradle or Android build, call get_gradle_integration_guide before editing. Call list_accounts before create_project when the account handle is unknown. Model Context Protocol authentication only authorizes Tuist tools; Gradle requires separate `tuist auth whoami --url` authentication. Never continue a verification build after that check fails. Verify integrations through Tuist read-back tools before reporting success.
+  If this server is unauthenticated, fetch the `auth_md` URL from the 401 response. If only the discovery documents are available, read `agent_auth.skill` from the authorization-server metadata. Follow that deployment-local document through registration, identity-assertion exchange, and claim polling before falling back to browser Open Authorization. Never invent credentials. Prefer anonymous registration when no trusted provider assertion is available. Before sending a service-authenticated email or starting an anonymous claim, explicitly ask the user to confirm the email address for their Tuist account; do not derive it from a provider profile, Git configuration, environment variables, or session metadata. During a claim, show the verification link and six-digit code together, and tell the user to enter the code on the Tuist page rather than sending it back to the agent. The `get_gradle_integration_guide` tool provides the Gradle and Android integration workflow. Use `list_accounts` when an account handle is unknown. Model Context Protocol authentication only authorizes Tuist tools; Gradle requires separate `tuist auth whoami --url` authentication. Never continue a verification build after that check fails. Verify integrations through Tuist read-back tools before reporting success.
   """
 
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.15.0",
+      version: "1.23.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

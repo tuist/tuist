@@ -40,25 +40,23 @@ defmodule TuistWeb.Router do
 
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
+    turnstile_source = if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
 
     [
       frame_ancestors: "'self'",
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://videos.tuist.dev https://developer.apple.com https://tuist.dev https://*.tuist.dev #{s3_endpoint}",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
-      style_src:
-        "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
+      style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
       style_src_elem:
-        "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
-      font_src:
-        "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src:
-        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://*.posthog.com https://marketing.tuist.dev#{turnstile_source}",
+      font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
+      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      connect_src: "'self' https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 
@@ -250,6 +248,8 @@ defmodule TuistWeb.Router do
 
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+
+    get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
   end
 
   scope "/", TuistWeb do
@@ -446,6 +446,12 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/api/kura/rollout-status", KuraRolloutStatusController, :show
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
     get "/agent/identity/claim", AgentAuthController, :protocol_claim_page
@@ -543,7 +549,28 @@ defmodule TuistWeb.Router do
       scope "/tokens" do
         post "/", AccountTokensController, :create
         get "/", AccountTokensController, :index
+        get "/:token_id", AccountTokensController, :show
         delete "/:token_name", AccountTokensController, :delete
+      end
+
+      scope "/runners" do
+        get "/jobs", RunnersController, :index_jobs
+        get "/jobs/:workflow_job_id", RunnersController, :show_job
+        get "/jobs/:workflow_job_id/steps", RunnersController, :index_job_steps
+        get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
+        get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
+        get "/workflows", RunnersController, :index_workflows
+        get "/profiles", RunnersController, :index_profiles
+      end
+
+      scope "/webhooks" do
+        get "/", WebhooksController, :index
+        get "/:webhook_endpoint_id", WebhooksController, :show
+        get "/:webhook_endpoint_id/delivery-attempts", WebhooksController, :index_delivery_attempts
+
+        get "/:webhook_endpoint_id/delivery-attempts/:delivery_attempt_id",
+            WebhooksController,
+            :show_delivery_attempt
       end
     end
 
@@ -648,9 +675,12 @@ defmodule TuistWeb.Router do
           get "/", Automations.AlertsController, :index
           post "/", Automations.AlertsController, :create
           get "/:alert_id", Automations.AlertsController, :show
+          get "/:alert_id/revisions", Automations.AlertsController, :index_revisions
           put "/:alert_id", Automations.AlertsController, :update
           delete "/:alert_id", Automations.AlertsController, :delete
         end
+
+        get "/notification-alerts", ProjectNotificationAlertsController, :index
 
         scope "/builds" do
           get "/", BuildsController, :index
@@ -883,9 +913,14 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/kura", TuistWeb.OpsKuraLive
+      live "/kura/rollouts", TuistWeb.OpsKuraRolloutsLive
+      live "/kura/rollouts/:id", TuistWeb.OpsKuraRolloutLive
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/accounts/:id/kura/sizing", TuistWeb.OpsAccountKuraSizingLive
+      live "/accounts/:id/kura/placement", TuistWeb.OpsAccountKuraPlacementLive
       live "/registry", TuistWeb.OpsRegistryLive
       live "/registry/:scope/:name", TuistWeb.OpsRegistryPackageLive
       live "/db", TuistWeb.OpsDatabaseLive
@@ -1052,6 +1087,45 @@ defmodule TuistWeb.Router do
 
   get "/download", TuistWeb.DownloadController, :download
 
+  # Dashboards a public account exposes to signed-out visitors. Each
+  # LiveView here re-checks `:account_dashboard_read`, which is what
+  # gates the LiveSocket connect — the pipeline below only covers the
+  # dead render.
+  scope "/:account_handle", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :rate_limit,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
+      :require_authenticated_user_for_private_accounts,
+      :require_sso_authentication,
+      :analytics
+    ]
+
+    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
+        RunnerJobLogsController,
+        :download
+
+    live_session :public_account,
+      layout: {TuistWeb.Layouts, :account},
+      on_mount: [
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
+      live "/", ProjectsLive
+      live "/projects", ProjectsLive
+      live "/runners", RunnersLive
+      live "/runners/workflows", RunnerWorkflowsLive
+      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
+      live "/runners/jobs", RunnerJobsLive
+      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/usage", UsageLive
+    end
+  end
+
   scope "/:account_handle", TuistWeb do
     pipe_through [
       :open_api,
@@ -1074,10 +1148,6 @@ defmodule TuistWeb.Router do
         RunnerInteractiveShellController,
         :connect
 
-    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
-        RunnerJobLogsController,
-        :download
-
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
@@ -1086,13 +1156,6 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
-      live "/", ProjectsLive
-      live "/projects", ProjectsLive
-      live "/runners", RunnersLive
-      live "/runners/workflows", RunnerWorkflowsLive
-      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
-      live "/runners/jobs", RunnerJobsLive
-      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
       live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
@@ -1100,7 +1163,6 @@ defmodule TuistWeb.Router do
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
       live "/cache", CacheLive
       live "/billing", BillingLive
-      live "/usage", UsageLive
       live "/settings", AccountSettingsLive
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
@@ -1166,6 +1228,7 @@ defmodule TuistWeb.Router do
 
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
+      live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
     end

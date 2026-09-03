@@ -132,7 +132,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                 && !manifests.contains(.workspace)
                 && !SwiftPackageManagerPaths.isPath(
                     $0,
-                    inSwiftPackageManagerCheckoutsOf: swiftPackageManagerScratchDirectory
+                    inSwiftPackageManagerPackageSourcesOf: swiftPackageManagerScratchDirectory
                 )
         }
 

@@ -4,6 +4,18 @@ import Testing
 
 struct SupportTests {
     @Test
+    func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
+        let result = try await SystemProcess.run(
+            "/usr/bin/env",
+            [],
+            customEnvironment: ["SWIFTERPM_TEST_RETAINED": "value"]
+        )
+
+        #expect(result.stdoutString.contains("SWIFTERPM_TEST_RETAINED=value"))
+        #expect(!result.stdoutString.contains("HOME="))
+    }
+
+    @Test
     func hashingAndRevisionHelpersAreStable() {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)
@@ -291,11 +303,15 @@ struct SupportTests {
     }
 
     @Test
-    func netrcCredentialBeatsGitHubEnvToken() {
+    func netrcCredentialBeatsKeychainAndGitHubEnvToken() async {
         let credential = RegistryCredential(user: "x-access-token", password: "harbor-token")
-        let header = HTTPAuthorization.prioritizedHeader(
+        let header = await HTTPAuthorization.prioritizedHeader(
             isGitHub: true,
             netrcCredential: credential,
+            keychain: {
+                Issue.record("keychain consulted despite netrc credentials")
+                return RegistryCredential(user: "keychain", password: "credential")
+            },
             gitHubEnvToken: "ghs_repo_scoped_token"
         )
 
@@ -304,10 +320,25 @@ struct SupportTests {
     }
 
     @Test
-    func gitHubEnvTokenUsedWhenNoNetrcCredential() {
-        let header = HTTPAuthorization.prioritizedHeader(
+    func keychainCredentialBeatsGitHubEnvToken() async {
+        let credential = RegistryCredential(user: "keychain", password: "credential")
+        let header = await HTTPAuthorization.prioritizedHeader(
             isGitHub: true,
             netrcCredential: nil,
+            keychain: { credential },
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
+        #expect(header == expected)
+    }
+
+    @Test
+    func gitHubEnvTokenUsedWhenNoNetrcOrKeychainCredential() async {
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: true,
+            netrcCredential: nil,
+            keychain: { nil },
             gitHubEnvToken: "ghs_repo_scoped_token"
         )
 
@@ -315,14 +346,93 @@ struct SupportTests {
     }
 
     @Test
-    func gitHubEnvTokenIgnoredForNonGitHubHostWithoutNetrc() {
-        #expect(
-            HTTPAuthorization.prioritizedHeader(
-                isGitHub: false,
-                netrcCredential: nil,
-                gitHubEnvToken: "ghs_repo_scoped_token"
-            ) == nil
+    func keychainCredentialIsUsedForNonGitHubHost() async {
+        let credential = RegistryCredential(user: "keychain", password: "credential")
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: false,
+            netrcCredential: nil,
+            keychain: { credential },
+            gitHubEnvToken: "ghs_repo_scoped_token"
         )
+
+        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
+        #expect(header == expected)
+    }
+
+    @Test
+    func gitHubEnvTokenIsIgnoredForNonGitHubHostWithoutOtherCredentials() async {
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: false,
+            netrcCredential: nil,
+            keychain: { nil },
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        #expect(header == nil)
+    }
+
+    @Test
+    func swifterpmGitHubTokenTakesPrecedenceOverGitHubToken() async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "swifterpm-token",
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer swifterpm-token")
+    }
+
+    @Test
+    func gitHubTokenUsedWhenSwifterpmGitHubTokenAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GITHUB_TOKEN": "github-token",
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer github-token")
+    }
+
+    @Test
+    func emptySwifterpmGitHubTokenFallsBackToGitHubToken() async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "",
+            "GITHUB_TOKEN": "github-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer github-token")
+    }
+
+    @Test
+    func ghTokenUsedWhenOtherGitHubTokensAbsent() async throws {
+        let header = try await Environment.$values.withValue([
+            "GH_TOKEN": "gh-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                await HTTPAuthorization.header(
+                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
+                )
+            }
+        }
+
+        #expect(header == "Bearer gh-token")
     }
 
     @Test

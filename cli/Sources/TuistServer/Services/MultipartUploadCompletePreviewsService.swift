@@ -79,6 +79,10 @@ public struct MultipartUploadCompletePreviewsService: MultipartUploadCompletePre
             case let .json(preview):
                 return preview
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadCompletePreviewsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

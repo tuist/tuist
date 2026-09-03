@@ -6,10 +6,11 @@ defmodule Tuist.Runners.Jobs do
   (`Tuist.Runners.WorkflowJobs` — one `runner_workflow_jobs` row per
   job, guarded compare-and-set transitions); the ClickHouse
   `runner_jobs` ReplacingMergeTree is its analytics/history replica,
-  fed exclusively by the transition outbox
-  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`) plus the
-  one direct write in `set_log_archived_at/2` for the CH-only
-  `log_archived_at` column. This module owns:
+  fed by the transition outbox
+  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`). Single-writer
+  except for jobs that predate the Postgres store, which have no
+  lifecycle row to transition and so take the direct write in
+  `set_log_archived_at/2`. This module owns:
 
     * the webhook write orchestration — the per-job ordering lock,
       the `runner_job_completions` resurrection guard, and the
@@ -56,6 +57,8 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Tests.Test, as: TestRun
 
   require Logger
+
+  @non_terminal_statuses ~w(queued claimed running)
 
   # The dispatch hot path (`pick_queued/2`) and the autoscaler
   # (`queued_count_by_fleet/1`) only care about jobs that could still
@@ -432,30 +435,110 @@ defmodule Tuist.Runners.Jobs do
   S3 (or clears it when the archive has been pruned). State-transition
   INSERT, carrying all other columns forward.
 
-  This is the one remaining direct ClickHouse write: `log_archived_at`
-  is analytics-store state with no Postgres twin, so the transition
-  outbox never carries it. Safe against replays because a terminal
-  row emits no further outbox events — nothing can land after this
-  INSERT and revert the stamp under the RMT's argMax read.
+  The stamp is written to Postgres and reaches ClickHouse through the
+  transition outbox like every other column, so the analytics row has a
+  single writer and no write can re-assert a lifecycle state the job has
+  already left. ClickHouse trails the flush by up to a tick; control-plane
+  reads that must not see that lag go to `WorkflowJobs.log_archived_at/1`.
 
-  No-op when no row exists yet for the workflow_job.
+  Jobs archived before `runner_workflow_jobs` existed have no row to
+  stamp and receive no outbox events at all, so for those the ClickHouse
+  row is the only state there is and writing it directly is safe. That
+  path retires once the pre-migration population ages past the archive
+  retention in `PruneArchivedLogsWorker`.
+
+  No-op when the workflow_job is unknown to both stores.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
+    case WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at) do
+      :ok -> :ok
+      :noop -> stamp_untracked_row(workflow_job_id, archived_at, DateTime.utc_now())
+    end
+  end
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+  @doc """
+  Counts jobs per fleet whose ClickHouse row is still non-terminal while
+  Postgres holds a terminal state.
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
+  The outbox makes divergence transient by construction, so this reads
+  zero in steady state and any non-zero value means a replica row that
+  will not converge on its own: a terminal job emits no further events,
+  so nothing lands to correct it. `settled_before` excludes rows young
+  enough to be mid-flush, which is also what keeps genuinely in-flight
+  jobs out of the count — those are non-terminal in both stores.
 
-        insert_row!(row)
-        :ok
+  Scans at most `limit` candidates so a systemic divergence can't hand
+  Postgres an unbounded id list; a truncated scan is logged rather than
+  silently reported as a smaller number.
+  """
+  def count_replica_divergence(%DateTime{} = settled_before, %DateTime{} = enqueued_floor, limit \\ 5_000) do
+    candidates = list_non_terminal_before(settled_before, enqueued_floor, limit)
+
+    if length(candidates) == limit do
+      Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
+    end
+
+    terminal =
+      candidates
+      |> Enum.map(& &1.workflow_job_id)
+      |> WorkflowJobs.terminal_completions()
+
+    candidates
+    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
+  # the queue poll: `FINAL` would merge across every part on each tick.
+  defp list_non_terminal_before(settled_before, enqueued_floor, limit) do
+    latest =
+      from(j in Job,
+        where: j.enqueued_at >= ^enqueued_floor,
+        group_by: j.workflow_job_id,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+          status: fragment("argMax(?, ?)", j.status, j.updated_at),
+          updated_at: max(j.updated_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(s in subquery(latest),
+        where: s.status in ^@non_terminal_statuses and s.updated_at < ^settled_before,
+        select: %{workflow_job_id: s.workflow_job_id, fleet_name: s.fleet_name},
+        limit: ^limit
+      )
+    )
+  end
+
+  @doc """
+  Whether the job's log archive is available to serve.
+
+  A stamp in either store counts. Postgres is the one that leads, by up
+  to an outbox flush after `ArchiveLogsWorker` writes it, so it answers
+  on its own for anything archived since it started carrying the column.
+  ClickHouse answers for the two populations Postgres cannot: jobs with
+  no lifecycle row at all, and jobs whose row predates the column and so
+  reads `NULL` while the archive itself exists in S3. Requiring Postgres
+  alone would take the download away from every archive made before that
+  migration.
+
+  Both fallbacks retire together, once every archive predating the column
+  has aged past the retention in `PruneArchivedLogsWorker`.
+
+  The cost of accepting either store is a stale yes for one flush after a
+  prune clears the stamp, where Postgres reads `NULL` and ClickHouse
+  still holds the old value. The prune has already deleted the S3 object
+  by then, so the download fails at the redirect either way; only the
+  status code differs.
+  """
+  def archive_available?(%Job{workflow_job_id: workflow_job_id, account_id: account_id, log_archived_at: ch_archived_at}) do
+    case WorkflowJobs.log_archived_at(workflow_job_id, account_id) do
+      {:ok, %DateTime{}} -> true
+      {:ok, nil} -> not is_nil(ch_archived_at)
+      :not_found -> not is_nil(ch_archived_at)
     end
   end
 
@@ -647,6 +730,9 @@ defmodule Tuist.Runners.Jobs do
       workflow_job_id: j.workflow_job_id,
       account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+      vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+      memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
       repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -660,8 +746,10 @@ defmodule Tuist.Runners.Jobs do
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
       pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
       runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
       updated_at: max(j.updated_at)
     })
   end
@@ -783,6 +871,25 @@ defmodule Tuist.Runners.Jobs do
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
     WorkflowJobs.queued_count_by_fleet(fleet_name, queued_lookback_floor())
+  end
+
+  @doc """
+  Queue depth and oldest-arrival per fleet, for the queue gauges.
+
+  Served from the Postgres lifecycle table — the same rows
+  `pick_queued_top_k/5` selects from and under the same
+  `@queued_lookback_seconds` floor, so the gauge and dispatch can never
+  disagree about what is queued. They used to: the gauge scanned the
+  ClickHouse `runner_jobs` replica, which since #12031 is fed only by
+  the transition outbox and therefore holds `queued` for any job whose
+  terminal transition never replayed. Those rows are unreachable to
+  dispatch and never age out on their own, so the tile read a backlog
+  that no Pod could ever drain.
+
+  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`.
+  """
+  def queue_stats_by_fleet do
+    WorkflowJobs.queue_stats_by_fleet(queued_lookback_floor())
   end
 
   @doc """
@@ -1136,6 +1243,30 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  every `running` row bound to `pod_name`.
+
+  Feeds the `pods/stopped` fast path: a stopped Pod is proof that none
+  of the jobs it holds at `running` are executing on it, without
+  waiting out the staleness floor.
+  """
+  def list_running_for_pod(pod_name) when is_binary(pod_name) do
+    WorkflowJobs.list_running_for_pod(pod_name)
+  end
+
+  @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  `running` rows *newer* than `threshold` — the rows the age gate
+  excludes.
+
+  `OrphanedRunnersWorker` narrows these by Pod absence, which is the
+  same evidence the age gate is a proxy for.
+  """
+  def list_running_since(%DateTime{} = threshold) do
+    WorkflowJobs.list_running_since(threshold)
+  end
+
+  @doc """
   Returns the same recovery shape as `list_orphaned_running/1` for a
   single `workflow_job_id`, or `nil` when that job's current status is
   not `running`.
@@ -1298,6 +1429,27 @@ defmodule Tuist.Runners.Jobs do
       conflict_target: [:workflow_job_id],
       on_conflict: {:replace, [:account_id, :conclusion, :completed_at, :updated_at]}
     )
+
+    :ok
+  end
+
+  defp stamp_untracked_row(workflow_job_id, archived_at, now) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        job
+        |> job_to_row()
+        |> Map.put(:updated_at, now)
+        |> stamp!(archived_at)
+    end
+  end
+
+  defp stamp!(row, archived_at) do
+    row
+    |> Map.put(:log_archived_at, archived_at)
+    |> insert_row!()
 
     :ok
   end

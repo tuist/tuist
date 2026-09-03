@@ -6,39 +6,35 @@ PRIV_DIR="${SCRIPT_DIR}/../../priv/native"
 
 cd "$SCRIPT_DIR"
 
-echo "==> Building Swift NIF library..."
-swift build -c release --replace-scm-with-registry 2>&1
+# CI checks out onto a persistent workspace and `actions/checkout` runs
+# `git clean -ffdx`, which deletes an in-tree .build and forces a cold Swift
+# compile on every run. TUIST_NIF_BUILD_ROOT moves the scratch directory
+# outside the workspace so it survives the clean.
+if [ -n "${TUIST_NIF_BUILD_ROOT:-}" ]; then
+    SCRATCH_PATH="${TUIST_NIF_BUILD_ROOT}/xcactivitylog_nif"
+else
+    SCRATCH_PATH="${SCRIPT_DIR}/.build"
+fi
 
-SWIFT_BUILD_DIR=".build/release"
-DYLIB_NAME="libXCActivityLogNIF.dylib"
+EXECUTABLE_NAME="xcactivitylog-parser"
 
-if [ ! -f "$SWIFT_BUILD_DIR/$DYLIB_NAME" ]; then
-    echo "ERROR: Could not find $DYLIB_NAME in $SWIFT_BUILD_DIR"
+echo "==> Building Swift xcactivitylog parser..."
+swift build -c release --replace-scm-with-registry --scratch-path "$SCRATCH_PATH" \
+    --product "$EXECUTABLE_NAME" 2>&1
+
+SWIFT_BUILD_DIR="${SCRATCH_PATH}/release"
+
+if [ ! -f "$SWIFT_BUILD_DIR/$EXECUTABLE_NAME" ]; then
+    echo "ERROR: Could not find $EXECUTABLE_NAME in $SWIFT_BUILD_DIR"
     exit 1
 fi
 
-echo "==> Compiling C NIF bridge..."
+mkdir -p "$PRIV_DIR"
+cp "$SWIFT_BUILD_DIR/$EXECUTABLE_NAME" "$PRIV_DIR/$EXECUTABLE_NAME"
+chmod +x "$PRIV_DIR/$EXECUTABLE_NAME"
 
-ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell 2>/dev/null)
-if [ -z "$ERL_INCLUDE" ]; then
-    echo "ERROR: Could not find Erlang include directory"
-    exit 1
-fi
+echo "==> Signing parser..."
+codesign -s - -f "$PRIV_DIR/$EXECUTABLE_NAME"
 
-cc -shared -undefined dynamic_lookup \
-    -o "$PRIV_DIR/xcactivitylog_nif.so" \
-    nif_bridge.c \
-    -I"$ERL_INCLUDE" \
-    -L"$SWIFT_BUILD_DIR" \
-    -lXCActivityLogNIF \
-    -Wl,-rpath,"@loader_path"
-
-cp "$SWIFT_BUILD_DIR/$DYLIB_NAME" "$PRIV_DIR/$DYLIB_NAME"
-
-echo "==> Signing NIF binaries..."
-codesign -s - -f "$PRIV_DIR/xcactivitylog_nif.so"
-codesign -s - -f "$PRIV_DIR/$DYLIB_NAME"
-
-echo "==> NIF built successfully!"
-echo "    NIF: $PRIV_DIR/xcactivitylog_nif.so"
-echo "    Lib: $PRIV_DIR/$DYLIB_NAME"
+echo "==> Parser built successfully!"
+echo "    Executable: $PRIV_DIR/$EXECUTABLE_NAME"

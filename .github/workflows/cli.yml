@@ -73,6 +73,10 @@ env:
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  # Jobs are ephemeral and persist .build with actions/cache. Keep Tuist metadata
+  # outside the per-account runner cache volume so a saturated warm cache cannot
+  # prevent authentication before the job starts.
+  TUIST_XDG_CACHE_HOME: /tmp/tuist-cache
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
 
@@ -348,8 +352,13 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
+      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
+      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
+      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
+      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}

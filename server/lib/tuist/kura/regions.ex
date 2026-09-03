@@ -26,6 +26,21 @@ defmodule Tuist.Kura.Regions do
 
   defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
 
+  @doc """
+  The region's nodes as a Kubernetes label selector, or `nil` when the region
+  pins its instances to no particular nodes.
+
+  Built from the same `node_selector` the provisioner schedules instances
+  with, so counting a region's machines and placing its instances can never
+  disagree about which nodes are the region's.
+  """
+  def node_label_selector(%__MODULE__{provisioner_config: %{node_selector: selector}})
+      when is_map(selector) and map_size(selector) > 0 do
+    Enum.map_join(selector, ",", fn {label, value} -> "#{label}=#{value}" end)
+  end
+
+  def node_label_selector(%__MODULE__{}), do: nil
+
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.
@@ -108,6 +123,64 @@ defmodule Tuist.Kura.Regions do
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
+  # Filesystem quota one replica of a cache instance reserves, per plan. The
+  # claim covers the whole data volume, not just the cache: Kura's artifact ring
+  # shares it with the upload staging directory and the RocksDB index, and the
+  # provisioner reserves those before deriving the ring budget it hands the pod
+  # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
+  # rings these leave are 13.1 GiB for enterprise and 5.3 GiB for the rest.
+  #
+  # These are where an account starts, not what it ends up with:
+  # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
+  # acts within the hour when a ring is badly undersized. That is what lets
+  # them start this small, and starting small is what a claim being an
+  # admission decision demands — every replica requests its claim as
+  # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
+  # to place instances that would have fitted.
+  #
+  # Air and Pro therefore start in the same place, and `Tuist.Kura.ClaimSizing`
+  # gives them the same ceiling too: what a paid plan buys is not a bigger
+  # cache on day one, it is the demand-driven lifecycle and the regional
+  # placement around it. An account that needs more disk gets it by proving so,
+  # whichever plan it is on. Enterprise starts a step higher only because it is
+  # the plan whose accounts predictably arrive with a working set already.
+  #
+  # They are also powers of two so that growth lands squarely. Sizing clamps a
+  # step at twice the current claim, so a ladder of doubles reaches each plan's
+  # ceiling exactly, where an off-ladder constant spends most of a step being
+  # clamped short of it.
+  #
+  # Measured on 2026-08-20 rather than projected, and the measurement is why
+  # they came down. Every provisioned Kura instance was enterprise then, and
+  # six of the ten held under 2.4 GiB against a 40 GiB ring: the reserve those
+  # instances stood on was refusing neighbours it never used. Air's own volume
+  # comes from the legacy lane, where 55 air accounts uploaded anything at all
+  # in 30 days: the median moves 0.17 GiB a day, which a 5.3 GiB ring holds for
+  # a month.
+  #
+  # The tier is long-tailed, and the tail is no longer left where it lands. Its
+  # p90 moves 2.5 GiB a day and its heaviest account 21.7 GiB, which this ring
+  # holds for hours rather than weeks — so sizing grows those accounts off the
+  # starting value instead, up to the ceiling their plan funds. What the
+  # constant has to serve is the account the tier is actually full of.
+  #
+  # Air is the floor as well as the default. It is this small because the
+  # staging budget scales with the claim rather than staying at Kura's flat
+  # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
+  # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
+  # at all.
+  @enterprise_storage_claim "16Gi"
+  @pro_storage_claim "8Gi"
+  @air_storage_claim "8Gi"
+
+  # Which countries `accounts.region == :europe` accepts a datacenter in. The
+  # European Economic Area plus Switzerland and the United Kingdom, because
+  # that is the boundary the setting is answering for in a security review.
+  @european_countries ~w[
+    AT BE BG CH CY CZ DE DK EE ES FI FR GB GR HR HU IE IS IT LI LT LU LV MT NL
+    NO PL PT RO SE SI SK
+  ]
+
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -127,7 +200,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi",
       # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
@@ -147,7 +219,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi",
       # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
@@ -166,8 +237,9 @@ defmodule Tuist.Kura.Regions do
     # restarts. Both replicas of an account stay co-located on its box (controller
     # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
     # cache regenerates / backfills from cross-region peers). The region
-    # id, cluster_id, ingress class, and public hostnames are unchanged from the
-    # former Hetzner ccx13 backing, so the cutover is invisible to the customer.
+    # id, cluster_id,
+    # ingress class, and public hostnames are unchanged from the former Hetzner
+    # ccx13 backing, so the cutover is invisible to the customer.
     %{
       id: "eu-central",
       display_name: "EU Central",
@@ -177,7 +249,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi",
       # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
       # per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
@@ -205,7 +276,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi",
       # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
       # enterprise per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
@@ -214,6 +284,59 @@ defmodule Tuist.Kura.Regions do
       # OVHcloud BHS, Beauharnois, Quebec.
       country: "CA",
       subdivision: "CA-QC"
+    },
+    # Asia Pacific Southeast (Singapore / OVHcloud SGP) on OVH bare metal: the
+    # `kura-ap-southeast` node pool (an `ovhFleets` entry), local-NVMe storage,
+    # and a hostNetwork regional gateway bound to the box's public IP — the same
+    # bare-metal shape as the other OVH regions. The id matches the legacy cache
+    # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
+    # the legacy lane keeps the region name it already knows.
+    #
+    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
+    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
+    # us-east, and `all` defaults to us-east, so no storage-region preference
+    # resolves to Asia Pacific. Do not go looking for the rule that places
+    # accounts here; there is none. Air in particular can never land here,
+    # because Air resolves from the storage-region preference alone.
+    #
+    # Two things do reach it, exactly as they reach us-west: an operator pinning
+    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
+    # which carries plan checks, audit and versioning; and a customer picking the
+    # region in account settings, which goes through `selectable/0` and never
+    # consults AccountPolicies. The second is deliberate — this is a public
+    # region — so "assignment-only" describes derivation, not access.
+    %{
+      id: "ap-southeast",
+      display_name: "Asia Pacific Southeast",
+      cluster_id: "ap-southeast-1",
+      ingress_class_name: "kura-ap-southeast",
+      node_pool: "kura-ap-southeast",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      # Two, like every other managed region. Nothing else serves this region
+      # while a replica restarts — Kura is terminal storage and a miss is a 404,
+      # not an origin fetch — so the standby is what keeps a rolling restart
+      # from costing every account in the region a cache miss.
+      #
+      # It also bounds how many accounts fit: `Capacity.resident_gib/2` is
+      # claim x replicas and each replica requests its full claim as
+      # ephemeral-storage, so an enterprise account reserves 100 GiB of the
+      # region's disk and a pro one 60 GiB.
+      replicas: 2,
+      # Egress governance on the shared box: the enterprise per-tenant floor
+      # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps
+      # request; egress_burst_mbps is the Cilium burst ceiling, half the box's
+      # public bandwidth. Public is the number that matters: the NIC links at
+      # 25 Gbit/s, but that is the vRack side, and a cache serves the 1 Gbit/s
+      # public path. Same shape as ca-east, the other ~1 Gbit region.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # OVHcloud SGP, Singapore. No subdivision: Singapore is a city-state whose
+      # ISO 3166-2 codes are the five CDC statistical districts rather than
+      # anything a datacenter address resolves to, so the country code already
+      # locates the node as precisely as the pair can. Stating a district would
+      # be the guess this field exists to avoid (see `node_location/1`).
+      country: "SG"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -273,7 +396,7 @@ defmodule Tuist.Kura.Regions do
       # account's restore burst from starving the rest. Conservative
       # against the Elastic Metal node's 10G PN (~13 tenants at the cap
       # before the NIC binds), so there's headroom to raise it.
-      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
+      egress_burst_mbps: 750,
       # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
       # taint so general workloads stay off this shared-NIC, egress-capped
       # node; the cache pods tolerate it (node_selector already pins them
@@ -374,6 +497,115 @@ defmodule Tuist.Kura.Regions do
   def memory_governed?(_), do: false
 
   @doc """
+  The `%{claim_size:}` storage profile for a billing plan: the filesystem quota
+  each replica of that plan's cache instance reserves.
+
+  Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
+  have their own; every other plan takes air's, which is also the floor no
+  instance is sized below. Unknown plans land there too, which is the side that
+  admits rather than the side that refuses.
+  """
+  def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
+
+  def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
+
+  def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
+
+  @doc """
+  The smallest claim any instance may be built with, whatever sets it.
+
+  Air's claim, deliberately: the ladder's floor is already the smallest claim we
+  are willing to run an instance on, and an operator override
+  (`Tuist.Kura.PlacerClaims`) is not a reason to go under it. Tying the two
+  together rather than repeating a number means the bound follows the ladder if
+  the ladder moves, which it has.
+
+  What stops the floor going lower is the reserve rather than the cache. Staging
+  and one rotation segment come out of a claim before the ring is sized, and
+  Kura clamps its ring up to five segments; a claim too small to clear that
+  leaves `cas_capacity_bytes/1` emitting no `KURA_CAS_CAPACITY_BYTES` at all and
+  the runtime sizes its ring from the whole box instead, which is the failure
+  that derivation exists to prevent. Now that staging scales with the claim
+  (`staging_bytes/1` in the Kubernetes controller provisioner) the cliff sits
+  below air rather than above it, so air clears it with margin; `regions_test`
+  asserts that against the derivation rather than against a number.
+  """
+  def minimum_storage_claim, do: @air_storage_claim
+
+  @doc """
+  Parses a Kubernetes storage quantity like `"24Gi"` into bytes.
+
+  Lives here, beside the claims it measures, because both the manifest that
+  derives a CAS budget from a claim and the validation that admits an operator's
+  override have to read the same quantity the same way.
+  """
+  def parse_storage_quantity(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {quantity, suffix} when quantity > 0 ->
+        case storage_multiplier(String.trim(suffix)) do
+          nil -> :error
+          multiplier -> {:ok, quantity * multiplier}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_storage_quantity(_value), do: :error
+
+  defp storage_multiplier(""), do: 1
+  defp storage_multiplier("Ki"), do: 1024
+  defp storage_multiplier("Mi"), do: 1024 * 1024
+  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
+  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
+  defp storage_multiplier(_suffix), do: nil
+
+  @doc """
+  True iff the region sizes an instance's data volume from its account's plan
+  rather than giving every instance the region's declared claim.
+
+  The claim is fixed when the volume is created and pinned on the instance from
+  there (`Tuist.Kura.Server`), so this decides what a *new* instance is built
+  with — never what a running one is moved to.
+  """
+  def storage_governed?(%__MODULE__{provisioner_config: config}), do: config[:storage_governed] == true
+
+  def storage_governed?(_), do: false
+
+  @doc """
+  True iff the region shapes its instances' egress: it declares a guaranteed
+  floor, a burst ceiling, or both.
+
+  Only these regions read an account's egress override — everywhere else the
+  NIC is not shared with another tenant and there is nothing to arbitrate, so an
+  override would describe a limit nothing applies.
+  """
+  def egress_governed?(%__MODULE__{} = region) do
+    not is_nil(egress_guaranteed_mbps(region)) or not is_nil(egress_burst_mbps(region))
+  end
+
+  def egress_governed?(_), do: false
+
+  @doc """
+  The region's guaranteed egress floor in Mbit/s, or `nil` when it reserves
+  none.
+
+  This is the region's own number, before the account's entitlement gate and
+  before any per-account override.
+  """
+  def egress_guaranteed_mbps(%__MODULE__{provisioner_config: config}), do: config[:egress_guaranteed_mbps]
+
+  def egress_guaranteed_mbps(_), do: nil
+
+  @doc """
+  The region's burst ceiling in Mbit/s, or `nil` when it caps no tenant.
+  """
+  def egress_burst_mbps(%__MODULE__{provisioner_config: config}), do: config[:egress_burst_mbps]
+
+  def egress_burst_mbps(_), do: nil
+
+  @doc """
   True iff the region's nodes advertise a `tuist.dev/memory-ceiling-mib` budget,
   so its instances can bin-pack their memory ceilings against it.
 
@@ -402,6 +634,47 @@ defmodule Tuist.Kura.Regions do
   end
 
   def node_location(_region), do: nil
+
+  @doc """
+  Which residency group a region satisfies, derived from where its nodes are:
+  `:europe`, `:usa`, or `:other` for a region neither group admits.
+
+  `accounts.region` states where an account's artifacts may live, so this is
+  the predicate that turns that promise into a set of regions rather than a
+  single one. Two regions can satisfy the same promise — the United States
+  holds both of the American regions — and a customer who answered "United
+  States" for a security review said nothing about which coast.
+
+  Derived from `node_location/1` rather than listed, so a region added to the
+  catalog is admitted by the group its datacenter is actually in, and a region
+  that moves datacenter changes group when its location is corrected.
+  """
+  def residency_group(%__MODULE__{} = region) do
+    case node_location(region) do
+      %{country: "US"} -> :usa
+      %{country: country} when is_binary(country) -> if country in @european_countries, do: :europe, else: :other
+      _ -> :other
+    end
+  end
+
+  def residency_group(_region), do: :other
+
+  @doc """
+  Region ids whose datacenters satisfy `residency`. `:all` states no
+  constraint, so it admits every public region.
+
+  Read from the catalog rather than from what is currently served, because
+  this answers a compliance question: whether a region may hold the account's
+  data, not whether it is running today. Callers choosing where to place
+  something intersect this with `available/0`.
+  """
+  def admitted_by_residency(residency) do
+    all()
+    |> Enum.reject(&(private?(&1) or retired?(&1)))
+    |> Enum.filter(&(residency == :all or residency_group(&1) == residency))
+    |> Enum.map(& &1.id)
+    |> Enum.sort()
+  end
 
   @doc "True iff the region remains in the catalog only to clean up stored resources."
   def retired?(%__MODULE__{retired: retired}), do: retired
@@ -456,6 +729,25 @@ defmodule Tuist.Kura.Regions do
       host -> "https://#{host}:#{@peer_port}"
     end
   end
+
+  @doc """
+  The client-facing URL a managed instance for `handle` serves on in this
+  region, or `nil` for a region with no public host.
+
+  Deterministic for `(account, region)`, which is what lets a stored endpoint
+  row be attributed back to its region without carrying one.
+  """
+  def public_url(handle, %__MODULE__{provisioner_config: %{public_host_template: template, cluster_id: cluster_id}})
+      when is_binary(handle) do
+    host =
+      template
+      |> String.replace("{account_handle}", String.downcase(handle))
+      |> String.replace("{cluster_id}", cluster_id)
+
+    "https://" <> host
+  end
+
+  def public_url(_handle, _region), do: nil
 
   @doc """
   True iff this region's runner-cache nodes serve runner fleets of the
@@ -525,9 +817,11 @@ defmodule Tuist.Kura.Regions do
         # healthy box by the CAPI provider. nil on the Hetzner cloud regions
         # (their public peer plane is a per-instance LoadBalancer instead).
         failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
-        # nil for the multi-box Hetzner regions (controller default applies);
-        # bare-metal regions set 2 (a warm standby for gapless rolling deploys)
-        # + a bounded storage_size.
+        # These regions declare no claim of their own: every instance carries the
+        # one it is built at, and an instance carrying none is sized from its
+        # account's plan at render time rather than from a region-wide constant. nil replicas for the multi-box Hetzner regions
+        # (controller default applies); bare-metal regions set 2 (a warm standby
+        # for gapless rolling deploys).
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
@@ -545,8 +839,9 @@ defmodule Tuist.Kura.Regions do
         # against the node budget the CAPI provider advertises. The default,
         # bursty tenant runs best-effort under the ceiling alone. Both unset on
         # the Hetzner cloud regions (no shared-NIC contention to govern).
-        pod_annotations: managed_region_pod_annotations(spec),
+        pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         # Packing density is what constrains the shared bare-metal boxes, so
@@ -560,6 +855,14 @@ defmodule Tuist.Kura.Regions do
         # controller default and stays off the bin-pack.
         memory_governed: true,
         memory_ceiling_bin_packed: true,
+        # Same reason the memory profile is per tier: packing density is what
+        # constrains these boxes, and disk is the tighter of the two constraints
+        # because a claim is reserved whole rather than shared under a ceiling.
+        # A region left off this sizes every instance alike, which is what the
+        # private runner-cache pool wants — it holds one instance per account
+        # regardless of plan, on capacity ordered for the runner fleet rather
+        # than for the customer plane.
+        storage_governed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true
@@ -568,9 +871,14 @@ defmodule Tuist.Kura.Regions do
   end
 
   # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
-  # can't monopolize the shared box NIC. Set on the bare-metal regions (from
-  # egress_burst_mbps); empty on the Hetzner cloud regions.
-  defp managed_region_pod_annotations(spec) do
+  # can't monopolize the shared box NIC. Set on every region that declares an
+  # `egress_burst_mbps`; empty on the Hetzner cloud regions, whose NIC is not
+  # shared with another tenant.
+  #
+  # The region's own ceiling, which is the default. The provisioner substitutes
+  # the account's effective one before rendering the KuraInstance, so this single
+  # annotation carries the ceiling either way (`Tuist.Kura.EgressLimits`).
+  defp egress_bandwidth_pod_annotations(spec) do
     case Map.get(spec, :egress_burst_mbps) do
       nil -> %{}
       mbps -> %{"kubernetes.io/egress-bandwidth" => "#{mbps}M"}
@@ -608,7 +916,8 @@ defmodule Tuist.Kura.Regions do
         private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
-        pod_annotations: Map.get(spec, :pod_annotations, %{}),
+        pod_annotations: egress_bandwidth_pod_annotations(spec),
+        egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         tolerations: Map.get(spec, :tolerations, []),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         country: Map.get(spec, :country),

@@ -80,20 +80,24 @@ jobs:
           install: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
           cache: "true"
           working-directory: server
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
       - name: Install server deps
-        working-directory: server
-        run: mix deps.get
+        uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
       - name: Install cache deps
-        working-directory: cache
-        run: mix deps.get
+        uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: cache
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Setup main server
         working-directory: server
         run: |

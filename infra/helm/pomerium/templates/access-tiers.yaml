@@ -68,13 +68,14 @@ subjects:
 # Read-only extension to the `view` tier. The upstream `view` ClusterRole
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
-# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, the
-# RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects. This
-# aggregates into `view` via the label below (no extra binding; both
+# nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
+# CRs, the RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects.
+# This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
 # Secret exclusion is untouched. None of these resource kinds embed secret
-# data (CAPI/Kura/CNPG reference Secrets by name, never inline).
+# data (CAPI/Kura/CNPG and a CSI PV's `nodePublishSecretRef` all reference
+# Secrets by name, never inline).
 #
 # RBAC read (clusterroles/rolebindings) is the one deliberate widening of the
 # upstream `view` shape: it exposes the authorization graph, which `view`
@@ -92,7 +93,7 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
   - apiGroups: [""]
-    resources: ["nodes"]
+    resources: ["nodes", "persistentvolumes"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]
@@ -262,6 +263,57 @@ subjects:
     name: tuist-{{ .Values.tuistEnv }}-write
     apiGroup: rbac.authorization.k8s.io
 ---
+# Decommission capability for orphaned PersistentVolumes, the volume analog of
+# `tuist-cnpg-decommission` and bound the same way.
+#
+# Two orphan classes accumulate here and an operator has to clear both by hand.
+# A node-local (`scw-local-nvme`) PV keeps a `kubernetes.io/hostname` affinity
+# to the box that carved it, so once a fleet node is replaced the local-path
+# provisioner can never schedule its teardown helper pod and retries the delete
+# forever. An `hcloud-volumes` PV is `reclaimPolicy: Retain`, so a deleted PVC
+# leaves it Released and the block volume billing; `released-pv-reaper` sweeps
+# that class on a grace window, but nothing sweeps the first.
+#
+# Withholding this from the elevation would not remove the capability, only
+# relocate it to break-glass, so routine volume cleanup would run on incident
+# credentials. Reads live in `tuist-view-infra-read` above, so this role carries
+# the mutating verbs only.
+#
+# `update`/`patch` ride with `delete` because on a Retain PV they are one
+# operation: flipping `persistentVolumeReclaimPolicy` to Delete first is what
+# makes the CSI driver reap the backing volume, and deleting without it strands
+# the volume with nothing left pointing at it. That is the leak this grant
+# exists to clean up, not one to create.
+#
+# Not aggregated into `edit`, so PV deletion stays welded to an active
+# elevation. A Bound PV is still protected: the `pv-protection` finalizer holds
+# it until its claim is gone, so a volume in use cannot be removed by mistake.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-volume-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-volume-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-volume-decommission
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
 # Host-recovery capability for UN-WEDGING a single fleet host without the
 # break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
 # (the runner-mini SSH accept-backlog wedge) exhausts its retry budget, its
@@ -283,8 +335,9 @@ subjects:
 #   * `machines` delete only. Every machine in the workload cluster is
 #     MachineSet-owned (the control plane lives in the mgmt cluster), so a
 #     delete can only recreate a worker host, never a control-plane node.
-#     machinesets/machinedeployments are untouched — scaling or tearing down a
-#     fleet stays a break-glass action.
+#     machinesets are untouched, and machinedeployments only through the
+#     `/scale` subresource granted by `tuist-fleet-scale` below — tearing down
+#     or redefining a fleet stays a break-glass action.
 #   * machines/status update/patch — the owning CAPI Machine keeps its own
 #     terminal failureReason/failureMessage, and clearing the infra machine's
 #     status does not clear the parent's. Without this the Machine reports
@@ -346,6 +399,63 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: tuist-fleet-unwedge
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
+# Capacity capability for a fleet whose node count is too low to run the deploy
+# that would raise it. Bound directly to the write-elevation group, like
+# `tuist-fleet-unwedge` above.
+#
+# Why it is not break-glass: a fleet's replica count is set by the chart, so the
+# supported way to change it is a deploy. That deploy runs on the fleet it is
+# changing. When a Linux runner fleet is short of nodes, its own release pipeline
+# queues behind the jobs the surviving nodes are already saturated with, and the
+# release that would add nodes is the one that cannot get a runner. Capacity is
+# therefore the one fleet property whose repair path can be blocked by the thing
+# it repairs, and an elevation that is requested with a stated intent, TTL-bounded
+# and audited is a better control for it than credentials reserved for incidents.
+#
+# Why the blast radius is small: `/scale` writes `.spec.replicas` and nothing
+# else (`specReplicasPath` on the CRD). The machine template, strategy, selector
+# and every other field stay immutable, so this cannot retarget a fleet, change
+# what a node is, or delete one. Raising it adds nodes from the provider's
+# pre-ordered pool; lowering it removes nodes the same way a chart change would,
+# through the MachineDeployment's own strategy rather than around it.
+#
+# The value is still the chart's to own. A scale applied here is reverted by the
+# next release that renders a different number, which is the intended behaviour:
+# the manual scale restores service, the chart remains the source of truth, and
+# the two converge rather than one silently winning.
+#
+# Deliberately narrow: the `/scale` subresource only, on machinedeployments only.
+# `machinesets` are excluded because scaling one directly fights its owning
+# MachineDeployment, and full `update` on machinedeployments is excluded because
+# that is fleet redefinition rather than capacity.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-fleet-scale
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machinedeployments/scale"]
+    verbs: ["get", "update", "patch"]
+---
+# Per-env like the bindings above, so a prod elevation cannot scale a staging
+# fleet or vice versa.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-fleet-scale
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-fleet-scale
 subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write

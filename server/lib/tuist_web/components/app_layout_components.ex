@@ -389,6 +389,7 @@ defmodule TuistWeb.AppLayoutComponents do
           selected={String.starts_with?(@current_path, runner_jobs_path)}
         />
         <.sidebar_item
+          :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"
           navigate={runner_profiles_path}
@@ -396,7 +397,10 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
-        :if={Accounts.organization?(@selected_account)}
+        :if={
+          Accounts.organization?(@selected_account) and
+            Authorization.authorize(:organization_read, @current_user, @selected_account) == :ok
+        }
         label={dgettext("dashboard", "Members")}
         icon="users"
         navigate={~p"/#{@selected_account.name}/members"}
@@ -410,10 +414,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
       />
       <.sidebar_item
-        :if={
-          FeatureFlags.kura_enabled?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Cache")}
         icon="database"
         navigate={~p"/#{@selected_account.name}/cache"}
@@ -427,7 +428,6 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
       />
       <.sidebar_item
-        :if={FeatureFlags.kura_enabled?(@selected_account)}
         label={dgettext("dashboard", "Usage")}
         icon="chart_column"
         navigate={~p"/#{@selected_account.name}/usage"}
@@ -495,6 +495,12 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="server"
         navigate={~p"/ops"}
         selected={@current_path == "/ops"}
+      />
+      <.sidebar_item
+        label={dgettext("dashboard", "Kura")}
+        icon="cube_send"
+        navigate={~p"/ops/kura"}
+        selected={String.starts_with?(@current_path, "/ops/kura")}
       />
       <.sidebar_item
         :if={Tuist.Environment.tuist_hosted?()}

@@ -154,6 +154,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
       <img
         data-part="background"
         src={~p"/marketing/images/components/banner/background.webp"}
+        alt=""
         loading="lazy"
         decoding="async"
       />
@@ -163,15 +164,13 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           href={@primary_action_href}
           label={@primary_action_title}
           target={@primary_action_target}
-        >
-        </.button>
+        ></.button>
         <.button
           href={@secondary_action_href}
           variant="secondary"
           label={@secondary_action_title}
           target={@secondary_action_target}
-        >
-        </.button>
+        ></.button>
       </nav>
     </div>
     """
@@ -189,7 +188,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     ~H"""
     <div data-part="member">
       <div data-part="photo">
-        <img src={static_asset_path(@photo_src)} loading="lazy" decoding="async" />
+        <img src={static_asset_path(@photo_src)} alt="" loading="lazy" decoding="async" />
         <div data-part="data">
           <h3 data-part="name">
             {@name}
@@ -324,6 +323,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           <img
             data-part="avatar"
             src={static_asset_path(@avatar_src)}
+            alt=""
             loading="lazy"
             decoding="async"
           />

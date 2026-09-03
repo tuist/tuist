@@ -14,12 +14,16 @@ use moka::policy::EvictionPolicy;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+use tracing::{Instrument, field};
 
 use super::config::AuthConfig;
 use super::policy::{self, Authentication};
 use super::tuist::TuistBackend;
 use crate::auth::{Access, AccessDecision, DenyDecision, RequestContext};
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    telemetry::{record_trace_context, trace_export_active},
+};
 
 pub type SharedAuth = Arc<AuthEngine>;
 
@@ -146,6 +150,7 @@ fn settle(
     match entry.access {
         Access::Invalid => Some(Outcome::Refuse(policy::invalid_credential())),
         Access::Refused => Some(Outcome::Refuse(policy::refusal(request))),
+        Access::PaymentRequired => Some(Outcome::Refuse(policy::payment_required(request))),
         level if level >= required => entry.serves(now).then_some(Outcome::Allow),
         _ => entry
             .settles_refusals(now)
@@ -158,6 +163,9 @@ fn respond(access: Access, required: Access, request: &policy::ResolvedRequest) 
     if access == Access::Invalid {
         return Outcome::Refuse(policy::invalid_credential());
     }
+    if access == Access::PaymentRequired {
+        return Outcome::Refuse(policy::payment_required(request));
+    }
     if access >= required {
         Outcome::Allow
     } else {
@@ -169,7 +177,7 @@ fn respond(access: Access, required: Access, request: &policy::ResolvedRequest) 
 /// until the credential's own expiry or the ceiling, whichever comes first.
 fn entry_lifetime(access: Access, expiry: Option<Duration>) -> Duration {
     match access {
-        Access::Invalid | Access::Refused => REFUSAL_TTL,
+        Access::Invalid | Access::Refused | Access::PaymentRequired => REFUSAL_TTL,
         _ => expiry.map_or(CONFIRMED_TTL, |left| left.min(CONFIRMED_TTL)),
     }
 }
@@ -419,7 +427,23 @@ impl AuthEngine {
         request: &policy::ResolvedRequest,
     ) -> Authentication {
         let start = Instant::now();
-        let result = policy::authenticate(&self.backend, ctx, request).await;
+        let authenticate_span = if trace_export_active() {
+            let span = tracing::info_span!(
+                "kura.auth.authenticate",
+                kura.auth.cache = "miss",
+                kura.auth.result = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            );
+            record_trace_context(&span);
+            span
+        } else {
+            tracing::Span::none()
+        };
+        let result = policy::authenticate(&self.backend, ctx, request)
+            .instrument(authenticate_span.clone())
+            .await;
+        authenticate_span.record("kura.auth.result", result_label(&result));
         self.metrics
             .record_auth_decision("authenticate", result_label(&result), start.elapsed());
         result
@@ -607,6 +631,39 @@ mod tests {
         // level knows nothing about, so the request goes back to it.
         let held = aged(held);
         assert!(settle(Some(&held), Access::ReadWrite, &request(), Instant::now()).is_none());
+    }
+
+    // A blocked account reaches the node as absence from the grants, which is
+    // indistinguishable from never having had access. Answering 403 sends the
+    // caller after a permissions problem they do not have.
+    #[test]
+    fn an_exhausted_plan_answers_with_its_own_status() {
+        let Some(Outcome::Refuse(deny)) = settle(
+            Some(&entry(Access::PaymentRequired)),
+            Access::Read,
+            &request(),
+            Instant::now(),
+        ) else {
+            panic!("expected the plan refusal to replay");
+        };
+        assert_eq!(deny.status, 402);
+        assert!(deny.message.contains("Tuist Pro"));
+
+        // And on a fresh evaluation, not only a replayed one.
+        let Outcome::Refuse(fresh) = respond(Access::PaymentRequired, Access::Read, &request())
+        else {
+            panic!("expected a fresh plan refusal");
+        };
+        assert_eq!(fresh.status, 402);
+    }
+
+    // It grants nothing, so a write must not slip through on the ordering that
+    // places it above `Refused`.
+    #[test]
+    fn an_exhausted_plan_grants_no_action() {
+        assert!(Access::PaymentRequired < Access::Read);
+        assert!(Access::PaymentRequired < Access::ReadWrite);
+        assert!(Access::PaymentRequired > Access::Refused);
     }
 
     #[test]

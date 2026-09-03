@@ -272,7 +272,9 @@ public class CachedManifestLoader: ManifestLoading {
             return nil
         }
 
-        return try? decoder.decode(T.self, from: cachedManifest.manifest)
+        guard let manifest = try? decoder.decode(T.self, from: cachedManifest.manifest) else { return nil }
+        await fileSystem.markCacheEntryUsed(at: cachedManifestPath)
+        return manifest
     }
 
     private func cacheManifest(

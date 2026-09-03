@@ -123,7 +123,7 @@ def _swift_deps_impl(module_ctx):
 _registry_attrs = {
     "netrc": attr.label(
         allow_single_file = True,
-        doc = "A `.netrc` file. Accepted for API compatibility; SwifterPM currently uses GITHUB_TOKEN or GH_TOKEN.",
+        doc = "A `.netrc` file. Accepted for API compatibility; SwifterPM currently uses SWIFTERPM_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN.",
     ),
     "registries": attr.label(
         allow_single_file = [".json"],

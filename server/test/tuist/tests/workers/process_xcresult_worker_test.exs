@@ -193,6 +193,63 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
     end
 
+    test "reports a bundle with no test modules as passed", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      # xcodebuild finished but the selection resolved to zero tests, so the
+      # bundle carries a plan name and a duration and nothing else. The parser
+      # calls that "skipped" vacuously, from an empty test-case list; Xcode
+      # itself reports the run as passing with no issues.
+      expect_local_parse(%{
+        "test_plan_name" => "AppTests",
+        "status" => "skipped",
+        "duration" => 63_127,
+        "test_modules" => [],
+        "run_destinations" => [],
+        "errors" => []
+      })
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "success"
+        assert attrs.test_modules == []
+        assert attrs.duration == 63_127
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
+    test "keeps a runner error failing even though it carries no test modules", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      # A target whose .xctest cannot be loaded, or a runner that cannot launch, is lifted out of
+      # the test cases by the parser, so the module list is empty while the run genuinely failed.
+      expect_local_parse(%{
+        "test_plan_name" => "AppTests",
+        "status" => "failure",
+        "duration" => 12_500,
+        "test_modules" => [],
+        "run_destinations" => [],
+        "errors" => [
+          %{"target" => "AppModuleTests", "message" => "Failed to create a bundle instance."}
+        ]
+      })
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "failure"
+        assert attrs.test_modules == []
+        assert [%{"target" => "AppModuleTests"}] = attrs.run_errors
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "passes failure status through unchanged", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data_with_failure())
@@ -497,12 +554,62 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end
   end
 
+  describe "perform/1 parse timeouts" do
+    test "retries the first parse timeout", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_timeout} end)
+
+      reject(&Tuist.Tests.create_test/1)
+
+      assert {:error, :parse_timeout} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 20))
+    end
+
+    test "stops replaying the bundle once the retry also times out", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_timeout} end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:cancel, :parse_timeout} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 2, 20))
+    end
+  end
+
   describe "backoff/1" do
     test "spaces processing retries and enters finalization immediately after the fifth failure" do
       assert [30, 120, 300, 600, 1] ==
                Enum.map(1..5, fn attempt ->
                  ProcessXcresultWorker.backoff(%Oban.Job{attempt: attempt, max_attempts: 20})
                end)
+    end
+
+    test "waits out the in-flight parses before retrying a timeout" do
+      job = %Oban.Job{
+        attempt: 1,
+        max_attempts: 20,
+        errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :parse_timeout}"}]
+      }
+
+      assert 900 == ProcessXcresultWorker.backoff(job)
+    end
+
+    test "keeps the transient ladder for failures that are not parse timeouts" do
+      job = %Oban.Job{
+        attempt: 1,
+        max_attempts: 20,
+        errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :bundle_invalid}"}]
+      }
+
+      assert 30 == ProcessXcresultWorker.backoff(job)
     end
   end
 

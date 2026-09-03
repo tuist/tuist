@@ -8,7 +8,10 @@ defmodule Tuist.BundlesTest do
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
   alias Tuist.ClickHouseRepo
+  alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.VCS
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -1687,6 +1690,202 @@ defmodule Tuist.BundlesTest do
         )
 
       assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
+    end
+  end
+
+  describe "add_bundle_size_approver/2" do
+    test "stores GitHub's id for the account and its canonical username" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      expect(VCS, :get_user_by_username, fn %{username: username} ->
+        assert username == "ramonarguello"
+        {:ok, %VCS.User{id: "583231", username: "ramonarguello"}}
+      end)
+
+      # When
+      {:ok, approver} = Bundles.add_bundle_size_approver(project, "  @RamonArguello ")
+
+      # Then
+      assert approver.github_handle == "ramonarguello"
+      assert approver.github_id == "583231"
+      assert Bundles.list_bundle_size_approvers(project) == [approver]
+    end
+
+    test "rejects a username GitHub does not know" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :not_found} end)
+
+      # When / Then
+      assert {:error, :github_user_not_found} == Bundles.add_bundle_size_approver(project, "ghost")
+    end
+
+    test "reports an unreachable GitHub separately from an account that does not exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :unavailable} end)
+
+      # When / Then
+      assert {:error, :github_unavailable} == Bundles.add_bundle_size_approver(project, "octocat")
+    end
+
+    test "rejects input that cannot be a username without asking GitHub" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "not a login")
+    end
+
+    test "reports a missing VCS connection separately, since it is the project that needs fixing" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :no_vcs_connection} end)
+
+      # When / Then
+      assert {:error, :no_vcs_connection} == Bundles.add_bundle_size_approver(project, "octocat")
+    end
+
+    test "rejects the same account twice for one project, even under a new username" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "octocat", github_id: "583231")
+
+      expect(VCS, :get_user_by_username, fn _ -> {:ok, %VCS.User{id: "583231", username: "octocat-renamed"}} end)
+
+      # When
+      {:error, changeset} = Bundles.add_bundle_size_approver(project, "octocat-renamed")
+
+      # Then
+      assert Keyword.has_key?(changeset.errors, :github_handle)
+    end
+  end
+
+  describe "get_bundle_project_id/1" do
+    test "returns the project without loading the bundle's artifacts" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+
+      # When / Then
+      assert Bundles.get_bundle_project_id(bundle.id) == project.id
+    end
+
+    test "returns nil for an id that is not a UUID, rather than raising" do
+      # Given / When / Then
+      assert is_nil(Bundles.get_bundle_project_id("not-a-uuid"))
+    end
+
+    test "returns nil for a UUID with no bundle behind it" do
+      # Given / When / Then
+      assert is_nil(Bundles.get_bundle_project_id(UUIDv7.generate()))
+    end
+  end
+
+  describe "get_bundle_size_approver/2" do
+    test "does not return another project's approver" do
+      # Given
+      approver = BundlesFixtures.bundle_size_approver_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      # When / Then
+      assert {:error, :not_found} == Bundles.get_bundle_size_approver(other_project, approver.id)
+    end
+  end
+
+  describe "authorize_bundle_size_approval/2" do
+    test "allows anyone when the policy is everyone, without resolving the sender" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When / Then
+      assert :ok == Bundles.authorize_bundle_size_approval(project, %{id: "999", handle: "stranger"})
+    end
+
+    test "allows an account on the allowlist when the policy is selected" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "octocat", github_id: "999")
+
+      # When / Then
+      assert :ok == Bundles.authorize_bundle_size_approval(project, %{id: "999", handle: "octocat"})
+    end
+
+    test "denies someone who took over an allowlisted username but is a different account" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "octocat", github_id: "999")
+
+      # When / Then
+      assert {:error, :not_an_approver} ==
+               Bundles.authorize_bundle_size_approval(project, %{id: "1000", handle: "octocat"})
+    end
+
+    test "denies a sender GitHub did not identify" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+
+      # When / Then
+      assert {:error, :not_an_approver} ==
+               Bundles.authorize_bundle_size_approval(project, %{id: nil, handle: "octocat"})
+    end
+
+    test "denies a handle that is not on the allowlist when the policy is selected" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+
+      # When / Then
+      assert {:error, :not_an_approver} ==
+               Bundles.authorize_bundle_size_approval(project, %{id: "999", handle: "octocat"})
+    end
+  end
+
+  describe "record_bundle_size_approval/1" do
+    test "stores the handle and resolves the Tuist user when GitHub is linked" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      identity = AccountsFixtures.oauth2_identity_fixture(user: user, provider: :github, id_in_provider: "45")
+      bundle_id = UUIDv7.generate()
+
+      # When
+      {:ok, _} =
+        Bundles.record_bundle_size_approval(%{
+          bundle_id: bundle_id,
+          project_id: project.id,
+          sender: %{id: identity.id_in_provider, handle: "OctoCat"}
+        })
+
+      # Then
+      approval = Bundles.get_bundle_size_approval(bundle_id)
+      assert approval.approved_by_handle == "octocat"
+      assert approval.approved_by_user_id == user.id
+    end
+
+    test "stores the handle alone when the sender has no linked Tuist user" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle_id = UUIDv7.generate()
+
+      # When
+      {:ok, _} =
+        Bundles.record_bundle_size_approval(%{
+          bundle_id: bundle_id,
+          project_id: project.id,
+          sender: %{id: "unknown", handle: "octocat"}
+        })
+
+      # Then
+      approval = Bundles.get_bundle_size_approval(bundle_id)
+      assert approval.approved_by_handle == "octocat"
+      assert is_nil(approval.approved_by_user_id)
     end
   end
 end

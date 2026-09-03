@@ -119,8 +119,7 @@ defmodule Tuist.Shards do
   end
 
   def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil) do
-    upload_id = Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
-    {:ok, upload_id}
+    Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index, opts \\ []) do
@@ -160,8 +159,6 @@ defmodule Tuist.Shards do
       parts,
       account
     )
-
-    :ok
   end
 
   def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
@@ -425,12 +422,22 @@ defmodule Tuist.Shards do
   # those suites are used as given. Modules it selected nothing for are still resolved from history:
   # a selection usually covers part of a plan, and dropping the rest would hand whole modules to the
   # catch-all shard.
+  #
+  # Suites the products skip are then dropped from both. A skipped suite cannot run, so planning it
+  # gives a shard work that executes nothing, and history is where that happens silently: a suite a
+  # test plan disabled stays in the inventory until it ages out of the lookback window. Modules are
+  # matched against the pre-skip selection, so a module whose every selected suite is skipped is not
+  # resolved from history either: the products limit it to suites that no longer run, and history
+  # would answer with ones outside that limit.
   defp resolve_units(project, params, "suite") do
+    skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
     selected = Map.get(params, :test_suites) || []
     selected_modules = MapSet.new(selected, &suite_module/1)
     unselected_modules = Enum.reject(params_modules(params), &MapSet.member?(selected_modules, &1))
 
-    selected ++ latest_branch_suite_units(project, params, unselected_modules)
+    units = selected ++ latest_branch_suite_units(project, params, unselected_modules)
+
+    Enum.reject(units, &MapSet.member?(skipped, &1))
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []

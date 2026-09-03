@@ -44,6 +44,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.affinity }}
@@ -62,6 +63,12 @@ spec:
         - name: server
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.seedAccountCredentials.secretName }}
+          volumeMounts:
+            - name: seed-account-credentials
+              mountPath: /var/run/tuist/seed-account
+              readOnly: true
+          {{- end }}
           command:
             - /app/bin/tuist
             - start
@@ -121,6 +128,18 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.turnstile.enabled }}
+            - name: TUIST_TURNSTILE_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.kuraCapacityAdmission.enabled }}
+            - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.config.cacheTokenKey.signing }}
+            - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED
+              value: "1"
+            {{- end }}
             {{- if .Values.registry.enabled }}
             - name: TUIST_REGISTRY_S3_BUCKET
               valueFrom:
@@ -376,6 +395,17 @@ spec:
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
+            {{- if .Values.kuraRuntime.rollout.expediteTag }}
+            - name: TUIST_KURA_ROLLOUT_EXPEDITE_TAG
+              value: {{ .Values.kuraRuntime.rollout.expediteTag | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name }}
+            - name: TUIST_OPS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
+                  key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
+            {{- end }}
             - name: TUIST_KURA_TUIST_BASE_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
@@ -451,4 +481,11 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.seedAccountCredentials.secretName }}
+      volumes:
+        - name: seed-account-credentials
+          secret:
+            secretName: {{ . }}
+            optional: true
+      {{- end }}
 {{- end }}

@@ -24,7 +24,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     max_attempts: 20,
     unique: [
       keys: [:test_run_id, :shard_index],
-      states: [:scheduled, :available, :executing, :retryable],
+      states: :incomplete,
       period: :infinity
     ]
 
@@ -50,6 +50,28 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # bare `quarantined_tests.json` skeleton). We mark the run as
   # `failed_processing` once and cancel the job.
   @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+
+  # A parse timeout is the one failure that costs a worker slot the full
+  # NIF deadline (10 minutes) before it reports anything, so it is also the
+  # one where the default five processing attempts are actively harmful.
+  #
+  # The parse is CPU-bound and the fleet is small (one VM per Mac mini, one
+  # in-flight parse per performance core), so replaying a bundle that just
+  # blew the deadline puts the same work back on the same saturated cores.
+  # Every replay is 10 more minutes that a parse which *would* have finished
+  # does not get, which pushes borderline bundles over the deadline, which
+  # enqueues more replays: the queue collapses to near-zero goodput while
+  # every tenant's parse times out. That is exactly what the 2026-08-29
+  # incident looked like — whatnot, pinterest and vinted all timing out
+  # together, jobs still on attempt 2 four hours after the run was uploaded.
+  #
+  # One retry is kept rather than none: a bundle can cross the deadline
+  # purely because the fleet was busy when it ran, and a second pass does
+  # succeed once the queue drains. Beyond that the honest answer is that we
+  # cannot parse this bundle in the budget we have, so mark the run
+  # `failed_processing` and cancel instead of burning four more slots on it.
+  @parse_timeout_attempts 2
+  @parse_timeout_backoff_seconds 900
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
@@ -79,10 +101,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           "Cancelling xcresult for test run #{test_run_id}: uploaded archive is unprocessable (#{inspect(reason)})"
         )
 
-        case safely_mark_test_run_failed(args) do
-          :ok -> {:cancel, reason}
-          {:error, mark_reason} -> {:error, mark_reason}
-        end
+        cancel_as_failed(args, reason)
+
+      {:error, :parse_timeout = reason} when attempt >= @parse_timeout_attempts ->
+        Logger.error(
+          "Cancelling xcresult for test run #{test_run_id}: parsing exceeded its timeout on #{attempt} attempts"
+        )
+
+        cancel_as_failed(args, reason)
 
       {:error, reason} ->
         handle_processing_error(args, attempt, reason)
@@ -90,11 +116,39 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   @impl Oban.Worker
-  def backoff(%Oban.Job{attempt: attempt}) when attempt > 0 and attempt <= tuple_size(@processing_backoff_seconds) do
+  def backoff(%Oban.Job{errors: errors} = job) do
+    if parse_timeout?(errors) do
+      @parse_timeout_backoff_seconds
+    else
+      processing_backoff(job)
+    end
+  end
+
+  defp processing_backoff(%Oban.Job{attempt: attempt})
+       when attempt > 0 and attempt <= tuple_size(@processing_backoff_seconds) do
     elem(@processing_backoff_seconds, attempt - 1)
   end
 
-  def backoff(job), do: Oban.Worker.backoff(job)
+  defp processing_backoff(job), do: Oban.Worker.backoff(job)
+
+  # The transient-error ladder above starts at 30 seconds, which is the wrong
+  # shape for the one retry a parse timeout gets: the job has already spent
+  # the full deadline on a busy fleet, and coming back half a minute later
+  # re-runs the same work against the same busy cores. Wait out the in-flight
+  # parses it would otherwise compete with instead.
+  #
+  # Oban only exposes the previous failures as formatted strings, so this
+  # sniffs the reason out of the last one. A change in Oban's formatting
+  # costs us the longer wait and falls back to the ladder, which is what this
+  # path does today, so the retry cap never depends on the match.
+  defp parse_timeout?(errors) when is_list(errors) do
+    case List.last(errors) do
+      %{"error" => error} when is_binary(error) -> String.contains?(error, "parse_timeout")
+      _ -> false
+    end
+  end
+
+  defp parse_timeout?(_errors), do: false
 
   defp complete_processing(args) do
     # The run just finished on this (isolated, non-clustered) processor
@@ -120,6 +174,18 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp handle_processing_error(_args, _attempt, reason), do: {:error, reason}
+
+  # Record the run as `failed_processing` and stop replaying the job. Cancel
+  # rather than error so the failure doesn't keep consuming attempts (and
+  # Sentry events) for something a replay cannot change; if marking the run
+  # fails we still return an error so the job retries and the run doesn't
+  # get stranded mid-processing.
+  defp cancel_as_failed(args, reason) do
+    case safely_mark_test_run_failed(args) do
+      :ok -> {:cancel, reason}
+      {:error, mark_reason} -> {:error, mark_reason}
+    end
+  end
 
   defp finalize_failed_processing(args) do
     with :ok <- safely_mark_test_run_failed(args),
@@ -235,12 +301,20 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  # A parse that extracted no test modules found nothing usable in the bundle
-  # (an aborted or empty xcresult). The Swift parser reports that as "skipped"
-  # — vacuously, from an empty test-case list — which reads on the dashboard as
-  # a real skip rather than "we couldn't parse this". Surface it as
-  # failed_processing so it isn't mistaken for a passing or skipped run.
-  defp run_status(_parsed_data, []), do: "failed_processing"
+  # A runner error empties the module list without the run having passed: a target
+  # whose `.xctest` cannot be loaded, or a UI-test runner that cannot launch, is
+  # lifted out of the test cases by the parser, so it arrives with no modules and
+  # `status: "failure"`. That verdict is the parser's, and it stands. Keyed on the
+  # status rather than on `errors` being non-empty, because `errors` also carries
+  # unattributed issues, which deliberately leave the status alone.
+  defp run_status(%{"status" => "failure"}, []), do: "failure"
+
+  # Otherwise no test modules means xcodebuild finished without running anything:
+  # the selection resolved to zero tests. Xcode reports that as a passing run with
+  # `totalTestCount: 0` and no issues, so this mirrors it. The Swift parser's own
+  # status would be "skipped", derived vacuously from an empty test-case list,
+  # which reads as a deliberate skip instead.
+  defp run_status(_parsed_data, []), do: "success"
   defp run_status(parsed_data, _test_modules), do: parsed_data["status"] || "success"
 
   # The xcresult `platform` field uses display strings ("iOS Simulator",

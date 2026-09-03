@@ -3,6 +3,7 @@ defmodule Tuist.MCP.AuthorizationTest do
   use Mimic
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.MCP.Authorization, as: MCPAuthorization
   alias Tuist.MCP.Components.Tools.GetTestRun
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Tests
@@ -155,6 +156,37 @@ defmodule Tuist.MCP.AuthorizationTest do
         })
 
       assert %{"isError" => true} = result
+    end
+  end
+
+  describe "runner reads" do
+    test "accepts the runner scope and the coding-agent scope for the token's own account", %{project: project} do
+      for scopes <- [["account:runners:read"], ["mcp"]] do
+        subject = %AuthenticatedAccount{account: project.account, scopes: scopes}
+
+        assert MCPAuthorization.authorize_request(%{current_subject: subject}, :read, project.account, :runners)
+      end
+    end
+
+    test "refuses an account token without runner read scope", %{project: project} do
+      subject = %AuthenticatedAccount{account: project.account, scopes: ["project:admin:read"]}
+
+      refute MCPAuthorization.authorize_request(%{current_subject: subject}, :read, project.account, :runners)
+    end
+
+    test "refuses an account token with runner read scope for a different private account", %{project: project} do
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      subject = %AuthenticatedAccount{account: project.account, scopes: ["account:runners:read"]}
+
+      refute MCPAuthorization.authorize_request(%{current_subject: subject}, :read, other_account, :runners)
+    end
+
+    test "allows an authenticated caller to read a public account's runner state", %{project: project} do
+      {:ok, public_account} = Tuist.Accounts.update_account_visibility(project.account, :public)
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      subject = %AuthenticatedAccount{account: other_account, scopes: []}
+
+      assert MCPAuthorization.authorize_request(%{current_subject: subject}, :read, public_account, :runners)
     end
   end
 end

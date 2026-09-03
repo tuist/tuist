@@ -12,7 +12,7 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode lives in the base —
 # the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 # ships in full Xcode (not the Command Line Tools). This build just
@@ -57,41 +57,59 @@ jobs:
           install_args: "erlang elixir"
           working_directory: server
 
+      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
+      # workspace, which deletes `server/deps`, `server/_build` and both NIF
+      # `.build` directories, so every run compiled the two Swift NIFs and the
+      # whole Elixir dependency tree cold. Pointing the caches outside the
+      # workspace puts them out of the clean's reach.
+      #
+      # Keyed by runner name because a runner process runs one job at a time:
+      # two jobs landing on the same host (this one and the release job in
+      # `server-production-deployment.yml`) can then never share a cache and
+      # cannot race on the release directory.
+      - name: Point build caches outside the workspace
+        run: |
+          set -euo pipefail
+          cache_root="${HOME}/.cache/tuist-ci/server-macos-release/${RUNNER_NAME// /_}"
+          mkdir -p "${cache_root}/nif"
+          {
+            echo "MIX_BUILD_ROOT=${cache_root}/mix-build"
+            echo "MIX_DEPS_PATH=${cache_root}/mix-deps"
+            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
+          } >> "$GITHUB_ENV"
+
       # 1. Build the macOS Erlang release. Includes both the xcresult NIF
-      # (used by xcresult-processor mode) and the xcactivitylog NIF
-      # (used by build-processor mode). Both are macOS-only and both
-      # have `@on_load` that crashes the BEAM at boot if the .so is
-      # missing in a prod build — the xcresult-processor mode doesn't
-      # *call* xcactivitylog_nif but the Module still gets loaded
-      # eagerly, so the .so has to be present either way.
+      # (used by xcresult-processor mode) and the xcactivitylog parser
+      # executable (used by build-processor mode). The xcresult NIF is
+      # macOS-only and has an `@on_load` that crashes the BEAM at boot if
+      # the .so is missing in a prod build. The xcactivitylog parser is a
+      # plain executable that is only spawned on demand, so this mode never
+      # touches it, but it is built here so one release artifact covers
+      # both roles.
       - name: Build server release for macOS
         id: release
         working-directory: server
         run: |
           set -euo pipefail
+          RELEASE_DIR="${MIX_BUILD_ROOT}/prod/rel/tuist"
           MIX_ENV=prod mix deps.get --only prod
           # `mix release` doesn't invoke the per-NIF build.sh scripts;
           # run them explicitly so the .so / .dylib land in priv/native
           # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
           ./native/xcactivitylog_nif/build.sh
-          # The bare-metal Mac mini reuses a single $TUIST_MIX_BUILD_ROOT
-          # across runs, which is mostly fine — except mix's mtime-based
-          # incremental compile occasionally keeps a stale .beam after a
-          # rebase. `--force` recompiles every .ex regardless; the BEAM
-          # build is fast enough (~30s) that the safety is worth more
-          # than the saved time.
+          # The build root persists across runs. That is mostly fine, except
+          # that mix's mtime-based incremental compile occasionally keeps a
+          # stale .beam after a rebase. `--force` recompiles every .ex
+          # regardless; the BEAM build is fast enough (~30s) that the safety
+          # is worth more than the saved time.
           MIX_ENV=prod mix compile --force --warnings-as-errors
+          # `mix release --overwrite` writes over the release directory
+          # without emptying it first, so a file dropped since the previous
+          # release would survive in a persistent build root and get baked
+          # into the image.
+          rm -rf "$RELEASE_DIR"
           MIX_ENV=prod mix release tuist --overwrite
-          # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
-          # runner to share the BEAM build cache across jobs). When it's
-          # set, the release lands at $TUIST_MIX_BUILD_ROOT/server/prod/
-          # rel/tuist; when unset, plain ./_build/prod/rel/tuist.
-          if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
-            RELEASE_DIR="${TUIST_MIX_BUILD_ROOT}/server/prod/rel/tuist"
-          else
-            RELEASE_DIR="$(pwd)/_build/prod/rel/tuist"
-          fi
           echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Package release tarball
@@ -104,12 +122,10 @@ jobs:
       # macos-tahoe-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
       # reads as well as writes.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
@@ -122,10 +138,9 @@ jobs:
         working-directory: infra/xcresult-processor-image
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
-          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
@@ -139,16 +154,25 @@ jobs:
           set -euo pipefail
           echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
 
-      - name: Push image to the Tuist OCI registry
+      - name: Push image to GHCR
         timeout-minutes: 90
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         # The production workflow owns semantic-version and latest tags.
         # This on-demand workflow publishes only its commit tag.
+        #
+        # `concurrency` matches the release job's override of the action's
+        # default of 4: this image pushes alone rather than as one leg of the
+        # runner-image matrix, so it has the whole rate-limit budget to
+        # itself. Keeping the two in step means a dispatch run measures what
+        # the release path will do.
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
-          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}
-          chunk-size: "64"
-          concurrency: "4"
+          concurrency: "8"
+          remote-names: ghcr.io/tuist/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}
 
       - name: Cleanup
         if: always()

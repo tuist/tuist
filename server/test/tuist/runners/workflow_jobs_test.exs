@@ -380,6 +380,50 @@ defmodule Tuist.Runners.WorkflowJobsTest do
                other_account.id => 1
              }
     end
+
+    test "queue_stats_by_fleet groups every fleet with its depth and oldest arrival" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_110, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_111))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_112, fleet: "fleet-b"))
+      # Left the queue, so it counts for neither fleet.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_113))
+      :ok = WorkflowJobs.transition_claimed(910_113, "pod-1", now)
+      # Older than the floor — unreachable to dispatch, so invisible here too.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_114, enqueued_at: DateTime.add(now, -8 * 86_400, :second)))
+
+      stats = WorkflowJobs.queue_stats_by_fleet(floor)
+
+      assert %{"fleet-a" => %{count: 2, oldest_enqueued_at: reported}, "fleet-b" => %{count: 1}} = stats
+      assert DateTime.compare(reported, oldest) == :eq
+      refute Map.has_key?(stats, "fleet-c")
+    end
+
+    # The dispatchable-age gauge needs to know which account each queued
+    # job belongs to, because headroom is per account. Carrying it on the
+    # same scan keeps depth, age and dispatchable age describing one queue.
+    test "queue_stats_by_fleet carries each account's oldest arrival per fleet" do
+      account = account_fixture()
+      other_account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+      newer = DateTime.add(now, -600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_210, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_211, enqueued_at: newer))
+      :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_212, enqueued_at: newer))
+
+      stats = WorkflowJobs.queue_stats_by_fleet(floor)
+
+      assert %{"fleet-a" => %{count: 3, by_account: by_account}} = stats
+      assert DateTime.compare(Map.fetch!(by_account, account.id), oldest) == :eq
+      assert DateTime.compare(Map.fetch!(by_account, other_account.id), newer) == :eq
+    end
   end
 
   describe "transition outbox" do
@@ -469,6 +513,55 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert %{workflow_job_id: 910_130, repository: "acme/cli", pod_name: "pod-1", started_at: %DateTime{}} = candidate
       assert DateTime.compare(candidate.claimed_at, claimed_at) == :eq
       assert candidate.account_id == account.id
+    end
+
+    test "list_running_for_pod/1 returns the pod's running rows regardless of whether a claim survives" do
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_150))
+      :ok = WorkflowJobs.transition_claimed(910_150, "pod-stopped", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_150, "runner-x", claimed_at)
+
+      # Another Pod's running row, and a row this Pod only got as far as
+      # claiming — neither is recoverable on this Pod stopping.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_151))
+      :ok = WorkflowJobs.transition_claimed(910_151, "pod-other", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_151, "runner-y", claimed_at)
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_152))
+      :ok = WorkflowJobs.transition_claimed(910_152, "pod-stopped", claimed_at)
+
+      assert [candidate] = WorkflowJobs.list_running_for_pod("pod-stopped")
+      assert %{workflow_job_id: 910_150, repository: "acme/cli", pod_name: "pod-stopped"} = candidate
+      assert DateTime.compare(candidate.claimed_at, claimed_at) == :eq
+
+      assert WorkflowJobs.list_running_for_pod("pod-never-existed") == []
+      assert WorkflowJobs.list_running_for_pod("") == []
+    end
+
+    test "list_running_since/1 returns the running rows the staleness floor excludes" do
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_160))
+      :ok = WorkflowJobs.transition_claimed(910_160, "pod-young", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_160, "runner-x", claimed_at)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_161))
+      :ok = WorkflowJobs.transition_claimed(910_161, "pod-old", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_161, "runner-y", claimed_at)
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^910_161),
+        set: [started_at: DateTime.add(claimed_at, -600, :second)]
+      )
+
+      threshold = DateTime.add(DateTime.utc_now(), -300, :second)
+
+      # Exactly the complement of `list_orphaned_running/1`: between them
+      # every `running` row is considered by one arm or the other.
+      assert [%{workflow_job_id: 910_160, pod_name: "pod-young"}] = WorkflowJobs.list_running_since(threshold)
+      assert [%{workflow_job_id: 910_161}] = WorkflowJobs.list_orphaned_running(threshold)
     end
 
     test "list_stale_queued/2 returns queued rows inside the enqueued_at window with the worker shape" do

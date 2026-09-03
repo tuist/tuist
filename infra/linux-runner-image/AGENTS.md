@@ -52,7 +52,13 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   warm-standby Pods don't post — then samples VM-wide `/proc` plus the
   JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
   (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
-  never affects the job.
+  never affects the job. Format byte counters with awk's `%.0f` and
+  compute counter deltas in bash: `awk` here is mawk, whose
+  `printf "%d"` saturates at INT_MAX and whose bare `print` renders
+  integers above 2^31 in `%.6g` scientific notation. Read `MemTotal`
+  and `MemAvailable` in the same pass — kata hot-plugs the sandbox up
+  to the shape's memory after boot, so a total cached at sidecar
+  start goes stale mid-job. `metrics-sampler_test.sh` covers both.
 - `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
   Built from the Go source in `cmd/runner-shell-agent/`. The trusted
   `shell` native sidecar waits for the poller to stage a JIT (claimed
@@ -141,6 +147,14 @@ injected by the controller, with the socket mounted from a
 shared emptyDir. See `infra/runners-controller/AGENTS.md` for
 the sidecar Pod shape + lifecycle.
 
+`/home/runner/actions-runner/externals/` (the node runtimes the
+actions-runner tarball ships) is copied out of this image into a
+volume the sidecar mounts at the same path, because the runner
+bind-mounts it into `container:` job containers as `/__e` and
+dockerd resolves that path on its own side. Moving the runner
+root, or trimming externals from the image, breaks job containers
+— see "Why stage externals" in the controller doc.
+
 ## Build
 
 ```bash
@@ -170,6 +184,11 @@ rebuilds for branch validation go through
 without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
 (`:latest` and semver tags belong exclusively to the release
 flow).
+
+`pull_request` also syntax-checks every shell script and runs
+`metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
+base, so the sampler's byte formatting is exercised against mawk
+rather than whichever awk the CI runner happens to ship.
 
 ## How it ends up serving traffic
 

@@ -114,7 +114,10 @@ enum ManifestLoader {
         }
         args.append("dump-package")
         let result = try await SystemProcess.run(
-            "/usr/bin/swift", args, workingDirectory: packageDir
+            "/usr/bin/swift",
+            args,
+            workingDirectory: packageDir,
+            customEnvironment: Environment.manifestValues
         )
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)
@@ -224,6 +227,17 @@ enum ManifestFileSystemDependencyGraph {
                 parentPackageDir: item.parentPackageDir,
                 dependency: item.dependency
             )
+            // Resolving symlinks identifies the package, so two declared paths reaching the
+            // same directory are visited once and a cycle through a link terminates. It must
+            // not choose where the dump runs: SwiftPM loads a local dependency at the path the
+            // manifest declared, and reports it that way in `dump-package` output and in
+            // `workspace-state.json`, so dumping the resolved directory instead makes
+            // swifterpm disagree with SwiftPM about where a package lives. A declared path
+            // that is a symlink then dumps whatever its target resolves to, which is a package
+            // nobody declared when the link leaves the package's own directory: the dump either
+            // fails against a directory the manifest never named, or succeeds against the wrong
+            // manifest. `chdir` follows the link on its own, so the declared path reaches the
+            // same package without the substitution.
             let canonicalPath = PathCanonicalizer.realpath(packagePath)
             guard seenPackagePaths.insert(canonicalPath.path).inserted else {
                 continue
@@ -232,7 +246,7 @@ enum ManifestFileSystemDependencyGraph {
             let manifest: Any
             do {
                 manifest = try await ManifestLoader.dumpPackage(
-                    packageDir: canonicalPath,
+                    packageDir: packagePath,
                     disableSandbox: disableSandbox
                 )
             } catch {
@@ -248,10 +262,14 @@ enum ManifestFileSystemDependencyGraph {
             result.append(
                 ManifestFileSystemPackage(
                     dependency: item.dependency,
-                    packagePath: canonicalPath,
+                    packagePath: packagePath,
                     manifest: manifest
                 )
             )
+            // A child's own path is resolved against the parent's real directory, not its
+            // declared one: `packagePathForFileSystemDependency` folds `..` textually, which
+            // only matches the directory `chdir` would reach when no link was crossed on the
+            // way in. SwiftPM emits these paths absolute, so this is the defensive branch.
             for child in try ManifestParser.fileSystemDependencies(manifest) {
                 queue.append((parentPackageDir: canonicalPath, dependency: child))
             }
@@ -260,10 +278,11 @@ enum ManifestFileSystemDependencyGraph {
         return result
     }
 
-    /// The failure above names the directory the dump was attempted in, which is the declared
-    /// path only when nothing along the way is a symlink. When the two differ, that sentence
-    /// names a directory nobody declared and reads like a typo, while the redirect is the whole
-    /// diagnosis: a local dependency whose path lands somewhere other than the package.
+    /// The failure above names the declared path, because that is where the dump ran. When a
+    /// link on the way in sends that path somewhere else, the directory it lands in is the
+    /// whole diagnosis and nothing else in the message carries it: a manifest missing from the
+    /// declared path reads as a package that was never generated until you can see that the
+    /// path resolves out of the package's own directory.
     private static func redirect(declared: String, canonical: URL) -> String {
         canonical.path == declared ? "" : ", which resolves to \(canonical.path),"
     }

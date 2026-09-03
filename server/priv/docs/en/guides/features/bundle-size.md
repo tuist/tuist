@@ -77,7 +77,21 @@ The per-device rows in App Store Connect are smaller again, because app thinning
 
 ## Continuous integration {#continuous-integration}
 
-To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>:
+To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+
+Tuist also needs to know which project to report the bundle to. If you have not connected the project yet, run `tuist init`, or declare the handle yourself:
+
+::: code-group
+```swift [Tuist.swift]
+let tuist = Tuist(fullHandle: "my-account/my-project")
+```
+```toml [tuist.toml]
+project = "my-account/my-project"
+```
+<!-- -->
+:::
+
+Use <.localized_link href="/references/tuist-toml">`tuist.toml`</.localized_link> for projects without a Swift manifest, such as Gradle projects. When both files are present, `Tuist.swift` takes precedence.
 
 An example workflow for GitHub Actions could then look like this:
 
@@ -146,3 +160,12 @@ The check run shows the baseline size, current size, and percentage change. If t
 To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)
+
+### Restricting who can accept {#size-thresholds-approvals}
+
+By default anyone with write access to the repository can accept a size increase, because that is who GitHub shows the button to. To narrow it, set **Who can accept** under **Settings > Bundles**:
+
+- **Anyone**: the default. Anyone with write access to the repository.
+- **Selected GitHub users**: only the GitHub usernames you add.
+
+Someone not on the list leaves the check failing with an explanation, and the button stays for whoever can use it.

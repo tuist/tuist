@@ -382,9 +382,15 @@ defmodule Tuist.Runners.InteractiveSessions do
     close(session, reason, now())
   end
 
-  def close_for_job(account_id, workflow_job_id, kind, reason \\ "user")
+  @doc """
+  Closes the job's open session on behalf of the user who currently holds
+  it. `requested_by_user_id` tracks the latest requester (see
+  `refresh_token/2`), so scoping the lookup to it means a stale or forged
+  client cannot end a session another user is working in.
+  """
+  def close_for_job(account_id, workflow_job_id, kind, %User{id: user_id}, reason \\ "user")
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
-    case current_for_job(account_id, workflow_job_id, kind) do
+    case current_for_job_and_user(account_id, workflow_job_id, kind, user_id) do
       nil ->
         {:ok, :no_open_session}
 
@@ -393,6 +399,19 @@ defmodule Tuist.Runners.InteractiveSessions do
           close(session, reason)
         end
     end
+  end
+
+  defp current_for_job_and_user(account_id, workflow_job_id, kind, user_id) do
+    InteractiveSession
+    |> where(
+      [session],
+      session.account_id == ^account_id and session.workflow_job_id == ^workflow_job_id and
+        session.kind == ^kind and session.requested_by_user_id == ^user_id and
+        is_nil(session.closed_at)
+    )
+    |> order_by([session], desc: session.inserted_at)
+    |> limit(1)
+    |> Repo.one()
   end
 
   def close_by_pod_name(pod_name, %DateTime{} = closed_at, reason \\ "pod_exit")
@@ -863,6 +882,14 @@ defmodule Tuist.Runners.InteractiveSessions do
   end
 
   defp where_session_belongs_to_pod_or_binding(query, pod_name, nil) do
+    where(query, [session], session.pod_name == ^pod_name)
+  end
+
+  # A claim is keyed by Pod and outlives the job it was minted for, so its
+  # `workflow_job_id` is NULL between a displaced job being detached and the
+  # next one binding. The Pod still holds the session, so it matches on
+  # `pod_name` alone. An `== nil` comparison raises instead.
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, %{workflow_job_id: nil}) do
     where(query, [session], session.pod_name == ^pod_name)
   end
 

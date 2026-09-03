@@ -168,15 +168,14 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 
 {{/*
-S3 storage driver env for a CNCF `distribution` registry, shared by the
-Docker Hub pull-through cache (registryCache) and the VM image registry
-(ociRegistry). Both speak to the same object store and differ only in
-bucket + prefix, so the credential branching lives here rather than being
-duplicated per component.
+S3 storage driver env for a CNCF `distribution` registry. Used by the
+Docker Hub pull-through cache (registryCache). Kept as a helper rather
+than inlined because the credential branching is fiddly and a second
+registry component would need exactly the same env.
 
 Call with the component's `s3` values:
 
-  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.ociRegistry.s3) | nindent 12 }}
+  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.registryCache.s3) | nindent 12 }}
 */}}
 {{- define "tuist.registryStorageEnv" -}}
 {{- $root := .root -}}
@@ -472,26 +471,41 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 Kura OAuth introspection client env vars. The values are sourced from
 one of:
 
-  1. The kura-shared-secrets Secret in this release's namespace when this
+  1. An explicitly named Secret in this release's namespace when
+     server.kuraIntrospection.secretName is set.
+
+  2. The kura-shared-secrets Secret in this release's namespace when this
      release installs the kuraController (managed envs: one release runs
      both server and controller in their respective namespaces, the
      chart mirrors the Secret into the server namespace).
 
-  2. The kura-shared-secrets Secret in this release's namespace when
+  3. The kura-shared-secrets Secret in this release's namespace when
      server.kuraIntrospection.useSharedSecret is true (preview envs:
      the kuraController is installed once at platform level into the
      `kura` namespace, and the deploy workflow copies the Secret into
      this release's namespace before installing the chart).
 
-  3. The server-external-secrets ESO Secret when
+  4. The server-external-secrets ESO Secret when
      server.externalSecrets.kuraIntrospection.item is set.
 
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $kuraSharedSecret := "kura-shared-secrets" -}}
+{{- $explicitSecret := .Values.server.kuraIntrospection.secretName | default "" -}}
 {{- $useShared := or (and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled) .Values.server.kuraIntrospection.useSharedSecret -}}
-{{- if $useShared }}
+{{- if ne $explicitSecret "" }}
+- name: KURA_CONTROL_PLANE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $explicitSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_ID
+- name: KURA_CONTROL_PLANE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $explicitSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_SECRET
+{{- else if $useShared }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:
@@ -529,8 +543,10 @@ License env vars. Resolves to one mutually exclusive source:
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
 {{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
+{{- $useEsoVerifyKey := ne (.Values.server.externalSecrets.license.verifyKeyItem | default "") "" -}}
 {{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
 {{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
+{{- $useInlineVerifyKey := ne (.Values.server.license.verifyKey | default "") "" -}}
 {{- if and $useEsoKey $useEsoCertificate -}}
 {{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
@@ -556,6 +572,13 @@ License env vars. Resolves to one mutually exclusive source:
     secretKeyRef:
       name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
+{{- end }}
+{{- if or $useEsoVerifyKey $useInlineVerifyKey }}
+- name: TUIST_LICENSE_VERIFY_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ ternary $esoSecret $appSecret $useEsoVerifyKey | quote }}
+      key: server-license-verify-key
 {{- end }}
 {{- end -}}
 

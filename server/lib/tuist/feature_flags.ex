@@ -25,18 +25,20 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether the Kura surface (the per-account Kura servers, the
-  self-hosted cache management, and the Usage dashboard) should be
-  visible for the given account. Self-hosted deployments (including
-  dev/test, which are also not `tuist_hosted?`) always see it, mirroring
-  `Tuist.Billing.Entitlements` where the deployment's license is the
-  entitlement; the hosted server gates it behind the `:kura` FunWithFlags
-  toggle for the actor. Callers should use this rather than checking the
-  flag inline so the sidebar entry, the LiveView guards, and the settings
-  page all answer the same question.
+  Whether Kura runtime-image rollouts run through the rollout
+  orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
+  account-grouped waves with the health gate in production, expedited
+  fan-out in the other environments, and the operator verbs.
+
+  On by default in every environment — the machinery soaked on staging
+  (spec #79's drills) before the default flipped. The flag is a
+  kill-switch, not an opt-in: enabling `kura_rollout_orchestration_kill_switch`
+  (via /ops/flags, no deploy) falls back to the interim-paced scheduler
+  (`Tuist.Kura.schedule_runtime_image_deployments/0`), which stays the
+  no-deploy rollback path.
   """
-  def kura_enabled?(account) do
-    not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
+  def kura_rollout_orchestration_enabled? do
+    not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

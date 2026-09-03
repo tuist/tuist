@@ -10,6 +10,7 @@ defmodule TuistWeb.DocsLive do
   alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.StructuredMarkup
 
   @overview_headings [
     %{id: "what-do-you-want-to-do", text: "What do you want to do?", level: 2},
@@ -45,18 +46,26 @@ defmodule TuistWeb.DocsLive do
 
   defp handle_overview(socket) do
     videos = fetch_latest_videos()
+    locale = socket.assigns.locale
+    root_path = Paths.root_path(locale)
+    description = "Build, test, and run Xcode and Gradle projects faster with Tuist's shared build infrastructure."
 
     {:noreply,
      socket
      |> assign(:view, :overview)
      |> assign(:videos, videos)
-     |> assign(:markdown, overview_markdown(socket.assigns.locale, videos))
+     |> assign(:markdown, overview_markdown(locale, videos))
      |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
-     |> assign(
-       :head_description,
-       "Build, test, and run Xcode and Gradle projects faster with Tuist's shared build infrastructure."
-     )}
+     |> assign(:head_description, description)
+     |> assign(:head_markdown_path, Paths.markdown_root_path(locale))
+     |> StructuredMarkup.put_structured_data([
+       StructuredMarkup.get_documentation_structured_data("Docs", description, root_path),
+       StructuredMarkup.get_breadcrumbs_structured_data([
+         {"Tuist", Tuist.Environment.app_url(path: "/")},
+         {"Docs", Tuist.Environment.app_url(path: root_path)}
+       ])
+     ])}
   end
 
   defp handle_show(params, socket) do
@@ -85,6 +94,14 @@ defmodule TuistWeb.DocsLive do
             Tuist.Environment.app_url(path: og_image_path)
           end
 
+        # Every URL below is derived from the requested slug, never from
+        # `page.slug`. `Docs.get_page/1` falls back to the English page when a
+        # locale has no translation, so `page.slug` would point the markup at
+        # `/en/...` while the canonical link still says `/es/...`, leaving the
+        # page claiming two identities.
+        public_path = Paths.public_path_from_slug(path)
+        locale = socket.assigns.locale
+
         {:noreply,
          socket
          |> assign(:view, :show)
@@ -95,8 +112,24 @@ defmodule TuistWeb.DocsLive do
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)
          |> assign(:head_image, head_image)
-         |> assign(:head_twitter_card, "summary_large_image")}
+         |> assign(:head_twitter_card, "summary_large_image")
+         |> assign(:head_markdown_path, Paths.markdown_path_from_slug(path))
+         |> StructuredMarkup.put_structured_data([
+           StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),
+           StructuredMarkup.get_breadcrumbs_structured_data(docs_breadcrumbs(page.title, locale, public_path))
+         ])}
     end
+  end
+
+  # Breadcrumbs give search engines and assistants the page's place in the docs
+  # tree, which a flat URL alone does not convey. Sidebar categories are omitted
+  # because they have no page of their own to point at.
+  defp docs_breadcrumbs(title, locale, public_path) do
+    [
+      {"Tuist", Tuist.Environment.app_url(path: "/")},
+      {"Docs", Tuist.Environment.app_url(path: Paths.root_path(locale))},
+      {title, Tuist.Environment.app_url(path: public_path)}
+    ]
   end
 
   def render(%{view: :overview} = assigns) do
@@ -520,6 +553,18 @@ defmodule TuistWeb.DocsLive do
               <span>LinkedIn</span>
             </div>
             <p>{dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")}</p>
+          </a>
+          <a
+            href="https://x.com/tuistdev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="community-card"
+          >
+            <div data-part="community-card-header">
+              <.brand_x />
+              <span>X</span>
+            </div>
+            <p>{dgettext("docs", "Follow us on X to stay up to date with our work.")}</p>
           </a>
         </section>
       </div>

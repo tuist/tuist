@@ -343,7 +343,14 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
-      when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
+      when event in [
+             "search-tasks",
+             "search-cacheable-tasks",
+             "search-configuration-operations",
+             "search-artifact-transforms",
+             "add_filter",
+             "update_filter"
+           ] and is_struct(project) do
     if Project.gradle_project?(project) do
       TuistWeb.GradleBuildLive.handle_event(event, params, socket)
     else

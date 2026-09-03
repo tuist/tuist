@@ -1325,12 +1325,15 @@ func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
 		t.Fatalf("first pool requeue = %s, want %s while gap remains", result.RequeueAfter, provisioningRequeueAfter)
 	}
 
+	// The sibling has a gap and nothing provisioning, so the first pool's
+	// share of the ceiling is 3 of 4: one slot is left for the sibling rather
+	// than the first pool to reconcile taking the whole budget.
 	var pods corev1.PodList
 	if err := c.List(context.Background(), &pods); err != nil {
 		t.Fatalf("list first pool pods: %v", err)
 	}
-	if len(pods.Items) != 4 {
-		t.Fatalf("first reconcile created %d Pods, want shared cap 4", len(pods.Items))
+	if len(pods.Items) != 3 {
+		t.Fatalf("first reconcile created %d Pods, want its share of 3 under the shared cap 4", len(pods.Items))
 	}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolB.Namespace, poolB.Name)}); err != nil {
@@ -1341,15 +1344,24 @@ func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
 		t.Fatalf("list sibling pool pods: %v", err)
 	}
 	if len(pods.Items) != 4 {
-		t.Fatalf("sibling reconcile exceeded shared cap: got %d Pods, want 4", len(pods.Items))
+		t.Fatalf("sibling reconcile should take the reserved slot up to the shared cap: got %d Pods, want 4", len(pods.Items))
+	}
+	siblingPods := 0
+	for i := range pods.Items {
+		if pods.Items[i].Labels["tuist.dev/runner-pool"] == poolB.Name {
+			siblingPods++
+		}
+	}
+	if siblingPods != 1 {
+		t.Fatalf("sibling created %d Pods, want exactly the 1 slot reserved for it", siblingPods)
 	}
 
 	gotPool := &tuistv1.RunnerPool{}
 	if err := c.Get(context.Background(), nn(poolA.Namespace, poolA.Name), gotPool); err != nil {
 		t.Fatalf("get first pool: %v", err)
 	}
-	if gotPool.Status.ObservedReplicas != 4 {
-		t.Fatalf("ObservedReplicas = %d, want only the 4 Pods actually created", gotPool.Status.ObservedReplicas)
+	if gotPool.Status.ObservedReplicas != 3 {
+		t.Fatalf("ObservedReplicas = %d, want only the 3 Pods actually created", gotPool.Status.ObservedReplicas)
 	}
 }
 
@@ -1630,5 +1642,104 @@ func TestReapRunner_NoSessionsClientStillReaps(t *testing.T) {
 	remaining := &corev1.Pod{}
 	if err := c.Get(context.Background(), nn("tuist-runners", "tuist-pod-unwired"), remaining); !apierrors.IsNotFound(err) {
 		t.Errorf("Pod still present after reap: err = %v", err)
+	}
+}
+
+// The heartbeat is the only thing that separates a warm macOS runner from
+// one whose guest stopped polling: tart-kubelet synthesizes Running and
+// Ready from "the VM process is alive and has an IP", so a dead poller
+// reads healthy for the rest of the VM's life.
+func TestGuestPolling(t *testing.T) {
+	now := time.Now()
+	withBeat := func(state string, at string) *corev1.Pod {
+		p := newRunnerPod("p-beat", "img", corev1.PodRunning, "p")
+		p.Annotations = map[string]string{guestHeartbeatStateAnnotation: state}
+		if at != "" {
+			p.Annotations[guestHeartbeatAtAnnotation] = at
+		}
+		return p
+	}
+	stamp := func(d time.Duration) string { return now.Add(d).Format(time.RFC3339) }
+
+	cases := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		// Absence is "this host cannot speak for the guest", not "the
+		// guest is dead": a pool with no status share and a runner image
+		// from before the beat existed both land here, and condemning
+		// them would empty warm capacity fleet-wide.
+		{"no annotations at all", newRunnerPod("p-none", "img", corev1.PodRunning, "p"), true},
+		{"empty state annotation", withBeat("", stamp(-4*time.Hour)), true},
+		{"fresh polling beat", withBeat(guestHeartbeatStatePolling, stamp(-30*time.Second)), true},
+		{"beat just inside the window", withBeat(guestHeartbeatStatePolling, stamp(-guestHeartbeatStaleAfter+time.Minute)), true},
+		{"stale polling beat", withBeat(guestHeartbeatStatePolling, stamp(-guestHeartbeatStaleAfter-time.Minute)), false},
+		// `claimed` is beaten once and then the guest blocks running the
+		// job, so it is never fresh and must not be aged.
+		{"claimed, recent", withBeat("claimed", stamp(-30*time.Second)), false},
+		{"claimed, long stale", withBeat("claimed", stamp(-4*time.Hour)), false},
+		// A state we do not model is not a licence to reap.
+		{"unknown state", withBeat("wedged", stamp(-30*time.Second)), false},
+		{"polling with no timestamp", withBeat(guestHeartbeatStatePolling, ""), true},
+		{"polling with unparseable timestamp", withBeat(guestHeartbeatStatePolling, "not-a-time"), true},
+		// A host clock stepped backwards leaves a beat dated ahead; that
+		// is skew, not evidence of death.
+		{"polling beat in the future", withBeat(guestHeartbeatStatePolling, stamp(time.Hour)), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := guestPolling(tc.pod, now); got != tc.want {
+				t.Fatalf("guestPolling = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A Pod whose guest stopped beating is not capacity, however healthy its
+// phase looks. Counting it produces the dispatch-starvation fingerprint
+// (queued jobs alongside idle Pods) out of what is really a dead runner.
+func TestIdleReplicasExcludesDarwinPodWithStaleHeartbeat(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	beating := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	beating.Annotations = map[string]string{
+		guestHeartbeatStateAnnotation: guestHeartbeatStatePolling,
+		guestHeartbeatAtAnnotation:    time.Now().Add(-30 * time.Second).Format(time.RFC3339),
+	}
+	// Running, Ready, unclaimed — and wedged. This is what the 2026-08-31
+	// macos-26-3 Pod looked like for over two hours.
+	wedged := newRunnerPod(poolName+"-runner-b", "img", corev1.PodRunning, poolName)
+	wedged.Annotations = map[string]string{
+		guestHeartbeatStateAnnotation: guestHeartbeatStatePolling,
+		guestHeartbeatAtAnnotation:    time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
+	}
+	// No beat published at all: an older runner image, still capacity.
+	silent := newRunnerPod(poolName+"-runner-c", "img", corev1.PodRunning, poolName)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, beating, wedged, silent).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas = %v, want 2 (the wedged Pod is not capacity; the silent one still is)", got)
 	}
 }

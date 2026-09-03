@@ -307,8 +307,9 @@ struct SetupCacheCommandService {
         }
 
         // The `kura` client feature flag selects the machine-wide CAS proxy +
-        // plugin. Without it, accounts stay on the legacy per-project cache daemon
-        // they rely on today, until they are migrated to kura.
+        // plugin. It is on unless `TUIST_FEATURE_FLAG_KURA` is set to a falsey
+        // value, which puts the machine back on the legacy per-project cache
+        // daemon.
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
             // Register BEFORE starting the proxy. The proxy
@@ -480,6 +481,30 @@ struct SetupCacheCommandService {
         // the sources file written beside the override above.
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             environmentVariables["TUIST_CAS_PROXY_REGISTRY"] = registry
+        }
+        // The proxy's diagnostics (the `incomplete closure` shapes and the
+        // periodic stats line) are written only to the file this variable names,
+        // never to stdout or stderr, so without forwarding it there is no way to
+        // turn them on for a proxy running under launchd.
+        if let logPath = Environment.current.variables["TUIST_CAS_LOG"] {
+            environmentVariables["TUIST_CAS_LOG"] = logPath
+        } else if Environment.current.isCI {
+            // The counters that tell the CAS failure shapes apart are written ONLY
+            // to this file, so a variable nobody knew to set is off during every
+            // incident that needs it. What makes defaulting it acceptable is that
+            // the plugin bounds the file, truncating it in place past a cap.
+            //
+            // Only the PROXY's half is defaulted here. The plugin resolves the same
+            // path itself (`default_log_path`), which is what covers the compiler
+            // frontends however `xcodebuild` was invoked, including workflows that
+            // generate and then drive `xcodebuild` or Fastlane directly. The proxy
+            // cannot do the same because launchd hands it no CI markers to key on.
+            //
+            // CI only, and deliberately not on developer machines: the proxy there
+            // is a long-lived LaunchAgent, so even a bounded file is state we would
+            // create on every `tuist setup cache` for a reader who never asked for
+            // it. A CI machine is ephemeral and the job bounds it.
+            environmentVariables["TUIST_CAS_LOG"] = Environment.current.casLogPath().pathString
         }
         // Trunk ingestion pays for itself only where the machine can warm the CAS
         // BEFORE a build: it pulls the trunk closure in the background so the next

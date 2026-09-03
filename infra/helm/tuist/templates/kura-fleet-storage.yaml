@@ -1,3 +1,247 @@
+{{- /*
+tuist.kuraVolumeQuotaProgram is the host-side half of the per-account cache
+quota. It runs inside the node's own mount namespace (the helper Pod enters it
+with nsenter) so it sees /data as the node does, and it takes three arguments:
+the action (assign|clear), the volume directory, and the PVC's requested bytes.
+
+Why a quota at all: a cache PV here is a DIRECTORY on /data, and a directory has
+no size. The pod's ephemeral-storage request is scheduler admission at placement
+time, and an ephemeral-storage LIMIT would be enforced against the pod's
+writable layer, logs and emptyDir -- none of which is where the cache lives. So
+without a project quota nothing stops one account's instance filling the box,
+crossing kubelet's eviction line, and taking down every other tenant on it.
+
+The requested bytes come straight from the PVC, which the kura-controller sizes
+from KuraInstance.spec.storageSize -- so the declared per-plan size and the
+enforced ceiling are the same number, read from one place.
+*/ -}}
+{{- define "tuist.kuraVolumeQuotaProgram" -}}
+set -eu
+
+action="$1"
+dir="$2"
+bytes="${3:-0}"
+data=/data
+
+log() { echo "tuist-kura-quota: $*" >&2; }
+
+# Boxes installed before the split /data layout have no filesystem that can
+# carry a per-account ceiling. Their regions are live and their pods restart, so
+# this is a loud no-op rather than a refusal -- refusing would only convert an
+# old unbounded box into an unschedulable one. New boxes cannot reach this
+# state: the self-join refuses to bring up a box whose /data cannot enforce.
+mountpoint -q "$data" || { log "$(hostname): no separate $data, volume left unbounded"; exit 0; }
+[ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || { log "$(hostname): $data is the root filesystem, volume left unbounded"; exit 0; }
+[ "$(findmnt -no FSTYPE "$data")" = xfs ] || { log "$(hostname): $data is not xfs, volume left unbounded"; exit 0; }
+case ",$(findmnt -no OPTIONS "$data")," in
+  *,prjquota,*|*,pquota,*) ;;
+  *) log "$(hostname): $data mounted without project quotas, volume left unbounded"; exit 0 ;;
+esac
+
+# Past this line the box CAN enforce, so every failure is fatal for an assign: a
+# volume that starts without its ceiling on a box that could have given it one
+# is the exact state this exists to prevent, and it is invisible until a tenant
+# has already taken the box down.
+#
+# Two helper Pods can provision at once on one node, and both edit /etc/projects.
+exec 9>/var/lock/tuist-kura-quota.lock
+flock 9
+
+# /etc/projects is the id -> path record, and it is also where a previously
+# assigned id is read back from. Looking it up rather than recomputing matters
+# because a colliding id is resolved by probing (below), so the id is NOT a pure
+# function of the path: recomputing during a clear could zero a DIFFERENT
+# tenant's ceiling.
+assigned_projid() {
+  [ -f /etc/projects ] || return 0
+  while IFS=: read -r id path || [ -n "$id" ]; do
+    if [ "$path" = "$dir" ]; then printf %s "$id"; return 0; fi
+  done < /etc/projects
+}
+
+# Whether an id is already spoken for by some OTHER directory.
+projid_taken() {
+  [ -f /etc/projects ] || return 1
+  while IFS=: read -r id path || [ -n "$id" ]; do
+    if [ "$id" = "$1" ] && [ "$path" != "$dir" ]; then return 0; fi
+  done < /etc/projects
+  return 1
+}
+
+# Derived from the directory so a retried assign lands on the same project
+# without anything persisted between the two. Project 0 means "unset" to XFS, so
+# the range starts above it.
+#
+# A checksum can collide, and a shared project is worse than no project: two
+# tenants would share one ceiling, assigning either would move the other's, and
+# clearing either would zero the survivor's limits and leave it unbounded. That
+# is the exact failure this exists to prevent, so a taken id is stepped past.
+# The probe runs under the lock held above, so two concurrent setups cannot pick
+# the same free id. Reusing the id already recorded for this directory keeps a
+# retry idempotent even when the first attempt had to probe.
+projid="$(assigned_projid)"
+if [ -z "$projid" ]; then
+  projid=$(( $(printf %s "${dir##*/}" | cksum | cut -d" " -f1) % 16000000 + 1000 ))
+  probe=0
+  while projid_taken "$projid"; do
+    projid=$(( projid + 1 ))
+    probe=$(( probe + 1 ))
+    if [ "$probe" -gt 1000 ]; then
+      log "no free project id near the hash for $dir"
+      exit 1
+    fi
+  done
+  if [ "$probe" -gt 0 ]; then
+    log "project id collision for $dir; using $projid after $probe step(s)"
+  fi
+fi
+
+# /etc/projects is the id -> path record. It is what makes a bare project id in
+# an xfs_quota report traceable back to a volume, and dropping the entry is how
+# a deleted volume stops being accounted for.
+registry_drop() {
+  [ -f /etc/projects ] || return 0
+  : > /etc/projects.tuist
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      *:"$dir") continue ;;
+    esac
+    printf '%s\n' "$line" >> /etc/projects.tuist
+  done < /etc/projects
+  cat /etc/projects.tuist > /etc/projects
+  rm -f /etc/projects.tuist
+}
+
+if [ "$action" = clear ]; then
+  # Only ever clear an id this directory actually owns. A directory with no
+  # record was never assigned (or was already cleared), and zeroing a
+  # recomputed id could strip the ceiling from whichever tenant currently holds
+  # it.
+  if [ -z "$projid" ] || ! [ "$projid" = "$(assigned_projid)" ]; then
+    log "$dir has no project recorded; nothing to clear"
+    exit 0
+  fi
+  # Best-effort: a failure here must never wedge a PV delete. The directory is
+  # removed by the caller either way, which drops the accounting to zero on its
+  # own; what is left behind is at worst a limit on a project with no files.
+  xfs_quota -x -c "limit -p bhard=0 ihard=0 $projid" "$data" || log "could not clear limits for project $projid"
+  xfs_quota -x -c "project -C -p $dir $projid" "$data" >/dev/null 2>&1 || log "could not clear project $projid from $dir"
+  registry_drop
+  exit 0
+fi
+
+[ "$(stat -c %d "$dir")" = "$(stat -c %d "$data")" ] || {
+  log "$dir is not on the $data filesystem; a quota there would bound nothing"
+  exit 1
+}
+
+# Rounded down to a whole KiB because XFS accounts in blocks and reports in KiB.
+# Without this an odd byte count could never read back equal to what was asked
+# for, and the verification below would fail closed on arithmetic rather than on
+# anything being wrong.
+bytes=$(( bytes / 1024 * 1024 ))
+[ "$bytes" -gt 0 ] || { log "volume $dir requested no storage; refusing to install an unbounded quota"; exit 1; }
+
+# An inode ceiling alongside the byte ceiling: a tenant that fills the shared
+# filesystem's inode table starves every other tenant on the box exactly as
+# thoroughly as one that fills its blocks, and the byte limit does not bound it.
+# One inode per 32 KiB of quota is far above the artifact sizes Kura stores.
+inodes=$(( bytes / 32768 ))
+if [ "$inodes" -lt 65536 ]; then
+  inodes=65536
+fi
+
+registry_drop
+printf '%s:%s\n' "$projid" "$dir" >> /etc/projects
+
+xfs_quota -x -c "project -s -p $dir $projid" "$data" >/dev/null
+xfs_quota -x -c "limit -p bhard=$bytes ihard=$inodes $projid" "$data"
+
+# Verify enforcement rather than trusting the writes above, because every one of
+# these fails silently: quota can be accounting-only, the project id can fail to
+# apply to the tree, and a limit can be stored against the wrong project.
+xfs_quota -x -c "state -p" "$data" | grep -q "Enforcement: ON" || {
+  log "project quota accounting is on but enforcement is off on $data"
+  exit 1
+}
+
+# `project -c` reports discrepancies on stdout and frames them with two
+# informational lines that are printed whether or not anything is wrong: a
+# leading "Checking project ..." and a trailing "Processed N ... paths ..."
+# footer. Both have to be dropped, or a correctly applied project reads as a
+# mismatch and every volume fails setup on a box that is working fine.
+mismatch="$(xfs_quota -x -c "project -c -p $dir $projid" "$data" 2>&1 | grep -Ev "^(Checking project|Processed )" || true)"
+[ -z "$mismatch" ] || { log "project $projid did not apply to $dir: $mismatch"; exit 1; }
+
+xfs_quota -x -c "report -p -N -b" "$data" > /tmp/tuist-kura-quota.report
+hard_kb=""
+while read -r reported _used _soft hard _rest; do
+  if [ "$reported" = "#$projid" ]; then
+    hard_kb="$hard"
+  fi
+done < /tmp/tuist-kura-quota.report
+rm -f /tmp/tuist-kura-quota.report
+
+want_kb=$(( bytes / 1024 ))
+[ "$hard_kb" = "$want_kb" ] || {
+  log "project $projid reports a hard limit of ${hard_kb:-none} KiB, wanted $want_kb KiB"
+  exit 1
+}
+
+log "project $projid bounds $dir at $want_kb KiB / $inodes inodes"
+{{- end }}
+
+{{- /*
+tuist.kuraHelperPodTemplate is the helper Pod the provisioner runs on the target
+node. It is defined here rather than inline in the ConfigMap so the Deployment
+can checksum it: the provisioner reads this template ONCE at startup and holds
+it in memory, so a change to it does nothing until the Deployment rolls.
+*/ -}}
+{{- define "tuist.kuraHelperPodTemplate" -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: helper-pod
+spec:
+  # The helper Pod runs on the target cache node to create/remove the PV
+  # directory, so it has to tolerate whatever taint that node carries:
+  # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
+  # pools, which also provision scw-local-nvme PVCs).
+  tolerations:
+    - key: tuist.dev/runner-cache
+      operator: Exists
+      effect: NoSchedule
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  # The setup/teardown hooks nsenter into PID 1's namespaces to run the
+  # node's xfs_quota against the node's own view of /data. Both are needed:
+  # hostPID to address PID 1 at all, privileged for the CAP_SYS_ADMIN that
+  # quotactl requires. The busybox image supplies only nsenter; every tool
+  # the hooks actually run comes from the host.
+  #
+  # `--root` is deliberately NOT passed, and is not needed. Entering a mount
+  # namespace already moves the process root: setns(CLONE_NEWNS) dispatches
+  # to mntns_install() in fs/namespace.c, which ends with set_fs_pwd() and
+  # set_fs_root() onto the target namespace's root. So `findmnt` and
+  # `xfs_quota` resolve from the host, not from busybox, which has neither.
+  # This is the same mechanism `kubectl node-shell` relies on.
+  #
+  # It reads like a bug and has been raised as one twice, so it is settled
+  # empirically rather than by argument: the rendered hook has been run
+  # verbatim inside a busybox container with --pid=host against a real XFS
+  # filesystem, and applied a working ceiling. Reproduce by running the
+  # ConfigMap's `setup` under `docker run --privileged --pid=host busybox sh`
+  # on a host with an xfs /data mounted with prjquota.
+  hostPID: true
+  containers:
+    - name: helper-pod
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+{{- end }}
+
 {{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
 {{- /*
 local-path-provisioner for the kura runner-cache Elastic Metal pool. Elastic
@@ -23,6 +267,14 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: local-path-storage
+  labels:
+    # The provisioner's helper Pods and the quota exporter below enter the node's
+    # mount namespace to run xfs_quota, which needs privileged + hostPID. Stated
+    # explicitly so the namespace does not inherit a cluster default that would
+    # reject them, which would surface as cache PVCs hanging Pending.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -80,6 +332,12 @@ spec:
       app: local-path-provisioner
   template:
     metadata:
+      annotations:
+        # The provisioner reads helperPod.yaml once at startup and keeps it in
+        # memory, so a change to it takes effect only when this Deployment rolls.
+        # setup/teardown reach the helper Pod through the ConfigMap volume mount
+        # and stay in sync on their own, so without this the two can drift.
+        checksum/helper-pod: {{ include "tuist.kuraHelperPodTemplate" . | sha256sum }}
       labels:
         app: local-path-provisioner
     spec:
@@ -160,24 +418,109 @@ data:
         }
       ]
     }
+  # Carving the directory is only half of provisioning a cache volume; the other
+  # half is bounding it. Both hooks enter the node's mount namespace, because
+  # xfs_quota and the /data mount are the host's, not the helper container's.
+  #
+  # VOL_SIZE_BYTES is the PVC's requested storage, which the kura-controller
+  # sizes from KuraInstance.spec.storageSize. The declared size and the enforced
+  # ceiling are therefore the same number rather than two that can drift.
   setup: |-
     #!/bin/sh
     set -eu
     mkdir -m 0777 -p "$VOL_DIR"
+    PROGRAM=$(cat <<'TUIST_QUOTA_EOF'
+{{ include "tuist.kuraVolumeQuotaProgram" . | indent 4 }}
+    TUIST_QUOTA_EOF
+    )
+    # Deliberately not tolerated: on a box that can enforce, a failure here
+    # leaves the PV uncreated and the pod Pending, rather than letting an
+    # unbounded volume start and only surface once it has filled the box.
+    nsenter --target 1 --mount --uts --ipc --net --pid -- \
+      /bin/sh -c "$PROGRAM" tuist-kura-quota assign "$VOL_DIR" "$VOL_SIZE_BYTES"
   teardown: |-
     #!/bin/sh
     set -eu
+    PROGRAM=$(cat <<'TUIST_QUOTA_EOF'
+{{ include "tuist.kuraVolumeQuotaProgram" . | indent 4 }}
+    TUIST_QUOTA_EOF
+    )
+    # Tolerated, unlike setup: a quota that will not clear must never wedge a PV
+    # delete. Removing the directory drops the project's accounting to zero on
+    # its own, so the worst residue is a limit against a project with no files.
+    nsenter --target 1 --mount --uts --ipc --net --pid -- \
+      /bin/sh -c "$PROGRAM" tuist-kura-quota clear "$VOL_DIR" \
+      || echo "tuist-kura-quota: could not clear the quota for $VOL_DIR; removing it anyway" >&2
     rm -rf "$VOL_DIR"
   helperPod.yaml: |-
-    apiVersion: v1
-    kind: Pod
+{{ include "tuist.kuraHelperPodTemplate" . | indent 4 }}
+---
+{{- /*
+Per-volume quota usage as metrics. The setup hook installs a ceiling; without
+this nothing reports how close a volume is to it, so the first visible sign of a
+tenant hitting its quota would be that tenant's writes failing.
+
+kura_volume_quota_enforced is the other half and matters more: it is 0 on a
+cache box whose /data cannot bound anything (installed before the split XFS
+layout), which is otherwise invisible: that box looks healthy right up to the
+point one account fills it and kubelet evicts every tenant on it. It is emitted
+only where /data is a separate filesystem, so a node that hosts no cache volumes
+stays silent rather than reporting a meaningless 0.
+
+Scoped by nodeAffinity to the cache pools rather than run fleet-wide: it needs
+the host's namespaces to read quotas, and that is not a privilege to hand every
+node for a metrics endpoint.
+*/ -}}
+{{- $pools := list }}
+{{- if .Values.kuraFleet.enabled }}
+{{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") }}
+{{- end }}
+{{- if .Values.dediboxFleet.enabled }}
+{{- $pools = append $pools (.Values.dediboxFleet.nodePool | default "kura-dedibox") }}
+{{- end }}
+{{- if .Values.ovhFleet.enabled }}
+{{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") }}
+{{- end }}
+{{- /* An ovhFleets entry is a cache pool exactly when its nodes carry the
+   kura-cache taint, which is also the only OVH taint this DaemonSet tolerates.
+   Fleets in that map that are not cache pools (the OVH Linux runner boxes) set
+   their own taints and stay out of the affinity list, so a privileged hostPID
+   exporter is never pointed at a box with no cache volumes to read. Mirrors the
+   default in ovh-fleets.yaml: taints unset means the kura-cache taint. */ -}}
+{{- range $key, $fleet := .Values.ovhFleets }}
+{{- if $fleet.enabled }}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet }}
+{{- if eq $taint.key "tuist.dev/kura-cache" }}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kura-volume-quota-exporter
+  namespace: local-path-storage
+  labels:
+    app: kura-volume-quota-exporter
+spec:
+  selector:
+    matchLabels:
+      app: kura-volume-quota-exporter
+  template:
     metadata:
-      name: helper-pod
+      labels:
+        app: kura-volume-quota-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9102"
+        # busybox httpd serves the file the refresh loop writes, so the scrape
+        # path is the file name rather than /metrics.
+        prometheus.io/path: /metrics.prom
     spec:
-      # The helper Pod runs on the target cache node to create/remove the PV
-      # directory, so it has to tolerate whatever taint that node carries:
-      # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
-      # pools, which also provision scw-local-nvme PVCs).
+      # Same reason as the provisioner's helper Pod: xfs_quota has to run in the
+      # node's own mount namespace against the node's own /data.
+      hostPID: true
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists
@@ -185,8 +528,129 @@ data:
         - key: tuist.dev/kura-cache
           operator: Exists
           effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+{{- range $pools }}
+                      - {{ . | quote }}
+{{- end }}
       containers:
-        - name: helper-pod
+        - name: exporter
           image: busybox
           imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          ports:
+            - name: metrics
+              containerPort: 9102
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              mkdir -p /run/tuist-kura-quota
+              httpd -p 9102 -h /run/tuist-kura-quota
+              PROGRAM=$(cat <<'TUIST_EXPORT_EOF'
+              set -eu
+
+              data=/data
+              out=/run/tuist-kura-quota/metrics.prom
+              tmp="$out.tmp"
+              mkdir -p /run/tuist-kura-quota
+
+              # A node with no separate /data hosts no cache volumes, so it has
+              # nothing to report and stays silent rather than emitting a 0 that
+              # would read as an unbounded cache box.
+              mountpoint -q "$data" || exit 0
+              [ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || exit 0
+
+              enforced=0
+              if [ "$(findmnt -no FSTYPE "$data")" = xfs ]; then
+                case ",$(findmnt -no OPTIONS "$data")," in
+                  *,prjquota,*|*,pquota,*) enforced=1 ;;
+                esac
+              fi
+
+              {
+                echo "# HELP kura_volume_quota_enforced Whether this node's cache filesystem can bound a volume."
+                echo "# TYPE kura_volume_quota_enforced gauge"
+                echo "kura_volume_quota_enforced{mountpoint=\"$data\"} $enforced"
+              } > "$tmp"
+
+              if [ "$enforced" = 1 ]; then
+                xfs_quota -x -c "report -p -N -b" "$data" > /tmp/tuist-kura-export.blocks
+                xfs_quota -x -c "report -p -N -i" "$data" > /tmp/tuist-kura-export.inodes
+
+                # Join /etc/projects (the id -> volume record the setup hook
+                # writes) with both reports first, so each metric can then be
+                # emitted as one contiguous group as the exposition format wants.
+                : > /tmp/tuist-kura-export.joined
+                while IFS=: read -r id path || [ -n "$id" ]; do
+                  [ -n "$id" ] || continue
+                  hard_kb=""; used_kb=""
+                  while read -r reported used _soft hard _rest; do
+                    if [ "$reported" = "#$id" ]; then used_kb="$used"; hard_kb="$hard"; fi
+                  done < /tmp/tuist-kura-export.blocks
+                  hard_in=""; used_in=""
+                  while read -r reported used _soft hard _rest; do
+                    if [ "$reported" = "#$id" ]; then used_in="$used"; hard_in="$hard"; fi
+                  done < /tmp/tuist-kura-export.inodes
+                  [ -n "$hard_kb" ] || continue
+                  printf '%s %s %s %s %s %s\n' "$id" "${path##*/}" \
+                    "$(( hard_kb * 1024 ))" "$(( used_kb * 1024 ))" "$hard_in" "$used_in" \
+                    >> /tmp/tuist-kura-export.joined
+                done < /etc/projects
+
+                emit() {
+                  echo "# HELP $1 $2"
+                  echo "# TYPE $1 gauge"
+                  while read -r id volume qbytes ubytes qinodes uinodes; do
+                    case "$1" in
+                      kura_volume_quota_bytes)  value="$qbytes" ;;
+                      kura_volume_used_bytes)   value="$ubytes" ;;
+                      kura_volume_quota_inodes) value="$qinodes" ;;
+                      *)                        value="$uinodes" ;;
+                    esac
+                    printf '%s{volume="%s",project_id="%s"} %s\n' "$1" "$volume" "$id" "$value"
+                  done < /tmp/tuist-kura-export.joined
+                }
+
+                {
+                  emit kura_volume_quota_bytes "Hard byte ceiling enforced on a cache volume."
+                  emit kura_volume_used_bytes "Bytes a cache volume currently occupies."
+                  emit kura_volume_quota_inodes "Hard inode ceiling enforced on a cache volume."
+                  emit kura_volume_used_inodes "Inodes a cache volume currently occupies."
+                } >> "$tmp"
+              fi
+
+              mv "$tmp" "$out"
+              TUIST_EXPORT_EOF
+              )
+              while :; do
+                nsenter --target 1 --mount --uts --ipc --net --pid -- \
+                  /bin/sh -c "$PROGRAM" tuist-kura-quota-exporter \
+                  || echo "tuist-kura-quota-exporter: refresh failed" >&2
+                sleep 60
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: metrics
+              mountPath: /run/tuist-kura-quota
+      volumes:
+        # The refresh runs in the host's mount namespace, so the file it writes
+        # lands on the host; httpd serves it back through the same hostPath.
+        - name: metrics
+          hostPath:
+            path: /run/tuist-kura-quota
+            type: DirectoryOrCreate
 {{- end }}

@@ -91,7 +91,20 @@ pub async fn run() -> Result<(), String> {
     );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
-        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+        warn!(
+            event.name = "kura.runtime.file_descriptor_limit_raise_failed",
+            error = %error,
+            "failed to raise file descriptor soft limit"
+        );
+    }
+    if let Some(enrollment) = enrollment.as_ref() {
+        info!(
+            event.name = "kura.enrollment.completed",
+            kura.node_url = %enrollment.node_url,
+            kura.tenant_id = %enrollment.tenant_id,
+            kura.peer.count = enrollment.peers.len(),
+            "node enrollment completed"
+        );
     }
     let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, node_location, enrollment)
@@ -134,12 +147,36 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
+    // Report the anon budget once tracing exists. Config parsing derives it, but
+    // that runs before any subscriber does, and a budget that came out smaller
+    // than the caches asked for is the difference between a node that serves and
+    // one that is Ready and rejects everything.
+    if let Some(fit) = config.anon_cache_fit {
+        tracing::warn!(
+            requested_bytes = fit.requested_bytes,
+            fitted_bytes = fit.fitted_bytes,
+            allowance_bytes = fit.allowance_bytes,
+            memory_floor_bytes = config.memory_floor_bytes,
+            "shrank the metadata-store, manifest and snapshot caches to fit the memory floor"
+        );
+    }
+    let anon_admission_budget_bytes = config.anon_admission_budget_bytes();
+    tracing::info!(
+        memory_floor_bytes = config.memory_floor_bytes,
+        memory_limit_bytes = config.memory_limit_bytes,
+        anon_admission_budget_bytes,
+        rocksdb_block_cache_bytes = config.rocksdb_block_cache_bytes,
+        rocksdb_write_buffer_manager_bytes = config.rocksdb_write_buffer_manager_bytes,
+        manifest_cache_max_bytes = config.manifest_cache_max_bytes,
+        snapshot_cache_max_bytes = config.snapshot_cache_max_bytes,
+        "resolved anonymous memory budget"
+    );
     let memory = MemoryController::with_anon_budget(
         metrics.clone(),
         config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
-        config.anon_admission_budget_bytes(),
+        anon_admission_budget_bytes,
     );
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
@@ -196,11 +233,19 @@ async fn run_with_config(
         tmp_staging_budget,
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
+    info!(
+        event.name = "kura.request_observability.configured",
+        kura.request_log.sample_rate = state.config.request_log_sample_rate,
+        kura.slow_request.threshold_ms = state.config.slow_request_threshold_ms,
+        kura.warning_log.interval_ms = state.config.warning_log_interval_ms,
+        "request observability configured"
+    );
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
@@ -557,9 +602,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
-                        state
-                            .metrics
-                            .update_outbox_messages(snapshot.outbox_messages);
+                        state.metrics.update_outbox_messages(
+                            snapshot.outbox_messages,
+                            snapshot.outbox_bulk_messages,
+                        );
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics

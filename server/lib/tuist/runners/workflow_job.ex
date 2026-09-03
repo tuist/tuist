@@ -44,6 +44,7 @@ defmodule Tuist.Runners.WorkflowJob do
     field :pod_name, :string
     field :runner_name, :string
     field :executed_workflow_job_id, :integer
+    field :log_archived_at, :utc_datetime_usec
 
     belongs_to :account, Account
 
