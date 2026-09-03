@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import Mockable
 import Path
@@ -32,6 +33,17 @@ struct InspectDependenciesCommandServiceTests {
             configLoader: configLoader,
             graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
         )
+    }
+
+    @Test
+    func commandRejectsJSONAndSummaryTogether() throws {
+        var command = InspectDependenciesCommand()
+        command.json = true
+        command.summary = true
+
+        #expect(throws: ValidationError.self) {
+            try command.validate()
+        }
     }
 
     private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
@@ -151,7 +163,7 @@ struct InspectDependenciesCommandServiceTests {
         given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
 
         // When
-        await #expect(throws: DependencyInspectionJSONIssuesFoundError()) {
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant], json: true)
         }
 
@@ -190,7 +202,7 @@ struct InspectDependenciesCommandServiceTests {
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When
-        await #expect(throws: DependencyInspectionJSONIssuesFoundError()) {
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit], json: true)
         }
 
@@ -218,6 +230,104 @@ struct InspectDependenciesCommandServiceTests {
 
         // Then
         #expect(ui().contains("[\n\n]"))
+    }
+
+    @Test(.withMockedNoora)
+    func runWithBothChecksOutputsSummaryGroupedByTarget() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let sharedCore = Target.test(name: "SharedCore", product: .framework)
+        let unusedFramework = Target.test(name: "UnusedFramework", product: .framework)
+        let project = Project.test(path: path, targets: [app, feature, sharedCore, unusedFramework])
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .target(name: feature.name, path: path),
+                    .target(name: unusedFramework.name, path: path),
+                ]),
+                .target(name: feature.name, path: path): Set([
+                    .target(name: sharedCore.name, path: path),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
+        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(
+                path: path.pathString,
+                inspectionTypes: [.implicit, .redundant],
+                summary: true
+            )
+        }
+
+        // Then
+        #expect(ui().contains(
+            """
+            App:
+              implicit: SharedCore
+              redundant: UnusedFramework
+            """
+        ))
+    }
+
+    @Test(.withMockedNoora)
+    func runImplicitOnlyOutputsSummaryWithoutRedundantLine() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: path, targets: [app, framework])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], summary: true)
+        }
+
+        // Then
+        #expect(ui().contains("App:\n  implicit: Framework"))
+        #expect(!ui().contains("redundant:"))
+    }
+
+    @Test(.withMockedNoora)
+    func runWithNoIssuesOutputsEmptySummaryMessage() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], summary: true)
+
+        // Then
+        #expect(ui().contains("No dependency issues found."))
     }
 
     @Test

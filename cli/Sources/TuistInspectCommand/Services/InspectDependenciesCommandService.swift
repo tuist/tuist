@@ -29,7 +29,8 @@
         func run(
             path: String?,
             inspectionTypes: Set<DependencyInspectionType>,
-            json: Bool = false
+            json: Bool = false,
+            summary: Bool = false
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -59,13 +60,26 @@
 
             if json {
                 try Noora.current.json(
-                    jsonResults(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
+                    results(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
                 )
 
                 if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
-                    throw DependencyInspectionJSONIssuesFoundError()
+                    throw DependencyInspectionFormattedIssuesFoundError()
                 }
                 return
+            }
+
+            if summary {
+                let results = results(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
+                if results.isEmpty {
+                    Noora.current.passthrough("No dependency issues found.")
+                    return
+                }
+
+                Noora.current.passthrough(
+                    TerminalText(stringLiteral: results.map(\.summary).joined(separator: "\n"))
+                )
+                throw DependencyInspectionFormattedIssuesFoundError()
             }
 
             if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
@@ -97,11 +111,11 @@
             )
         }
 
-        private func jsonResults(
+        private func results(
             implicitIssues: [InspectImportsIssue],
             redundantIssues: [InspectImportsIssue]
-        ) -> [DependencyInspectionJSONResult] {
-            var resultsByTarget: [String: DependencyInspectionJSONResult] = [:]
+        ) -> [DependencyInspectionResult] {
+            var resultsByTarget: [String: DependencyInspectionResult] = [:]
 
             for issue in implicitIssues {
                 resultsByTarget[issue.target, default: .init(target: issue.target)].implicit = issue.dependencies.sorted()
@@ -114,13 +128,24 @@
         }
     }
 
-    private struct DependencyInspectionJSONResult: Codable {
+    private struct DependencyInspectionResult: Codable {
         let target: String
         var implicit: [String]?
         var redundant: [String]?
+
+        var summary: String {
+            var lines = ["\(target):"]
+            if let implicit {
+                lines.append("  implicit: \(implicit.joined(separator: ", "))")
+            }
+            if let redundant {
+                lines.append("  redundant: \(redundant.joined(separator: ", "))")
+            }
+            return lines.joined(separator: "\n")
+        }
     }
 
-    struct DependencyInspectionJSONIssuesFoundError: FatalError, Equatable {
+    struct DependencyInspectionFormattedIssuesFoundError: FatalError, Equatable {
         let description = ""
         let type = ErrorType.abortSilent
     }
