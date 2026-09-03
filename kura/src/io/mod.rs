@@ -888,16 +888,13 @@ mod tests {
             vec![directory.path().to_path_buf()],
         )
         .expect("controller should initialize");
-        controller
-            .metrics()
-            .record_manifest_cache_lookup("hit");
+        controller.metrics().record_manifest_cache_lookup("hit");
 
         let measure = |clone_metrics: bool| {
             let started_at = std::time::Instant::now();
             for _ in 0..ITERATIONS {
                 if clone_metrics {
-                    black_box(controller.inner.metrics.clone())
-                        .record_manifest_cache_lookup("hit");
+                    black_box(controller.inner.metrics.clone()).record_manifest_cache_lookup("hit");
                 } else {
                     black_box(controller.metrics()).record_manifest_cache_lookup("hit");
                 }
