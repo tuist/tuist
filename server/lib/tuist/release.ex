@@ -61,8 +61,6 @@ defmodule Tuist.Release do
           reconcile_ops_clickhouse(repo)
         end)
     end
-
-    do_clone_clickhouse_schema()
   end
 
   @doc """

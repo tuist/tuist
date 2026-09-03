@@ -1,0 +1,163 @@
+{{- if and .Values.server.enabled .Values.clickhouse.managed.enabled .Values.clickhouse.managed.migration.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- $task := .Values.clickhouse.managed.migration.task | quote }}
+{{- /*
+Runs one step of the ClickHouse migration (spec #73) against the in-cluster
+server: cloning the schema from the system of record, backfilling the rows
+that already exist, or checking that the two agree.
+
+A `post-upgrade` hook rather than part of the migration Job, for two reasons
+that are really the same one. The migration Job is a `pre-upgrade` hook, so it
+runs before Helm applies the release's ordinary resources: the ClickHouse
+StatefulSet is not running yet and the Secret holding its URL does not exist
+yet. Both of those are exactly what this work needs. Running after the upgrade
+means the server it talks to is the one the same release just deployed.
+
+It is also the only way to invoke these tasks at all without write access to
+the cluster, which is deliberate: the steps are then reviewable configuration
+rather than something typed into a shell against production.
+
+`task` selects the step, so an operator moves through the migration by
+changing one value and deploying, and each step is recorded in the release
+history rather than in someone's terminal.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Named for the task, so moving to the next step creates a new Job rather
+  # than colliding with the immutable `spec.template` of the previous one.
+  name: {{ include "tuist.componentName" (dict "root" . "component" (printf "clickhouse-%s" .Values.clickhouse.managed.migration.name)) }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-migration
+  annotations:
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-weight: "5"
+    # Kept on failure so its logs can be read. The next deploy of the same
+    # task replaces it.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.clickhouse.managed.migration.backoffLimit }}
+  # These steps move the whole dataset, so the ceiling is hours rather than
+  # the minutes a schema migration takes.
+  activeDeadlineSeconds: {{ .Values.clickhouse.managed.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-migration") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.server.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clickhouse-migration
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - eval
+            - {{ $task }}
+          env:
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_MIGRATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            {{- if .Values.server.managedSecrets }}
+            - name: TUIST_DATABASE_RUNTIME_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            - name: TUIST_DATABASE_PROCESSOR_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
+            - name: TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+            - name: TUIST_DATABASE_GRAFANA_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+            {{- end }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
+            - name: DATABASE_URL
+              value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: server-secret-key-base
+            {{- end }}
+            - name: TUIST_APP_URL
+              value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
+            # Object-storage boot config must be set unconditionally. The
+            # release runtime reads the selected provider at boot even though
+            # the migration job does not actively upload or download artifacts.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if $objectStorageAccessKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-access-key
+            {{- end }}
+            {{- if $objectStorageSecretKey }}
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.clickhouse.managed.migration.resources | nindent 12 }}
+{{- end }}

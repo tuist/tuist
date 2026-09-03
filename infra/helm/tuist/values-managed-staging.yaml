@@ -333,6 +333,15 @@ clickhouse:
     enabled: true
     persistence:
       size: 60Gi
+    # The migration is advanced one step at a time by changing `task` here and
+    # deploying, so each step is a reviewed change recorded in the release
+    # history. Current step: clone the schema across. Next:
+    # `Tuist.Release.backfill_clickhouse`, then
+    # `Tuist.Release.check_clickhouse_parity`.
+    migration:
+      enabled: true
+      name: schema-clone
+      task: Tuist.Release.clone_clickhouse_schema
 
 cache:
   extraEnv:
