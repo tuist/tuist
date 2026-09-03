@@ -1,5 +1,5 @@
 {
-  "originHash" : "4c6897375e79ffa718a691c19c62ba3ee61dfadb9540342f26fdb8e3ff19f36b",
+  "originHash" : "07106380c2d6ea123e323bc8abdd8c0d4cebeadb2a56831228648de4efdd4c30",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -670,7 +670,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tuist/filesystem",
       "state" : {
-        "version" : "0.18.0"
+        "version" : "0.19.0"
       }
     },
     {

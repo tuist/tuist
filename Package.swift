@@ -1870,7 +1870,7 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.3")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.19.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.8")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "swiftlang.swift-subprocess", exact: "0.4.0"),
