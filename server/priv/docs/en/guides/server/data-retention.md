@@ -17,7 +17,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 
 | Artifact | Air and Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts, including Xcode cache, module cache, and Gradle cache files | 14 days | 30 days | 30 days |
+| Cache artifacts, including Xcode cache, module cache, Gradle cache, and Bazel remote-cache files | 14 days | 30 days | 30 days |
 | App preview builds and icons | 30 days | 30 days | 30 days |
 | Build archives | 30 days | 30 days | 30 days |
 | Run artifacts, including result bundles and session archives | 30 days | 30 days | 30 days |
@@ -39,7 +39,7 @@ These windows define how long selected dashboard and activity data remains avail
 | Data | Retention |
 | --- | --- |
 | Xcode project graph records | 30 days |
-| Gradle build records, task records, and cache event records | 90 days |
+| Gradle build records, task records, cache event records, and Bazel remote action-cache observations | 90 days |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
