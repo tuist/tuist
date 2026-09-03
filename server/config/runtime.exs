@@ -366,6 +366,27 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     # the system of record (spec #73). A small pool on purpose: it carries the
     # same write volume as `Tuist.IngestRepo` but nothing waits on it, and it
     # must not be able to starve the pool that serves customer requests.
+    # The read side of the same server, with the read path's own settings
+    # rather than the ingest path's. Configured here, next to the URL, so the
+    # credential never reaches application code.
+    config :tuist, Tuist.ShadowClickHouseRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        readonly: 1,
+        max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
+        max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+        max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
+        join_algorithm: "direct,parallel_hash,hash"
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+
     config :tuist, Tuist.ShadowIngestRepo,
       url: bare_metal_url,
       pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),

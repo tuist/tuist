@@ -9,6 +9,7 @@ defmodule Tuist.ClickHouseRepo do
     read_only: true,
     default_dynamic_repo: Application.compile_env(:tuist, [__MODULE__, :default_dynamic_repo], __MODULE__)
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.ClickHouseRetry
 
   # `query/3` and `query!/3` are injected by `Ecto.Adapters.ClickHouse`'s
@@ -30,21 +31,24 @@ defmodule Tuist.ClickHouseRepo do
                  preload: 2,
                  preload: 3
 
-  def all(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def all(queryable, opts \\ []),
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
 
-  def one(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def one(queryable, opts \\ []),
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
 
-  def exists?(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def exists?(queryable, opts \\ []),
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
 
   def preload(structs_or_struct_or_nil, preloads, opts \\ []),
-    do: ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end)
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end) end)
 
   # Ecto.Repo `aggregate/3` is overloaded: third arg is `opts` for `:count`
   # and `field` for `:avg/:max/:min/:sum`. Pass through whatever the caller
   # gives us; super dispatches on the original guarded clauses.
   def aggregate(queryable, type, opts_or_field \\ []),
-    do: ClickHouseRetry.with_retry(fn -> super(queryable, type, opts_or_field) end)
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, type, opts_or_field) end) end)
 
   def aggregate(queryable, type, field, opts),
-    do: ClickHouseRetry.with_retry(fn -> super(queryable, type, field, opts) end)
+    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, type, field, opts) end) end)
 end

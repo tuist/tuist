@@ -420,7 +420,12 @@ defmodule Tuist.Application do
   # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
   defp shadow_ingest_children do
     if Environment.clickhouse_bare_metal_url() do
-      [{Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}}]
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
     else
       []
     end
