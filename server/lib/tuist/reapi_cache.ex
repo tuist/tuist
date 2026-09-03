@@ -38,10 +38,12 @@ defmodule Tuist.ReapiCache do
   end
 
   def summary(project_id, {start_datetime, end_datetime}) do
+    end_datetime = DateTime.add(end_datetime, 1, :second)
+
     summary =
       ClickHouseRepo.one(
         from(e in CacheEvent,
-          where: e.project_id == ^project_id and e.observed_at >= ^start_datetime and e.observed_at <= ^end_datetime,
+          where: e.project_id == ^project_id and e.observed_at >= ^start_datetime and e.observed_at < ^end_datetime,
           select: %{
             hits: coalesce(sum(fragment("if(? = 'action_cache' AND ? = 'hit', 1, 0)", e.operation, e.outcome)), 0),
             misses: coalesce(sum(fragment("if(? = 'action_cache' AND ? = 'miss', 1, 0)", e.operation, e.outcome)), 0),
