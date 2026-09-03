@@ -43,6 +43,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
+        let sourceGraphTraverser = environment.initialGraphWithSources.map { GraphTraverser(graph: $0) }
         let unconditionallyDirectlyLinkedXCFrameworkPaths = Self.unconditionallyDirectlyLinkedXCFrameworkPaths(
             in: graph,
             initialGraphWithSources: environment.initialGraphWithSources
@@ -54,7 +55,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             let target = graphTarget.target
             let project = graphTarget.project
             let targetDependency = GraphDependency.target(name: target.name, path: project.path)
-            let staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
+            var staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
                 .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
                     path: project.path,
                     name: target.name
@@ -69,6 +70,34 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                     else { return nil }
                     return ConditionedXCFramework(xcframework: xcframework, condition: condition)
                 }
+            // Focus + binary cache can prune a static-objc xcframework out of the substituted
+            // graph even though a cached dynamic dependency of this target still imports it in
+            // its `.swiftmodule`. Recover those xcframeworks from the source graph so the
+            // consumer keeps module visibility. The direct-link suppression below still applies
+            // in the graph shapes where Xcode's `ProcessXCFramework` would produce a competing
+            // module map, so this cannot introduce a redefinition.
+            if let sourceGraphTraverser {
+                let alreadyIncluded = Set(
+                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.map(\.xcframework.path)
+                )
+                let sourceReachable = sourceGraphTraverser.staticObjcXCFrameworksReachableViaCachedTargets(
+                    path: project.path,
+                    name: target.name,
+                    currentGraph: graph
+                )
+                .sorted()
+                .compactMap { dependency -> ConditionedXCFramework? in
+                    guard case let .xcframework(xcframework) = dependency,
+                          !alreadyIncluded.contains(xcframework.path),
+                          case let .condition(condition) = sourceGraphTraverser.combinedCondition(
+                              to: dependency,
+                              from: targetDependency
+                          )
+                    else { return nil }
+                    return ConditionedXCFramework(xcframework: xcframework, condition: condition)
+                }
+                staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies += sourceReachable
+            }
 
             // Static Swift xcframeworks reached through a dynamic xcframework are not relinked
             // at the consumer level (their symbols are already absorbed into the dynamic

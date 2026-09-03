@@ -2423,6 +2423,126 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
+    // Regression: focused generation on a scheme whose only tie to a static-objc xcframework is
+    // via a source dynamic framework that becomes a cached xcframework can drop the graph edge to
+    // the static xcframework in the substituted graph. Without recovering it from the source
+    // graph the consumer's dependency scan fails with `unable to resolve module dependency: 'X'`
+    // for every `import X` recorded in the cached module's `.swiftmodule`.
+    func test_map_when_static_xcframework_is_reachable_only_through_a_source_target_that_gets_cached() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let googleMapsPath = projectPath
+            .parentDirectory
+            .appending(component: "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers", "GoogleMaps")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let googleMaps: GraphDependency = .testXCFramework(
+            path: googleMapsPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "GoogleMaps.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                googleMapsHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let cachedSharedUI: GraphDependency = .testXCFramework(
+            path: try temporaryPath().appending(component: "SharedUI.xcframework"),
+            linking: .dynamic
+        )
+
+        // Source graph: AppTestsIndirect → SharedUI (source dynamic target) → GoogleMaps.
+        let graphWithSources: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTestsIndirect"),
+                        .test(name: "SharedUI"),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "AppTestsIndirect", path: projectPath): [
+                    .target(name: "SharedUI", path: projectPath),
+                ],
+                .target(name: "SharedUI", path: projectPath): [
+                    googleMaps,
+                ],
+            ]
+        )
+        // Substituted graph: SharedUI became a cached dynamic xcframework, and the edge to
+        // GoogleMaps.xcframework is no longer present at the AppTestsIndirect reach.
+        let graphWithBinaryCache: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTestsIndirect"),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "AppTestsIndirect", path: projectPath): [
+                    cachedSharedUI,
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = graphWithSources
+
+        // The GoogleMaps xcframework uses a nested `Headers/GoogleMaps/module.modulemap` layout,
+        // so the mapper adds the `Headers` root to `HEADER_SEARCH_PATHS` and lets clang discover
+        // the module map from there (no `-fmodule-map-file`).
+        var expectedGraph = graphWithBinaryCache
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "AppTestsIndirect",
+                        settings: .test(
+                            base: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
+            graph: graphWithBinaryCache,
+            environment: environment
+        )
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertBetterEqual([], gotSideEffects)
+    }
+
     func test_removeOtherSwithDuplicates() {
         // Given
         let settings: SettingsDictionary = [

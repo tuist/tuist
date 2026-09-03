@@ -982,6 +982,45 @@ public class GraphTraverser: GraphTraversing {
         return result
     }
 
+    /// Static Objective-C xcframeworks (that ship their own module map) reachable in *this* graph
+    /// from the target through targets that no longer exist in `currentGraph`. Those targets
+    /// were replaced by cached xcframeworks; their `.swiftmodule` still imports the static
+    /// xcframework's module, but the cache substitution can drop the graph edge that pointed
+    /// at the static xcframework, so `staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies`
+    /// on the substituted graph misses it. Walking from the source graph recovers it.
+    public func staticObjcXCFrameworksReachableViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency> {
+        let sourceTargetDep: GraphDependency = .target(name: name, path: path)
+        guard graph.dependencies[sourceTargetDep] != nil else { return [] }
+        return filterDependencies(
+            from: sourceTargetDep,
+            test: { dependency in
+                guard case let .xcframework(xcframework) = dependency else { return false }
+                return xcframework.linking == .static
+                    && xcframework.swiftModules.isEmpty
+                    && !xcframework.moduleMaps.isEmpty
+            },
+            skip: { dependency in
+                // Don't traverse beyond static xcframeworks (their module contents are terminal).
+                if case let .xcframework(xcframework) = dependency, xcframework.linking == .static {
+                    return true
+                }
+                // Only traverse into targets that got replaced by cached xcframeworks in the
+                // substituted graph. Targets that survive generation contribute their own
+                // static-behind-dynamic settings through the current-graph walker; walking
+                // through them here would double-count and could add vendor Headers for
+                // xcframeworks that the current graph still exposes via a dynamic route.
+                if case let .target(dependencyName, dependencyPath, _) = dependency {
+                    return currentGraph.projects[dependencyPath]?.targets[dependencyName] != nil
+                }
+                return false
+            }
+        )
+    }
+
     public func schemeRunnableTarget(scheme: Scheme) -> GraphTarget? {
         let specifiedExecutableTarget = scheme.runAction?.executable
         let defaultTarget = scheme.buildAction?.targets.first
