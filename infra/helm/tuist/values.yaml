@@ -26,7 +26,7 @@ pvReaper:
   # volumes are never touched.
   storageClass: hcloud-volumes
   # kubectl + jq in one image (Docker Hub, same registry as other chart images).
-  image: alpine/k8s:1.31.1
+  image: alpine/k8s:1.37.0
   resources:
     requests:
       cpu: "25m"
@@ -92,7 +92,7 @@ tailscaleDeviceReaper:
   # remainder rolls into the next run.
   maxDeletions: 25
   # curl + jq in one image; same image the PV reaper uses.
-  image: alpine/k8s:1.31.1
+  image: alpine/k8s:1.37.0
   # Secret holding the tag-scoped OAuth client. Empty falls back to the
   # ExternalSecret this chart syncs from 1Password. Setting a name opts out of
   # that sync entirely: the CronJob reads the named Secret and no ExternalSecret
