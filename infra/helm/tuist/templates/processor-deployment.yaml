@@ -194,6 +194,7 @@ spec:
                   key: object-storage-secret-key
             {{- end }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
             {{- with .Values.processor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

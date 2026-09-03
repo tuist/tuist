@@ -692,6 +692,22 @@ operational knobs. Render them from chart values so the server, migration,
 processor, and xcresult-processor pods stay aligned without relying on the
 runtime secret bundle.
 */}}
+{{- /*
+The in-cluster ClickHouse the workload is migrating onto, for as long as
+ClickHouse Cloud is still the system of record. Absent unless the managed
+workload is enabled, which is what keeps the schema clone, the backfill and
+the shadow writes inert everywhere else.
+*/ -}}
+{{- define "tuist.clickhouseBareMetalEnv" -}}
+{{- if .Values.clickhouse.managed.enabled }}
+- name: TUIST_CLICKHOUSE_BARE_METAL_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
+      key: url
+{{- end }}
+{{- end }}
+
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
 - name: TUIST_CLICKHOUSE_POOL_SIZE

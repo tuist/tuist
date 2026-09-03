@@ -61,6 +61,57 @@ defmodule Tuist.Release do
           reconcile_ops_clickhouse(repo)
         end)
     end
+
+    do_clone_clickhouse_schema()
+  end
+
+  @doc """
+  Clones the ClickHouse schema from the system of record onto the in-cluster
+  ClickHouse named by `TUIST_CLICKHOUSE_BARE_METAL_URL`.
+
+  A no-op when that variable is unset, which is every environment not
+  currently migrating. Idempotent, so the deploy hook that calls it can run on
+  every release: an already-cloned schema produces a report of zero changes.
+
+  See `Tuist.ClickHouse.SchemaClone` for why the schema is cloned from the
+  source rather than produced by replaying the ingest migrations.
+  """
+  def clone_clickhouse_schema do
+    load_app()
+    do_clone_clickhouse_schema()
+  end
+
+  defp do_clone_clickhouse_schema do
+    case Tuist.ClickHouse.SchemaClone.run() do
+      {:ok, report} ->
+        failed = report.tables.failed ++ report.views.failed
+
+        if failed == [] do
+          Logger.info("ClickHouse schema clone succeeded: #{inspect(report)}")
+          :ok
+        else
+          # Loudly, and by failing the deploy, because a partially cloned
+          # schema that reported success would surface much later as the
+          # backfill failing on a missing table.
+          raise "ClickHouse schema clone failed for: #{inspect(failed)}"
+        end
+
+      {:error, :no_target_configured} ->
+        Logger.info("TUIST_CLICKHOUSE_BARE_METAL_URL is unset; skipping the ClickHouse schema clone")
+        :ok
+
+      {:error, {:target_unreachable, reason}} ->
+        # Expected on the deploy that first introduces the ClickHouse
+        # StatefulSet: this task runs as a pre-upgrade hook, so the workload
+        # does not exist yet. Not a deploy failure, and the next deploy
+        # clones. A target that stays unreachable shows up as a schema that
+        # never gets cloned, which the backfill refuses to run against.
+        Logger.warning("In-cluster ClickHouse is not reachable yet; skipping the schema clone (#{reason})")
+        :ok
+
+      {:error, reason} ->
+        raise "ClickHouse schema clone failed: #{inspect(reason)}"
+    end
   end
 
   # A migration that brings the VM down instead of raising (an exit signal from a

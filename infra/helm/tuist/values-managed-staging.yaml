@@ -310,6 +310,29 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
+  # `mode` stays `external`: ClickHouse Cloud is still the system of record
+  # here, and the workload below runs alongside it. Staging is where the
+  # migration off Cloud (spec #73) is validated end to end, so both exist at
+  # once for the duration.
+  #
+  # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
+  # data on that node's XFS `/data`, and one Keeper on the general pool.
+  # Deliberately not a highly-available shape: what staging proves is the
+  # replicated engines, the Keeper dependency, the schema clone and the
+  # storage layout. Two replicas and a three-member quorum belong to canary.
+  #
+  # The volume is sized well under the 441 GB `/data` offers, because the
+  # staging dataset is a few GiB and the headroom is more useful as page
+  # cache than as a reservation nothing fills.
+  #
+  # First deploy ordering: the schema clone runs from the migration release
+  # task, which is a pre-upgrade hook, so on the deploy that introduces this
+  # workload there is nothing listening yet and the clone logs a warning and
+  # skips. The following deploy clones. That is expected, not a failure.
+  managed:
+    enabled: true
+    persistence:
+      size: 60Gi
 
 cache:
   extraEnv:

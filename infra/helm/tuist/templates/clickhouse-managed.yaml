@@ -1,0 +1,530 @@
+{{- if .Values.clickhouse.managed.enabled }}
+{{- $m := .Values.clickhouse.managed }}
+{{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+{{- $keeperName := include "tuist.componentName" (dict "root" . "component" "clickhouse-keeper") }}
+{{- /*
+Managed in-cluster ClickHouse: the shape Tuist operates itself, as opposed to
+`embedded` (a single unreplicated pod for self-hosters and previews) and
+`external` (ClickHouse Cloud).
+
+Two things make this mode different from `embedded`, and both are the reason
+it is a separate template rather than a flag on that one:
+
+  1. Placement. These pods belong on the `stateful-worker` bare-metal pool
+     (`infra/k8s/clusters/bare-metal-stateful.yaml`), which is tainted so that
+     nothing else lands there, and their data lives on that node's `/data`
+     XFS filesystem rather than a network volume. `embedded` uses the chart's
+     global scheduling helper, which would move every workload at once.
+  2. Replication. Tables are `Replicated*`, which requires a Keeper quorum
+     even at one ClickHouse replica, because the engine writes its metadata
+     there regardless of how many replicas exist.
+
+Staging runs one ClickHouse replica and one Keeper. That is deliberately not
+a highly-available shape: it exercises the replicated engines, the Keeper
+dependency, the schema path and the storage layout, which is what staging is
+for. Canary is where a second replica and a three-member quorum belong.
+*/}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $chName }}-config
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+data:
+  # `{shard}` and `{replica}` are what a `Replicated*` engine expands when it
+  # is created without explicit Keeper path arguments, and what the cloned
+  # Cloud DDL expands when its explicit arguments are ignored (see
+  # `database_replicated_allow_replicated_engine_arguments` below). The
+  # replica macro is the pod's own name so a second replica added later
+  # cannot collide with this one's Keeper path.
+  macros.xml: |
+    <clickhouse>
+      <macros>
+        <shard>01</shard>
+        <replica from_env="HOSTNAME"></replica>
+      </macros>
+    </clickhouse>
+  keeper-client.xml: |
+    <clickhouse>
+      <zookeeper>
+        <node>
+          <host>{{ $keeperName }}</host>
+          <port>{{ $m.keeper.clientPort }}</port>
+        </node>
+      </zookeeper>
+    </clickhouse>
+  settings.xml: |
+    <clickhouse>
+      <logger>
+        <level>{{ $m.logLevel }}</level>
+      </logger>
+      <text_log>
+        <level>{{ $m.logLevel }}</level>
+      </text_log>
+      {{- range $table := list "text_log" "query_log" "query_thread_log" "query_views_log" "trace_log" "metric_log" "asynchronous_metric_log" "part_log" }}
+      <{{ $table }}>
+        <ttl>event_date + INTERVAL {{ $m.systemLogTtlDays }} DAY DELETE</ttl>
+      </{{ $table }}>
+      {{- end }}
+      <!--
+        The Prometheus endpoint ClickHouse serves itself. Alloy scrapes it
+        through the pod annotations below; nothing else exposes replica queue
+        depth, merge backlog or part counts.
+      -->
+      <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>{{ $m.metricsPort }}</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+        <errors>true</errors>
+      </prometheus>
+    </clickhouse>
+---
+{{- /*
+The `default` user's password lives in a Secret rather than the ConfigMap
+above, and is generated once and preserved across upgrades by reading back
+the existing Secret. That keeps it out of `helm get values`, out of the
+ConfigMap any namespace reader can list, and removes a vault round trip for
+an environment whose ClickHouse is reachable only from inside the cluster.
+*/}}
+{{- $chSecretName := printf "%s-credentials" $chName }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $chSecretName }}
+{{- $existingPassword := "" }}
+{{- if and $existing $existing.data (index $existing.data "password") }}
+{{- $existingPassword = index $existing.data "password" | b64dec }}
+{{- end }}
+{{- $password := $m.password | default $existingPassword | default (randAlphaNum 40) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $chSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+type: Opaque
+stringData:
+  password: {{ $password | quote }}
+  # The whole connection string, so the application and the deploy hooks get
+  # one secret reference instead of assembling a URL from four env vars and
+  # having to agree on the escaping.
+  url: {{ printf "http://default:%s@%s:8123/%s" $password $chName $m.database | quote }}
+  # Mounted into users.d. ClickHouse reads it at startup and on reload.
+  users.xml: |
+    <clickhouse>
+      <profiles>
+        <default>
+          <!--
+            Three settings that only matter inside a `Replicated` database,
+            and each of which is load-bearing for the Cloud schema clone.
+
+            `allow_only_replicated_engine` is the guard. Without it a CREATE
+            that somehow reaches this database with a plain `MergeTree`
+            engine succeeds and produces a table whose data lives on one
+            replica only, which is invisible until a second replica exists
+            and disagrees. With it, that CREATE fails outright. ClickHouse
+            Cloud defaults this to 1 for the same reason.
+
+            `allow_replicated_engine_arguments = 2` accepts the explicit
+            Keeper path and replica arguments carried by DDL cloned from
+            Cloud and substitutes the server defaults instead of honouring
+            them. Cloud emits `('/clickhouse/tables/{uuid}/{shard}',
+            '{replica}', ...)`, which is the same path this server would
+            choose anyway; mode 1 would accept and honour it, and mode 0
+            would reject the clone outright.
+
+            `allow_heavy_create` permits `CREATE MATERIALIZED VIEW ...
+            POPULATE`, which 14 of the ingest migrations use. It is off by
+            default because such a statement holds the distributed DDL queue
+            for as long as the backfill runs. That is acceptable here: the
+            statements run during migration, not against live traffic.
+          -->
+          <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>
+          <database_replicated_allow_replicated_engine_arguments>2</database_replicated_allow_replicated_engine_arguments>
+          <database_replicated_allow_heavy_create>1</database_replicated_allow_heavy_create>
+        </default>
+      </profiles>
+      <users>
+        <default>
+          <password>{{ $password }}</password>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+        </default>
+      </users>
+    </clickhouse>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $keeperName }}-config
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+data:
+  keeper.xml: |
+    <clickhouse>
+      <listen_host>0.0.0.0</listen_host>
+      <keeper_server>
+        <tcp_port>{{ $m.keeper.clientPort }}</tcp_port>
+        <server_id from_env="KEEPER_SERVER_ID"></server_id>
+        <log_storage_path>/var/lib/clickhouse-keeper/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse-keeper/snapshots</snapshot_storage_path>
+        <coordination_settings>
+          <operation_timeout_ms>10000</operation_timeout_ms>
+          <session_timeout_ms>30000</session_timeout_ms>
+        </coordination_settings>
+        <raft_configuration>
+          {{- range $i := until (int $m.keeper.replicas) }}
+          <server>
+            <id>{{ add $i 1 }}</id>
+            <hostname>{{ $keeperName }}-{{ $i }}.{{ $keeperName }}-headless</hostname>
+            <port>{{ $m.keeper.raftPort }}</port>
+          </server>
+          {{- end }}
+        </raft_configuration>
+      </keeper_server>
+      <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>{{ $m.metricsPort }}</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+      </prometheus>
+    </clickhouse>
+{{- if $m.persistence.localVolume.enabled }}
+---
+{{- /*
+A `local` PersistentVolume rather than the local-path provisioner the Kura
+fleet runs. There is one volume on one node here, and the provisioner's value
+is per-account dynamic carving plus XFS project quotas, neither of which
+applies: ClickHouse wants one directory and bounds its own disk use through
+retention. A static volume also fails visibly. If the node is gone the claim
+stays Pending, instead of a provisioner quietly carving a directory somewhere
+else.
+
+Node affinity binds on the pool label rather than a node name, so replacing
+the box does not need a manifest edit. The data does not survive that
+replacement: reinstalling a Robot host wipes `/data`, and the replica refills
+from its peer. On a single-replica staging there is no peer, so a node
+replacement means re-running the schema bootstrap and backfill.
+*/}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $chName }}-data
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  capacity:
+    storage: {{ $m.persistence.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $m.persistence.storageClassName }}
+  local:
+    path: {{ $m.persistence.localVolume.path }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node.cluster.x-k8s.io/pool
+              operator: In
+              values:
+                - {{ $m.nodePool }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $m.persistence.storageClassName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+provisioner: kubernetes.io/no-provisioner
+# The claim must not bind before the pod is scheduled, or it can bind to a
+# volume on a node the pod cannot run on.
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: false
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $chName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+    - name: native
+      port: 9000
+      targetPort: 9000
+    - name: metrics
+      port: {{ $m.metricsPort }}
+      targetPort: {{ $m.metricsPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $keeperName }}-headless
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 4 }}
+  ports:
+    - name: raft
+      port: {{ $m.keeper.raftPort }}
+    - name: client
+      port: {{ $m.keeper.clientPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $keeperName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 4 }}
+  ports:
+    - name: client
+      port: {{ $m.keeper.clientPort }}
+      targetPort: {{ $m.keeper.clientPort }}
+    - name: metrics
+      port: {{ $m.metricsPort }}
+      targetPort: {{ $m.metricsPort }}
+---
+{{- /*
+Keeper runs on the general cloud pool, not on the bare-metal box. It is
+control-plane metadata rather than hot data, it is small, and putting it on
+the same host as the data replica would mean one machine failure takes both
+the data and the quorum that makes the data writable.
+*/}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $keeperName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+spec:
+  serviceName: {{ $keeperName }}-headless
+  replicas: {{ $m.keeper.replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $m.metricsPort | quote }}
+        prometheus.io/path: /metrics
+    spec:
+      {{- with $m.keeper.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if gt (int $m.keeper.replicas) 1 }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      securityContext:
+        fsGroup: 101
+      containers:
+        - name: keeper
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          imagePullPolicy: {{ $m.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              # The Raft server id has to match this pod's ordinal, and the
+              # config can only read it from the environment.
+              export KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))
+              exec clickhouse-keeper --config-file /etc/clickhouse-keeper/keeper.xml
+          ports:
+            - name: client
+              containerPort: {{ $m.keeper.clientPort }}
+            - name: raft
+              containerPort: {{ $m.keeper.raftPort }}
+            - name: metrics
+              containerPort: {{ $m.metricsPort }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - "echo ruok | timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/{{ $m.keeper.clientPort }}; cat >&3; head -c 4 <&3' | grep -q imok"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/clickhouse-keeper/keeper.xml
+              subPath: keeper.xml
+            - name: data
+              mountPath: /var/lib/clickhouse-keeper
+          resources:
+            {{- toYaml $m.keeper.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $keeperName }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $m.keeper.storageSize }}
+        {{- with $m.keeper.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $chName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  serviceName: {{ $chName }}
+  replicas: {{ $m.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $m.metricsPort | quote }}
+        prometheus.io/path: /metrics
+        # The pod template has to change when the settings change, or a
+        # ConfigMap edit sits on disk unread until something else restarts
+        # the pod. ClickHouse reloads some of these itself, but not the
+        # profile settings that gate the replicated-engine guard.
+        checksum/config: {{ printf "%s|%s" ($m | toYaml) $password | sha256sum | trunc 32 }}
+    spec:
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: {{ $m.nodePool }}
+      tolerations:
+        {{- toYaml $m.tolerations | nindent 8 }}
+      securityContext:
+        fsGroup: 101
+      initContainers:
+        # The `local` PersistentVolume binds an existing directory; it does
+        # not create one, and the host's `/data` is owned by root. Without
+        # this the server exits immediately on a permission error.
+        - name: prepare-data-dir
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          imagePullPolicy: {{ $m.image.pullPolicy }}
+          securityContext:
+            runAsUser: 0
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              mkdir -p {{ $m.persistence.localVolume.path }}
+              chown -R 101:101 {{ $m.persistence.localVolume.path }}
+          volumeMounts:
+            - name: host-data
+              mountPath: {{ $m.persistence.localVolume.path }}
+      containers:
+        - name: clickhouse
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          imagePullPolicy: {{ $m.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+            - name: metrics
+              containerPort: {{ $m.metricsPort }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-macros.xml
+              subPath: macros.xml
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-keeper.xml
+              subPath: keeper-client.xml
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-settings.xml
+              subPath: settings.xml
+            - name: credentials
+              mountPath: /etc/clickhouse-server/users.d/tuist-users.xml
+              subPath: users.xml
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          # ClickHouse opens its store, replaying write-ahead logs, before it
+          # binds the port that answers /ping. A cold start after an unclean
+          # shutdown spends that time here rather than failing readiness.
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            {{- toYaml $m.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $chName }}-config
+        - name: credentials
+          secret:
+            secretName: {{ $chSecretName }}
+        - name: host-data
+          hostPath:
+            path: {{ $m.persistence.localVolume.path }}
+            type: DirectoryOrCreate
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $m.persistence.size }}
+        storageClassName: {{ $m.persistence.storageClassName }}
+{{- end }}

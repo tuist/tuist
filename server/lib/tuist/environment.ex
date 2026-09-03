@@ -1281,6 +1281,18 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
+  # The in-cluster ClickHouse the workload is migrating onto, while
+  # `clickhouse_url/1` still points at the system of record. Set only for the
+  # duration of the migration: it is what the schema clone writes into, what
+  # the backfill fills, and what shadow writes are mirrored to. Absent
+  # everywhere else, which is what keeps all of that inert.
+  def clickhouse_bare_metal_url(secrets \\ secrets()) do
+    case get([:clickhouse, :bare_metal_url], secrets) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
   def ops_clickhouse_url(secrets \\ secrets()) do
     get([:ops, :clickhouse_url], secrets) ||
       build_ops_clickhouse_url(

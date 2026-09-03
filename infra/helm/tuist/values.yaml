@@ -2877,7 +2877,87 @@ postgresql:
         field: password
 
 clickhouse:
+  # embedded | external | managed
+  #
+  # `embedded` is one unreplicated pod for self-hosters and previews.
+  # `external` points at a URL somebody else operates (ClickHouse Cloud today).
+  # `managed` is the in-cluster shape Tuist operates itself: replicated tables
+  # on the tainted `stateful-worker` bare-metal pool with a Keeper quorum. See
+  # `templates/clickhouse-managed.yaml`.
   mode: embedded
+  # In-cluster ClickHouse operated by Tuist.
+  #
+  # Deliberately gated on its own `enabled` rather than on `mode`, because the
+  # migration needs both at once: during the dual-run the application still
+  # reads and writes ClickHouse Cloud (`mode: external`) while this workload
+  # runs alongside it, taking backfilled history and shadow writes. Flipping
+  # `mode` is the last step, not the first.
+  managed:
+    enabled: false
+    replicas: 1
+    # Not `default`: the schema is cloned into a database created with
+    # `ENGINE = Replicated`, and `default` already exists as an ordinary
+    # Atomic database on a fresh server.
+    database: tuist
+    image:
+      repository: clickhouse/clickhouse-server
+      # Pin an LTS. 26.3 is the current one; the ingest migrations need 26.1 or
+      # newer for `deduplicate_merge_projection_mode`.
+      tag: "26.3"
+      pullPolicy: IfNotPresent
+    # Password for the `default` user. Managed environments source this from
+    # 1Password and pass it at deploy time rather than committing it.
+    password: ""
+    # The node pool label the data pods are pinned to, and the pool the local
+    # volume's node affinity binds on.
+    nodePool: clickhouse
+    tolerations:
+      - key: tuist.dev/stateful
+        operator: Equal
+        value: clickhouse
+        effect: NoSchedule
+    metricsPort: 9363
+    logLevel: information
+    # ClickHouse's own system.* log tables ship with no retention and grow
+    # without bound. This is not the application data's retention.
+    systemLogTtlDays: 7
+    resources:
+      requests:
+        cpu: "2"
+        memory: 8Gi
+      limits:
+        # Well under the node's allocatable: ClickHouse sizes its own caches
+        # and query budgets from the cgroup limit, and the rest of the box is
+        # more useful as page cache than as headroom it will try to fill.
+        memory: 32Gi
+    persistence:
+      size: 200Gi
+      storageClassName: clickhouse-local
+      localVolume:
+        enabled: true
+        # A directory on the stateful node's XFS `/data`, which is the
+        # filesystem the `stateful-worker` class carves for exactly this.
+        path: /data/clickhouse
+    keeper:
+      # One member is not a quorum and cannot tolerate a loss. It is the right
+      # shape for staging, whose job is to exercise the replicated engines and
+      # the Keeper dependency rather than to survive a failure. Canary and
+      # production run three.
+      replicas: 1
+      clientPort: 9181
+      raftPort: 9234
+      storageSize: 10Gi
+      storageClassName: ""
+      # Keeper stays on the general cloud pool: it is small control-plane
+      # metadata, and co-locating it with the data replica would let one host
+      # failure take both the data and the quorum that makes it writable.
+      nodeSelector: {}
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
   # Optional runtime pool sizes for the Elixir ClickHouse repos. These are
   # operational capacity knobs, not secrets; managed deployments set them in
   # values-managed-*.yaml so all server-release workloads render the same env.
