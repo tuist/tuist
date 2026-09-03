@@ -2605,6 +2605,121 @@ fn parse_blob_resource_name(
     resource_name: &str,
     require_upload_prefix: bool,
 ) -> Result<BlobResource, Status> {
+    let mut blob_index = None;
+    let mut hash = None;
+    let mut encoded_size = None;
+    let mut has_upload_prefix = false;
+    let mut namespace_capacity = 0;
+    let mut previous = None;
+    let mut second_previous = None;
+    let mut normalized_prefix_len = 0_usize;
+    for (index, part) in resource_name
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .enumerate()
+    {
+        if part == "blobs" {
+            blob_index = Some(index);
+            hash = None;
+            encoded_size = None;
+            has_upload_prefix = index >= 2 && second_previous == Some("uploads");
+            namespace_capacity = if has_upload_prefix {
+                let upload_bytes = second_previous.map_or(0, str::len);
+                let upload_id_bytes = previous.map_or(0, str::len);
+                let separators = if index == 2 { 1 } else { 2 };
+                normalized_prefix_len
+                    .saturating_sub(upload_bytes)
+                    .saturating_sub(upload_id_bytes)
+                    .saturating_sub(separators)
+            } else {
+                normalized_prefix_len
+            };
+        } else if blob_index.is_some() {
+            if hash.is_none() {
+                hash = Some(part);
+            } else if encoded_size.is_none() {
+                encoded_size = Some(part);
+            }
+        }
+
+        if index > 0 {
+            normalized_prefix_len = normalized_prefix_len.saturating_add(1);
+        }
+        normalized_prefix_len = normalized_prefix_len.saturating_add(part.len());
+        second_previous = previous;
+        previous = Some(part);
+    }
+
+    let Some(blob_index) = blob_index else {
+        return Err(Status::invalid_argument(
+            "resource_name must contain /blobs/",
+        ));
+    };
+    let Some(hash) = hash else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+    let Some(encoded_size) = encoded_size else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+
+    let namespace_len = if has_upload_prefix {
+        blob_index - 2
+    } else {
+        if require_upload_prefix {
+            return Err(Status::invalid_argument(
+                "write resource_name must include uploads/{uuid}/blobs/{hash}/{size}",
+            ));
+        }
+        blob_index
+    };
+    let size_bytes = encoded_size
+        .parse::<u64>()
+        .map_err(|error| Status::invalid_argument(format!("invalid blob size: {error}")))?;
+    let namespace_id = if namespace_len == 0 {
+        DEFAULT_INSTANCE_NAME.to_string()
+    } else {
+        let mut namespace_id = String::with_capacity(namespace_capacity);
+        for part in resource_name
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .take(namespace_len)
+        {
+            if !namespace_id.is_empty() {
+                namespace_id.push('/');
+            }
+            namespace_id.push_str(part);
+        }
+        namespace_id
+    };
+    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
+    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
+    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
+    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
+    let mut key = String::with_capacity("blob/".len() + hash.len() + 1 + encoded_size.len());
+    key.push_str("blob/");
+    key.push_str(hash);
+    key.push('/');
+    use std::fmt::Write as _;
+    write!(&mut key, "{size_bytes}").expect("writing to a string cannot fail");
+
+    Ok(BlobResource {
+        namespace_id,
+        hash: hash.to_owned(),
+        size_bytes,
+        key,
+    })
+}
+
+#[cfg(test)]
+fn parse_blob_resource_name_allocating(
+    resource_name: &str,
+    require_upload_prefix: bool,
+) -> Result<BlobResource, Status> {
     let parts = resource_name
         .split('/')
         .filter(|part| !part.is_empty())
@@ -2639,11 +2754,6 @@ fn parse_blob_resource_name(
     } else {
         namespace_parts.join("/")
     };
-    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
-    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
-    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
-    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
-    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
     let key = blob_key(&format!("{hash}/{size_bytes}"));
 
     Ok(BlobResource {
@@ -5903,6 +6013,89 @@ mod tests {
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
+        );
+    }
+
+    #[test]
+    fn allocation_free_resource_scan_preserves_normalization_and_last_blob_marker() {
+        for (resource_name, require_upload_prefix) in [
+            ("//bazel///cache/blobs/abc/00010/trailing", false),
+            ("first/blobs/ignored/buck/uploads/uuid-1/blobs/abc/10", true),
+            ("blobs/abc", false),
+            ("buck/cache/blobs/abc/invalid", false),
+        ] {
+            let candidate = parse_blob_resource_name(resource_name, require_upload_prefix);
+            let baseline =
+                parse_blob_resource_name_allocating(resource_name, require_upload_prefix);
+            match (candidate, baseline) {
+                (Ok(candidate), Ok(baseline)) => assert_eq!(candidate, baseline),
+                (Err(candidate), Err(baseline)) => {
+                    assert_eq!(candidate.code(), baseline.code());
+                    assert_eq!(candidate.message(), baseline.message());
+                }
+                (candidate, baseline) => {
+                    panic!("parser results differ: candidate={candidate:?}, baseline={baseline:?}")
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run by autoresearch.sh"]
+    fn blob_resource_name_parser_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const RESOURCE_NAME: &str = concat!(
+            "bazel/cache/uploads/018f5f8d-7f2b-7ee5-8c42-6b62475558a3/blobs/",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144"
+        );
+
+        let measure = |allocating| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let resource = if allocating {
+                    parse_blob_resource_name_allocating(RESOURCE_NAME, true)
+                } else {
+                    parse_blob_resource_name(RESOURCE_NAME, true)
+                }
+                .expect("benchmark resource should parse");
+                std::hint::black_box(resource);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_parse_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 
