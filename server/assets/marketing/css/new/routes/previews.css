@@ -1,0 +1,617 @@
+/* Previews feature page (/previews): centered hero card over a full-width
+   illustration slot, followed by the features frame (intro text + 2x2
+   hairline grid) on the 1200px page frame with 2px seams — the same
+   skeleton as routes/cache.css. The legacy design lives in
+   routes/previews.css. */
+#marketing-previews {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Both frames share the page shell: stroke border, primary surface, the
+     same margin/width override that beats pages.css (its :not counts an
+     ID, but the #id selector here still wins). */
+  & > header[data-part="header"],
+  & > [data-part="features"] {
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  /* Hero card (Figma: 1200x610): 64px above the centered copy, 8px sides,
+     32px gaps, and the 300px illustration slot flush against the bottom
+     edge (0 bottom padding). */
+  & > header[data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    padding: var(--noora-spacing-13) var(--noora-spacing-4) 0;
+    overflow: hidden;
+
+    /* Mobile: the same header as the other feature pages (cache, compute,
+       tests) — illustration hidden, left-aligned copy, 64px above and
+       40px right/below with the 8px left inset. */
+    @media (max-width: 720px) {
+      align-items: flex-start;
+      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+    }
+
+    & > [data-part="copy"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-9);
+      width: 100%;
+
+      @media (max-width: 720px) {
+        align-items: flex-start;
+      }
+    }
+
+    & [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.01em;
+      text-align: center;
+      text-wrap: balance;
+
+      @media (max-width: 720px) {
+        text-align: left;
+      }
+    }
+
+    & [data-part="subtitle"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-align: center;
+      text-wrap: pretty;
+
+      @media (max-width: 720px) {
+        text-align: left;
+      }
+
+      /* The two sentences break where the comp does on desktop and reflow
+         as one paragraph on narrow viewports. */
+      & > [data-part="line"] {
+        @media (min-width: 721px) {
+          display: block;
+        }
+      }
+
+      & [data-part="link"] {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-position: from-font;
+
+        &:hover {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    }
+
+    /* Full-width illustration slot. The negative margins cancel the card's
+       side padding so the stage can run edge to edge. The hook measures the
+       slot and sets --stage-scale (≤ 1) so the fixed 1200x300 stage shrinks
+       to fit narrower cards (tab mode) instead of being clipped; on
+       mobile it is hidden like the other feature pages' illustrations. */
+    & > [data-part="illustration"] {
+      --stage-scale: 1;
+
+      align-self: stretch;
+      margin: 0 calc(-1 * var(--noora-spacing-4));
+      height: calc(300px * var(--stage-scale));
+      overflow: hidden;
+
+      @media (max-width: 720px) {
+        display: none;
+      }
+
+      /* Fixed 1200x300 stage (Figma coordinates); everything inside is
+         absolutely positioned against it. */
+      /* Scaled from the top-left corner: the slot is exactly 1200 x scale
+         wide, so the shrunk stage fills it edge to edge (scaling from the
+         center of the 1200px layout box would push it off to the right). */
+      & > [data-part="stage"] {
+        position: relative;
+        transform: scale(var(--stage-scale));
+        transform-origin: top left;
+        width: 1200px;
+        height: 300px;
+      }
+
+      & [data-part="connectors"] {
+        display: block;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+
+        & > path {
+          stroke: var(--marketing-illustration-neutral-4);
+          stroke-width: 1;
+        }
+      }
+
+      /* Graph nodes: Noora tags pinned by their left edge and centered on
+         the lane's y, sized to the comp's 32px tag (Noora's default is
+         24px). */
+      & [data-part="node"] {
+        position: absolute;
+        transform: translateY(-50%);
+        box-sizing: border-box;
+        padding: 0 var(--noora-spacing-4) 0 var(--noora-spacing-3);
+        height: 32px;
+        white-space: nowrap;
+      }
+
+      /* Streaks: two dash windows (faint tail, bright head) the hook slides
+         along a route; the pulse marks where one lands on the phone. */
+      & [data-part="streak"] > path {
+        fill: none;
+        stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+        stroke-linecap: round;
+        stroke-width: 1.5;
+
+        &[data-layer="tail"] {
+          opacity: 0.3;
+        }
+      }
+
+      & > [data-part="stage"] > [data-part="pulse"] {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        animation: marketing-previews-pulse 640ms ease-out forwards;
+        border: 1px solid light-dark(var(--noora-purple-500), var(--noora-purple-400));
+        border-radius: 50%;
+        width: 10px;
+        height: 10px;
+        pointer-events: none;
+      }
+
+      /* Phone outline (224x287 crop of the Figma frame) with a skeleton app
+         screen on the illustration ramp. Every block transitions, so the
+         per-screen overrides below read as the UI settling into a slightly
+         different layout each time a streak lands. */
+      & > [data-part="stage"] > [data-part="phone"] {
+        position: absolute;
+        top: 13px;
+        left: 843px;
+        width: 224px;
+        height: 287px;
+
+        & > svg {
+          display: block;
+          width: 224px;
+          height: 287px;
+        }
+
+        & > [data-part="screen"] {
+          position: absolute;
+          inset: 0;
+        }
+
+        & [data-part="block"] {
+          display: block;
+          position: absolute;
+          transition:
+            width 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+            height 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+            top 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+            border-radius 480ms ease,
+            background-color 480ms ease;
+          border-radius: var(--noora-radius-2);
+          background: var(--marketing-illustration-neutral-2);
+        }
+
+        & [data-block="island"] {
+          top: 12px;
+          left: 82px;
+          border-radius: 7px;
+          background: var(--marketing-illustration-neutral-3);
+          width: 60px;
+          height: 14px;
+        }
+
+        & [data-block="avatar"] {
+          top: 51px;
+          left: 22px;
+          border-radius: var(--noora-radius-4);
+          width: 45px;
+          height: 45px;
+        }
+
+        & [data-block="name"] {
+          top: 58px;
+          left: 82px;
+          width: var(--name-width);
+          height: 12px;
+        }
+
+        & [data-block="subline"] {
+          top: 76px;
+          left: 82px;
+          background: var(--marketing-illustration-neutral-1);
+          width: var(--subline-width);
+          height: 8px;
+        }
+
+        & [data-block="tab"] {
+          top: 126px;
+          background: var(--marketing-illustration-neutral-1);
+          width: 56px;
+          height: 20px;
+
+          &[data-tab="0"] {
+            left: 23px;
+          }
+
+          &[data-tab="1"] {
+            left: 84px;
+          }
+
+          &[data-tab="2"] {
+            left: 145px;
+          }
+        }
+
+        & [data-block="card"] {
+          top: 163px;
+          left: 23px;
+          background: var(--marketing-illustration-neutral-1);
+          width: 178px;
+          height: var(--card-height);
+
+          & > [data-block="card-title"] {
+            top: 8px;
+            left: 8px;
+            width: 64px;
+            height: 8px;
+          }
+
+          & > [data-block="card-meta"] {
+            top: 8px;
+            right: 8px;
+            width: var(--meta-width);
+            height: 8px;
+          }
+
+          /* Preview list widget: two rows of app icon, title, subtitle and
+             a run pill, stacked under the card header. */
+          & > [data-part="row"] {
+            position: absolute;
+            right: 8px;
+            left: 8px;
+            transition:
+              transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+              opacity 360ms ease;
+            height: 26px;
+
+            &[data-row="0"] {
+              top: 24px;
+            }
+
+            &[data-row="1"] {
+              top: 52px;
+            }
+
+            /* Third preview: parked below the fold of the card until the
+               card grows to fit it. */
+            &[data-row="2"] {
+              top: 80px;
+              transform: translateY(6px);
+              opacity: 0;
+            }
+
+            & > [data-block="app-icon"] {
+              top: 1px;
+              left: 0;
+              border-radius: var(--noora-radius-3);
+              width: 24px;
+              height: 24px;
+            }
+
+            & > [data-block="row-title"] {
+              top: 4px;
+              left: 32px;
+              width: var(--row-title-width);
+              height: 8px;
+            }
+
+            & > [data-block="row-subtitle"] {
+              top: 16px;
+              left: 32px;
+              width: var(--row-subtitle-width);
+              height: 6px;
+            }
+
+            & > [data-block="run"] {
+              top: 5px;
+              right: 0;
+              border-radius: 8px;
+              width: var(--run-width);
+              height: 16px;
+            }
+          }
+        }
+
+        & [data-block="footer"] {
+          top: var(--footer-top);
+          left: 22px;
+          background: var(--marketing-illustration-neutral-3);
+          width: 179px;
+          height: 20px;
+        }
+
+        /* Screen states — each one a visibly different layout so the
+           change reads at a glance: 0 is the base list; 1 swaps the two
+           rows and rounds the avatar;
+           2 grows the card to fit a third preview and pushes the footer
+           into the fade. The darker run pill marks the preview that just
+           landed. */
+        &[data-screen="0"] {
+          --name-width: 119px;
+          --subline-width: 84px;
+          --meta-width: 28px;
+          --card-height: 86px;
+          --footer-top: 266px;
+          --row-title-width: 70px;
+          --row-subtitle-width: 48px;
+          --run-width: 32px;
+
+          & [data-tab="0"],
+          & [data-row="0"] > [data-block="run"] {
+            background: var(--marketing-illustration-neutral-3);
+          }
+        }
+
+        &[data-screen="1"] {
+          --name-width: 104px;
+          --subline-width: 96px;
+          --meta-width: 36px;
+          --card-height: 86px;
+          --footer-top: 266px;
+          --row-title-width: 58px;
+          --row-subtitle-width: 56px;
+          --run-width: 40px;
+
+          & [data-block="avatar"] {
+            border-radius: 50%;
+          }
+
+          & [data-row="0"] {
+            transform: translateY(28px);
+          }
+
+          & [data-row="1"] {
+            transform: translateY(-28px);
+          }
+
+          & [data-tab="1"],
+          & [data-row="1"] > [data-block="run"] {
+            background: var(--marketing-illustration-neutral-3);
+          }
+        }
+
+        &[data-screen="2"] {
+          --name-width: 128px;
+          --subline-width: 72px;
+          --meta-width: 24px;
+          --card-height: 114px;
+          --footer-top: 288px;
+          --row-title-width: 78px;
+          --row-subtitle-width: 40px;
+          --run-width: 36px;
+
+          & [data-row="2"] {
+            transform: none;
+            opacity: 1;
+          }
+
+          & [data-tab="2"],
+          & [data-row="2"] > [data-block="run"] {
+            background: var(--marketing-illustration-neutral-3);
+          }
+        }
+      }
+
+      /* Surface-colored fade over the bottom 46px so the phone dissolves
+         into the card edge instead of being hard-clipped. */
+      & > [data-part="stage"] > [data-part="fade"] {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: linear-gradient(to bottom, transparent 9%, var(--noora-surface-background-primary) 94%);
+        height: 46px;
+        pointer-events: none;
+      }
+    }
+  }
+
+  /* Features frame: intro text (96px above the eyebrow, 8px sides — the
+     same convention as the other pages' sections) followed by the grid. */
+  & > [data-part="features"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-11);
+    padding-top: var(--noora-spacing-16);
+
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 0 var(--noora-spacing-4);
+
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > [data-part="description"] {
+        margin-top: var(--noora-spacing-4);
+        max-width: 720px;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    /* 2x2 feature grid. Hairlines close each cell: one above every cell
+       (the grid's top edge and the seam between the rows) and one between
+       the columns. */
+    & > [data-part="grid"] {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+
+      @media (max-width: 720px) {
+        grid-template-columns: 1fr;
+      }
+
+      /* Cell structure (Figma: 600x412): 20px top/bottom card padding, a
+         full-bleed 600x250 illustration, then the text block flush against
+         it (0 gap) carrying its own 20px padding on all sides. */
+      & > [data-part="cell"] {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-7) 0;
+
+        @media (min-width: 721px) {
+          &:nth-child(2n) {
+            border-left: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        @media (max-width: 720px) {
+          &:not(:first-child) {
+            border-top: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        /* Illustration slot (600x250); a reserved blank until the artwork
+           lands. */
+        & > [data-part="illustration"] {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 0;
+          width: 100%;
+          height: 250px;
+        }
+
+        & > [data-part="text"] {
+          padding: var(--noora-spacing-7);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+          }
+
+          & > [data-part="description"] {
+            margin-top: var(--noora-spacing-3);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+          }
+        }
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the cache page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
+
+@keyframes marketing-previews-pulse {
+  from {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0.9;
+  }
+
+  to {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}

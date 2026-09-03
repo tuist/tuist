@@ -1,0 +1,272 @@
+<% # The four feature cards share the cache page's 2x2 hairline grid; each
+# illustration slot is a reserved blank until the artwork lands. %>
+<% features = [
+  %{
+    id: "url-collaboration",
+    title: dgettext("marketing", "URL-centric collaboration"),
+    description:
+      dgettext(
+        "marketing",
+        "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
+      )
+  },
+  %{
+    id: "code-review",
+    title: dgettext("marketing", "Make code review hands-on"),
+    description:
+      dgettext(
+        "marketing",
+        "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
+      )
+  },
+  %{
+    id: "click-to-run",
+    title: dgettext("marketing", "Click to run, no CLI needed"),
+    description:
+      dgettext(
+        "marketing",
+        "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
+      )
+  },
+  %{
+    id: "audiences",
+    title: dgettext("marketing", "Organize builds for every audience"),
+    description:
+      dgettext(
+        "marketing",
+        "Group previews by branch, release, or team so stakeholders always find the build meant for them."
+      )
+  }
+] %>
+<% companion_apps_link =
+  ~s(<a href="#{TuistWeb.Marketing.MarketingHTML.localized_href("/download")}" data-part="link">#{Phoenix.HTML.html_escape(dgettext("marketing", "Tuist companion apps")) |> Phoenix.HTML.safe_to_string()}</a>) %>
+<% # Commit graph nodes (Figma x/y of each tag's left edge and lane
+# center). The lanes sit at y=159 (trunk), 79.6 (top branch) and 238.4
+# (bottom branch). %>
+<% graph_nodes = [
+  %{label: "main", x: 132, y: 159},
+  %{label: "a3f9c1e2d4", icon: "git_commit", x: 238, y: 159},
+  %{label: "7b2e8d0c15", icon: "git_commit", x: 440, y: 159},
+  %{label: "c4d1a9f36e", icon: "git_commit", x: 642, y: 159},
+  %{label: "e19b7c4a2d", icon: "git_commit", x: 515, y: 79.6},
+  %{label: "5f8a2d6b90", icon: "git_commit", x: 347, y: 238.4},
+  %{label: "9c3e1f7a48", icon: "git_commit", x: 515, y: 238.4}
+] %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-previews">
+    <%!-- Hero card: centered copy (Figma: 64px above the title, 8px sides,
+    32px gaps) over a full-width 300px illustration slot that runs flush to
+    the card's bottom edge. The illustration is still to come. --%>
+    <header data-part="header">
+      <div data-part="copy">
+        <h1 data-part="title">{dgettext("marketing", "Every change, ready to try")}</h1>
+        <p data-part="subtitle">
+          <span data-part="line">
+            {dgettext(
+              "marketing",
+              "Share your app instantly via URL. No delays, just click and run on any device."
+            )}
+          </span>
+          <span data-part="line">
+            {raw(
+              dgettext("marketing", "Explore the %{companion_apps} for macOS and iOS.",
+                companion_apps: companion_apps_link
+              )
+            )}
+          </span>
+        </p>
+        <.button
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "https://tuist.dev/en/docs/guides/features/previews"
+            )
+          }
+          variant="secondary"
+          label={dgettext("marketing", "Read docs")}
+        />
+      </div>
+      <%!-- Commit graph → iPhone illustration on a fixed 1200x300 stage
+      (Figma coordinates). The connectors are one SVG layer; the nodes are
+      Noora tags absolutely positioned on top of it, centered on their
+      lane's y; the phone outline is a tokenized illustration with the
+      skeleton screen blocks laid over it and a surface-colored fade over
+      its bottom edge. --%>
+      <div data-part="illustration" aria-hidden="true">
+        <div
+          data-part="stage"
+          id="previews-commit-graph"
+          phx-hook="PreviewsCommitGraph"
+          phx-update="ignore"
+        >
+          <svg
+            data-part="connectors"
+            viewBox="0 0 1200 300"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <%!-- Invisible full routes (commit → phone edge) the streaks
+            travel along; the visible lines below are the same geometry
+            broken around the tags. --%>
+            <g data-part="routes">
+              <path data-part="route" d="M172 159H843" />
+              <path
+                data-part="route"
+                d="M337 159H350C356 159 361 156 365 151.5L426.4 85.2C430.2 81.9 435.5 79.6 441.1 79.6H843"
+              />
+              <path
+                data-part="route"
+                d="M173 159H186C192 159 197 162 201 166.5L258.6 232C262.4 236.2 267.9 238.4 273.6 238.4H843"
+              />
+              <path data-part="route" d="M489.5 143V126C489.5 121.6 493.1 118 497.5 118H843" />
+              <path data-part="route" d="M287.5 175V192C287.5 196.4 291.1 200 295.5 200H843" />
+              <path data-part="route" d="M396.5 222.4V208C396.5 203.6 400.1 200 404.5 200H843" />
+            </g>
+            <%!-- Trunk lane (y 159): main → three commits → phone. --%>
+            <path d="M173 159H238" />
+            <path d="M337 159H439" />
+            <path d="M539 159H641" />
+            <path d="M741 159H843" />
+            <%!-- Top branch (y 79.6): first commit → commit → phone. The
+            branch-off is a short horizontal lead and a rounded turn into the
+            diagonal; the lane then runs straight into the phone. --%>
+            <path d="M337 159H350C356 159 361 156 365 151.5L426.4 85.2C430.2 81.9 435.5 79.6 441.1 79.6H515" />
+            <path d="M614 79.6H843" />
+            <%!-- Bottom branch (y 238.4): main → two commits → phone. --%>
+            <path d="M173 159H186C192 159 197 162 201 166.5L258.6 232C262.4 236.2 267.9 238.4 273.6 238.4H347" />
+            <path d="M447 238.4H515" />
+            <path d="M614 238.4H843" />
+            <%!-- Direct preview lanes: every commit reaches the phone on its
+            own. The second trunk commit leaves from its top edge onto the
+            y 118 lane; the first trunk commit leaves from its bottom edge
+            onto the y 200 lane, which the first bottom-branch commit joins
+            from below. Lanes enter the phone horizontally so the fan never
+            crosses itself. --%>
+            <path d="M489.5 143V126C489.5 121.6 493.1 118 497.5 118H843" />
+            <path d="M287.5 175V192C287.5 196.4 291.1 200 295.5 200H843" />
+            <path d="M396.5 222.4V208C396.5 203.6 400.1 200 404.5 200H420" />
+          </svg>
+          <.tag
+            :for={node <- graph_nodes}
+            label={node.label}
+            icon={node[:icon]}
+            data-part="node"
+            style={"left: #{node.x}px; top: #{node.y}px;"}
+          />
+          <%!-- Phone: the tokenized outline with a skeleton app screen laid
+          over it. data-screen (advanced by the hook on every streak hit)
+          reflows the blocks between three layouts: rows reorder, a third
+          preview slides in as the card grows, the avatar changes shape. --%>
+          <div data-part="phone" data-screen="0">
+            <TuistWeb.Marketing.MarketingIllustrations.illustration name="previews-iphone" />
+            <div data-part="screen">
+              <span data-part="block" data-block="island"></span>
+              <span data-part="block" data-block="avatar"></span>
+              <span data-part="block" data-block="name"></span>
+              <span data-part="block" data-block="subline"></span>
+              <span data-part="block" data-block="tab" data-tab="0"></span>
+              <span data-part="block" data-block="tab" data-tab="1"></span>
+              <span data-part="block" data-block="tab" data-tab="2"></span>
+              <span data-part="block" data-block="card">
+                <span data-part="block" data-block="card-title"></span>
+                <span data-part="block" data-block="card-meta"></span>
+                <span :for={i <- 0..2} data-part="row" data-row={i}>
+                  <span data-part="block" data-block="app-icon"></span>
+                  <span data-part="block" data-block="row-title"></span>
+                  <span data-part="block" data-block="row-subtitle"></span>
+                  <span data-part="block" data-block="run"></span>
+                </span>
+              </span>
+              <span data-part="block" data-block="footer"></span>
+            </div>
+          </div>
+          <span data-part="fade"></span>
+        </div>
+      </div>
+    </header>
+
+    <section data-part="features" aria-labelledby="previews-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="previews-features-title">
+          {dgettext("marketing", "Everything you need to share what you build")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Turn app builds into runnable previews for review, testing, and feedback before they ship."
+          )}
+        </p>
+      </div>
+      <div data-part="grid">
+        <div :for={feature <- features} data-part="cell">
+          <figure
+            data-part="illustration"
+            data-illustration={feature.id}
+            id={"previews-#{feature.id}"}
+            aria-hidden="true"
+          >
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{feature.title}</h3>
+            <p data-part="description">{feature.description}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the cache
+    page's closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="previews-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="previews-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
