@@ -133,7 +133,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
 
     public var blockingCandidates: [StressNewTestsCandidate] { candidates.filter(\.blocks) }
 
-    /// Whether the run must fail: only in `enforce`, and only on a disagreement the gate holds against the run.
+    /// Whether the run must fail: only in `enforce`, and only on a flaky test case the gate holds against the run.
     public var blocks: Bool { mode == .enforce && !blockingCandidates.isEmpty }
 
     public var serverPayload: Components.Schemas.StressNewTestsResult {

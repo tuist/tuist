@@ -312,7 +312,7 @@ open class TestQuarantineExtension {
  * Configuration for the stress gate for newly added tests. After the test tasks
  * run, the test cases that have never run in CI on the project's default branch
  * are rerun several times each, in a fresh process per repetition, and one that
- * disagrees with itself is reported (`report`) or fails the build (`enforce`).
+ * proves flaky is reported (`report`) or fails the build (`enforce`).
  * Absent means off, in every environment; the `TUIST_TEST_STRESS_NEW_TESTS`
  * environment variable overrides the declared mode per invocation.
  */

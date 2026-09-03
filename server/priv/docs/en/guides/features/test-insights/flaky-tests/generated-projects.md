@@ -86,12 +86,12 @@ tuist test --skip-quarantine
 
 ## Stress-testing new tests {#stress-testing-new-tests}
 
-Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that disagree with themselves before the change merges. Tuist decides what counts as new by checking which test cases have not run in CI on the project's default branch in the last 90 days, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
+Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that prove flaky before the change merges. Tuist decides what counts as new by checking which test cases have not run in CI on the project's default branch in the last 90 days, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
 
 The gate is off unless you enable it, and it takes a mode rather than a switch so anyone reading the pipeline can see whether the job can fail on flakiness:
 
-- **`report`**: prints a warning for each disagreement and exits on the first pass's own result. Start here and watch what the gate would have blocked for a couple of weeks.
-- **`enforce`**: identical, but a disagreement fails the run with the same exit code as a failed test.
+- **`report`**: prints a warning for each flaky test case and exits on the first pass's own result. Start here and watch what the gate would have blocked for a couple of weeks.
+- **`enforce`**: identical, but a flaky test case fails the run with the same exit code as a failed test.
 
 Pass the option ahead of the passthrough arguments, or set the `TUIST_TEST_STRESS_NEW_TESTS` environment variable to vary it per matrix lane:
 
@@ -105,7 +105,7 @@ The gate runs nothing, and says so, when the first pass already failed, when the
 
 Muted tests are stressed and recorded but cannot fail the gate, skipped tests never become candidates, and a test that fails the gate is never auto-quarantined. Repetitions the gate solicits are recorded apart from organic flakiness, so they never mark a test flaky, trigger alerts, or feed the flaky-test aggregates.
 
-In the dashboard, every stressed test case is badged in the run's test case list. A test case that disagreed with itself is flaky, so it appears with the run's flaky tests, expandable to each repetition and the failure it produced. Opening any stressed test case run shows the same repetitions in full.
+In the dashboard, every stressed test case is badged in the run's test case list. A test case that failed some of its repetitions is flaky, so it appears with the run's flaky tests, expandable to each repetition and the failure it produced. Opening any stressed test case run shows the same repetitions in full.
 
 ## Slack notifications {#slack-notifications}
 

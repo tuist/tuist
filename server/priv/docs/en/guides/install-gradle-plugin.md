@@ -74,7 +74,7 @@ The following options are available in the `tuist` extension block in `settings.
 | `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml`. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on continuous integration runners. |
-| `stressNewTests.mode` | `String?` | `null` | `"report"` or `"enforce"`. Reruns the test cases a build adds and flags any that disagree with themselves; see <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">stress-testing new tests</.localized_link>. Off when unset. |
+| `stressNewTests.mode` | `String?` | `null` | `"report"` or `"enforce"`. Reruns the test cases a build adds and flags any that prove flaky; see <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">stress-testing new tests</.localized_link>. Off when unset. |
 
 For a local server that uses an `http://` URL, allow the insecure protocol only in that local configuration:
 

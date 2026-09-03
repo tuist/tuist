@@ -6075,7 +6075,7 @@ public enum Components {
                 case suites
             }
         }
-        /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a candidate disagreeing with itself or why it ran nothing, and every test case it examined.
+        /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
         ///
         /// - Remark: Generated from `#/components/schemas/StressNewTestsResult`.
         public struct StressNewTestsResult: Codable, Hashable, Sendable {
@@ -6087,14 +6087,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/inventory_count`.
             public var inventory_count: Swift.Int?
-            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
             @frozen public enum modePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case report = "report"
                 case enforce = "enforce"
             }
-            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
             public var mode: Components.Schemas.StressNewTestsResult.modePayload
@@ -6102,7 +6102,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/new_count`.
             public var new_count: Swift.Int
-            /// `passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
             @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -6111,7 +6111,7 @@ public enum Components {
                 case skipped = "skipped"
                 case no_candidates = "no_candidates"
             }
-            /// `passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
             public var outcome: Components.Schemas.StressNewTestsResult.outcomePayload
@@ -6139,7 +6139,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/failed_repetitions`.
                 public var failed_repetitions: Swift.Int
-                /// Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate.
+                /// Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/is_quarantined`.
                 public var is_quarantined: Swift.Bool?
@@ -6289,7 +6289,7 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - failed_repetitions: How many of those repetitions failed.
-                ///   - is_quarantined: Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate.
+                ///   - is_quarantined: Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
                 ///   - module_name: The module (target or Gradle project) of the test case.
                 ///   - name: The name of the test case.
                 ///   - outcome: What the gate concluded for this candidate.
@@ -6339,9 +6339,9 @@ public enum Components {
             /// - Parameters:
             ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
             ///   - inventory_count: How many test cases have run in CI on the default branch, as the verdict measured it.
-            ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
+            ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
-            ///   - outcome: `passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///   - outcome: `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
             ///   - skip_reason: Why the gate ran nothing, when `outcome` is `skipped`.
             ///   - stressed_count: How many candidates the gate reran.
             ///   - test_cases: Every candidate the gate examined.

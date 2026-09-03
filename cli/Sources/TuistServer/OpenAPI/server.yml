@@ -2282,7 +2282,7 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
       x-validate:
     StressNewTestsResult:
-      description: 'What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a candidate disagreeing with itself or why it ran nothing, and every test case it examined.'
+      description: 'What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.'
       properties:
         excluded_count:
           description: 'How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.'
@@ -2295,7 +2295,7 @@ components:
           x-struct:
           x-validate:
         mode:
-          description: The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement.
+          description: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
           enum:
             - report
             - enforce
@@ -2308,7 +2308,7 @@ components:
           x-struct:
           x-validate:
         outcome:
-          description: '`passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.'
+          description: '`passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.'
           enum:
             - passed
             - disagreed
@@ -2344,7 +2344,7 @@ components:
                 x-struct:
                 x-validate:
               is_quarantined:
-                description: Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate.
+                description: Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
                 type: boolean
                 x-struct:
                 x-validate:

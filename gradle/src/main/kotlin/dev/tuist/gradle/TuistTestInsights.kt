@@ -565,7 +565,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         val stressTaskProvider = config.stressNewTestsMode?.takeIf { repetition == null }?.let { mode ->
             project.tasks.register("tuistStressNewTests", TuistStressNewTestsTask::class.java) {
                 group = "verification"
-                description = "Reruns the test cases this build added and flags any that disagree with themselves."
+                description = "Reruns the test cases this build added and flags any that prove flaky."
                 this.mode.set(mode)
                 serverUrl.set(config.url)
                 config.project?.let { tuistProject.set(it) }

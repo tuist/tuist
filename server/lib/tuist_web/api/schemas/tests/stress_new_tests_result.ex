@@ -13,18 +13,18 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
     title: "StressNewTestsResult",
     type: :object,
     description:
-      "What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a candidate disagreeing with itself or why it ran nothing, and every test case it examined.",
+      "What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.",
     properties: %{
       mode: %Schema{
         type: :string,
         enum: StressNewTests.modes(),
-        description: "The mode the gate ran in. `report` only warns; `enforce` fails the run on a disagreement."
+        description: "The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case."
       },
       outcome: %Schema{
         type: :string,
         enum: StressNewTests.run_outcomes(),
         description:
-          "`passed` when every stressed candidate agreed with itself, `disagreed` when at least one did not, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests."
+          "`passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests."
       },
       skip_reason: %Schema{
         type: :string,
@@ -66,7 +66,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
             is_quarantined: %Schema{
               type: :boolean,
               description:
-                "Whether the test case was muted, in which case a disagreement is recorded but cannot fail the gate."
+                "Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate."
             },
             repetition_results: %Schema{
               type: :array,

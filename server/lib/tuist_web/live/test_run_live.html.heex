@@ -384,7 +384,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Number of test cases that disagreed with themselves, whether across retries or under the stress gate's repetitions."
+                "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
               )
             }
             value={@test_metrics.flaky_count + length(@stress_flaky_candidates)}
