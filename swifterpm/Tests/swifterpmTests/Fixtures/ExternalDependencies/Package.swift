@@ -38,7 +38,7 @@ let package = Package(
         .package(url: "git@github.com:aws-amplify/aws-sdk-ios-spm", exact: "2.36.3"),
         .package(url: "git@github.com:apple/swift-collections.git", exact: "1.3.0"),
         .package(url: "git@github.com:urbanairship/ios-library.git", exact: "19.11.8"),
-        .package(url: "git@github.com:abbiio/iosdk", exact: "2.20.4"),
+        .package(url: "git@github.com:abbiio/iosdk", exact: "2.20.9"),
         .package(url: "git@github.com:bugsnag/bugsnag-cocoa.git", exact: "6.28.1"),
         .package(url: "git@github.com:hmlongco/Factory.git", exact: "2.3.2"),
         .package(url: "git@github.com:Datadog/dd-sdk-ios.git", exact: "3.3.0")
