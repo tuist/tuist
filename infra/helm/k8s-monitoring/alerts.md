@@ -3882,6 +3882,16 @@ no extra request origin. It posts to `https://tuist.dev/-/faro`, which the
 through an ExternalName Service (`server.faro` in `infra/helm/tuist`). Alloy
 forwards to Grafana Cloud Loki.
 
+**The collector path is rewritten, and that is the fragile part.** Alloy's
+`faro.receiver` serves POST on `/collect` and nothing else, so a dedicated
+Ingress rewrites `/-/faro` to `/collect` before it reaches the receiver. It is a
+separate Ingress object from the server's on purpose: `rewrite-target` is a
+per-Ingress annotation, so putting the path on the main Ingress would rewrite
+`/` as well and take the whole site down. The first deploy of this pipeline
+shipped without the rewrite and every payload got a 404 from Alloy's router,
+which is why the triage below starts by reading the body of that 404 rather
+than only its status.
+
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
 no Content Security Policy change, and no separate domain for content blockers
@@ -3902,12 +3912,20 @@ Because `| logfmt` promotes every field to a label, each query needs an explicit
 `by (app_environment)` or `sum by (...)`. Without it a range aggregation returns
 one series per unique field combination, which is per-session.
 
+**`app_environment` is `prod`, not `production`.** The value comes from
+`Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
+the k8s and Grafana Cloud label layer, a different thing. Every rule here
+originally filtered `production` and therefore matched nothing — and because the
+percentile rules are No Data: OK, that read as a healthy, fast site rather than
+a broken pipeline. If a rule in this group ever goes quiet, re-run its query
+with the environment filter removed before believing the silence.
+
 ```logql
 quantile_over_time(0.95,
   {service_name="tuist-web", kind="measurement"}
     | logfmt
     | type="web-vitals"
-    | app_environment="production"
+    | app_environment="prod"
     | lcp!=""
     | unwrap lcp [6h]
 ) by (app_environment) / 1000
@@ -3993,7 +4011,7 @@ sum(count_over_time(
   {service_name="tuist-web", kind="measurement"}
     | logfmt
     | type="web-vitals"
-    | app_environment="production"
+    | app_environment="prod"
     | lcp!="" [2h]
 )) < 1
 ```
@@ -4018,9 +4036,13 @@ Triage follows the payload:
 1. **Browser** — view source on tuist.dev and check `globalThis.analytics` has a
    `collector_url`. Empty means `TUIST_FARO_COLLECTOR_URL` is unset, i.e.
    `server.faro.collectorUrl` is empty in the chart.
-2. **Ingress** — `curl -i https://tuist.dev/-/faro` should not 404. A 404 means
-   `server.faro.receiverHost` is empty so the ExternalName Service and its
-   ingress path were not rendered.
+2. **Ingress** — `curl -sX POST https://tuist.dev/-/faro -H 'Content-Type: application/json' -d '{}'`
+   should not 404. **Read the body, not just the status**, because the two 404s
+   mean opposite things: a plain-text `404 page not found` is Go's, so the
+   request reached Alloy and only the path is wrong (the rewrite Ingress is
+   missing or its annotation was dropped), whereas the server's HTML error page
+   means the request never left Phoenix and `server.faro.receiverHost` is empty,
+   so neither the ExternalName Service nor the Faro Ingress was rendered.
 3. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
    collector counts what it ingested. Rising there but absent in Loki is a
    forwarding problem, not a browser one.
