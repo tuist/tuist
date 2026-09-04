@@ -49,7 +49,7 @@ jobs:
         with:
           install_args: "--locked kubectl"
           cache: "false"
-      - uses: fluxcd/flux2/action@v2.4.0
+      - uses: fluxcd/flux2/action@v2.9.5
       - uses: 1password/install-cli-action@v2
       - name: Load flux-diff kubeconfig from 1Password
         id: kubeconfig

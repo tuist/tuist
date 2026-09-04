@@ -53,12 +53,41 @@ kubectl get clusters.cluster.x-k8s.io -A   # errors on a workload cluster
 Keep `./mgmt.kubeconfig` out of git — it is a cluster-admin credential for
 every workload cluster, sitting in a public repo's worktree.
 
-### Bootstrap
+### Bootstrap — run this AFTER the PR adding this directory has merged
+
+Flux reconciles `--branch=main`. The per-cluster `Kustomization` CRs here, and
+the `workloads/` Cluster CRs they point at, only exist on `main` once that PR
+lands — so bootstrapping earlier installs a Flux that reconciles nothing.
+Bootstrapping before the merge is harmless but pointless; bootstrapping after
+is what activates reconciliation.
+
+`flux-system/` (`gotk-components.yaml`, `gotk-sync.yaml`, `kustomization.yaml`)
+is **already committed here**, generated with `flux install --export` at the
+pinned version below using bootstrap's default component set
+(source / kustomize / helm / notification controllers). `flux bootstrap` is
+idempotent: it adopts those files rather than rewriting them, provided you run
+the same version. Keep it in step with the `fluxcd/flux2/action` pin in
+`.github/workflows/flux-diff.yml` so CI and the cluster agree.
+
+Pre-flight first — it is non-mutating and confirms the cluster can host Flux:
 
 ```bash
-# Uses the emergency mgmt kubeconfig (1Password: "kubeconfig: tuist-mgmt",
-# vault tuist-k8s-mgmt) and a dedicated single-repo GitHub App whose
-# private key + app/installation IDs are ESO-synced from tuist-k8s-mgmt.
+flux check --pre
+```
+
+Then bootstrap. The App credentials live in the `FLUX_GITHUB_APP` item in
+`tuist-k8s-mgmt` (fields `app_id` / `installation_id`, plus the
+`private-key.pem` attachment):
+
+```bash
+export FLUX_GITHUB_APP_ID=$(op read --account tuist.1password.com \
+  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/app_id")
+export FLUX_GITHUB_APP_INSTALLATION_ID=$(op read --account tuist.1password.com \
+  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/installation_id")
+op read --account tuist.1password.com \
+  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/private-key.pem" \
+  --out-file ./flux-app.pem && chmod 600 ./flux-app.pem
+
 flux bootstrap github \
   --owner=tuist \
   --repository=tuist \
@@ -67,31 +96,61 @@ flux bootstrap github \
   --app-id="$FLUX_GITHUB_APP_ID" \
   --app-installation-id="$FLUX_GITHUB_APP_INSTALLATION_ID" \
   --app-private-key-file=./flux-app.pem
+
+rm -f ./flux-app.pem
 ```
 
-Bootstrap writes `infra/flux/mgmt/flux-system/` (`gotk-components.yaml`,
-`gotk-sync.yaml`, `kustomization.yaml`) and commits it, so Flux tracks and
-upgrades itself from git thereafter. The root Kustomization in
-`gotk-sync.yaml` (path `./infra/flux/mgmt`) then reconciles the per-cluster
-`Kustomization` CRs in this directory.
+The root Kustomization in `gotk-sync.yaml` (path `./infra/flux/mgmt`) then
+reconciles the per-cluster `Kustomization` CRs in this directory, and Flux
+tracks and upgrades itself from git thereafter.
 
-### Harden the source (belt-and-suspenders)
+Then wire credential rotation, so the App key is ESO-synced rather than frozen
+at whatever bootstrap wrote:
 
-Path-scoping already prevents Flux from touching the immutable templates or
-preview (no Kustomization `path` reaches them). As a second guard, add a
-`spec.ignore` to the bootstrap-created `flux-system` `GitRepository` so those
-files never even enter the Flux source artifact, then commit it:
+```bash
+kubectl apply -f ../../k8s/mgmt/flux-git-externalsecret.yaml
+```
+
+Verify — expect `flux-system` Ready plus one Kustomization per cluster:
+
+```bash
+flux check && flux get kustomizations -A
+```
+
+### Harden the source (optional, after bootstrap)
+
+Path-scoping already prevents Flux from touching the immutable templates,
+preview or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
+the `flux-system` `GitRepository` is a second guard, and in a monorepo this
+size it also keeps the source artifact small (source-controller otherwise
+packages the whole repository on every sync).
+
+Two cautions before adding one:
+
+- `spec.ignore` **replaces** Flux's built-in default excludes rather than
+  adding to them, so anything you rely on being excluded must be restated.
+- The tempting "exclude everything, re-include two paths" form does not work
+  naively: `.sourceignore` uses gitignore semantics, and a path cannot be
+  re-included once a parent directory is excluded. Each level has to be
+  re-opened (`/*`, `!/infra`, `/infra/*`, `!/infra/k8s`, …).
+
+The straightforward version, enumerating what must never be reconciled:
 
 ```yaml
 # infra/flux/mgmt/flux-system/gotk-sync.yaml — GitRepository spec:
 spec:
   ignore: |
-    # exclude everything the mgmt Flux must never reconcile
     /infra/k8s/clusters/clusterclass-tuist.yaml
     /infra/k8s/clusters/bare-metal*.yaml
     /infra/k8s/clusters/machinedrainrules.yaml
     /infra/k8s/clusters/cluster-preview.yaml
     /infra/k8s/clusters/cluster-pentest.yaml
+```
+
+Commit it, then confirm the source still reconciles before trusting it:
+
+```bash
+flux get sources git flux-system
 ```
 
 ## Pre-enable gate: confirm the first reconcile is a no-op
