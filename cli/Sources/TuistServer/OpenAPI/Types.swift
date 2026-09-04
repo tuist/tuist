@@ -10651,6 +10651,8 @@ public enum Components {
             public var cpu_iowait_percent: Swift.Double
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/cpu_usage_percent`.
             public var cpu_usage_percent: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/disk_available_bytes`.
+            public var disk_available_bytes: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/disk_total_bytes`.
             public var disk_total_bytes: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/disk_used_bytes`.
@@ -10670,6 +10672,7 @@ public enum Components {
             /// - Parameters:
             ///   - cpu_iowait_percent:
             ///   - cpu_usage_percent:
+            ///   - disk_available_bytes:
             ///   - disk_total_bytes:
             ///   - disk_used_bytes:
             ///   - memory_total_bytes:
@@ -10680,6 +10683,7 @@ public enum Components {
             public init(
                 cpu_iowait_percent: Swift.Double,
                 cpu_usage_percent: Swift.Double,
+                disk_available_bytes: Swift.Int? = nil,
                 disk_total_bytes: Swift.Int,
                 disk_used_bytes: Swift.Int,
                 memory_total_bytes: Swift.Int,
@@ -10690,6 +10694,7 @@ public enum Components {
             ) {
                 self.cpu_iowait_percent = cpu_iowait_percent
                 self.cpu_usage_percent = cpu_usage_percent
+                self.disk_available_bytes = disk_available_bytes
                 self.disk_total_bytes = disk_total_bytes
                 self.disk_used_bytes = disk_used_bytes
                 self.memory_total_bytes = memory_total_bytes
@@ -10701,6 +10706,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case cpu_iowait_percent
                 case cpu_usage_percent
+                case disk_available_bytes
                 case disk_total_bytes
                 case disk_used_bytes
                 case memory_total_bytes
@@ -15211,6 +15217,8 @@ public enum Operations {
                             public var cpu_iowait_percent: Swift.Double
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/cpu_usage_percent`.
                             public var cpu_usage_percent: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/disk_available_bytes`.
+                            public var disk_available_bytes: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/disk_total_bytes`.
                             public var disk_total_bytes: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/disk_used_bytes`.
@@ -15230,6 +15238,7 @@ public enum Operations {
                             /// - Parameters:
                             ///   - cpu_iowait_percent:
                             ///   - cpu_usage_percent:
+                            ///   - disk_available_bytes:
                             ///   - disk_total_bytes:
                             ///   - disk_used_bytes:
                             ///   - memory_total_bytes:
@@ -15240,6 +15249,7 @@ public enum Operations {
                             public init(
                                 cpu_iowait_percent: Swift.Double,
                                 cpu_usage_percent: Swift.Double,
+                                disk_available_bytes: Swift.Int? = nil,
                                 disk_total_bytes: Swift.Int,
                                 disk_used_bytes: Swift.Int,
                                 memory_total_bytes: Swift.Int,
@@ -15250,6 +15260,7 @@ public enum Operations {
                             ) {
                                 self.cpu_iowait_percent = cpu_iowait_percent
                                 self.cpu_usage_percent = cpu_usage_percent
+                                self.disk_available_bytes = disk_available_bytes
                                 self.disk_total_bytes = disk_total_bytes
                                 self.disk_used_bytes = disk_used_bytes
                                 self.memory_total_bytes = memory_total_bytes
@@ -15261,6 +15272,7 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case cpu_iowait_percent
                                 case cpu_usage_percent
+                                case disk_available_bytes
                                 case disk_total_bytes
                                 case disk_used_bytes
                                 case memory_total_bytes
@@ -23670,10 +23682,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -23682,20 +23690,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page_size: Number of items per page.
                 ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
-                    page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
-                    self.page_size = page_size
                     self.page = page
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query

@@ -5648,6 +5648,11 @@ components:
           type: number
           x-struct:
           x-validate:
+        disk_available_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
         disk_total_bytes:
           type: integer
           x-struct:
@@ -5686,6 +5691,7 @@ components:
         - network_bytes_out
         - disk_used_bytes
         - disk_total_bytes
+        - disk_available_bytes
       title: RunnerJobMetric
       type: object
       x-struct:
@@ -7903,6 +7909,11 @@ paths:
                           type: number
                           x-struct:
                           x-validate:
+                        disk_available_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
                         disk_total_bytes:
                           type: integer
                           x-struct:
@@ -7941,6 +7952,7 @@ paths:
                         - network_bytes_out
                         - disk_used_bytes
                         - disk_total_bytes
+                        - disk_available_bytes
                       title: RunnerJobMetric
                       type: object
                       x-struct:
@@ -10540,22 +10552,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -10570,6 +10566,22 @@ paths:
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the project.
