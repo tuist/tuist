@@ -411,6 +411,36 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
+  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
+  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
+  # and their volume stay Pending and `helm --wait` fails the deploy.
+  #
+  # Turning it on is step 2 of the rollout plan in the pull request. Nothing
+  # here is reachable before that, and every step after it is a separate deploy
+  # with its own gate.
+  managed:
+    enabled: false
+    # One replica to begin with, which is the shape staging proved end to end,
+    # so the copy and the soak can start as soon as a box lands. Two replicas
+    # need a volume per replica and the database initialised on each of them;
+    # until those exist, this being 2 would leave the second pod Pending.
+    #
+    # A single replica is not the shape to *finish* on: after the cutover the
+    # system of record would live on one machine, with the backups below as the
+    # only other copy.
+    replicas: 1
+    keeper:
+      replicas: 1
+    # The dataset was 1.69 TiB in September and grows about 0.25 TiB a month,
+    # so this is roughly a year of headroom on the box's 7.68 TB. The local PV
+    # is not a quota — the pod can use whatever `/data` has — so this is a
+    # statement of intent rather than a limit, and the number to watch is the
+    # filesystem's.
+    persistence:
+      size: 3000Gi
+    backup:
+      enabled: true
+
   poolSize: "15"
   bufferPoolSize: "15"
   # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist

@@ -217,6 +217,32 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
+  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
+  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
+  # and their volume stay Pending and `helm --wait` fails the deploy.
+  #
+  # Turning it on is step 2 of the rollout plan in the pull request, and the
+  # steps after it are `shadowWrites.enabled`, then `migration` with the
+  # backfill in the background, then the read flag. Each is its own deploy, and
+  # each has a gate.
+  managed:
+    enabled: false
+    # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
+    # mirror, so this is sized for the environment's own data. What canary is
+    # for is the shape production will run — a second replica and a
+    # three-member quorum, neither of which staging exercises.
+    #
+    # Both are still 1 here, because two replicas need a volume per replica and
+    # a database initialised on each of them, and neither exists yet. Raise
+    # them together once they do.
+    replicas: 1
+    persistence:
+      size: 200Gi
+    keeper:
+      replicas: 1
+    backup:
+      enabled: true
+
   poolSize: "30"
   bufferPoolSize: "30"
   # Exercise the shared application-user memory guard before production with a

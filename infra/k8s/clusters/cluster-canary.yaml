@@ -63,6 +63,30 @@ spec:
         value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
     workers:
       machineDeployments:
+        # ClickHouse's own pool: bare metal, tainted so nothing else lands on
+        # it, with the database's data on the host's XFS `/data` behind a local
+        # PV. The `stateful-worker` class and this whole layout were exercised
+        # on staging first, which is the same cascade every deploy follows.
+        #
+        # replicas 0 until the machines are ordered. Declaring the pool with no
+        # replicas creates the MachineDeployment and its templates and claims
+        # no host, so this is inert until someone raises the count, and raising
+        # it is then the only cluster-side step. A replica with no host to claim
+        # would not wedge anything either — caph parks the Machine as
+        # `NoAvailableHost` — but zero keeps it obvious that nothing is
+        # expected yet.
+        #
+        # `statefulRaidLevel` stays 1: canary's AX42-1 has two disks, where
+        # levels 1 and 10 describe the same array.        #
+        # PREREQ: the Robot server must be named `tuist-bm-canary-ch-1` so
+        # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
+        # stamped for this cluster.
+        - class: stateful-worker
+          name: md-clickhouse
+          replicas: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: clickhouse
         - class: hcloud-worker
           name: md-0
           replicas: 2
