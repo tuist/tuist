@@ -56,6 +56,14 @@ registry:
 server:
   replicaCount: 2
 
+  # Cloudflare Turnstile signup gate. Real site + secret key are synced from
+  # the TURNSTILE 1Password item via external-secrets (secretsFrom: eso, the
+  # default). Do NOT flip useTestKeys on here — Cloudflare's public test key
+  # pair only unlocks the demo widget and would let scripted signup bypass
+  # verification entirely.
+  turnstile:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 

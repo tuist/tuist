@@ -37,6 +37,36 @@
     <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
     </script>
+    <%!--
+      Turnstile coordination. `api.js` is loaded with `defer` so it does not
+      block first render, and Cloudflare's own `?onload=` callback is what
+      tells us the widget global is ready. Using `turnstile.ready()` under a
+      deferred `api.js` is the combination Cloudflare's script throws on
+      (`Uncaught TurnstileError: Remove async/defer from the Turnstile api.js
+      script tag before using turnstile.ready()`), which is the load-order
+      race that caused the 2026-09-03 signup outage: the throw aborted
+      `render()` and the LiveView hook was left waiting on a `ready` callback
+      that never fired. The inline shim sets an eager flag so the hook can
+      render immediately when it mounts after `api.js` has already loaded,
+      and dispatches a one-shot event for the reverse ordering.
+    --%>
+    <script
+      :if={TuistWeb.Turnstile.required?() and assigns[:load_turnstile_script?]}
+      nonce={get_csp_nonce()}
+    >
+      window.__tuistTurnstileReady = false;
+      window.__tuistTurnstileOnLoad = function () {
+        window.__tuistTurnstileReady = true;
+        window.dispatchEvent(new CustomEvent("tuist:turnstile-api-loaded"));
+      };
+    </script>
+    <script
+      :if={TuistWeb.Turnstile.required?() and assigns[:load_turnstile_script?]}
+      nonce={get_csp_nonce()}
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__tuistTurnstileOnLoad&render=explicit"
+      defer
+    >
+    </script>
     <script nonce={get_csp_nonce()}>
       function cssvar(name) {
         return getComputedStyle(document.documentElement).getPropertyValue(name);

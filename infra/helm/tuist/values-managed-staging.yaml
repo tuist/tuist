@@ -59,6 +59,15 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Cloudflare Turnstile signup gate. Runs against Cloudflare's public
+  # always-passing test key pair (useTestKeys: true) so the widget renders
+  # and the load-order + CSP + LiveView paths are exercised end-to-end in a
+  # pre-production environment. Missing this coverage is what let the
+  # 2026-09-03 outage reach production (see postmortem #3).
+  turnstile:
+    enabled: true
+    useTestKeys: true
+
   replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
