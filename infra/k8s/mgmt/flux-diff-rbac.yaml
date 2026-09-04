@@ -15,11 +15,16 @@
 #     namespaced to org-tuist; nothing cluster-wide except read-only CRD
 #     discovery.
 #
-# The SA token is rendered into a kubeconfig and stored in the tuist-k8s-mgmt
-# 1Password vault (same pattern as `ci-service-account.yaml`); the flux-diff
-# GitHub Actions job pulls it, exactly like mgmt-cluster-apply.yml pulls the
-# mgmt kubeconfig. Never exposed to fork PRs. Owned + rotated by the mgmt
-# owner (Decision 8).
+# The SA token is rendered into a kubeconfig and stored in the dedicated
+# `tuist-k8s-mgmt-ci` 1Password vault, which holds ONLY that kubeconfig — NOT
+# the general `tuist-k8s-mgmt` vault. This matters more than it looks: the
+# flux-diff job runs on `pull_request`, and GitHub executes the workflow file
+# from the PR branch, so a token scoped to `tuist-k8s-mgmt` would let any
+# pushable branch read the break-glass cluster-admin kubeconfig sitting in that
+# vault and bypass every restriction above. Scoping the CI service account to a
+# vault containing a single least-privilege credential is what makes the RBAC
+# here meaningful. Never exposed to fork PRs. Owned + rotated by the mgmt owner
+# (Decision 8).
 ---
 apiVersion: v1
 kind: ServiceAccount
