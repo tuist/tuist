@@ -1,11 +1,26 @@
 // Tuist tailnet ACLs.
 //
 // Source of truth for who-can-talk-to-what on the Tuist tailnet.
-// Mirror this file into the Tailscale admin console under "Access
-// controls"; Tailscale doesn't have a public API for ACL sync, so
-// updates land via the console UI. The file lives in the repo so
-// changes go through code review, not via someone's browser
-// session.
+// The file lives in the repo so changes go through code review,
+// not via someone's browser session.
+//
+// HOW IT REACHES THE TAILNET: today, by hand. Paste this file into
+// the Tailscale admin console under "Access controls". Nothing in
+// CI applies it, so a merged change to this file has NO effect
+// until someone does that — a fact worth remembering when a fresh
+// grant appears not to work.
+//
+// That manual step is a gap we have not closed yet, not a platform
+// limitation. Tailscale does expose the policy file over its API
+// (`GET`/`POST /api/v2/tailnet/<tailnet>/acl`, which accepts HuJSON
+// and honours `If-Match` for optimistic concurrency, plus an
+// `/acl/validate` endpoint), and ships an official GitHub Action —
+// `tailscale/gitops-acl-action` — that runs `action: test` on pull
+// requests and `action: apply` on merge. Wiring that up needs an
+// OAuth client with the `policy_file` scope stored as a repo
+// secret. Note the one we already have, used by tuist-ops's
+// TuistOps.JIT.TailscaleClient, is deliberately `users:read` only
+// and cannot write this file.
 //
 // Tag taxonomy:
 //
