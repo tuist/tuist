@@ -339,9 +339,10 @@ RUN set -eux; \
     esac; \
     curl -fSL "https://github.com/buildkite/agent/releases/download/v${BUILDKITE_AGENT_VERSION}/buildkite-agent-linux-${bk_arch}-${BUILDKITE_AGENT_VERSION}.tar.gz" \
         -o /tmp/buildkite-agent.tar.gz; \
-    tar xzf /tmp/buildkite-agent.tar.gz -C /tmp buildkite-agent; \
-    install -m 0755 /tmp/buildkite-agent /usr/local/bin/buildkite-agent; \
-    rm -f /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent; \
+    mkdir -p /tmp/buildkite-agent-dist; \
+    tar xzf /tmp/buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist; \
+    install -m 0755 /tmp/buildkite-agent-dist/buildkite-agent /usr/local/bin/buildkite-agent; \
+    rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
     buildkite-agent --version
 
 # Global agent hooks (`--hooks-path`), so they run for every job

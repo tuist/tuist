@@ -354,9 +354,10 @@ build {
       "set -euo pipefail",
       "cd /tmp",
       "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
-      "tar xzf buildkite-agent.tar.gz buildkite-agent",
-      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel buildkite-agent /opt/tuist/buildkite-agent",
-      "rm -f buildkite-agent.tar.gz buildkite-agent",
+      "mkdir -p /tmp/buildkite-agent-dist",
+      "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
+      "rm -rf buildkite-agent.tar.gz /tmp/buildkite-agent-dist",
       "/opt/tuist/buildkite-agent --version"
     ]
   }
