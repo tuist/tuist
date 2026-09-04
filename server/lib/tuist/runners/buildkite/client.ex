@@ -8,7 +8,12 @@ defmodule Tuist.Runners.Buildkite.Client do
   controllers on self-hosted queues, which is exactly what the runner
   fleet is. Nothing here may reach for an endpoint outside that family.
 
-  The four calls that make up a dispatch:
+  A stack must be registered before any of the other endpoints will
+  answer for its key; an unregistered key 404s with "Stack not found".
+  Registration is idempotent and binds the stack to one self-hosted
+  queue, so the fleet registers one stack per (installation, queue).
+
+  The calls that make up a dispatch:
 
     * `list_scheduled_jobs/4` — what is waiting on a queue.
     * `reserve/4` — take jobs off that list for a bounded window, so a
@@ -32,15 +37,35 @@ defmodule Tuist.Runners.Buildkite.Client do
   @request_timeout to_timeout(second: 15)
 
   @doc """
+  Registers `stack_key` against `queue_key`, which every other endpoint
+  requires before it will answer for that key.
+
+  Idempotent: 201 for a new stack, 200 for one that already existed, so
+  the caller can register freely rather than tracking whether it has.
+  """
+  def register_stack(%Installation{} = installation, stack_key, queue_key, metadata) do
+    request(installation, :post, "/stacks/register",
+      json: %{
+        key: stack_key,
+        # `kubernetes` and `elastic` name Buildkite's own reference
+        # stacks; this is neither.
+        type: "custom",
+        queue_key: queue_key,
+        metadata: metadata
+      }
+    )
+  end
+
+  @doc """
   Scheduled jobs on `queue_key`, oldest first.
 
   Returns `{:ok, %{jobs: [...], dispatch_paused: boolean}}`. A paused
   queue still lists its jobs; the flag is Buildkite telling us to leave
   them alone, and the caller must honour it.
   """
-  def list_scheduled_jobs(%Installation{} = installation, queue_key, limit \\ 100) do
+  def list_scheduled_jobs(%Installation{} = installation, stack_key, queue_key, limit \\ 100) do
     installation
-    |> request(:get, "/stacks/#{installation.stack_key}/scheduled-jobs", params: [queue_key: queue_key, limit: limit])
+    |> request(:get, "/stacks/#{stack_key}/scheduled-jobs", params: [queue_key: queue_key, limit: limit])
     |> case do
       {:ok, %{"jobs" => jobs} = body} ->
         {:ok,
@@ -65,9 +90,9 @@ defmodule Tuist.Runners.Buildkite.Client do
   cancelled between the list and the reserve. That is an ordinary race,
   not an error.
   """
-  def reserve(%Installation{} = installation, job_uuids, expiry_seconds) when is_list(job_uuids) do
+  def reserve(%Installation{} = installation, stack_key, job_uuids, expiry_seconds) when is_list(job_uuids) do
     installation
-    |> request(:put, "/stacks/#{installation.stack_key}/scheduled-jobs/batch-reserve",
+    |> request(:put, "/stacks/#{stack_key}/scheduled-jobs/batch-reserve",
       json: %{job_uuids: job_uuids, reservation_expiry_seconds: expiry_seconds}
     )
     |> case do
@@ -85,9 +110,9 @@ defmodule Tuist.Runners.Buildkite.Client do
   `{:error, :not_issued}` when Buildkite declines — the reservation
   lapsed, or the job is no longer schedulable.
   """
-  def issue_acquisition_token(%Installation{} = installation, job_uuid, lifetime_seconds) do
+  def issue_acquisition_token(%Installation{} = installation, stack_key, job_uuid, lifetime_seconds) do
     installation
-    |> request(:post, "/stacks/#{installation.stack_key}/job-acquisition-tokens",
+    |> request(:post, "/stacks/#{stack_key}/job-acquisition-tokens",
       json: %{job_uuids: [job_uuid], token_lifetime_seconds: lifetime_seconds}
     )
     |> case do
@@ -107,8 +132,8 @@ defmodule Tuist.Runners.Buildkite.Client do
   agent. The listing carries metadata only, and the fork check needs
   `BUILDKITE_PULL_REQUEST_REPO`, which lives here.
   """
-  def get_job(%Installation{} = installation, job_uuid) do
-    request(installation, :get, "/stacks/#{installation.stack_key}/jobs/#{job_uuid}")
+  def get_job(%Installation{} = installation, stack_key, job_uuid) do
+    request(installation, :get, "/stacks/#{stack_key}/jobs/#{job_uuid}")
   end
 
   @doc """
@@ -118,8 +143,8 @@ defmodule Tuist.Runners.Buildkite.Client do
   sits queued until GitHub times it out, which reads to the customer as
   a capacity shortage. Here we can say so.
   """
-  def finish_job(%Installation{} = installation, job_uuid, exit_status, detail) do
-    request(installation, :post, "/stacks/#{installation.stack_key}/jobs/#{job_uuid}/finish",
+  def finish_job(%Installation{} = installation, stack_key, job_uuid, exit_status, detail) do
+    request(installation, :post, "/stacks/#{stack_key}/jobs/#{job_uuid}/finish",
       json: %{exit_status: exit_status, detail: detail}
     )
   end

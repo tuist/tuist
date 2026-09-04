@@ -26,6 +26,19 @@ defmodule Tuist.Runners.Buildkite do
   different times: Buildkite's at poll time (so a sibling stack cannot
   take the job while it sits in our queue), ours at claim time.
 
+  ## Stacks
+
+  Every Stacks endpoint answers only for a key that has been registered,
+  and a registration binds that key to one self-hosted queue. So the
+  fleet registers one stack per (installation, queue) rather than one per
+  installation, and `stack_key_for/2` derives the key deterministically
+  so any later call can recompute the stack that reserved a job.
+
+  Registration is driven by the 404 rather than tracked: a list that
+  comes back `:not_found` registers and retries once. Registration is
+  idempotent, the steady state costs nothing, and a stack deleted out
+  from under us heals on the next pass.
+
   Buildkite returns a lapsed reservation to `scheduled` on its own, which
   is `StaleClaimsWorker`'s job done upstream. Reservations run for
   `reservation_seconds/0` and are retaken after they lapse, which is also
@@ -36,6 +49,7 @@ defmodule Tuist.Runners.Buildkite do
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
@@ -102,6 +116,29 @@ defmodule Tuist.Runners.Buildkite do
     case get_installation(account_id) do
       nil -> :ok
       installation -> with {:ok, _} <- Repo.delete(installation), do: :ok
+    end
+  end
+
+  @doc """
+  The stack key this installation uses for `queue_key`.
+
+  Buildkite caps a key at 80 bytes and accepts only alphanumerics,
+  underscores and dashes, while a queue key may be up to 100 characters
+  and is the customer's to name. An over-long or unusual queue key is
+  therefore folded into a digest suffix rather than truncated: two
+  queues whose names share a prefix must not collapse onto one stack,
+  which would let them reserve each other's jobs.
+  """
+  def stack_key_for(%Installation{stack_key: base}, queue_key) do
+    sanitized = String.replace(queue_key, ~r/[^A-Za-z0-9_-]/, "-")
+    candidate = "#{base}-#{sanitized}"
+
+    if byte_size(candidate) <= 80 and sanitized == queue_key do
+      candidate
+    else
+      digest = :sha256 |> :crypto.hash(queue_key) |> Base.encode16(case: :lower) |> binary_part(0, 12)
+      prefix = binary_part(base, 0, min(byte_size(base), 80 - 13))
+      "#{prefix}-#{digest}"
     end
   end
 
@@ -174,27 +211,40 @@ defmodule Tuist.Runners.Buildkite do
         :ok
 
       lapsed ->
-        uuids = Enum.map(lapsed, & &1.job_uuid)
+        # A reservation belongs to the stack that took it, and a stack
+        # serves one queue, so renewals are grouped by queue rather than
+        # sent as one batch for the account.
+        lapsed
+        |> Enum.group_by(& &1.queue_key)
+        |> Enum.each(fn {queue_key, jobs} -> renew_queue(installation, account, queue_key, jobs) end)
 
-        case Client.reserve(installation, uuids, @reservation_seconds) do
-          {:ok, reserved} ->
-            reserved_set = MapSet.new(reserved)
-            {retaken, lost} = Enum.split_with(lapsed, &MapSet.member?(reserved_set, &1.job_uuid))
+        :ok
+    end
+  end
 
-            mark_reserved(Enum.map(retaken, & &1.job_uuid))
-            Enum.each(lost, &abandon(&1, account))
+  defp renew_queue(installation, account, queue_key, jobs) do
+    uuids = Enum.map(jobs, & &1.job_uuid)
+    stack_key = stack_key_for(installation, queue_key)
 
-            :ok
+    case Client.reserve(installation, stack_key, uuids, @reservation_seconds) do
+      {:ok, reserved} ->
+        reserved_set = MapSet.new(reserved)
+        {retaken, lost} = Enum.split_with(jobs, &MapSet.member?(reserved_set, &1.job_uuid))
 
-          {:error, reason} ->
-            Logger.warning("runners: buildkite reservation renewal failed",
-              account: account.name,
-              count: length(uuids),
-              reason: inspect(reason)
-            )
+        mark_reserved(Enum.map(retaken, & &1.job_uuid))
+        Enum.each(lost, &abandon(&1, account))
 
-            :ok
-        end
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: buildkite reservation renewal failed",
+          account: account.name,
+          queue: queue_key,
+          count: length(uuids),
+          reason: inspect(reason)
+        )
+
+        :ok
     end
   end
 
@@ -211,7 +261,11 @@ defmodule Tuist.Runners.Buildkite do
         where:
           j.account_id == ^account_id and not is_nil(j.reserved_until) and
             j.reserved_until < ^now and w.status == "queued",
-        select: %{job_uuid: j.job_uuid, workflow_job_id: j.workflow_job_id}
+        select: %{
+          job_uuid: j.job_uuid,
+          workflow_job_id: j.workflow_job_id,
+          queue_key: j.queue_key
+        }
       )
     )
   end
@@ -246,9 +300,40 @@ defmodule Tuist.Runners.Buildkite do
     Jobs.complete(workflow_job_id, "cancelled")
   end
 
+  # A stack key answers nothing until it is registered, so the first list
+  # against a new queue 404s by design. Registering on that signal keeps
+  # the steady state at one request and self-heals a stack deleted out
+  # from under us; a second 404 after a successful registration is a real
+  # error and is returned as one.
+  defp list_scheduled_jobs(installation, account, queue_key) do
+    stack_key = stack_key_for(installation, queue_key)
+
+    case Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit) do
+      {:error, :not_found} ->
+        with {:ok, _stack} <- register_stack(installation, account, stack_key, queue_key) do
+          Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit)
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp register_stack(installation, account, stack_key, queue_key) do
+    Logger.info("runners: registering buildkite stack",
+      account: account.name,
+      queue: queue_key
+    )
+
+    Client.register_stack(installation, stack_key, queue_key, %{
+      "tuist_account" => account.name,
+      "tuist_environment" => to_string(Environment.env())
+    })
+  end
+
   defp poll_queue(installation, account, queue_key) do
     with {:ok, %{jobs: jobs, dispatch_paused: paused}} <-
-           Client.list_scheduled_jobs(installation, queue_key, @list_limit) do
+           list_scheduled_jobs(installation, account, queue_key) do
       cond do
         paused ->
           # Buildkite is telling every stack on this queue to stand down,
@@ -299,7 +384,9 @@ defmodule Tuist.Runners.Buildkite do
   defp do_reserve_and_enqueue(installation, account, queue_key, jobs, target) do
     uuids = Enum.map(jobs, & &1.job_uuid)
 
-    with {:ok, reserved} <- Client.reserve(installation, uuids, @reservation_seconds) do
+    stack_key = stack_key_for(installation, queue_key)
+
+    with {:ok, reserved} <- Client.reserve(installation, stack_key, uuids, @reservation_seconds) do
       reserved_set = MapSet.new(reserved)
       reserved_until = DateTime.add(DateTime.utc_now(), @reservation_seconds, :second)
 
@@ -443,6 +530,7 @@ defmodule Tuist.Runners.Buildkite do
          {:ok, %{token: token}} <-
            Client.issue_acquisition_token(
              installation,
+             stack_key_for(installation, job.queue_key),
              job.job_uuid,
              @acquisition_token_lifetime_seconds
            ) do
@@ -471,7 +559,8 @@ defmodule Tuist.Runners.Buildkite do
   def job_trusted?(account_id, workflow_job_id) do
     with %Job{} = job <- get_job(workflow_job_id),
          %Installation{} = installation <- get_installation(account_id),
-         {:ok, payload} <- Client.get_job(installation, job.job_uuid) do
+         {:ok, payload} <-
+           Client.get_job(installation, stack_key_for(installation, job.queue_key), job.job_uuid) do
       env = Map.get(payload, "env", %{})
 
       case {Map.get(env, "BUILDKITE_PULL_REQUEST_REPO"), Map.get(env, "BUILDKITE_REPO")} do

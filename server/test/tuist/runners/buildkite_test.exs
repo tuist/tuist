@@ -52,6 +52,10 @@ defmodule Tuist.Runners.BuildkiteTest do
         agent_token: "bkct_secret"
       })
 
+    stub(Client, :register_stack, fn _installation, stack_key, _queue_key, _metadata ->
+      {:ok, %{"key" => stack_key}}
+    end)
+
     %{account: account, installation: installation, queue_key: queue_key}
   end
 
@@ -81,11 +85,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     } do
       job = scheduled_job(%{queue_key: queue_key})
 
-      expect(Client, :list_scheduled_jobs, fn _installation, ^queue_key, _limit ->
+      expect(Client, :list_scheduled_jobs, fn _installation, _stack, ^queue_key, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      expect(Client, :reserve, fn _installation, uuids, _expiry ->
+      expect(Client, :reserve, fn _installation, _stack, uuids, _expiry ->
         assert uuids == [job.job_uuid]
         {:ok, [job.job_uuid]}
       end)
@@ -109,11 +113,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     } do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
 
       assert {:ok, 1} = Buildkite.poll(installation)
 
@@ -122,11 +126,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
 
     test "leaves a paused queue alone", %{installation: installation, queue_key: queue_key} do
-      stub(Client, :list_scheduled_jobs, fn _installation, ^queue_key, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, ^queue_key, _limit ->
         {:ok, %{jobs: [scheduled_job()], dispatch_paused: true}}
       end)
 
-      reject(&Client.reserve/3)
+      reject(&Client.reserve/4)
 
       assert {:ok, 0} = Buildkite.poll(installation)
     end
@@ -137,11 +141,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     } do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, _uuids, _expiry -> {:ok, []} end)
+      stub(Client, :reserve, fn _installation, _stack, _uuids, _expiry -> {:ok, []} end)
 
       assert {:ok, 0} = Buildkite.poll(installation)
       assert Repo.aggregate(from(j in Job, where: j.job_uuid == ^job.job_uuid), :count) == 0
@@ -153,11 +157,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     } do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
 
       assert {:ok, 1} = Buildkite.poll(installation)
       assert {:ok, 0} = Buildkite.poll(installation)
@@ -165,8 +169,54 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert Repo.aggregate(from(j in Job, where: j.job_uuid == ^job.job_uuid), :count) == 1
     end
 
+    test "registers the stack on the first 404 and retries the list", %{
+      installation: installation,
+      queue_key: queue_key
+    } do
+      job = scheduled_job(%{queue_key: queue_key})
+      test_pid = self()
+      expected_stack = Buildkite.stack_key_for(installation, queue_key)
+
+      # Buildkite answers nothing for an unregistered key, so a brand new
+      # queue always 404s once before it can be polled.
+      Mimic.expect(Client, :list_scheduled_jobs, fn _installation, ^expected_stack, ^queue_key, _limit ->
+        {:error, :not_found}
+      end)
+
+      Mimic.expect(Client, :register_stack, fn _installation, ^expected_stack, ^queue_key, metadata ->
+        send(test_pid, {:registered, metadata})
+        {:ok, %{"key" => expected_stack}}
+      end)
+
+      Mimic.expect(Client, :list_scheduled_jobs, fn _installation, ^expected_stack, ^queue_key, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 1} = Buildkite.poll(installation)
+      assert_received {:registered, metadata}
+      assert metadata["tuist_account"]
+    end
+
+    test "does not retry forever when the stack 404s after registering", %{
+      installation: installation
+    } do
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:error, :not_found}
+      end)
+
+      stub(Client, :register_stack, fn _installation, stack, _queue, _metadata ->
+        {:ok, %{"key" => stack}}
+      end)
+
+      # `:not_found` halts the pass rather than looping: a key that still
+      # 404s after a successful registration is a real error.
+      assert {:error, :not_found} = Buildkite.poll(installation)
+    end
+
     test "stops the pass when the agent token is rejected", %{installation: installation} do
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:error, :unauthorized}
       end)
 
@@ -175,14 +225,14 @@ defmodule Tuist.Runners.BuildkiteTest do
 
     test "is a no-op when the account's allowance is exhausted", %{installation: installation} do
       stub(Allowance, :exhausted?, fn _account -> true end)
-      reject(&Client.list_scheduled_jobs/3)
+      reject(&Client.list_scheduled_jobs/4)
 
       assert {:error, :allowance_exhausted} = Buildkite.poll(installation)
     end
 
     test "is a no-op when runners are disabled for the account", %{installation: installation} do
       stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
-      reject(&Client.list_scheduled_jobs/3)
+      reject(&Client.list_scheduled_jobs/4)
 
       assert {:error, :runners_disabled} = Buildkite.poll(installation)
     end
@@ -192,11 +242,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     setup %{installation: installation, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
       assert {:ok, 1} = Buildkite.poll(installation)
 
       lapsed = DateTime.add(DateTime.utc_now(), -60, :second)
@@ -213,11 +263,11 @@ defmodule Tuist.Runners.BuildkiteTest do
       installation: installation,
       job: job
     } do
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [], dispatch_paused: false}}
       end)
 
-      expect(Client, :reserve, fn _installation, uuids, _expiry ->
+      expect(Client, :reserve, fn _installation, _stack, uuids, _expiry ->
         assert uuids == [job.job_uuid]
         {:ok, uuids}
       end)
@@ -232,11 +282,11 @@ defmodule Tuist.Runners.BuildkiteTest do
       installation: installation,
       job: job
     } do
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, _uuids, _expiry -> {:ok, []} end)
+      stub(Client, :reserve, fn _installation, _stack, _uuids, _expiry -> {:ok, []} end)
 
       assert {:ok, 0} = Buildkite.poll(installation)
 
@@ -249,11 +299,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     setup %{installation: installation, account: account, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
       assert {:ok, 1} = Buildkite.poll(installation)
 
       mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
@@ -264,7 +314,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       account: account,
       workflow_job_id: workflow_job_id
     } do
-      stub(Client, :get_job, fn _installation, _uuid ->
+      stub(Client, :get_job, fn _installation, _stack, _uuid ->
         {:ok, %{"env" => %{"BUILDKITE_REPO" => "git@github.com:acme/ios.git"}}}
       end)
 
@@ -275,7 +325,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       account: account,
       workflow_job_id: workflow_job_id
     } do
-      stub(Client, :get_job, fn _installation, _uuid ->
+      stub(Client, :get_job, fn _installation, _stack, _uuid ->
         {:ok,
          %{
            "env" => %{
@@ -292,7 +342,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       account: account,
       workflow_job_id: workflow_job_id
     } do
-      stub(Client, :get_job, fn _installation, _uuid ->
+      stub(Client, :get_job, fn _installation, _stack, _uuid ->
         {:ok,
          %{
            "env" => %{
@@ -309,7 +359,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       account: account,
       workflow_job_id: workflow_job_id
     } do
-      stub(Client, :get_job, fn _installation, _uuid -> {:error, :not_found} end)
+      stub(Client, :get_job, fn _installation, _stack, _uuid -> {:error, :not_found} end)
 
       refute Buildkite.job_trusted?(account.id, workflow_job_id)
     end
@@ -319,11 +369,11 @@ defmodule Tuist.Runners.BuildkiteTest do
     setup %{installation: installation, account: account, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})
 
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:ok, %{jobs: [job], dispatch_paused: false}}
       end)
 
-      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
       assert {:ok, 1} = Buildkite.poll(installation)
 
       mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
@@ -335,7 +385,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       workflow_job_id: workflow_job_id,
       job_uuid: job_uuid
     } do
-      expect(Client, :issue_acquisition_token, fn _installation, ^job_uuid, _lifetime ->
+      expect(Client, :issue_acquisition_token, fn _installation, _stack, ^job_uuid, _lifetime ->
         {:ok, %{token: "bkjat_opaque", expires_at: nil}}
       end)
 
@@ -356,7 +406,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       account: account,
       workflow_job_id: workflow_job_id
     } do
-      stub(Client, :issue_acquisition_token, fn _installation, _uuid, _lifetime ->
+      stub(Client, :issue_acquisition_token, fn _installation, _stack, _uuid, _lifetime ->
         {:error, :not_issued}
       end)
 
