@@ -1392,6 +1392,16 @@ while true; do
       # instead, so anything the build needs has to be re-exported from
       # inside a hook — which can only read what is on disk.
       if [ -n "${bk_token}" ]; then
+        # This script runs as `runner`, and a shell redirect into /etc is
+        # performed by the shell as that user, not by sudo — so writing
+        # the file directly fails with EACCES. It did, silently, and the
+        # pre-exit hook then found no credential and skipped reporting
+        # while the job itself passed: the run looked fine on Buildkite
+        # and arrived on the dashboard with no logs and no conclusion.
+        #
+        # `sudo tee` puts the privileged process on the writing side, and
+        # the outcome is checked rather than discarded.
+        job_env_tmp=$(mktemp)
         {
           [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
           [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
@@ -1401,8 +1411,14 @@ while true; do
           # from inside the job at all.
           printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
           printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
-        } >/etc/tuist-runner-job.env 2>/dev/null || true
-        chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true
+        } >"${job_env_tmp}"
+        if sudo tee /etc/tuist-runner-job.env <"${job_env_tmp}" >/dev/null 2>&1; then
+          sudo chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: staged buildkite job env for the hooks"
+        else
+          echo "$(date -u +%FT%TZ) dispatch-poll: FAILED to stage /etc/tuist-runner-job.env; the job will run but report no logs or outcome"
+        fi
+        rm -f "${job_env_tmp}"
       fi
       # Stage the account's volume HEAD for the host to converge a stale master
       # toward before it materializes into this VM's branch.
