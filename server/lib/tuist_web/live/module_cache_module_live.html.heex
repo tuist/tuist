@@ -489,4 +489,75 @@
       />
     </.card_section>
   </.card>
+
+  <.card
+    title={dgettext("dashboard_cache", "Builds")}
+    icon="versions"
+    data-part="build-history"
+  >
+    <.card_section data-part="build-history-section">
+      <div :if={!@build_history.ok?} data-part="skeleton">
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      </div>
+
+      <.empty_card_section
+        :if={@build_history.ok? && Enum.empty?(@build_history.result.rows)}
+        title={dgettext("dashboard_cache", "No builds in this range")}
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+
+      <%= if @build_history.ok? && not Enum.empty?(@build_history.result.rows) do %>
+        <.table
+          id="module-build-history-table"
+          rows={@build_history.result.rows}
+          row_navigate={
+            fn build ->
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{build.id}"
+            end
+          }
+        >
+          <:col :let={build} label={dgettext("dashboard_cache", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.ran_at)} />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if build.branch == "", do: dgettext("dashboard_cache", "None"), else: build.branch
+              }
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Commit")}>
+            <.text_cell label={
+              short_commit_sha(build.commit_sha) || dgettext("dashboard_cache", "None")
+            } />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Result")}>
+            <.status_badge_cell
+              label={build_result_label(build.hit)}
+              status={if build.hit == "miss", do: "error", else: "success"}
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Why")}>
+            <.text_cell label={build_reason_label(build.reason) || "-"} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@build_history.result.has_previous_page}
+          has_next_page={@build_history.result.has_next_page}
+          start_cursor={@build_history.result.start_cursor}
+          end_cursor={@build_history.result.end_cursor}
+        />
+      <% end %>
+    </.card_section>
+  </.card>
 </div>

@@ -3,6 +3,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
 
   alias Tuist.Builds.Analytics
@@ -38,6 +39,8 @@ defmodule TuistWeb.ModuleCacheModuleLive do
               "cache-count",
               "miss-reason",
               "analytics-environment",
+              "after",
+              "before",
               "analytics-date-range",
               "analytics-start-date",
               "analytics-end-date"
@@ -137,6 +140,17 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
     opts = analytics_opts(socket.assigns)
 
+    socket =
+      assign_async(socket, [:build_history], fn ->
+        {:ok,
+         %{
+           build_history:
+             opts
+             |> Keyword.merge(name: name, after: params["after"], before: params["before"])
+             |> Analytics.module_build_history()
+         }}
+      end)
+
     assign_async(
       socket,
       [:module, :timeseries, :dependents_series, :miss_reasons_series],
@@ -216,6 +230,19 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       _ -> opts
     end
   end
+
+  def build_result_label("miss"), do: dgettext("dashboard_cache", "Miss")
+  def build_result_label("local"), do: dgettext("dashboard_cache", "Local hit")
+  def build_result_label("remote"), do: dgettext("dashboard_cache", "Remote hit")
+  def build_result_label(_), do: dgettext("dashboard_cache", "Hit")
+
+  def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
+  def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
+  def build_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
+  def build_reason_label(_), do: nil
+
+  def short_commit_sha(""), do: nil
+  def short_commit_sha(sha), do: String.slice(sha, 0, 7)
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")

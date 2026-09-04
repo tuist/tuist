@@ -1888,6 +1888,155 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "module_build_history/1" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build = fn created_at, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            git_commit_sha: "sha-#{sources}-#{deps}",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+
+        event
+      end
+
+      %{project: project, build: build}
+    end
+
+    test "says why each build missed", %{project: project, build: build} do
+      # First build on the branch has nothing to compare against.
+      build.(~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+      # Same inputs, served from cache.
+      build.(~N[2024-04-02 10:00:00], :remote, "s1", "d1")
+      # Its own sources changed.
+      build.(~N[2024-04-03 10:00:00], :miss, "s2", "d1")
+      # Only a dependency changed.
+      build.(~N[2024-04-04 10:00:00], :miss, "s2", "d2")
+      # Nothing changed but it still missed, so the entry was gone.
+      build.(~N[2024-04-05 10:00:00], :miss, "s2", "d2")
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core")
+
+      # Newest first.
+      assert Enum.map(page.rows, & &1.reason) == ["cold", "upstream", "changed", "hit", "cold"]
+      assert Enum.map(page.rows, & &1.hit) == ["miss", "miss", "miss", "remote", "miss"]
+      assert Enum.all?(page.rows, &(&1.branch == "main"))
+      refute page.has_previous_page
+      refute page.has_next_page
+    end
+
+    test "pages backwards and forwards over the history", %{project: project, build: build} do
+      for day <- 1..10 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first = Analytics.module_build_history(project_id: project.id, name: "Core", limit: 4)
+
+      assert length(first.rows) == 4
+      refute first.has_previous_page
+      assert first.has_next_page
+
+      second =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(second.rows) == 4
+      assert second.has_previous_page
+      assert second.has_next_page
+
+      # The two pages do not overlap and stay in order.
+      assert Enum.map(first.rows, & &1.id) ++ Enum.map(second.rows, & &1.id) ==
+               Enum.uniq(Enum.map(first.rows, & &1.id) ++ Enum.map(second.rows, & &1.id))
+
+      assert List.last(first.rows).ran_at > List.first(second.rows).ran_at
+
+      # Walking back from the second page lands on the first again.
+      back =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          before: second.start_cursor
+        )
+
+      assert Enum.map(back.rows, & &1.id) == Enum.map(first.rows, & &1.id)
+      assert back.has_next_page
+    end
+
+    test "the last page reports no further pages", %{project: project, build: build} do
+      for day <- 1..6 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first = Analytics.module_build_history(project_id: project.id, name: "Core", limit: 4)
+
+      last =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(last.rows) == 2
+      assert last.has_previous_page
+      refute last.has_next_page
+    end
+
+    test "a malformed cursor falls back to the first page", %{project: project, build: build} do
+      build.(~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core", after: "not-a-cursor")
+
+      assert length(page.rows) == 1
+      refute page.has_previous_page
+    end
+
+    test "restricts to CI runs when asked", %{project: project} do
+      for {is_ci, sources} <- [{true, "ci"}, {false, "local"}] do
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            is_ci: is_ci,
+            created_at: ~N[2024-04-01 10:00:00]
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: :miss,
+          sources_hash: sources
+        )
+      end
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core", is_ci: true)
+
+      assert length(page.rows) == 1
+    end
+  end
+
   describe "module_invalidations/1" do
     setup do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)

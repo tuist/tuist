@@ -2493,6 +2493,194 @@ defmodule Tuist.Builds.Analytics do
     )
   end
 
+  @doc """
+  One row per build a module took part in, newest first, with why it missed.
+
+  Unlike `module_invalidations/1` this grows with the project's build history,
+  so it is cursor paginated over `(ran_at, id)`. Pass `:after` to walk further
+  back and `:before` to walk forward again; both take a cursor from a previous
+  result.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+    * `:limit` - Rows per page (default 25)
+
+  ## Returns
+    `%{rows: [...], has_previous_page: boolean, has_next_page: boolean,
+    start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
+    `:id` (the command event), `:ran_at`, `:branch`, `:commit_sha`, `:hit`
+    (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`, `"changed"`,
+    `"upstream"` or `"cold"`).
+  """
+  def module_build_history(opts \\ []) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    limit = Keyword.get(opts, :limit, 25)
+
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    {direction, cursor, cursor_params} = build_history_cursor(opts)
+
+    {cursor_sql, order_sql} =
+      case {direction, cursor} do
+        {_, nil} ->
+          {"", "ran_at DESC, id DESC"}
+
+        {:after, _} ->
+          {" WHERE (ran_at, id) < ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", "ran_at DESC, id DESC"}
+
+        {:before, _} ->
+          {" WHERE (ran_at, id) > ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", "ran_at ASC, id ASC"}
+      end
+
+    params =
+      %{
+        project_id: project_id,
+        name: name,
+        start: start_datetime,
+        end: end_datetime,
+        # One extra row tells us whether another page exists in the direction of travel.
+        limit: limit + 1
+      }
+      |> Map.merge(filter_params)
+      |> Map.merge(cursor_params)
+
+    query = """
+    SELECT id, ran_at, branch, commit_sha, hit, reason
+    FROM (
+      SELECT
+        id, ran_at, branch, commit_sha, hit,
+        multiIf(
+          hit != 'miss', 'hit',
+          rn = 1, 'cold',
+          own != prev_own, 'changed',
+          deps != prev_deps OR ext != prev_ext, 'upstream',
+          'cold'
+        ) AS reason
+      FROM (
+        SELECT
+          id, ran_at, branch, commit_sha, hit, own, deps, ext,
+          row_number() OVER w AS rn,
+          lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(deps, 1) OVER w AS prev_deps,
+          lagInFrame(ext, 1) OVER w AS prev_ext
+        FROM (
+          SELECT
+            toString(e.id) AS id,
+            e.ran_at AS ran_at,
+            coalesce(e.git_branch, '') AS branch,
+            coalesce(e.git_commit_sha, '') AS commit_sha,
+            xt.binary_cache_hit AS hit,
+            xt.product AS product,
+            cityHash64(
+              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
+              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
+              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
+              xt.target_settings_hash, xt.buildable_folders_hash
+            ) AS own,
+            xt.dependencies_hash AS deps,
+            xt.external_hash AS ext
+          FROM xcode_targets AS xt
+          INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          WHERE e.project_id = {project_id:Int64}
+            AND e.ran_at >= {start:DateTime64(6)}
+            AND e.ran_at <= {end:DateTime64(6)}
+            AND xt.binary_cache_hash IS NOT NULL
+            AND xt.name = {name:String}#{filter_sql}
+        )
+        WINDOW w AS (
+          PARTITION BY product, branch
+          ORDER BY ran_at ASC
+          ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+        )
+      )
+    )#{cursor_sql}
+    ORDER BY #{order_sql}
+    LIMIT {limit:UInt32}
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: rows}} -> build_history_page(rows, direction, cursor, limit)
+      _ -> empty_build_history_page()
+    end
+  end
+
+  defp build_history_cursor(opts) do
+    cond do
+      cursor = decode_build_cursor(Keyword.get(opts, :after)) -> {:after, cursor, cursor_params(cursor)}
+      cursor = decode_build_cursor(Keyword.get(opts, :before)) -> {:before, cursor, cursor_params(cursor)}
+      true -> {:after, nil, %{}}
+    end
+  end
+
+  defp cursor_params({ran_at, id}), do: %{cursor_ran_at: ran_at, cursor_id: id}
+
+  defp build_history_page(rows, direction, cursor, limit) do
+    more? = length(rows) > limit
+
+    rows =
+      rows
+      |> Enum.take(limit)
+      |> Enum.map(fn [id, ran_at, branch, commit_sha, hit, reason] ->
+        %{
+          id: id,
+          ran_at: ran_at,
+          branch: branch,
+          commit_sha: commit_sha,
+          hit: to_string(hit),
+          reason: reason
+        }
+      end)
+
+    # Walking backwards reads oldest-first, so flip it to render newest-first.
+    rows = if direction == :before, do: Enum.reverse(rows), else: rows
+
+    {has_previous, has_next} =
+      case {direction, cursor} do
+        {_, nil} -> {false, more?}
+        {:after, _} -> {true, more?}
+        {:before, _} -> {more?, true}
+      end
+
+    %{
+      rows: rows,
+      has_previous_page: has_previous,
+      has_next_page: has_next,
+      start_cursor: rows |> List.first() |> encode_build_cursor(),
+      end_cursor: rows |> List.last() |> encode_build_cursor()
+    }
+  end
+
+  defp empty_build_history_page do
+    %{rows: [], has_previous_page: false, has_next_page: false, start_cursor: nil, end_cursor: nil}
+  end
+
+  defp encode_build_cursor(nil), do: nil
+
+  defp encode_build_cursor(%{ran_at: ran_at, id: id}) do
+    Base.url_encode64("#{NaiveDateTime.to_iso8601(ran_at)}|#{id}", padding: false)
+  end
+
+  defp decode_build_cursor(cursor) when cursor in [nil, ""], do: nil
+
+  defp decode_build_cursor(cursor) do
+    with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
+         [ran_at, id] <- String.split(decoded, "|", parts: 2),
+         {:ok, ran_at} <- NaiveDateTime.from_iso8601(ran_at) do
+      {ran_at, id}
+    else
+      _ -> nil
+    end
+  end
+
   defp module_invalidation_filters(opts) do
     {sql, params} =
       case Keyword.get(opts, :is_ci) do
@@ -2734,23 +2922,23 @@ defmodule Tuist.Builds.Analytics do
 
     {counts, _carried} =
       Enum.map_reduce(dates, nil, fn date, carried ->
-        edges =
-          case Map.get(edges_by_day, date) do
-            nil -> carried
-            pairs -> if Enum.any?(pairs, fn {_n, deps} -> deps != [] end), do: Map.new(pairs), else: carried
-          end
-
-        count =
-          case edges do
-            nil -> 0
-            edges -> edges |> module_transitive_dependents(name) |> length()
-          end
-
-        {count, edges}
+        edges = edges_for_day(Map.get(edges_by_day, date), carried)
+        {dependents_count(edges, name), edges}
       end)
 
     %{dates: Enum.map(dates, &Date.to_iso8601/1), counts: counts}
   end
+
+  # A day with no build, or one whose targets all came from an older CLI without
+  # dependency edges, keeps the last graph we saw rather than dropping to zero.
+  defp edges_for_day(nil, carried), do: carried
+
+  defp edges_for_day(pairs, carried) do
+    if Enum.any?(pairs, fn {_name, deps} -> deps != [] end), do: Map.new(pairs), else: carried
+  end
+
+  defp dependents_count(nil, _name), do: 0
+  defp dependents_count(edges, name), do: edges |> module_transitive_dependents(name) |> length()
 
   @doc """
   Returns the project's latest module dependency graph as
