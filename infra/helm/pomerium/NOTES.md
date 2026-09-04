@@ -31,9 +31,11 @@ per-env kubectl gateway. One Helm release per workload env
    over the tailnet (the egress Service is operator-managed,
    proxying to `ops.<tailnet>.ts.net`).
 6. tuist-ops reads `host` to derive the env + the claim header
-   to identify the user, checks `(subject, env)` against the
-   active elevation row, returns HTTP 200 + `Impersonate-User`
-   + one-or-more `Impersonate-Group` response headers.
+   to identify the user, adds the env write group (staging:
+   always; canary / production: only against an active elevation
+   row for `(subject, env)`), returns HTTP 200 +
+   `Impersonate-User` + one-or-more `Impersonate-Group` response
+   headers.
 7. Sidecar strips the inbound bearer, attaches the pod
    ServiceAccount token, copies the policy headers onto the
    request, forwards to `https://kubernetes.default.svc:443`.
