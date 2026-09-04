@@ -5,6 +5,15 @@ Sidecar deployed alongside Pomerium in each workload cluster's
 sidecar handles the per-request impersonation header injection
 based on tuist-ops's policy decision.
 
+**Canary and production are the real consumers.** Staging kubectl
+now reaches its apiserver over the tailnet through Tailscale's own
+API server proxy, which does its own impersonation from ACL grants
+and never calls this sidecar — see
+`infra/helm/tailscale-operator/values-staging.yaml`. This sidecar
+still runs in staging and still serves `kube-staging.tuist.dev` as
+an off-tailnet fallback, so the staging branches below are live but
+cold.
+
 ## Why
 
 Pomerium fronts kubectl at `kube-<env>.tuist.dev` and authenticates

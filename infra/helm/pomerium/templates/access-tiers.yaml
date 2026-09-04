@@ -8,7 +8,19 @@ The chart that introduces the groups (this one) owns the bindings
 for them, so deploying this chart to a fresh cluster gets the
 identity → RBAC story end-to-end with no external dependency.
 
-Tier shape (matches what tuist-ops's PolicyController returns):
+LOAD-BEARING BEYOND THIS CHART. In staging, human kubectl no longer
+arrives through Pomerium at all — it comes over the tailnet via
+Tailscale's API server proxy, which injects these same group names
+from the `tailscale.com/cap/kubernetes` grants in
+infra/tailscale/acls.json (see
+infra/helm/tailscale-operator/values-staging.yaml). The bindings
+below are what those grants resolve against, so uninstalling the
+Pomerium release in staging would silently drop every human to no
+tier at all — through either door. Move this file before removing
+that release, don't delete it with it.
+
+Tier shape (matches what tuist-ops's PolicyController returns, and
+what the staging ACL grants name):
 
   tuist-admins         → view   (Owner / Admin tailnet role)
   tuist-eng            → view   (Member tailnet role)

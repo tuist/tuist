@@ -47,6 +47,19 @@ defmodule TuistOpsWeb.PolicyController do
   `tailscale_jit_elevations` for (user, env). See `resolve/2` for
   the full decision table.
 
+  Staging barely reaches this endpoint any more. Because its tier
+  needs no per-request lookup, staging kubectl goes straight over
+  the tailnet to Tailscale's API server proxy, which impersonates
+  from `tailscale.com/cap/kubernetes` ACL grants without calling
+  us (see `infra/helm/tailscale-operator/values-staging.yaml`).
+  `kube-staging.tuist.dev` still routes here as an off-tailnet
+  fallback, so the staging branches stay — and must stay in step
+  with those grants, which are the other half of the same
+  decision. One behavioural difference is known and deliberate:
+  the ACL's `autogroup:member` is role-agnostic, so a non-
+  engineering tailnet role (Auditor, Billing admin) that this
+  module denies outright is admitted on the tailnet path.
+
   ## Reachability + trust boundary
 
   Each env's sidecar dials this controller via the cluster-internal
