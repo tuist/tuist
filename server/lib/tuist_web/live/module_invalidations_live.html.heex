@@ -100,7 +100,7 @@
             "Modules in the project, from the latest commit on its default branch."
           )
         }
-        value={if totals, do: Integer.to_string(totals.modules)}
+        value={if totals, do: format_number(totals.modules)}
         phx_click="select_widget"
         phx_value_widget="modules"
         selected={@analytics_selected_widget == "modules"}
@@ -113,7 +113,7 @@
         description={
           dgettext("dashboard_cache", "Module builds served from cache instead of being rebuilt.")
         }
-        value={if totals, do: Integer.to_string(totals.hits)}
+        value={if totals, do: format_number(totals.hits)}
         phx_click="select_widget"
         phx_value_widget="hits"
         selected={@analytics_selected_widget == "hits"}
@@ -129,7 +129,7 @@
             "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, or it had never been cached."
           )
         }
-        value={if totals, do: Integer.to_string(miss_reason_value(totals, @selected_miss_reason))}
+        value={if totals, do: format_number(miss_reason_value(totals, @selected_miss_reason))}
         phx_click="select_widget"
         phx_value_widget="misses"
         selected={@analytics_selected_widget == "misses"}
@@ -154,7 +154,7 @@
               <span data-part="label">{label}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if totals, do: miss_reason_value(totals, value)}
+                {if totals, do: format_number(miss_reason_value(totals, value))}
               </span>
             </div>
           </.dropdown_item>

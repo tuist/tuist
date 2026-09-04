@@ -5,6 +5,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
+  import TuistWeb.CldrHelpers
 
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
@@ -114,6 +115,9 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert has_element?(lv, "#widget-modules", "2")
     assert has_element?(lv, "#widget-hits", "1")
     assert has_element?(lv, "#widget-misses", "1")
+
+    # Large counts are grouped rather than printed raw.
+    assert format_number(1615) == "1,615"
 
     # The misses widget opens on the total rather than on one reason.
     assert has_element?(lv, "#widget-misses", "Misses")
