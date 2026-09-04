@@ -60,31 +60,11 @@ impl TmpBudget {
                 self.capacity
             ));
         }
-
-        let mut current = self.reserved.load(Ordering::Acquire);
-        loop {
-            let requested = current.saturating_add(bytes);
-            if requested > self.capacity {
-                return Err(format!(
-                    "tmp dir budget exhausted: {current} bytes reserved, {bytes} bytes requested, {} bytes allowed",
-                    self.capacity
-                ));
-            }
-            match self.reserved.compare_exchange_weak(
-                current,
-                requested,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => {
-                    return Ok(TmpReservation {
-                        budget: self.clone(),
-                        bytes,
-                    });
-                }
-                Err(observed) => current = observed,
-            }
-        }
+        self.try_grow(bytes)?;
+        Ok(TmpReservation {
+            budget: self.clone(),
+            bytes,
+        })
     }
 
     #[cfg(test)]
@@ -130,10 +110,38 @@ impl TmpBudget {
         }
     }
 
+    fn try_grow(&self, additional: u64) -> Result<(), String> {
+        let mut current = self.reserved.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(additional);
+            if requested > self.capacity {
+                return Err(budget_exhausted_message(current, additional, self.capacity));
+            }
+            match self.reserved.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
     fn release(&self, bytes: u64) {
         self.reserved.fetch_sub(bytes, Ordering::AcqRel);
         self.available.notify_waiters();
     }
+}
+
+// Reserved bytes are admission accounting, not bytes on disk: a stalled writer
+// holds its reservation while `kura_tmp_dir_bytes` stays near zero, so the
+// message says so rather than reading as a full disk.
+fn budget_exhausted_message(reserved: u64, requested: u64, capacity: u64) -> String {
+    format!(
+        "tmp dir budget exhausted: {reserved} bytes reserved by in-flight writers, {requested} bytes requested, {capacity} bytes allowed"
+    )
 }
 
 /// RAII guard that releases its tmp-budget reservation on drop.
@@ -141,6 +149,21 @@ impl TmpBudget {
 pub struct TmpReservation {
     budget: Arc<TmpBudget>,
     bytes: u64,
+}
+
+impl TmpReservation {
+    /// Extend the reservation to `total` bytes, rejecting the growth when the
+    /// budget has no room for the difference. The bytes already held stay
+    /// reserved either way.
+    pub fn grow_to(&mut self, total: u64) -> Result<(), String> {
+        let additional = total.saturating_sub(self.bytes);
+        if additional == 0 {
+            return Ok(());
+        }
+        self.budget.try_grow(additional)?;
+        self.bytes += additional;
+        Ok(())
+    }
 }
 
 impl Drop for TmpReservation {
@@ -198,6 +221,13 @@ impl TempFileCleanup {
     pub(crate) fn set_reservation(&mut self, reservation: TmpReservation) {
         debug_assert!(self.reservation.is_none());
         self.reservation = Some(reservation);
+    }
+
+    fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
+        match self.reservation.as_mut() {
+            Some(reservation) => reservation.grow_to(total),
+            None => Ok(()),
+        }
     }
 
     pub(crate) fn disarm(&mut self) {
@@ -283,24 +313,25 @@ pub async fn read_request_to_temp(
     max_bytes: u64,
     staging: RequestBodyStaging<'_>,
 ) -> Result<TempBodyFile, BodyReadError> {
-    let declared_or_max_bytes = match request
+    let declared_bytes = request
         .headers()
         .get(axum::http::header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.parse::<u64>().ok())
-    {
-        Some(declared_bytes) if declared_bytes > max_bytes => {
-            return Err(BodyReadError::TooLarge);
-        }
-        Some(declared_bytes) => declared_bytes,
-        None => max_bytes,
-    };
-    let memory_reservation = reserve_foreground_staging(staging.memory, declared_or_max_bytes)
-        .await
-        .map_err(|_| BodyReadError::MemoryPressure)?;
+        .and_then(|value| value.parse::<u64>().ok());
+    if declared_bytes.is_some_and(|declared_bytes| declared_bytes > max_bytes) {
+        return Err(BodyReadError::TooLarge);
+    }
+    let memory_reservation =
+        reserve_foreground_staging(staging.memory, declared_bytes.unwrap_or(max_bytes))
+            .await
+            .map_err(|_| BodyReadError::MemoryPressure)?;
+    // A body with no Content-Length (a chunked peer upload) is charged as its
+    // bytes land rather than for the route ceiling: reserving `max_bytes` up
+    // front let four kilobyte-sized replication receives hold the whole node
+    // budget. `max_bytes` stays the hard ceiling on the stream below.
     let disk_reservation = staging
         .tmp_budget
-        .try_reserve(declared_or_max_bytes)
+        .try_reserve(declared_bytes.unwrap_or(0))
         .map_err(BodyReadError::TmpDirFull)?;
     let file_cache_policy = memory_reservation.file_cache_policy();
 
@@ -312,7 +343,7 @@ pub async fn read_request_to_temp(
             .await
             .map_err(BodyReadError::Io)?;
     }
-    let cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
+    let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
 
     let mut file = staging
         .io
@@ -339,6 +370,11 @@ pub async fn read_request_to_temp(
             drop(file);
             staging.io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
+        }
+        if let Err(error) = cleanup.grow_reservation_to(size) {
+            drop(file);
+            staging.io.remove_file_if_exists(&temp_path).await;
+            return Err(BodyReadError::TmpDirFull(error));
         }
         if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
@@ -1165,10 +1201,160 @@ mod tests {
             std::fs::read_to_string(&temp.path).expect("failed to read temp file"),
             "hello"
         );
-        assert_eq!(tmp_budget.reserved_bytes(), 10);
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            5,
+            "an undeclared body is charged for the bytes it staged, not the route ceiling"
+        );
         temp.remove_and_disarm(&io).await;
         assert!(!temp.path.exists());
         assert_eq!(tmp_budget.reserved_bytes(), 0);
+    }
+
+    // Regression test: a body with no Content-Length reserved the route's
+    // ceiling, so with the default budget (four replication ceilings) four
+    // in-flight chunked peer uploads of a few bytes each held the whole node
+    // budget and every other write — peer or client — was shed.
+    #[tokio::test]
+    async fn stalled_undeclared_bodies_do_not_exhaust_the_budget_for_declared_writes() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = Arc::new(
+            IoController::new(
+                metrics.clone(),
+                8,
+                Duration::from_secs(1),
+                vec![directory.path().to_path_buf()],
+            )
+            .expect("failed to create io controller"),
+        );
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let max_bytes = 1024_u64;
+        let tmp_budget = TmpBudget::new(4 * max_bytes);
+
+        let holders: Vec<_> = (0..4)
+            .map(|_| {
+                let body = futures_util::stream::once(async {
+                    Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
+                })
+                .chain(futures_util::stream::pending());
+                let request = Request::builder()
+                    .body(Body::from_stream(body))
+                    .expect("failed to build request");
+                let directory = directory.path().to_path_buf();
+                let io = io.clone();
+                let memory = memory.clone();
+                let tmp_budget = tmp_budget.clone();
+                tokio::spawn(async move {
+                    read_request_to_temp(
+                        request,
+                        &directory,
+                        max_bytes,
+                        RequestBodyStaging {
+                            tmp_budget: &tmp_budget,
+                            io: &io,
+                            memory: &memory,
+                            bandwidth_limiter: None,
+                        },
+                    )
+                    .await
+                })
+            })
+            .collect();
+        for _ in 0..1000 {
+            if tmp_budget.reserved_bytes() >= 4 * 5 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            4 * 5,
+            "four stalled chunked bodies must hold only the bytes they staged"
+        );
+
+        let request = Request::builder()
+            .header(axum::http::header::CONTENT_LENGTH, "3")
+            .body(Body::from("abc"))
+            .expect("failed to build request");
+        let temp = read_request_to_temp(
+            request,
+            directory.path(),
+            max_bytes,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
+        )
+        .await
+        .expect("a declared 3-byte body must be admitted next to stalled chunked uploads");
+        assert_eq!(temp.size, 3);
+        assert_eq!(tmp_budget.reserved_bytes(), 4 * 5 + 3);
+
+        for holder in holders {
+            holder.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn undeclared_body_is_rejected_when_its_bytes_outgrow_the_budget() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = IoController::new(
+            metrics.clone(),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(8);
+        let _held = tmp_budget
+            .try_reserve(4)
+            .expect("failed to seed tmp reservation");
+        let body = futures_util::stream::iter([
+            Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"abc")),
+            Ok(bytes::Bytes::from_static(b"def")),
+        ]);
+        let request = Request::builder()
+            .body(Body::from_stream(body))
+            .expect("failed to build request");
+
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            1024,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
+        )
+        .await
+        .expect_err("growing past the budget must be rejected mid-stream");
+
+        assert!(matches!(error, BodyReadError::TmpDirFull(_)));
+        for _ in 0..1000 {
+            if tmp_budget.reserved_bytes() == 4 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            4,
+            "the rejected body must release everything it had grown into"
+        );
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "the partial staging file must be removed"
+        );
     }
 
     #[tokio::test]
@@ -1290,6 +1476,7 @@ mod tests {
             .try_reserve(5)
             .expect("failed to seed tmp reservation");
         let request = Request::builder()
+            .header(axum::http::header::CONTENT_LENGTH, "5")
             .body(Body::from("world"))
             .expect("failed to build request");
 
@@ -1309,6 +1496,13 @@ mod tests {
 
         assert!(matches!(error, BodyReadError::TmpDirFull(_)));
         assert_eq!(tmp_budget.reserved_bytes(), 5);
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "a declared body over budget is rejected before anything is staged"
+        );
     }
 
     #[test]

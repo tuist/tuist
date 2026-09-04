@@ -3219,6 +3219,14 @@ async fn internal_replicate_artifact(
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
+            // The sender is the only side that otherwise records this shed,
+            // so a receiver refusing peer writes would look healthy in its
+            // own logs.
+            tracing::warn!(
+                namespace_id = %query.namespace_id,
+                key = %query.key,
+                "shed peer artifact replication: {error}"
+            );
             return error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
@@ -4673,6 +4681,57 @@ mod tests {
             .expect("inline fetch should succeed")
             .expect("replicated artifact should be persisted");
         assert_eq!(stored.len(), body_len);
+    }
+
+    // Regression test: a replication body with no Content-Length reserved the
+    // route ceiling (MAX_REPLICATION_BODY_BYTES) against the tmp budget, so a
+    // node whose budget was smaller than four such ceilings shed chunked peer
+    // uploads of a few bytes with a 503. The receive must be charged for the
+    // bytes that land.
+    #[tokio::test]
+    async fn chunked_artifact_replication_is_charged_for_the_bytes_it_stages() {
+        let context = test_context(|config| {
+            config.tmp_dir_max_bytes = 64 * 1024;
+        })
+        .await;
+        let payload = bytes::Bytes::from(vec![0xAB_u8; 2691]);
+        let body = Body::from_stream(futures_util::stream::iter([
+            Ok::<_, Infallible>(payload.slice(..1000)),
+            Ok(payload.slice(1000..)),
+        ]));
+        let request = Request::builder()
+            .method("PUT")
+            .uri(
+                "/_internal/replicate/artifact?producer=reapi&inline=false\
+                 &namespace_id=tuist%2Fkura&key=blob%2Fdeadbeef%2F2691\
+                 &content_type=application%2Foctet-stream&version_ms=1000",
+            )
+            .body(body)
+            .expect("failed to build request");
+        assert!(
+            request
+                .headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .is_none(),
+            "fixture must exercise the undeclared-length path"
+        );
+
+        let response = internal_router(context.state.clone())
+            .oneshot(request)
+            .await
+            .expect("request failed");
+        let status = response.status();
+        let text = response_text(response).await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{text}");
+
+        let stored = context
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Reapi, "tuist/kura", "blob/deadbeef/2691")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("replicated artifact should be persisted");
+        assert_eq!(stored.size, payload.len() as u64);
     }
 
     // Pins the exact inline replication ceiling so a future limit or comparison

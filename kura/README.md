@@ -226,7 +226,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
-| `KURA_TMP_DIR_MAX_BYTES` | Process-wide byte budget shared by every temporary writer before requests receive backpressure. Reservations remain held until the staged file is moved or unlinked. | Yes | `8589934592` |
+| `KURA_TMP_DIR_MAX_BYTES` | Process-wide byte budget shared by every temporary writer before requests receive backpressure. A request body reserves its `Content-Length` up front, or is charged for the bytes as they land when it declares none; reservations remain held until the staged file is moved or unlinked. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
 | `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem so segment rotation can never run the disk full. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
