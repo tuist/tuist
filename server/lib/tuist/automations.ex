@@ -344,24 +344,56 @@ defmodule Tuist.Automations do
     active_alert_events(alert_id, baseline_generation, test_case_ids)
   end
 
+  # ClickHouse uses HTTP GET and encodes the SQL in the URI. A large IN (...)
+  # clause with many UUIDs can exceed the server's URI length limit and return
+  # "HTTP request URI invalid or too long". Chunking the IDs keeps each request
+  # well within that limit.
+  @active_alert_events_batch_size 100
+
+  defp active_alert_events(alert_id, baseline_generation, nil) do
+    active_alert_events_query(alert_id, baseline_generation, nil)
+    |> ClickHouseRepo.all()
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, []), do: []
+
   defp active_alert_events(alert_id, baseline_generation, test_case_ids) do
+    test_case_ids
+    |> Enum.chunk_every(@active_alert_events_batch_size)
+    |> Enum.flat_map(fn chunk ->
+      active_alert_events_query(alert_id, baseline_generation, chunk)
+      |> ClickHouseRepo.all()
+    end)
+    |> Enum.group_by(& &1.test_case_id)
+    |> Enum.map(fn {test_case_id, rows} ->
+      %{
+        test_case_id: test_case_id,
+        triggered_at: rows |> Enum.map(& &1.triggered_at) |> Enum.max()
+      }
+    end)
+  end
+
+  defp active_alert_events_query(alert_id, baseline_generation, nil) do
     AlertEvent
     |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
-    |> filter_alert_events_by_test_case_ids(test_case_ids)
     |> group_by([event], event.test_case_id)
     |> having([event], fragment("argMax(?, ?) = 'triggered'", event.status, event.inserted_at))
     |> select([event], %{
       test_case_id: event.test_case_id,
       triggered_at: fragment("argMax(?, ?)", event.triggered_at, event.inserted_at)
     })
-    |> ClickHouseRepo.all()
   end
 
-  defp filter_alert_events_by_test_case_ids(query, nil), do: query
-  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
-
-  defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
-    where(query, [e], e.test_case_id in ^test_case_ids)
+  defp active_alert_events_query(alert_id, baseline_generation, test_case_ids) do
+    AlertEvent
+    |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
+    |> where([e], e.test_case_id in ^test_case_ids)
+    |> group_by([event], event.test_case_id)
+    |> having([event], fragment("argMax(?, ?) = 'triggered'", event.status, event.inserted_at))
+    |> select([event], %{
+      test_case_id: event.test_case_id,
+      triggered_at: fragment("argMax(?, ?)", event.triggered_at, event.inserted_at)
+    })
   end
 
   def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok
