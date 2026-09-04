@@ -451,6 +451,32 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == ["1"]
+    end
+
+    test "sets the public page header when a signed-in user visits a public project", %{conn: conn, user: user} do
+      # Given
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_private_projects([])
+
+      # Then
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == ["1"]
     end
 
     test "redirects if a user is anonymous and a project is private", %{conn: conn} do
@@ -474,6 +500,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       assert conn.halted
       assert conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == []
     end
   end
 
@@ -506,6 +533,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == ["1"]
     end
 
     test "redirects if a user is anonymous and an account is private", %{conn: conn} do
@@ -523,6 +551,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       assert conn.halted
       assert redirected_to(conn) == ~p"/users/log_in"
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == []
     end
 
     test "redirects if the account doesn't exist", %{conn: conn} do
@@ -611,6 +640,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == ["1"]
     end
 
     test "redirects if a user is anonymous, a project is private, and preview type is :app_bundle",
@@ -642,6 +672,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       assert conn.halted
       assert conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == []
     end
 
     test "does not redirect if a user is anonymous, a project is private, and preview type is :ipa",
@@ -669,6 +700,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+      assert Plug.Conn.get_resp_header(conn, "x-tuist-public") == ["1"]
     end
   end
 
