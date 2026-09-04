@@ -4,24 +4,35 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Environment
-  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Repo
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.Buildkite.Job
+  alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.RunnerSessions
 
-  @pod_name "tuist-runner-pod-1"
+  setup do
+    %{account: account} = organization_fixture(preload: [:account])
 
-  defp runner_token_stub(pod_name) do
-    stub(K8sClient, :create_token_review, fn "valid-token" ->
-      {:ok, %{namespace: Environment.runners_namespace(), name: pod_name, uid: "uid-1"}}
-    end)
+    {:ok, job} =
+      %Job{}
+      |> Job.changeset(%{
+        job_uuid: Ecto.UUID.generate(),
+        account_id: account.id,
+        organization_slug: "acme",
+        pipeline_slug: "ios"
+      })
+      |> Repo.insert(returning: true)
+
+    token = ReportToken.mint(%{workflow_job_id: job.workflow_job_id, account_id: account.id})
+
+    %{account: account, workflow_job_id: job.workflow_job_id, token: token}
   end
 
-  # Buildkite dispatch opens the session with the execution binding
-  # already set: the acquisition token names one job, so unlike the GitHub
-  # lane there is nothing to learn from a later webhook.
-  defp session(account, workflow_job_id, pod_name, runner_name) do
+  # Buildkite dispatch opens the session with the execution binding already
+  # set: the acquisition token names one job, so unlike the GitHub lane
+  # there is nothing to learn from a later webhook.
+  defp session(account, workflow_job_id, runner_name) do
     {:ok, session} =
       RunnerSessions.open(%{
         workflow_job_id: workflow_job_id,
@@ -31,7 +42,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
         platform: :linux,
         vcpus: 2,
         memory_gb: 8,
-        pod_name: pod_name,
+        pod_name: "tuist-runner-pod-1",
         runner_name: runner_name,
         started_at: DateTime.utc_now()
       })
@@ -39,21 +50,15 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
     session
   end
 
-  setup do
-    %{account: account} = organization_fixture(preload: [:account])
-    workflow_job_id = 1_000_000_000_000_123
-    %{account: account, workflow_job_id: workflow_job_id}
-  end
+  defp authed(conn, token), do: put_req_header(conn, "authorization", "Bearer #{token}")
 
   describe "POST logs" do
-    test "appends the agent's log lines against the pod's job", %{
+    test "appends the agent's log lines against the token's job", %{
       conn: conn,
       account: account,
-      workflow_job_id: workflow_job_id
+      workflow_job_id: workflow_job_id,
+      token: token
     } do
-      runner_token_stub(@pod_name)
-      session(account, workflow_job_id, @pod_name, "runner-1")
-
       expect(JobLogs, :append, fn lines ->
         assert [first, second] = lines
         assert first.workflow_job_id == workflow_job_id
@@ -66,8 +71,8 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/logs", %{
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/logs", %{
           "lines" => ["\e_bk;t=1756900000000\aRunning tests", "All tests passed"],
           "first_line_number" => 1
         })
@@ -75,49 +80,42 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       assert response(conn, 204)
     end
 
-    test "drops lines for a pod with no open session", %{conn: conn} do
-      runner_token_stub(@pod_name)
-      reject(&JobLogs.append/1)
-
+    test "rejects a body whose lines are not strings", %{conn: conn, token: token} do
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/logs", %{"lines" => ["x"]})
-
-      assert response(conn, 204)
-    end
-
-    test "rejects a body whose lines are not strings", %{
-      conn: conn,
-      account: account,
-      workflow_job_id: workflow_job_id
-    } do
-      runner_token_stub(@pod_name)
-      session(account, workflow_job_id, @pod_name, "runner-1")
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/logs", %{"lines" => [1, 2]})
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/logs", %{"lines" => [1, 2]})
 
       assert json_response(conn, 400)["error"] =~ "lines"
     end
 
-    test "refuses a token whose principal is another pod", %{conn: conn} do
-      runner_token_stub("some-other-pod")
-
+    test "refuses a forged report token", %{conn: conn} do
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/logs", %{"lines" => ["x"]})
+        |> authed("not-a-real-token")
+        |> post("/api/internal/runners/buildkite/logs", %{"lines" => ["x"]})
 
-      assert json_response(conn, 401)["error"] == "unauthorized principal"
+      assert json_response(conn, 401)["error"] == "invalid report token"
     end
 
     test "refuses an unauthenticated request", %{conn: conn} do
-      conn = post(conn, "/api/internal/runners/pods/#{@pod_name}/buildkite/logs", %{"lines" => []})
+      conn = post(conn, "/api/internal/runners/buildkite/logs", %{"lines" => []})
 
       assert json_response(conn, 401)["error"] == "missing bearer token"
+    end
+
+    test "refuses a token whose job no longer exists", %{conn: conn, account: account} do
+      # A signature alone is not enough: the job it names has to still be a
+      # Buildkite job of that account, or the ingest would key rows on a
+      # job nothing owns.
+      token = ReportToken.mint(%{workflow_job_id: 1_000_000_000_000_999, account_id: account.id})
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/logs", %{"lines" => ["x"]})
+
+      assert json_response(conn, 401)["error"] == "invalid report token"
     end
   end
 
@@ -125,10 +123,10 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
     test "reports the job's window and outcome", %{
       conn: conn,
       account: account,
-      workflow_job_id: workflow_job_id
+      workflow_job_id: workflow_job_id,
+      token: token
     } do
-      runner_token_stub(@pod_name)
-      session(account, workflow_job_id, @pod_name, "runner-1")
+      session(account, workflow_job_id, "runner-1")
 
       expect(Buildkite, :record_job_finished, fn "runner-1", account_id, report ->
         assert account_id == account.id
@@ -141,8 +139,8 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/finish", %{
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/finish", %{
           "exit_status" => 0,
           "cancelled" => false,
           "started_at" => 1_750_684_800,
@@ -155,10 +153,10 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
     test "reports a cancelled job as cancelled rather than failed", %{
       conn: conn,
       account: account,
-      workflow_job_id: workflow_job_id
+      workflow_job_id: workflow_job_id,
+      token: token
     } do
-      runner_token_stub(@pod_name)
-      session(account, workflow_job_id, @pod_name, "runner-1")
+      session(account, workflow_job_id, "runner-1")
 
       expect(Buildkite, :record_job_finished, fn _runner, _account_id, report ->
         assert report.conclusion == "cancelled"
@@ -167,8 +165,8 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/finish", %{
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/finish", %{
           "exit_status" => 1,
           "cancelled" => true
         })
@@ -176,13 +174,26 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       assert response(conn, 204)
     end
 
+    test "accepts a duplicate report once the session is closed", %{conn: conn, token: token} do
+      # No open session: the job is settled, so a retried report is not
+      # something the hook should keep retrying.
+      reject(&Buildkite.record_job_finished/3)
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/finish", %{"exit_status" => 0})
+
+      assert response(conn, 204)
+    end
+
     test "fails the request when the window could not be recorded", %{
       conn: conn,
       account: account,
-      workflow_job_id: workflow_job_id
+      workflow_job_id: workflow_job_id,
+      token: token
     } do
-      runner_token_stub(@pod_name)
-      session(account, workflow_job_id, @pod_name, "runner-1")
+      session(account, workflow_job_id, "runner-1")
 
       expect(Buildkite, :record_job_finished, fn _runner, _account_id, _report ->
         {:error, :session_execution_write_failed}
@@ -190,8 +201,8 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/pods/#{@pod_name}/buildkite/finish", %{"exit_status" => 0})
+        |> authed(token)
+        |> post("/api/internal/runners/buildkite/finish", %{"exit_status" => 0})
 
       assert json_response(conn, 500)["error"] == "finish report failed"
     end

@@ -153,7 +153,8 @@ defmodule TuistWeb.RunnersControllerTest do
              kind: :buildkite,
              token: "bkjat_opaque",
              job_uuid: "0189abcd-0000-4000-8000-000000000000",
-             organization_slug: "acme"
+             organization_slug: "acme",
+             report_token: "report-token"
            },
            account: account,
            runner_name: "pod-1",
@@ -172,6 +173,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["buildkite_acquisition_token"] == "bkjat_opaque"
       assert body["buildkite_job_uuid"] == "0189abcd-0000-4000-8000-000000000000"
       assert body["buildkite_organization_slug"] == "acme"
+      assert body["buildkite_report_token"] == "report-token"
       # The poll script selects the agent to launch on which credential
       # key is present, so the two must never appear together.
       refute Map.has_key?(body, "encoded_jit_config")

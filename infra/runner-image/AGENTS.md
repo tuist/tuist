@@ -78,7 +78,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   server sent (the agent sanitizes the job environment, so an export
   from `dispatch-poll.sh` does not survive into the job) and stamps the
   job's start; `pre-exit` posts the job's log and its window back to the
-  server. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
+  server, authenticating with the job-scoped report token dispatch
+  minted rather than the Pod's SA token. The same two hooks ship in the
+  Linux image (`infra/linux-runner-image/buildkite-hooks/`) and are kept
+  byte-identical: they take their paths from `TUIST_RUNNER_JOB_ENV` and
+  `TUIST_RUNNER_STATE_DIR` so nothing platform-specific leaks in. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
   agent writes because it is started with `--enable-job-log-tmpfile` and
   deletes when the job ends — hence a `pre-exit` hook rather than
   anything later.

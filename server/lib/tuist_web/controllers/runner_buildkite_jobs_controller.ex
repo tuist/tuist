@@ -1,6 +1,6 @@
 defmodule TuistWeb.RunnerBuildkiteJobsController do
   @moduledoc """
-  Ingests a Buildkite job's log and outcome from the VM that ran it.
+  Ingests a Buildkite job's log and outcome from the runner that ran it.
 
   The GitHub lane pulls both from GitHub after the fact: logs from the
   Actions Logs API, the outcome from the `workflow_job.completed`
@@ -10,7 +10,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
   customer for a second, broader credential purely so we can read back
   output that passed through our own machine on its way out.
 
-  So the VM reports instead. `buildkite-agent` is started with
+  So the runner reports instead. `buildkite-agent` runs with
   `--enable-job-log-tmpfile`, which writes the job's log verbatim to a
   path it exports as `BUILDKITE_JOB_LOG_TMPFILE`, and a global `pre-exit`
   hook posts that file here along with the job's window and exit status.
@@ -18,41 +18,50 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
   output goes straight from the worker to GitHub over HTTP with no stable
   in-VM read point, which is why that lane pulls.
 
-  Both endpoints authenticate as the Pod, with the same ServiceAccount
-  token the Pod used to fetch its dispatch (`TuistWeb.RunnerPodAuth`), so
-  a Pod can only report for itself. The job the report belongs to is
-  resolved from the Pod's open session, never from the body: the
-  acquisition token bound the Pod to one job at dispatch, and letting the
-  body name a different one would let a compromised job write over
-  another's history.
+  ## Why not the Pod's ServiceAccount token
+
+  Both endpoints authenticate with a
+  `Tuist.Runners.Buildkite.ReportToken` minted for one job at dispatch,
+  not with the Pod credential the rest of the runner endpoints use. On
+  the Linux fleet the job container holds no ServiceAccount token by
+  design — the poller init container claims the job and hands the
+  credential over on a shared volume so untrusted workflow code never
+  sits beside a token that can claim more work. Reporting with that token
+  would have undone the isolation, and restricting the Buildkite lane to
+  macOS to avoid the question would have left half the fleet out.
+
+  A report token authorizes only what the job it names could already do:
+  write its own log, and declare its own exit status. It cannot claim
+  work or reach another account, so staging it into the job container
+  changes nothing about what that container can reach.
+
+  The job the report belongs to comes from the token, never from the
+  body or the path, so a job cannot write over another's history.
   """
 
   use TuistWeb, :controller
 
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.LogParser
+  alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.JobLogs
-  alias Tuist.Runners.RunnerSessions
-  alias TuistWeb.RunnerPodAuth
 
   require Logger
 
   @max_log_bytes 64 * 1024 * 1024
 
   @doc """
-  `POST /api/internal/runners/pods/:pod_name/buildkite/logs`
+  `POST /api/internal/runners/buildkite/logs`
 
       { "lines": ["...", "..."], "first_line_number": 1 }
 
-  Lines are appended verbatim in the order given. The ReplacingMergeTree
-  key `(workflow_job_id, line_number)` collapses a re-posted batch, so
-  the hook may retry freely.
+  Lines are appended in the order given. The ReplacingMergeTree key
+  `(workflow_job_id, line_number)` collapses a re-posted batch, so the
+  hook may retry freely.
   """
-  def logs(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
-    with :ok <- RunnerPodAuth.authenticate(conn, pod_name),
-         {:ok, lines} <- parse_lines(params),
-         {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <-
-           RunnerSessions.executed_job_for_pod(pod_name) do
+  def logs(conn, params) do
+    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
+         {:ok, lines} <- parse_lines(params) do
       lines
       |> LogParser.parse(
         params |> Map.get("first_line_number", 1) |> to_integer(1),
@@ -63,27 +72,18 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
 
       send_resp(conn, :no_content, "")
     else
-      :error ->
-        # No open session for this Pod. Its job is already closed, or the
-        # Pod is reporting after a reap; either way there is nothing left
-        # to attach the lines to.
-        send_resp(conn, :no_content, "")
-
-      error ->
-        render_error(conn, error, "buildkite log ingest")
+      error -> render_error(conn, error, "buildkite log ingest")
     end
   end
 
-  def logs(conn, _params), do: conn |> put_status(:bad_request) |> json(%{error: "invalid pod_name"})
-
   @doc """
-  `POST /api/internal/runners/pods/:pod_name/buildkite/finish`
+  `POST /api/internal/runners/buildkite/finish`
 
       {
         "exit_status": 0,
         "cancelled": false,
-        "started_at": 1750684800.0,
-        "finished_at": 1750684860.0
+        "started_at": 1750684800,
+        "finished_at": 1750684860
       }
 
   Closes the lifecycle row, frees the account's concurrency slot and
@@ -91,10 +91,9 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
   than swallowed: the window is recorded nowhere else, and the hook
   retries on a non-2xx.
   """
-  def finish(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
-    with :ok <- RunnerPodAuth.authenticate(conn, pod_name),
-         {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id, runner_name: runner_name}} <-
-           RunnerSessions.executed_job_for_pod(pod_name) do
+  def finish(conn, params) do
+    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
+         {:ok, runner_name} <- Buildkite.runner_name_for_job(workflow_job_id, account_id) do
       report = %{
         workflow_job_id: workflow_job_id,
         conclusion: Buildkite.conclusion_for(outcome(params)),
@@ -108,7 +107,6 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
 
         {:error, reason} ->
           Logger.error("runners: buildkite finish report failed",
-            pod_name: pod_name,
             workflow_job_id: workflow_job_id,
             reason: inspect(reason)
           )
@@ -116,7 +114,11 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
           conn |> put_status(:internal_server_error) |> json(%{error: "finish report failed"})
       end
     else
-      :error ->
+      {:error, :no_session} ->
+        # The job's session is already closed — a duplicate report, or one
+        # that arrived after recovery reaped the Pod. The lifecycle row is
+        # settled either way, so this is not a failure the hook should
+        # retry.
         send_resp(conn, :no_content, "")
 
       error ->
@@ -124,7 +126,13 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
     end
   end
 
-  def finish(conn, _params), do: conn |> put_status(:bad_request) |> json(%{error: "invalid pod_name"})
+  defp authenticate(conn) do
+    case Plug.Conn.get_req_header(conn, "authorization") do
+      ["Bearer " <> token] when token != "" -> ReportToken.verify(token)
+      ["bearer " <> token] when token != "" -> ReportToken.verify(token)
+      _ -> {:error, :missing_bearer}
+    end
+  end
 
   defp outcome(params) do
     %{
@@ -145,10 +153,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
 
   defp byte_size_of(lines), do: Enum.reduce(lines, 0, &(byte_size(&1) + &2))
 
-  defp epoch_datetime(value) when is_number(value) do
-    value |> round() |> DateTime.from_unix!()
-  end
-
+  defp epoch_datetime(value) when is_number(value), do: value |> round() |> DateTime.from_unix!()
   defp epoch_datetime(_value), do: nil
 
   defp to_integer(value, _default) when is_integer(value), do: value
@@ -166,35 +171,15 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
     conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
   end
 
-  defp render_error(conn, {:error, :unauthenticated}, context) do
-    Logger.warning("runners: tokenreview rejected token on #{context}")
-    conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+  defp render_error(conn, {:error, :expired}, _context) do
+    conn |> put_status(:unauthorized) |> json(%{error: "report token expired"})
   end
 
-  defp render_error(conn, {:error, :not_service_account}, context) do
-    Logger.warning("runners: tokenreview principal is not an SA on #{context}")
-    conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
-  end
-
-  defp render_error(conn, {:error, {:wrong_principal, %{namespace: ns, name: name}}}, context) do
-    Logger.warning("runners: unauthorized principal on #{context}",
-      principal_namespace: ns,
-      principal_name: name
-    )
-
-    conn |> put_status(:unauthorized) |> json(%{error: "unauthorized principal"})
-  end
-
-  defp render_error(conn, {:error, :not_in_cluster}, _context) do
-    conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+  defp render_error(conn, {:error, :invalid}, _context) do
+    conn |> put_status(:unauthorized) |> json(%{error: "invalid report token"})
   end
 
   defp render_error(conn, {:error, {:invalid_field, field}}, _context) do
     conn |> put_status(:bad_request) |> json(%{error: "invalid #{field}"})
-  end
-
-  defp render_error(conn, {:error, reason}, context) do
-    Logger.error("runners: #{context} failed", reason: inspect(reason))
-    conn |> put_status(:internal_server_error) |> json(%{error: "#{context} failed"})
   end
 end

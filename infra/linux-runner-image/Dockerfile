@@ -320,6 +320,39 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
+
+# The Buildkite agent lives alongside the GitHub one rather than in a
+# second image. Which of the two runs is a per-job decision the server
+# makes at dispatch, so a Pod has to be able to serve either; forking the
+# image would split the warm pool to save one binary.
+#
+# Pinned for the same reason RUNNER_VERSION is: the version that ran a
+# job should be the version we baked. The agent has no self-update, so
+# pinning here is the whole mechanism. Renovate bumps it the same way.
+# renovate: datasource=github-releases depName=buildkite/agent
+ARG BUILDKITE_AGENT_VERSION=3.87.0
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) bk_arch=amd64 ;; \
+      arm64) bk_arch=arm64 ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl -fSL "https://github.com/buildkite/agent/releases/download/v${BUILDKITE_AGENT_VERSION}/buildkite-agent-linux-${bk_arch}-${BUILDKITE_AGENT_VERSION}.tar.gz" \
+        -o /tmp/buildkite-agent.tar.gz; \
+    tar xzf /tmp/buildkite-agent.tar.gz -C /tmp buildkite-agent; \
+    install -m 0755 /tmp/buildkite-agent /usr/local/bin/buildkite-agent; \
+    rm -f /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent; \
+    buildkite-agent --version
+
+# Global agent hooks (`--hooks-path`), so they run for every job
+# regardless of what the customer's repository defines. `environment`
+# re-exports the cache settings the server sent; `pre-exit` posts the
+# job's log and window back, authenticating with the job-scoped report
+# token the poller staged — never the SA token, which this container
+# does not hold.
+COPY buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+RUN chmod +x /usr/local/share/tuist/buildkite-hooks/*
+
 # dispatch-poll.sh runs in the `poller` init container (holds the SA
 # token, stages the JIT); run-job.sh runs in the `runner` main
 # container (no token, runs the staged JIT). The controller's

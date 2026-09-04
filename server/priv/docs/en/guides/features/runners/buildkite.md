@@ -31,7 +31,7 @@ Tuist begins watching the cluster within a minute.
 
 A Buildkite job says where it wants to run with a queue, and a Tuist runner <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> describes what it runs on. Tuist connects the two by name: a job is picked up when its queue key matches one of your profiles.
 
-Every enabled account starts with two profiles, `linux` and `macos`, so create self-hosted queues with those keys in your cluster:
+Every enabled account starts with two profiles, `linux` and `macos`, so create self-hosted queues with those keys in your cluster. Both fleets run Buildkite jobs:
 
 ```yaml
 # .buildkite/pipeline.yml
@@ -54,6 +54,8 @@ To use another Xcode version, <.localized_link href="/guides/features/runners/pr
 ## What you get in the dashboard {#what-you-get-in-the-dashboard}
 
 Buildkite jobs appear in the **Runners** section alongside everything else, with their logs, machine metrics, and duration. The agent ships each job's log to Tuist from inside the runner, so no additional Buildkite API token is needed.
+
+The runner reports with a credential scoped to the single job it is running, minted when the job is dispatched. It can write that job's log and record its outcome, and nothing else.
 
 ## Pausing {#pausing}
 

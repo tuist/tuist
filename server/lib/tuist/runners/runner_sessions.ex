@@ -680,7 +680,8 @@ defmodule Tuist.Runners.RunnerSessions do
       workflow_job_id: s.workflow_job_id,
       account_id: s.account_id,
       fleet_name: s.fleet_name,
-      pod_name: s.pod_name
+      pod_name: s.pod_name,
+      runner_name: s.runner_name
     })
     |> limit(1)
     |> Repo.one()

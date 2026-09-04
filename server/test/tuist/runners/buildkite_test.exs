@@ -10,6 +10,7 @@ defmodule Tuist.Runners.BuildkiteTest do
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.Client
   alias Tuist.Runners.Buildkite.Job
+  alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Profile
@@ -164,33 +165,6 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert Repo.aggregate(from(j in Job, where: j.job_uuid == ^job.job_uuid), :count) == 1
     end
 
-    test "declines a queue that names a Linux profile", %{
-      installation: installation,
-      queue_key: queue_key
-    } do
-      # The Linux job container holds no ServiceAccount token, which the
-      # Buildkite lane needs from inside the job to report its log and
-      # window. Reserving would strand the job on a queue nothing serves.
-      stub(Dispatch, :resolve_dispatch_target, fn _account, [^queue_key] ->
-        {:ok,
-         %{
-           pool_name: "pool-linux",
-           requested_dispatch_label: queue_key,
-           platform: :linux,
-           vcpus: 4,
-           memory_gb: 16
-         }}
-      end)
-
-      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
-        {:ok, %{jobs: [scheduled_job()], dispatch_paused: false}}
-      end)
-
-      reject(&Client.reserve/3)
-
-      assert {:ok, 0} = Buildkite.poll(installation)
-    end
-
     test "stops the pass when the agent token is rejected", %{installation: installation} do
       stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
         {:error, :unauthorized}
@@ -338,6 +312,55 @@ defmodule Tuist.Runners.BuildkiteTest do
       stub(Client, :get_job, fn _installation, _uuid -> {:error, :not_found} end)
 
       refute Buildkite.job_trusted?(account.id, workflow_job_id)
+    end
+  end
+
+  describe "mint_acquisition/2" do
+    setup %{installation: installation, account: account, queue_key: queue_key} do
+      job = scheduled_job(%{queue_key: queue_key})
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _queue, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, uuids, _expiry -> {:ok, uuids} end)
+      assert {:ok, 1} = Buildkite.poll(installation)
+
+      mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
+      %{account: account, workflow_job_id: mapping.workflow_job_id, job_uuid: job.job_uuid}
+    end
+
+    test "returns the acquisition token and a report credential for the job", %{
+      account: account,
+      workflow_job_id: workflow_job_id,
+      job_uuid: job_uuid
+    } do
+      expect(Client, :issue_acquisition_token, fn _installation, ^job_uuid, _lifetime ->
+        {:ok, %{token: "bkjat_opaque", expires_at: nil}}
+      end)
+
+      assert {:ok, acquisition} = Buildkite.mint_acquisition(account.id, workflow_job_id)
+
+      assert acquisition.token == "bkjat_opaque"
+      assert acquisition.job_uuid == job_uuid
+
+      # The job reports its own log and outcome, so it needs a credential
+      # it can carry. This one is scoped to the job rather than the
+      # machine, which is what lets the Linux fleet — whose job container
+      # holds no ServiceAccount token — use the same path.
+      assert {:ok, %{workflow_job_id: ^workflow_job_id}} =
+               ReportToken.verify(acquisition.report_token)
+    end
+
+    test "fails when Buildkite declines to issue a token", %{
+      account: account,
+      workflow_job_id: workflow_job_id
+    } do
+      stub(Client, :issue_acquisition_token, fn _installation, _uuid, _lifetime ->
+        {:error, :not_issued}
+      end)
+
+      assert {:error, :not_issued} = Buildkite.mint_acquisition(account.id, workflow_job_id)
     end
   end
 

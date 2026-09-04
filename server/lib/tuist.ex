@@ -228,6 +228,7 @@ defmodule Tuist do
       Runners.Buildkite,
       Runners.Buildkite.Installation,
       Runners.Buildkite.LogParser,
+      Runners.Buildkite.ReportToken,
       Runners.Claim,
       Runners.InteractiveSession,
       Runners.InteractiveSessionConnection,

@@ -1198,6 +1198,7 @@ while true; do
       # a `bkjat_` token and a UUID are both opaque ASCII with no quotes.
       bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
@@ -1239,8 +1240,14 @@ while true; do
         {
           [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
           [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+          # The credential the pre-exit hook reports with. Job-scoped, so
+          # unlike the SA token it can only write this job's log and
+          # declare this job's outcome — which is why the hook may read it
+          # from inside the job at all.
+          printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
+          printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
         } >/etc/tuist-runner-job.env 2>/dev/null || true
-        chmod 0600 /etc/tuist-runner-job.env 2>/dev/null || true
+        chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true
       fi
       # Stage the account's volume HEAD for the host to converge a stale master
       # toward before it materializes into this VM's branch.

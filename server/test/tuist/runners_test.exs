@@ -1464,7 +1464,14 @@ defmodule Tuist.RunnersTest do
       expect(Buildkite, :mint_acquisition, fn account_id, job_id ->
         assert account_id == account.id
         assert job_id == candidate.workflow_job_id
-        {:ok, %{token: "bkjat_opaque", job_uuid: "job-uuid", organization_slug: "acme"}}
+
+        {:ok,
+         %{
+           token: "bkjat_opaque",
+           job_uuid: "job-uuid",
+           organization_slug: "acme",
+           report_token: "report-token"
+         }}
       end)
 
       stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
@@ -1477,6 +1484,9 @@ defmodule Tuist.RunnersTest do
       assert credential.kind == :buildkite
       assert credential.token == "bkjat_opaque"
       assert credential.job_uuid == "job-uuid"
+      # The job needs this to report its own log and outcome; without it
+      # the Linux fleet would have no way to report at all.
+      assert credential.report_token == "report-token"
     end
 
     test "records the runner-to-job binding at dispatch rather than waiting on a webhook" do
@@ -1509,7 +1519,13 @@ defmodule Tuist.RunnersTest do
       stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
 
       stub(Buildkite, :mint_acquisition, fn _account_id, _job_id ->
-        {:ok, %{token: "bkjat_opaque", job_uuid: "job-uuid", organization_slug: "acme"}}
+        {:ok,
+         %{
+           token: "bkjat_opaque",
+           job_uuid: "job-uuid",
+           organization_slug: "acme",
+           report_token: "report-token"
+         }}
       end)
 
       stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)

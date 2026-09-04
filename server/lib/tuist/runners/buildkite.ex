@@ -42,6 +42,7 @@ defmodule Tuist.Runners.Buildkite do
   alias Tuist.Runners.Buildkite.Client
   alias Tuist.Runners.Buildkite.Installation
   alias Tuist.Runners.Buildkite.Job
+  alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
@@ -277,28 +278,8 @@ defmodule Tuist.Runners.Buildkite do
       {:ok, 0}
     else
       case Dispatch.resolve_dispatch_target(account, [queue_key]) do
-        {:ok, %{platform: :macos} = target} ->
+        {:ok, target} ->
           do_reserve_and_enqueue(installation, account, queue_key, fresh, target)
-
-        {:ok, %{platform: platform}} ->
-          # The Linux fleet runs jobs in a container that deliberately holds
-          # no ServiceAccount token: the poller init container claims the
-          # job and hands the credential over on a shared volume, so
-          # untrusted workflow code never sits beside a token it could use.
-          # The Buildkite lane reports its log and its job window from
-          # inside the job, which needs exactly that token, so it cannot run
-          # under that shape without moving the isolation boundary.
-          #
-          # Reserving anyway would be worse than declining: the job would
-          # leave the customer's queue, wait for a Pod that can never take
-          # it, and only surface an hour later when the reservation lapsed.
-          Logger.warning("runners: buildkite queue targets an unsupported platform",
-            account: account.name,
-            queue: queue_key,
-            target: platform
-          )
-
-          {:ok, 0}
 
         {:error, reason} ->
           # The queue exists on Buildkite but names no Tuist profile. That
@@ -465,7 +446,13 @@ defmodule Tuist.Runners.Buildkite do
              job.job_uuid,
              @acquisition_token_lifetime_seconds
            ) do
-      {:ok, %{token: token, job_uuid: job.job_uuid, organization_slug: job.organization_slug}}
+      {:ok,
+       %{
+         token: token,
+         job_uuid: job.job_uuid,
+         organization_slug: job.organization_slug,
+         report_token: ReportToken.mint(%{workflow_job_id: workflow_job_id, account_id: account_id})
+       }}
     else
       nil -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
@@ -519,6 +506,25 @@ defmodule Tuist.Runners.Buildkite do
     |> String.replace(~r{^[^/:]+[:/]}, "", global: false)
     |> String.replace_suffix(".git", "")
     |> String.trim_trailing("/")
+  end
+
+  @doc """
+  The runner name bound to a job's open session.
+
+  The finish report names its job through the report token, but the claim
+  and session layers are keyed on the runner, so the two have to be
+  joined before the completion can release anything. Returns
+  `{:error, :no_session}` once the session is closed, which is a settled
+  job rather than a failure.
+  """
+  def runner_name_for_job(workflow_job_id, account_id) do
+    case RunnerSessions.live_for_workflow_job(workflow_job_id, account_id) do
+      {:ok, %{runner_name: runner_name}} when is_binary(runner_name) and runner_name != "" ->
+        {:ok, runner_name}
+
+      _ ->
+        {:error, :no_session}
+    end
   end
 
   @doc """
