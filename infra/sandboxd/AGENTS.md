@@ -238,3 +238,114 @@ acknowledged by the server's poller; the worker never polls.
 Diff snapshots, userfaultfd restore from object storage, cross-node resume,
 per-account egress policy, memory overcommit admission, non-root execution in
 the guest, Claude Code self-hosted runners.
+
+## Operations
+
+The daemon lives in `cmd/sandboxd` with one package per concern under
+`internal/`: `firecracker` (API client over the unix socket), `vm` (jailer
+spawn, jail file prep, process tracking), `network` (netns, veth, NAT),
+`vsock` (guest agent client), `template` (discovery and per-shape snapshot
+builds), `sandbox` (lifecycle manager, metadata, metrics, command dispatch),
+`server` (WebSocket client), `admin` (bring-up HTTP API), `hostinfo`, and
+`fakevm` (a test double that emulates the Firecracker API and the guest
+agent so the manager runs end to end without KVM).
+
+### Deviations from the protocol text above
+
+- Template snapshots are per shape. A Firecracker snapshot fixes the vCPU
+  count and memory size, so `rootfs.boot.ext4`, `memfile`, `snapshot`,
+  `metadata.json` and `ready` live in
+  `/data/sandboxes/templates/<name>/<tag>/shapes/<vcpus>x<memory_mb>/`,
+  while `vmlinux` and the pristine `rootfs.ext4` stay in the tag directory.
+  A shape is built lazily by the first `create` that needs it (concurrent
+  creates wait for the one build) and eagerly at startup for
+  `PREBUILD_SHAPES`. `hello.templates[].ready` is true as soon as the kernel
+  and rootfs are on the node; `shapes` lists the snapshots already built.
+- The guest does not mount the workspace at template time. `create` makes
+  `workspace.ext4` as a sparse file of `workspace_gb` (no mkfs on the host)
+  and sends `configure {format_workspace: true}` after the restore;
+  `resume` sends `configure` without it. The template build attaches a
+  sparse workspace of `TEMPLATE_WORKSPACE_GB` (default 10); when a create
+  asks for a different size the daemon issues `PATCH /drives/workspace`
+  after the load so the guest learns the new capacity before formatting.
+
+### Configuration (environment)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NODE_NAME` | | Node name for `X-Tuist-Node-Name` (downward API). Required with `SERVER_URL`. |
+| `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
+| `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
+| `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template; the tag may be omitted when exactly one is present. |
+| `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
+| `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
+| `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
+| `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. |
+| `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
+| `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
+| `SHUTDOWN_TIMEOUT` | `60s` | Budget for pausing idle sandboxes on SIGTERM; size the pod's grace period above it. |
+| `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
+| `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
+| `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
+| `LOG_LEVEL` | `info` | slog level. |
+
+### Admin API
+
+`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname}`
+returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`;
+`POST /v1/sandboxes/{id}/exec {cmd,env,cwd,timeout_ms}` returns
+`{stdout,stderr,exit_code,duration_ms}`; `POST
+/v1/sandboxes/{id}/worker/{start,stop}`; `GET /v1/sandboxes`, `GET
+/v1/sandboxes/{id}`, `GET /v1/templates`; `POST
+/v1/templates/{name}/{tag}/build {vcpus,memory_mb}`.
+
+### Process model
+
+The jailer parent exits as soon as it has forked Firecracker into the new
+pid namespace, so the daemon sets itself as child subreaper, reads the pid
+from `<jail>/root/firecracker.pid` and reaps that pid itself. Killing a VM
+is SIGKILL to the spawn's process group and to that pid. Before every spawn
+the daemon removes the previous run's API socket, `v.sock`, `/dev/kvm` and
+`/dev/net/tun` from the jail root: Firecracker will not bind over an
+existing socket and the jailer's `mknod` fails on an existing node.
+
+Template artifacts are hard-linked into jails (`vmlinux`, `mem`,
+`snapshot`) and must stay world-readable; the daemon never chowns a hard
+link. Firecracker opens the `File` memory backend read-only, so sharing the
+template memfile across sandboxes is safe; the first pause replaces the
+link with the sandbox's own memory file.
+
+### Startup and recovery
+
+Every jail directory is read back on startup. Since nothing survives a pod
+restart, a sandbox recorded as `running` becomes `paused` when its `mem`
+and `snapshot` exist (that snapshot is its last pause, or the template
+snapshot for generation 0; writes the guest made after it to the rootfs
+are then visible to a restored memory image that does not know about
+them) and `error` otherwise. Jail directories without `metadata.json` (an
+interrupted create or template build), `*.building` shape directories and
+every `sbx-*` netns are removed.
+
+Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
+from the WebSocket that delivered them, with their own timeouts, so a
+dropped connection cannot abort a snapshot half-way; `exec` is cancelled
+with the connection (its output has nowhere to go), which kills the guest
+process. Events that cannot be delivered are queued (bounded) for the next
+connection.
+
+### Metrics
+
+`sandboxd_create_seconds`, `sandboxd_resume_seconds`,
+`sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
+(histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
+(gauges), `sandboxd_operations_total{op,result}` (counter).
+
+### Development
+
+The module is not in the root `go.work`; run with `GOWORK=off` (or add it
+with `go work use ./infra/sandboxd`). `go test ./...` runs on macOS: the
+Linux-only syscalls (FICLONE, wait4, prctl) sit behind build tags with
+stubs, and `internal/fakevm` stands in for Firecracker. Anything that
+needs KVM (a real boot, the jailer, tap devices) can only be exercised on
+a node, ideally through `ADMIN_ADDR` on staging.
