@@ -2742,12 +2742,12 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  How many distinct modules missed on each day of the window.
+  How many distinct modules were built on each day of the window.
 
   ## Returns
     `%{dates: [iso8601], counts: [integer]}`, one entry per day in the range.
   """
-  def modules_with_misses_timeseries(opts) do
+  def modules_timeseries(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
 
     start_datetime =
@@ -2762,7 +2762,7 @@ defmodule Tuist.Builds.Analytics do
     query = """
     SELECT
       toDate(e.ran_at) AS day,
-      uniqExactIf(xt.name, xt.binary_cache_hit = 'miss') AS modules
+      uniqExact(xt.name) AS modules
     FROM xcode_targets AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
@@ -2789,6 +2789,69 @@ defmodule Tuist.Builds.Analytics do
       dates: Enum.map(dates, &Date.to_iso8601/1),
       counts: Enum.map(dates, &Map.get(by_day, &1, 0))
     }
+  end
+
+  @doc """
+  How many modules the project has, taken from its latest commit on the given
+  branch. Counting every module seen in the window instead would include ones
+  that have since been renamed or removed.
+
+  ## Options
+    * `:project_id` - Required
+    * `:git_branch` - Required, the branch to read the latest commit from
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_count(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    branch = Keyword.fetch!(opts, :git_branch)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(Keyword.delete(opts, :git_branch))
+
+    params =
+      Map.merge(
+        %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime},
+        filter_params
+      )
+
+    # A commit is usually built more than once, so count across every build of
+    # it rather than picking one. A build that reports no commit sha falls back
+    # to its own id, which degrades to counting that single build rather than
+    # matching every sha-less build in the window.
+    commit_key = "coalesce(nullIf(%{alias}.git_commit_sha, ''), toString(%{alias}.id))"
+
+    query = """
+    SELECT uniqExact(name)
+    FROM (
+      SELECT xt.name AS name, #{String.replace(commit_key, "%{alias}", "e")} AS commit
+      FROM xcode_targets AS xt
+      INNER JOIN command_events AS e ON xt.command_event_id = e.id
+      WHERE e.project_id = {project_id:Int64}
+        AND e.ran_at >= {start:DateTime64(6)}
+        AND e.ran_at <= {end:DateTime64(6)}
+        AND e.git_branch = {branch:String}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+    )
+    WHERE commit = (
+      SELECT argMax(#{String.replace(commit_key, "%{alias}", "e2")}, e2.ran_at)
+      FROM xcode_targets AS xt2
+      INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
+      WHERE e2.project_id = {project_id:Int64}
+        AND e2.ran_at >= {start:DateTime64(6)}
+        AND e2.ran_at <= {end:DateTime64(6)}
+        AND e2.git_branch = {branch:String}
+        AND xt2.binary_cache_hash IS NOT NULL
+    )
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: [[count]]}} -> count
+      _ -> 0
+    end
   end
 
   defp module_invalidation_filters(opts) do

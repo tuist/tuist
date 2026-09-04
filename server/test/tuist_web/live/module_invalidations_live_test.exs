@@ -110,8 +110,8 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     # Misses is the default selection, so its chart is the one rendered.
     assert has_element?(lv, "#modules-misses-chart")
 
-    # Only Core missed, out of two module builds.
-    assert has_element?(lv, "#widget-modules", "1")
+    # Both modules are in the project, whether or not they missed.
+    assert has_element?(lv, "#widget-modules", "2")
 
     # Clicking a widget swaps in its chart. Driving the click rather than
     # loading the URL is what catches a patch target the client rejects.
@@ -123,7 +123,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     click_widget(lv, "modules")
     render_async(lv, 2000)
 
-    assert has_element?(lv, "#modules-with-misses-chart")
+    assert has_element?(lv, "#modules-chart")
 
     # The selection survives in the URL, so a chart can be linked to.
     assert_patched(lv, base <> "?analytics-selected-widget=modules")

@@ -74,10 +74,10 @@
     </.date_picker>
   </div>
 
-  <% analytics_ready = @modules.ok? && @timeseries.ok? %>
+  <% analytics_ready = @timeseries.ok? %>
   <% totals =
     if analytics_ready,
-      do: analytics_totals(@modules.result, @timeseries.result, @miss_reasons_series.result) %>
+      do: analytics_totals(@module_count.result, @timeseries.result, @miss_reasons_series.result) %>
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
@@ -92,7 +92,7 @@
         description={
           dgettext(
             "dashboard_cache",
-            "Modules that were a cache miss at least once in this range."
+            "Modules in the project, from the latest commit on its default branch."
           )
         }
         value={if totals, do: Integer.to_string(totals.modules)}
@@ -143,7 +143,7 @@
       data-part="analytics-chart-section"
     >
       <.chart
-        id="modules-with-misses-chart"
+        id="modules-chart"
         type="line"
         extra_options={
           %{

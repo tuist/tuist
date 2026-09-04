@@ -127,6 +127,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
 
     opts = analytics_opts(socket.assigns)
+    default_branch = socket.assigns.selected_project.default_branch || "main"
 
     # Sorting, searching and paging all run over the loaded list, so only a
     # change to what the query itself selects has to go back to ClickHouse.
@@ -138,12 +139,13 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign_async([:modules], fn ->
         {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
       end)
-      |> assign_async([:timeseries, :miss_reasons_series, :modules_series], fn ->
+      |> assign_async([:timeseries, :miss_reasons_series, :modules_series, :module_count], fn ->
         {:ok,
          %{
            timeseries: opts |> Analytics.module_invalidation_timeseries() |> with_hit_rates(),
            miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts),
-           modules_series: Analytics.modules_with_misses_timeseries(opts)
+           modules_series: Analytics.modules_timeseries(opts),
+           module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))
          }}
       end)
     end
@@ -166,17 +168,16 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   @doc """
   Totals for the analytics widgets.
 
-  Everything but the module count comes from the series rather than the table,
-  because the table lists only modules that missed at least once. Counting hits
-  from it would leave out every module that was always served from cache and
-  understate the hit rate.
+  None of it comes from the table, which lists only the modules that missed at
+  least once. The module count is the project's latest commit on its default
+  branch, and the rest come from the series, which cover every module.
   """
-  def analytics_totals(modules, timeseries, miss_reasons) do
+  def analytics_totals(module_count, timeseries, miss_reasons) do
     changed = Enum.sum(miss_reasons.changed)
     upstream = Enum.sum(miss_reasons.upstream)
 
     %{
-      modules: length(modules),
+      modules: module_count,
       misses: Enum.sum(timeseries.invalidations),
       # Of the misses we could attribute, the share an upstream dependency
       # caused. This is the fraction better module boundaries can remove.

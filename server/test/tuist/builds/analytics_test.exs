@@ -1940,7 +1940,48 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert series.reuses == [1, 0]
     end
 
-    test "counts the distinct modules that missed each day", %{
+    test "counts the modules on the latest commit of the default branch", %{
+      project: project,
+      target: target
+    } do
+      commit = fn sha, branch, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: branch,
+          git_commit_sha: sha,
+          created_at: created_at
+        ).id
+      end
+
+      # An older commit had three modules; one has since been removed.
+      old_commit = commit.("old", "main", ~N[2024-04-01 10:00:00])
+      target.(old_commit, "Core", :miss, "s1")
+      target.(old_commit, "Networking", :miss, "n1")
+      target.(old_commit, "Removed", :miss, "r1")
+
+      # The latest commit on main has two, built twice.
+      latest = commit.("latest", "main", ~N[2024-04-03 10:00:00])
+      target.(latest, "Core", :miss, "s2")
+      rebuild = commit.("latest", "main", ~N[2024-04-03 11:00:00])
+      target.(rebuild, "Networking", :miss, "n2")
+
+      # A branch that is not the default does not count, even though it is newer.
+      feature = commit.("feature", "feature/x", ~N[2024-04-04 10:00:00])
+      target.(feature, "OnlyOnFeature", :miss, "f1")
+
+      count =
+        Analytics.module_count(
+          project_id: project.id,
+          git_branch: "main",
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-05 23:59:59Z]
+        )
+
+      # Both builds of the latest commit, and not the module it dropped.
+      assert count == 2
+    end
+
+    test "counts the distinct modules built each day", %{
       project: project,
       target: target,
       event: event
@@ -1954,14 +1995,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       target.(day_two, "Networking", :miss, "n2")
 
       series =
-        Analytics.modules_with_misses_timeseries(
+        Analytics.modules_timeseries(
           project_id: project.id,
           start_datetime: ~U[2024-04-01 00:00:00Z],
           end_datetime: ~U[2024-04-02 23:59:59Z]
         )
 
-      # A module that only hit does not count as missing.
-      assert series.counts == [1, 2]
+      # Every module built that day, whether it hit or missed.
+      assert series.counts == [2, 2]
       assert length(series.dates) == 2
     end
 
