@@ -60,10 +60,12 @@ defmodule Tuist.ClickHouse.ReadRoute do
     configured?() and FunWithFlags.enabled?(:clickhouse_bare_metal_reads)
   end
 
-  # Cheap and local: the instance is only registered when the URL was set at
-  # boot, so this asks whether the pool exists rather than reading config on
-  # every query.
+  # The process lookup comes first because it is the cheaper of the two and it
+  # is the one that is false everywhere the migration is not running. This is
+  # on the path of every ClickHouse read in the product, so in the environments
+  # that will never route anything the whole check should cost one registry
+  # lookup rather than building an environment-variable name and reading it.
   defp configured? do
-    not is_nil(Environment.clickhouse_bare_metal_url()) and not is_nil(Process.whereis(@instance))
+    not is_nil(Process.whereis(@instance)) and not is_nil(Environment.clickhouse_bare_metal_url())
   end
 end
