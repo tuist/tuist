@@ -966,6 +966,18 @@ macosFleet:
     # store it cannot write falls back to a VM-local cold compilation cache, so
     # a bad budget costs warmth, not the job.
     #
+    # casGib is what the store may OCCUPY, not the limit the compiler is given:
+    # that is half of it, because llcas keeps a primary generation plus the
+    # demoted upstream that is still the warm cache. 11 here is 5.5 GiB per
+    # generation, and 11 + 7 + 2 reserve is the 20 GiB cap exactly.
+    #
+    # Before that halving the compiler was handed the whole 11 GiB per
+    # generation, so a correctly pruning store wanted ~22 GiB inside a 20 GiB
+    # image — which is what the measured masters showed (17-18 GB of CAS against
+    # a 2.2 GB binary cache) and why this account's volume filled every ~2 days.
+    # Raising masterCapGib is NOT the alternative fix; see the admission
+    # arithmetic below.
+    #
     # The cap is bounded by admission, not by taste. Admission reserves
     # masterCapGib for the branch it is admitting plus every branch already
     # live, so with B branches already held the resident masters that survive

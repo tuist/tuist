@@ -190,8 +190,29 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  The store is bounded by `prune_cas_stores`, second in teardown, and by nothing
+  else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
+  llcas rotates (new primary, old one demoted) when the chain is over the limit
+  and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
+  falls off — which no part of a build ever calls, so the store grew without
+  bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
+  CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
+  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
+  because the per-machine proxy holds a handle per path for its lifetime and a
+  prune alongside it collects nothing while reporting success. Both lanes are
+  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
+  generation dirs. A pruned store settles at ~2x its per-generation limit
+  (primary + the demoted upstream, which is the warm cache), which is why
+  `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
+  `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports
+  `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
+  `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
+  build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
+  on the VM's boot volume and died with it.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
-  teardown. The store's objects are uploaded to the remote cache
+  teardown (the prune is second, and in that order deliberately: a prune deletes
+  objects, and deleting one the spool still owed would strand the association
+  naming it). The store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming
   them are written into the store immediately — so a promote that outruns those
   uploads publishes a master whose keys name objects nothing can produce, for
