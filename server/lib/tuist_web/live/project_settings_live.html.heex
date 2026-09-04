@@ -43,15 +43,17 @@
       </span>
     </div>
     <div data-part="content">
-      <div :if={@selected_project.logo_storage_key} data-part="logo-preview">
+      <div data-part="preview">
         <img
+          :if={@selected_project.logo_storage_key}
           src={
             ~p"/#{@selected_account.name}/#{@selected_project.name}/logo?v=#{Path.basename(@selected_project.logo_storage_key, Path.extname(@selected_project.logo_storage_key))}"
           }
           alt={dgettext("dashboard_projects", "Current project logo")}
-          width="80"
-          height="80"
         />
+        <div :if={is_nil(@selected_project.logo_storage_key)} data-part="preview-placeholder">
+          <.icon name="photo" />
+        </div>
       </div>
       <form
         id="upload-logo-form"
@@ -59,25 +61,37 @@
         phx-submit="upload_logo"
         data-part="form"
       >
-        <.live_file_input upload={@uploads.logo} />
-
-        <div :for={entry <- @uploads.logo.entries} data-part="entry">
-          <span>{entry.client_name}</span>
-          <.button
-            type="button"
-            variant="secondary"
-            size="small"
-            label={dgettext("dashboard_projects", "Cancel")}
-            phx-click="cancel_logo_upload"
-            phx-value-ref={entry.ref}
-          />
-          <div :for={err <- upload_errors(@uploads.logo, entry)} data-part="error">
-            {logo_upload_error_message(err)}
+        <div data-part="picker">
+          <label data-part="picker-trigger">
+            <.live_file_input upload={@uploads.logo} class="sr-only" />
+            <span>
+              {dgettext("dashboard_projects", "Choose file")}
+            </span>
+          </label>
+          <span :if={@uploads.logo.entries == []} data-part="picker-hint">
+            {dgettext("dashboard_projects", "No file chosen")}
+          </span>
+          <div :for={entry <- @uploads.logo.entries} data-part="entry">
+            <span data-part="entry-name">{entry.client_name}</span>
+            <button
+              type="button"
+              data-part="entry-cancel"
+              phx-click="cancel_logo_upload"
+              phx-value-ref={entry.ref}
+              aria-label={dgettext("dashboard_projects", "Cancel selected file")}
+            >
+              <.icon name="close" />
+            </button>
           </div>
         </div>
 
         <div :for={err <- upload_errors(@uploads.logo)} data-part="error">
           {logo_upload_error_message(err)}
+        </div>
+        <div :for={entry <- @uploads.logo.entries}>
+          <div :for={err <- upload_errors(@uploads.logo, entry)} data-part="error">
+            {logo_upload_error_message(err)}
+          </div>
         </div>
 
         <div data-part="actions">
