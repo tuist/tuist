@@ -1,7 +1,7 @@
-defmodule Tuist.BazelTest do
+defmodule Tuist.Tests.SanitizerTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.Bazel
+  alias Tuist.Tests.Sanitizer
 
   test "redacts common credential forms" do
     message = """
@@ -14,7 +14,7 @@ defmodule Tuist.BazelTest do
     https://user:password@example.com/path
     """
 
-    sanitized = Bazel.sanitize_log_message(message)
+    sanitized = Sanitizer.sanitize(message)
 
     refute sanitized =~ "ghp_realSecretValue"
     refute sanitized =~ "abc123"
@@ -34,13 +34,13 @@ defmodule Tuist.BazelTest do
     cleaning /tmpfiles/x and /homework/y
     """
 
-    assert Bazel.sanitize_log_message(message) == message
+    assert Sanitizer.sanitize(message) == message
   end
 
   test "redacts bounded local path prefixes" do
     message = "open /tmp/build.log and ~/project/test.log and /Users/developer/project/file"
 
-    assert Bazel.sanitize_log_message(message) ==
+    assert Sanitizer.sanitize(message) ==
              "open <LOCAL_PATH> and <LOCAL_PATH> and <LOCAL_PATH>"
   end
 end

@@ -105,6 +105,39 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
     assert {:ok, %{id: ^test_run_id}} = TestReportIngestor.ingest(project, invocation, results, [])
   end
 
+  test "preserves skipped targets, suites, cases, and runs" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    test_run_id = UUIDv7.generate()
+
+    invocation = %{
+      test_run_id: test_run_id,
+      invocation_id: "invocation-skipped",
+      duration_ms: 10,
+      exit_code: 0,
+      target_patterns: ["//App:SkippedTests"],
+      git_branch: "main",
+      git_commit_sha: "abcdef",
+      finished_at: ~N[2026-09-04 12:00:01],
+      is_ci: false
+    }
+
+    report = ~s(<testsuite name="SkippedSuite"><testcase name="skipped"><skipped /></testcase></testsuite>)
+    results = [result("//App:SkippedTests", "skipped", 10, report)]
+    summaries = [%{target_label: "//App:SkippedTests", status: "skipped", duration_ms: 10}]
+
+    expect(Tuist.Tests, :create_test, fn attrs ->
+      assert attrs.status == "skipped"
+
+      assert [module] = attrs.test_modules
+      assert module.status == "skipped"
+      assert [%{status: "skipped"}] = module.test_suites
+      assert [%{status: "skipped", repetitions: [%{status: "skipped"}]}] = module.test_cases
+      {:ok, %{id: test_run_id}}
+    end)
+
+    assert {:ok, %{id: ^test_run_id}} = TestReportIngestor.ingest(project, invocation, results, summaries)
+  end
+
   defp result(target_label, status, duration_ms, junit_content, opts \\ []) do
     %{
       target_label: target_label,

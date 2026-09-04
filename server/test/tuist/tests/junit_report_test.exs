@@ -1,7 +1,7 @@
-defmodule Tuist.Bazel.JunitReportTest do
+defmodule Tuist.Tests.JunitReportTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.Bazel.JunitReport
+  alias Tuist.Tests.JunitReport
 
   test "parses individual JUnit test cases and their failures" do
     report = """

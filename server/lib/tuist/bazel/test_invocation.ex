@@ -9,6 +9,7 @@ defmodule Tuist.Bazel.TestInvocation do
     field :invocation_id, :string
     field :state, :string, default: "collecting"
     field :test_run_id, Ecto.UUID
+    field :artifact_bytes, :integer, default: 0
 
     timestamps(type: :utc_datetime)
   end

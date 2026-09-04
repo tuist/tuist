@@ -33,22 +33,25 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
   def handle(conn, _params), do: invalid_payload(conn)
 
   defp persist_event(conn, project, %{event_kind: "test_result"} = event) do
-    event
-    |> Map.drop([:account_handle, :project_handle, :event_kind])
-    |> Map.put(:project_id, project.id)
-    |> Bazel.upsert_test_result()
+    result =
+      event
+      |> Map.drop([:account_handle, :project_handle, :event_kind])
+      |> Map.put(:project_id, project.id)
+      |> Bazel.stage_test_result()
 
-    :ok = Bazel.record_test_invocation_event(project.id, event.invocation_id)
-    accepted(conn)
+    case result do
+      :ok -> accepted(conn)
+      {:error, :artifact_limit_exceeded} -> payload_too_large(conn)
+      {:error, _reason} -> service_unavailable(conn)
+    end
   end
 
   defp persist_event(conn, project, %{event_kind: "test_summary"} = event) do
     event
     |> Map.drop([:account_handle, :project_handle, :event_kind])
     |> Map.put(:project_id, project.id)
-    |> Bazel.upsert_test_summary()
+    |> Bazel.stage_test_summary()
 
-    :ok = Bazel.record_test_invocation_event(project.id, event.invocation_id)
     accepted(conn)
   end
 
@@ -187,11 +190,11 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
     Enum.reduce_while(artifacts, {:ok, %{}}, fn artifact, {:ok, attributes} ->
       case parse_artifact(artifact) do
         {:ok, kind, digest, content} ->
-          {:cont,
-           {:ok,
-            attributes
-            |> Map.put(String.to_existing_atom("#{kind}_digest"), digest)
-            |> Map.put(String.to_existing_atom("#{kind}_content"), content)}}
+          if Map.has_key?(attributes, artifact_content_key(kind)) do
+            {:halt, {:error, :invalid_payload}}
+          else
+            {:cont, {:ok, Map.merge(attributes, artifact_attributes(kind, digest, content))}}
+          end
 
         {:error, :invalid_payload} ->
           {:halt, {:error, :invalid_payload}}
@@ -200,6 +203,11 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
   end
 
   defp parse_artifacts(_artifacts), do: {:error, :invalid_payload}
+
+  defp artifact_attributes("junit", digest, content), do: %{junit_digest: digest, junit_content: content}
+  defp artifact_attributes("log", digest, content), do: %{log_digest: digest, log_content: content}
+  defp artifact_content_key("junit"), do: :junit_content
+  defp artifact_content_key("log"), do: :log_content
 
   defp parse_artifact(%{"artifact_kind" => kind, "digest" => digest, "content_base64" => content_base64})
        when kind in ["junit", "log"] do
@@ -243,6 +251,13 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
     conn
     |> put_status(:service_unavailable)
     |> json(%{error: "Bazel test event could not be persisted"})
+    |> halt()
+  end
+
+  defp payload_too_large(conn) do
+    conn
+    |> put_status(:payload_too_large)
+    |> json(%{error: "Bazel test invocation artifact limit exceeded"})
     |> halt()
   end
 

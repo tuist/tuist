@@ -11,9 +11,14 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestResults do
       add :invocation_id, :string, null: false
       add :state, :string, null: false, default: "collecting"
       add :test_run_id, :uuid, null: false
+      add :artifact_bytes, :bigint, null: false, default: 0
 
       timestamps(type: :timestamptz)
     end
+
+    create constraint(:bazel_test_invocations, :bazel_test_invocations_artifact_bytes_bound,
+             check: "artifact_bytes >= 0 AND artifact_bytes <= 67108864"
+           )
 
     create unique_index(
              :bazel_test_invocations,
@@ -21,6 +26,8 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestResults do
              name: :bazel_test_invocations_identity_index,
              concurrently: true
            )
+
+    create index(:bazel_test_invocations, [:inserted_at, :id], concurrently: true)
 
     create table(:bazel_test_results, primary_key: false) do
       add :id, :uuid, primary_key: true
@@ -51,6 +58,8 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestResults do
              concurrently: true
            )
 
+    create index(:bazel_test_results, [:inserted_at, :id], concurrently: true)
+
     create table(:bazel_test_summaries, primary_key: false) do
       add :id, :uuid, primary_key: true
       add :project_id, :bigint, null: false
@@ -72,5 +81,7 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestResults do
              name: :bazel_test_summaries_identity_index,
              concurrently: true
            )
+
+    create index(:bazel_test_summaries, [:inserted_at, :id], concurrently: true)
   end
 end

@@ -1,9 +1,9 @@
 defmodule Tuist.Bazel.TestReportIngestor do
   @moduledoc false
 
-  alias Tuist.Bazel.JunitReport
   alias Tuist.Projects.Project
   alias Tuist.Tests
+  alias Tuist.Tests.JunitReport
 
   require Logger
 
@@ -80,13 +80,14 @@ defmodule Tuist.Bazel.TestReportIngestor do
     |> Enum.map(fn {name, cases} ->
       %{
         name: name,
-        status: if(Enum.any?(cases, &(&1.status == "failure")), do: "failure", else: "success"),
+        status: aggregate_status(cases),
         duration: Enum.sum(Enum.map(cases, & &1.duration))
       }
     end)
   end
 
   defp module_status(%{status: "failure"}, _test_results), do: "failure"
+  defp module_status(%{status: "skipped"}, _test_results), do: "skipped"
   defp module_status(%{status: _status}, _test_results), do: "success"
 
   defp module_status(nil, test_results) do
@@ -95,7 +96,7 @@ defmodule Tuist.Bazel.TestReportIngestor do
       |> Enum.group_by(&{&1.run, &1.shard})
       |> Enum.map(fn {_run_and_shard, attempts} -> Enum.max_by(attempts, & &1.attempt) end)
 
-    if Enum.any?(final_attempts, &(&1.status == "failure")), do: "failure", else: "success"
+    aggregate_status(final_attempts)
   end
 
   defp module_duration(%{duration_ms: duration_ms}, _test_results), do: bounded_duration(duration_ms)
@@ -113,7 +114,7 @@ defmodule Tuist.Bazel.TestReportIngestor do
       project_id: project.id,
       account_id: project.account_id,
       duration: bounded_duration(invocation.duration_ms),
-      status: if(invocation.exit_code == 0, do: "success", else: "failure"),
+      status: test_status(invocation.exit_code, test_modules),
       scheme: target_patterns |> Enum.join(" ") |> String.slice(0, 1_024),
       model_identifier: "",
       macos_version: "",
@@ -131,6 +132,20 @@ defmodule Tuist.Bazel.TestReportIngestor do
 
   defp git_ref(""), do: ""
   defp git_ref(branch), do: "refs/heads/#{branch}"
+
+  defp test_status(exit_code, _test_modules) when exit_code != 0, do: "failure"
+
+  defp test_status(_exit_code, test_modules) do
+    if test_modules != [] and Enum.all?(test_modules, &(&1.status == "skipped")), do: "skipped", else: "success"
+  end
+
+  defp aggregate_status(items) do
+    cond do
+      Enum.any?(items, &(&1.status == "failure")) -> "failure"
+      items != [] and Enum.all?(items, &(&1.status == "skipped")) -> "skipped"
+      true -> "success"
+    end
+  end
 
   defp bounded_duration(value) when is_integer(value), do: min(max(value, 0), 2_147_483_647)
   defp bounded_duration(_), do: 0

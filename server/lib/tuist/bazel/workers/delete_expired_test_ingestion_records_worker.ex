@@ -6,11 +6,15 @@ defmodule Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker do
   alias Tuist.Bazel
 
   @retention_days 90
+  @batch_size 500
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     before = DateTime.add(DateTime.utc_now(), -@retention_days, :day)
-    Bazel.delete_expired_test_ingestion_records(before)
-    :ok
+
+    case Bazel.delete_expired_test_ingestion_records(before, @batch_size) do
+      0 -> :ok
+      _deleted -> {:snooze, 1}
+    end
   end
 end

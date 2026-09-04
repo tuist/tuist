@@ -51,10 +51,12 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsControllerTest do
     assert %TestInvocation{
              invocation_id: "invocation-1",
              state: "collecting",
-             test_run_id: test_run_id
+             test_run_id: test_run_id,
+             artifact_bytes: artifact_bytes
            } = Repo.one!(from(TestInvocation))
 
     assert is_binary(test_run_id)
+    assert artifact_bytes == byte_size(report) + byte_size("secret=top-secret\ntest output\n")
     assert all_enqueued(worker: ProcessTestInvocationWorker) == []
   end
 
@@ -137,6 +139,17 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsControllerTest do
 
   test "rejects invalid UTF-8 before persistence", %{conn: conn, project: project} do
     body = test_result_body(project, [artifact("junit", <<255, 254>>, "b")])
+
+    assert json_response(post_signed(conn, body), 400) == %{"error" => "Invalid Bazel test event"}
+    assert Repo.aggregate(TestResult, :count) == 0
+  end
+
+  test "rejects duplicate artifact kinds", %{conn: conn, project: project} do
+    body =
+      test_result_body(project, [
+        artifact("junit", "first", "b"),
+        artifact("junit", "second", "c")
+      ])
 
     assert json_response(post_signed(conn, body), 400) == %{"error" => "Invalid Bazel test event"}
     assert Repo.aggregate(TestResult, :count) == 0

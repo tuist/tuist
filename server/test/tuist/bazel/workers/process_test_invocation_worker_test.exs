@@ -7,12 +7,12 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
 
   setup :verify_on_exit!
 
+  test "uses an independently configurable queue" do
+    assert ProcessTestInvocationWorker.new(job_args()).changes.queue == "process_bazel_tests"
+  end
+
   test "waits until the invocation completion marker arrives" do
-    invocation = %{
-      state: "collecting",
-      updated_at: DateTime.utc_now(),
-      test_run_id: UUIDv7.generate()
-    }
+    invocation = test_invocation(state: "collecting")
 
     expect(Tuist.Bazel, :get_test_invocation, fn 123, "invocation-1" -> invocation end)
 
@@ -27,6 +27,19 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
     expect(Tuist.Bazel, :get_invocation, fn 123, "invocation-1" -> {:error, :not_found} end)
 
     assert {:snooze, 15} = perform_job(ProcessTestInvocationWorker, job_args())
+  end
+
+  test "discards staged artifacts after the invocation wait deadline" do
+    invocation =
+      test_invocation(
+        state: "collecting",
+        inserted_at: DateTime.add(DateTime.utc_now(), -16, :minute)
+      )
+
+    expect(Tuist.Bazel, :get_test_invocation, fn 123, "invocation-1" -> invocation end)
+    expect(Tuist.Bazel, :discard_test_invocation, fn ^invocation -> {:ok, invocation} end)
+
+    assert {:discard, :invocation_never_arrived} = perform_job(ProcessTestInvocationWorker, job_args())
   end
 
   test "processes all results as one run and stores ordered sanitized logs" do
@@ -91,11 +104,17 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
     %{"project_id" => 123, "invocation_id" => "invocation-1"}
   end
 
-  defp test_invocation do
-    %{
-      state: "pending",
-      updated_at: DateTime.add(DateTime.utc_now(), -16, :second),
-      test_run_id: UUIDv7.generate()
-    }
+  defp test_invocation(overrides \\ []) do
+    Map.merge(
+      %{
+        project_id: 123,
+        invocation_id: "invocation-1",
+        inserted_at: DateTime.utc_now(),
+        state: "pending",
+        updated_at: DateTime.add(DateTime.utc_now(), -16, :second),
+        test_run_id: UUIDv7.generate()
+      },
+      Map.new(overrides)
+    )
   end
 end

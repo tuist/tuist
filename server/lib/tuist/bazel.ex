@@ -16,33 +16,11 @@ defmodule Tuist.Bazel do
   alias Tuist.ReapiCache
   alias Tuist.Repo
 
-  @authorization_pattern ~r/(?i)(\bauthorization\b\s*(?:=|:)\s*)(?:bearer\s+)?(?:"[^"]*"|'[^']*'|\S+)/
-  @named_credential_pattern ~r/(?i)(\b(?:[A-Za-z0-9_-]+[_-]token|api[_-]?key|password|secret)\b\s*(?:=|:)\s*)(?:"[^"]*"|'[^']*'|\S+)/
-  @token_assignment_pattern ~r/(?i)(\btoken\b\s*=\s*)(?:"[^"]*"|'[^']*'|\S+)/
-  @credential_flag_pattern ~r/(?i)(--(?:token|api[_-]?key|password|secret)(?:=|\s+))(?:"[^"]*"|'[^']*'|\S+)/
-  @bearer_pattern ~r/(?i)(\bbearer\s+)[A-Za-z0-9._~+\/=:-]+/
-  @url_credentials_pattern ~r/([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^\s\/:@]+:[^\s@\/]+@/
-  @local_path_pattern ~r{(?:~/[^\s'"]*|/(?:Users|home|private|var/folders|tmp)(?:/[^\s'"]*)?)(?=$|[\s'"])}
-  @ansi_escape_pattern ~r/\e\[[0-?]*[ -\/]*[@-~]/
+  @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
 
   def ingest_test_report(project, invocation, test_results, test_summaries) do
     TestReportIngestor.ingest(project, invocation, test_results, test_summaries)
   end
-
-  def sanitize_log_message(message) when is_binary(message) do
-    message
-    |> then(&Regex.replace(@ansi_escape_pattern, &1, ""))
-    |> then(&Regex.replace(@url_credentials_pattern, &1, "\\1<REDACTED>@"))
-    |> then(&Regex.replace(@authorization_pattern, &1, "\\1<REDACTED>"))
-    |> then(&Regex.replace(@named_credential_pattern, &1, "\\1<REDACTED>"))
-    |> then(&Regex.replace(@token_assignment_pattern, &1, "\\1<REDACTED>"))
-    |> then(&Regex.replace(@credential_flag_pattern, &1, "\\1<REDACTED>"))
-    |> then(&Regex.replace(@bearer_pattern, &1, "\\1<REDACTED>"))
-    |> then(&Regex.replace(@local_path_pattern, &1, "<LOCAL_PATH>"))
-    |> String.replace(~r/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/, "")
-  end
-
-  def sanitize_log_message(_), do: ""
 
   def create_invocations([]), do: {0, nil}
 
@@ -97,7 +75,54 @@ defmodule Tuist.Bazel do
     IngestRepo.insert_all(InvocationLog, entries)
   end
 
-  def upsert_test_result(attrs) when is_map(attrs) do
+  def stage_test_result(attrs, max_artifact_bytes \\ @max_test_artifact_bytes_per_invocation) when is_map(attrs) do
+    result =
+      Repo.transaction(fn ->
+        test_invocation = lock_test_invocation(attrs.project_id, attrs.invocation_id)
+
+        if test_invocation.state == "processed" do
+          :already_processed
+        else
+          previous_bytes = test_result_artifact_bytes(attrs)
+          next_bytes = test_invocation.artifact_bytes - previous_bytes + artifact_bytes(attrs)
+
+          if next_bytes > max_artifact_bytes do
+            Repo.rollback(:artifact_limit_exceeded)
+          end
+
+          upsert_test_result(attrs)
+
+          test_invocation
+          |> Ecto.Changeset.change(%{artifact_bytes: next_bytes})
+          |> Repo.update!()
+
+          :staged
+        end
+      end)
+
+    case result do
+      {:ok, _state} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def stage_test_summary(attrs) when is_map(attrs) do
+    {:ok, _state} =
+      Repo.transaction(fn ->
+        test_invocation = lock_test_invocation(attrs.project_id, attrs.invocation_id)
+
+        if test_invocation.state == "processed" do
+          :already_processed
+        else
+          upsert_test_summary(attrs)
+          :staged
+        end
+      end)
+
+    :ok
+  end
+
+  defp upsert_test_result(attrs) when is_map(attrs) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     entry =
@@ -146,7 +171,7 @@ defmodule Tuist.Bazel do
     :ok
   end
 
-  def upsert_test_summary(attrs) when is_map(attrs) do
+  defp upsert_test_summary(attrs) when is_map(attrs) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     entry =
@@ -185,52 +210,26 @@ defmodule Tuist.Bazel do
   end
 
   def record_test_invocation_event(project_id, invocation_id) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-    test_run_id = UUIDv7.generate()
-
-    Repo.insert_all(
-      TestInvocation,
-      [
-        %{
-          id: UUIDv7.generate(),
-          project_id: project_id,
-          invocation_id: invocation_id,
-          state: "collecting",
-          test_run_id: test_run_id,
-          inserted_at: now,
-          updated_at: now
-        }
-      ],
-      on_conflict: {:replace, [:updated_at]},
-      conflict_target: [:project_id, :invocation_id]
-    )
-
+    ensure_test_invocation(project_id, invocation_id)
     :ok
   end
 
   def complete_test_invocation(project_id, invocation_id) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
+    Repo.transaction(fn ->
+      test_invocation = lock_test_invocation(project_id, invocation_id)
 
-    Repo.insert_all(
-      TestInvocation,
-      [
-        %{
-          id: UUIDv7.generate(),
-          project_id: project_id,
-          invocation_id: invocation_id,
-          state: "pending",
-          test_run_id: UUIDv7.generate(),
-          inserted_at: now,
-          updated_at: now
-        }
-      ],
-      on_conflict: {:replace, [:state, :updated_at]},
-      conflict_target: [:project_id, :invocation_id]
-    )
+      if test_invocation.state == "processed" do
+        :already_processed
+      else
+        test_invocation
+        |> Ecto.Changeset.change(%{state: "pending"})
+        |> Repo.update!()
 
-    %{"project_id" => project_id, "invocation_id" => invocation_id}
-    |> ProcessTestInvocationWorker.new()
-    |> Oban.insert()
+        %{"project_id" => project_id, "invocation_id" => invocation_id}
+        |> ProcessTestInvocationWorker.new()
+        |> Oban.insert!()
+      end
+    end)
   end
 
   def get_test_invocation(project_id, invocation_id) do
@@ -261,8 +260,21 @@ defmodule Tuist.Bazel do
 
   def mark_test_invocation_processed(test_invocation) do
     test_invocation
-    |> Ecto.Changeset.change(%{state: "processed"})
+    |> Ecto.Changeset.change(%{state: "processed", artifact_bytes: 0})
     |> Repo.update()
+  end
+
+  def discard_test_invocation(test_invocation) do
+    Repo.transaction(fn ->
+      locked_invocation = lock_test_invocation(test_invocation.project_id, test_invocation.invocation_id)
+
+      delete_test_results(locked_invocation.project_id, locked_invocation.invocation_id)
+      delete_test_summaries(locked_invocation.project_id, locked_invocation.invocation_id)
+
+      locked_invocation
+      |> Ecto.Changeset.change(%{state: "processed", artifact_bytes: 0})
+      |> Repo.update!()
+    end)
   end
 
   def delete_test_results(project_id, invocation_id) do
@@ -281,11 +293,109 @@ defmodule Tuist.Bazel do
     )
   end
 
-  def delete_expired_test_ingestion_records(before) do
-    {results, _} = Repo.delete_all(from(result in TestResult, where: result.inserted_at < ^before))
-    {summaries, _} = Repo.delete_all(from(summary in TestSummary, where: summary.inserted_at < ^before))
-    {invocations, _} = Repo.delete_all(from(invocation in TestInvocation, where: invocation.inserted_at < ^before))
-    results + summaries + invocations
+  def delete_expired_test_ingestion_records(before, batch_size) do
+    delete_expired_batch(TestResult, before, batch_size) +
+      delete_expired_batch(TestSummary, before, batch_size) +
+      delete_expired_test_invocations(before, batch_size)
+  end
+
+  defp ensure_test_invocation(project_id, invocation_id) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    Repo.insert_all(
+      TestInvocation,
+      [
+        %{
+          id: UUIDv7.generate(),
+          project_id: project_id,
+          invocation_id: invocation_id,
+          state: "collecting",
+          test_run_id: UUIDv7.generate(),
+          artifact_bytes: 0,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: {:replace, [:updated_at]},
+      conflict_target: [:project_id, :invocation_id]
+    )
+  end
+
+  defp lock_test_invocation(project_id, invocation_id) do
+    ensure_test_invocation(project_id, invocation_id)
+
+    Repo.one!(
+      from(test_invocation in TestInvocation,
+        where: test_invocation.project_id == ^project_id and test_invocation.invocation_id == ^invocation_id,
+        lock: "FOR UPDATE"
+      )
+    )
+  end
+
+  defp test_result_artifact_bytes(attrs) do
+    Repo.one(
+      from(test_result in TestResult,
+        where:
+          test_result.project_id == ^attrs.project_id and test_result.invocation_id == ^attrs.invocation_id and
+            test_result.target_label == ^attrs.target_label and test_result.run == ^attrs.run and
+            test_result.shard == ^attrs.shard and test_result.attempt == ^attrs.attempt,
+        select:
+          fragment(
+            "coalesce(octet_length(?), 0) + coalesce(octet_length(?), 0)",
+            test_result.junit_content,
+            test_result.log_content
+          )
+      )
+    ) || 0
+  end
+
+  defp artifact_bytes(attrs) do
+    byte_size(Map.get(attrs, :junit_content) || "") + byte_size(Map.get(attrs, :log_content) || "")
+  end
+
+  defp delete_expired_batch(schema, before, batch_size) do
+    ids =
+      from(record in schema,
+        where: record.inserted_at < ^before,
+        order_by: [asc: record.inserted_at, asc: record.id],
+        limit: ^batch_size,
+        select: record.id
+      )
+
+    {count, _} = Repo.delete_all(from(record in schema, where: record.id in subquery(ids)))
+    count
+  end
+
+  defp delete_expired_test_invocations(before, batch_size) do
+    ids =
+      from(invocation in TestInvocation,
+        as: :invocation,
+        where: invocation.inserted_at < ^before,
+        where:
+          not exists(
+            from(result in TestResult,
+              where:
+                result.project_id == parent_as(:invocation).project_id and
+                  result.invocation_id == parent_as(:invocation).invocation_id,
+              select: 1
+            )
+          ),
+        where:
+          not exists(
+            from(summary in TestSummary,
+              where:
+                summary.project_id == parent_as(:invocation).project_id and
+                  summary.invocation_id == parent_as(:invocation).invocation_id,
+              select: 1
+            )
+          ),
+        order_by: [asc: invocation.inserted_at, asc: invocation.id],
+        limit: ^batch_size,
+        select: invocation.id
+      )
+
+    {count, _} = Repo.delete_all(from(invocation in TestInvocation, where: invocation.id in subquery(ids)))
+    count
   end
 
   def list_invocations(project_id, flop_params \\ %{}) do

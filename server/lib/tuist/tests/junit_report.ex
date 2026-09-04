@@ -1,5 +1,7 @@
-defmodule Tuist.Bazel.JunitReport do
+defmodule Tuist.Tests.JunitReport do
   @moduledoc false
+
+  alias Tuist.Tests.Sanitizer
 
   @max_report_bytes 5 * 1_024 * 1_024
   @max_test_cases 10_000
@@ -99,7 +101,7 @@ defmodule Tuist.Bazel.JunitReport do
       failure
       |> attribute("message")
       |> Kernel.||(failure |> text_content() |> String.trim())
-      |> Tuist.Bazel.sanitize_log_message()
+      |> Sanitizer.sanitize()
 
     %{
       message: truncate(message, @max_failure_message_bytes),
@@ -107,7 +109,7 @@ defmodule Tuist.Bazel.JunitReport do
         failure
         |> attribute("file")
         |> Kernel.||("")
-        |> Tuist.Bazel.sanitize_log_message()
+        |> Sanitizer.sanitize()
         |> truncate(@max_field_bytes),
       line_number: integer_attribute(failure, "line") || 0,
       issue_type: "assertion_failure"
