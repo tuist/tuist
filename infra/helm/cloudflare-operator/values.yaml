@@ -4,7 +4,11 @@
 
 image:
   repository: ghcr.io/tuist/cloudflare-operator
-  tag: ""              # empty falls back to Chart.appVersion at render time
+  # The image workflow publishes :sha-<git-sha> and :latest tags per
+  # push to main. The chart's appVersion is not published as an image
+  # tag today, so falling back to it would land in ErrImagePull.
+  # Override to :sha-<git-sha> at install time for reproducible deploys.
+  tag: latest
   pullPolicy: IfNotPresent
 
 replicaCount: 1
@@ -51,8 +55,10 @@ affinity: {}
 # CRDs directly, this can be turned off to avoid double-management.
 installCRDs: true
 
-# Prometheus scrape via ServiceMonitor. Off by default; enable per
-# environment.
-serviceMonitor:
-  enabled: false
-  interval: 30s
+# Name of the Kubernetes Secret the pod mounts for the Cloudflare
+# API token (expected to expose a `token` key). When
+# externalSecret.enabled is true (default) the chart renders the
+# ExternalSecret and the target is `cloudflare-operator-token`;
+# override this only if you provision the Secret out-of-band and set
+# externalSecret.enabled=false.
+tokenSecretName: ""

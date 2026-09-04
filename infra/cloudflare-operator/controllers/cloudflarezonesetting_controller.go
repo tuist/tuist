@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -70,7 +71,7 @@ func (r *CloudflareZoneSettingReconciler) Reconcile(ctx context.Context, req ctr
 		return r.fail(ctx, cr, nil, fmt.Errorf("get setting: %w", err))
 	}
 
-	if current != nil && jsonEqual(current.Value, desiredValue) {
+	if current != nil && bytes.Equal(current.Value, desiredValue) {
 		return r.succeed(ctx, cr, current.Value, "in sync")
 	}
 
@@ -110,18 +111,6 @@ func (r *CloudflareZoneSettingReconciler) setStatus(ctx context.Context, cr *cfv
 		return fmt.Errorf("patch status: %w", err)
 	}
 	return nil
-}
-
-func jsonEqual(a, b json.RawMessage) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func currentValue(s *cloudflare.ZoneSetting) json.RawMessage {

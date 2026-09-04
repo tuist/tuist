@@ -84,8 +84,6 @@ spec:
                       type: integer
                     countingExpression:
                       type: string
-                    countsResponse:
-                      type: boolean
             status:
               type: object
               properties:

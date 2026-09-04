@@ -51,7 +51,13 @@ spec:
       volumes:
         - name: cloudflare-token
           secret:
-            secretName: cloudflare-operator-token
+            # Defaults to the Secret the ExternalSecret template
+            # renders; override .Values.tokenSecretName to point at a
+            # Secret managed outside this chart. The pod fails to
+            # start if the Secret does not exist, so if
+            # externalSecret.enabled is false the caller must set
+            # tokenSecretName to something they've provisioned.
+            secretName: {{ .Values.tokenSecretName | default "cloudflare-operator-token" }}
       nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 8 }}
       tolerations:

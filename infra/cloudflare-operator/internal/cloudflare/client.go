@@ -69,17 +69,19 @@ type Rule struct {
 	LastUpdated      string          `json:"last_updated,omitempty"`
 }
 
-// RuleRateLimit mirrors the Cloudflare rule's ratelimit block. Field
-// names match the API's snake_case wire format.
+// RuleRateLimit mirrors the fields of the Cloudflare rule's ratelimit
+// block the operator actually sets. Fields Cloudflare accepts but the
+// operator doesn't manage (requests_to_origin, score_per_period,
+// score_response_header_name) are deliberately absent: json decoding
+// drops them on the way in, so a dashboard-set value never participates
+// in the reconciler's drift comparison and cannot cause a spurious
+// PATCH loop.
 type RuleRateLimit struct {
-	Characteristics       []string `json:"characteristics"`
-	Period                int      `json:"period"`
-	RequestsPerPeriod     int      `json:"requests_per_period"`
-	MitigationTimeout     int      `json:"mitigation_timeout"`
-	CountingExpression    string   `json:"counting_expression,omitempty"`
-	RequestsToOrigin      bool     `json:"requests_to_origin,omitempty"`
-	ScorePerPeriod        int      `json:"score_per_period,omitempty"`
-	ScoreResponseHeaderNm string   `json:"score_response_header_name,omitempty"`
+	Characteristics    []string `json:"characteristics"`
+	Period             int      `json:"period"`
+	RequestsPerPeriod  int      `json:"requests_per_period"`
+	MitigationTimeout  int      `json:"mitigation_timeout"`
+	CountingExpression string   `json:"counting_expression,omitempty"`
 }
 
 // Ruleset is a phase entrypoint ruleset. Only the fields the operator
@@ -100,12 +102,11 @@ func (c *Client) GetPhaseRuleset(ctx context.Context, zoneID, phase string) (*Ru
 	var wrapper struct {
 		Result Ruleset `json:"result"`
 	}
-	status, err := c.do(ctx, http.MethodGet, path, nil, &wrapper)
-	if err != nil {
+	if _, err := c.do(ctx, http.MethodGet, path, nil, &wrapper); err != nil {
+		if IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
-	}
-	if status == http.StatusNotFound {
-		return nil, nil
 	}
 	return &wrapper.Result, nil
 }
@@ -171,9 +172,8 @@ func (c *Client) UpdateRule(ctx context.Context, zoneID, rulesetID, ruleID strin
 // is already gone.
 func (c *Client) DeleteRule(ctx context.Context, zoneID, rulesetID, ruleID string) error {
 	path := fmt.Sprintf("/zones/%s/rulesets/%s/rules/%s", zoneID, rulesetID, ruleID)
-	status, err := c.do(ctx, http.MethodDelete, path, nil, nil)
-	if err != nil {
-		if status == http.StatusNotFound {
+	if _, err := c.do(ctx, http.MethodDelete, path, nil, nil); err != nil {
+		if IsNotFound(err) {
 			return nil
 		}
 		return err
@@ -245,9 +245,12 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		return resp.StatusCode, fmt.Errorf("read response: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return resp.StatusCode, nil
-	}
+	// Non-2xx is always an error, including 404. Callers that treat 404
+	// as "resource not present" (GetPhaseRuleset, GetZoneSetting,
+	// GetAICrawlControl) check IsNotFound(err) explicitly. This
+	// prevents a 404 on POST/PATCH/PUT (wrong path, deleted zone,
+	// Cloudflare shape change) from silently looking like a successful
+	// create with an empty result.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		apiErr := &APIError{Status: resp.StatusCode, Body: string(respBody)}
 		var parsed struct {

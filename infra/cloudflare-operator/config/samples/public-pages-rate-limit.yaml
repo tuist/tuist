@@ -23,4 +23,3 @@ spec:
     period: 10
     mitigationTimeoutSeconds: 60
     countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"
-    countsResponse: true

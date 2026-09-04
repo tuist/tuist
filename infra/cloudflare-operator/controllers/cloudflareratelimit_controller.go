@@ -29,10 +29,6 @@ const (
 	// finalizer runs the Cloudflare-side delete when a CR is removed so
 	// the live rule follows the CR through git deletions.
 	finalizer = "cloudflare.tuist.dev/finalizer"
-
-	// refPrefix keeps the operator's rule refs distinguishable from any
-	// hand-created rule in the same ruleset.
-	refPrefix = "cfop_"
 )
 
 // +kubebuilder:rbac:groups=cloudflare.tuist.dev,resources=cloudflareratelimits,verbs=get;list;watch;update;patch
@@ -172,15 +168,11 @@ func (r *CloudflareRateLimitReconciler) setStatus(ctx context.Context, cr *cfv1a
 }
 
 // ruleRef derives the operator's stable identifier for a CR, used as
-// the Cloudflare rule's Ref so subsequent reconciles find the same rule
-// without a state backend. Includes the UID to survive a delete + same-
-// name recreate cleanly.
+// the Cloudflare rule's Ref so subsequent reconciles find the same
+// rule without a state backend. Must satisfy Cloudflare's regex
+// (^[a-zA-Z0-9_]{1,32}$); see makeRef.
 func ruleRef(cr *cfv1alpha1.CloudflareRateLimit) string {
-	uid := string(cr.UID)
-	if len(uid) > 12 {
-		uid = uid[:12]
-	}
-	return fmt.Sprintf("%s%s_%s", refPrefix, cr.Name, uid)
+	return makeRef(rateLimitRefPrefix, cr.Name, string(cr.UID))
 }
 
 // renderRule turns a CR into the Cloudflare rule payload we PUT.

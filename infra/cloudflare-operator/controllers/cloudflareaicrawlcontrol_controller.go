@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -72,7 +73,7 @@ func (r *CloudflareAICrawlControlReconciler) Reconcile(ctx context.Context, req 
 		return r.fail(ctx, cr, nil, fmt.Errorf("get AI crawl control config: %w", err))
 	}
 
-	if jsonEqual(current, desired) {
+	if bytes.Equal(current, desired) {
 		return r.succeed(ctx, cr, current, "in sync")
 	}
 

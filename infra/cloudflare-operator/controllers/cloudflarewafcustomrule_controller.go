@@ -150,11 +150,7 @@ func (r *CloudflareWAFCustomRuleReconciler) setStatus(ctx context.Context, cr *c
 }
 
 func wafRuleRef(cr *cfv1alpha1.CloudflareWAFCustomRule) string {
-	uid := string(cr.UID)
-	if len(uid) > 12 {
-		uid = uid[:12]
-	}
-	return fmt.Sprintf("%swaf_%s_%s", refPrefix, cr.Name, uid)
+	return makeRef(wafRuleRefPrefix, cr.Name, string(cr.UID))
 }
 
 func renderWAFRule(cr *cfv1alpha1.CloudflareWAFCustomRule, ref string) cloudflare.Rule {

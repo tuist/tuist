@@ -29,12 +29,11 @@ func (c *Client) GetAICrawlControl(ctx context.Context, zoneID string) (json.Raw
 	var wrapper struct {
 		Result json.RawMessage `json:"result"`
 	}
-	status, err := c.do(ctx, http.MethodGet, path, nil, &wrapper)
-	if err != nil {
+	if _, err := c.do(ctx, http.MethodGet, path, nil, &wrapper); err != nil {
+		if IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
-	}
-	if status == http.StatusNotFound {
-		return nil, nil
 	}
 	return wrapper.Result, nil
 }

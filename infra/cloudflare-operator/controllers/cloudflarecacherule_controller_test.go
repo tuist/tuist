@@ -15,6 +15,7 @@ import (
 func sampleCacheRule(uid string) *cfv1alpha1.CloudflareCacheRule {
 	enabled := true
 	yes := true
+	ttl := 300
 	return &cfv1alpha1.CloudflareCacheRule{
 		ObjectMeta: metaWithUID("marketing-and-docs", uid),
 		Spec: cfv1alpha1.CloudflareCacheRuleSpec{
@@ -26,7 +27,7 @@ func sampleCacheRule(uid string) *cfv1alpha1.CloudflareCacheRule {
 				Cache: &yes,
 				EdgeTTL: &cfv1alpha1.EdgeTTL{
 					Mode:    "override_origin",
-					Default: 300,
+					Default: &ttl,
 				},
 			},
 		},

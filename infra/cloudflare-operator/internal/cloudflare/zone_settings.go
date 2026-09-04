@@ -26,12 +26,11 @@ func (c *Client) GetZoneSetting(ctx context.Context, zoneID, settingID string) (
 	var wrapper struct {
 		Result ZoneSetting `json:"result"`
 	}
-	status, err := c.do(ctx, http.MethodGet, path, nil, &wrapper)
-	if err != nil {
+	if _, err := c.do(ctx, http.MethodGet, path, nil, &wrapper); err != nil {
+		if IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
-	}
-	if status == http.StatusNotFound {
-		return nil, nil
 	}
 	return &wrapper.Result, nil
 }

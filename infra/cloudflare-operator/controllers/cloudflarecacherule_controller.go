@@ -159,11 +159,7 @@ func (r *CloudflareCacheRuleReconciler) setStatus(ctx context.Context, cr *cfv1a
 // name collision between a CloudflareRateLimit and a CloudflareCacheRule
 // doesn't collide on the wire.
 func cacheRuleRef(cr *cfv1alpha1.CloudflareCacheRule) string {
-	uid := string(cr.UID)
-	if len(uid) > 12 {
-		uid = uid[:12]
-	}
-	return fmt.Sprintf("%scache_%s_%s", refPrefix, cr.Name, uid)
+	return makeRef(cacheRuleRefPrefix, cr.Name, string(cr.UID))
 }
 
 // renderCacheRule turns a CR into the Cloudflare rule payload. The
@@ -178,15 +174,15 @@ func renderCacheRule(cr *cfv1alpha1.CloudflareCacheRule, ref string) (cloudflare
 	}
 	if cs.EdgeTTL != nil {
 		edge := map[string]any{"mode": cs.EdgeTTL.Mode}
-		if cs.EdgeTTL.Default > 0 {
-			edge["default"] = cs.EdgeTTL.Default
+		if cs.EdgeTTL.Default != nil {
+			edge["default"] = *cs.EdgeTTL.Default
 		}
 		params["edge_ttl"] = edge
 	}
 	if cs.BrowserTTL != nil {
 		br := map[string]any{"mode": cs.BrowserTTL.Mode}
-		if cs.BrowserTTL.Default > 0 {
-			br["default"] = cs.BrowserTTL.Default
+		if cs.BrowserTTL.Default != nil {
+			br["default"] = *cs.BrowserTTL.Default
 		}
 		params["browser_ttl"] = br
 	}

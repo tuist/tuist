@@ -68,18 +68,20 @@ type CacheSettings struct {
 
 // EdgeTTL is Cloudflare's edge cache TTL configuration. Mode picks
 // between honoring origin `Cache-Control`, always overriding, or
-// bypassing.
+// bypassing. Default is a pointer so a caller can express `0` (no
+// edge cache) distinctly from "leave to Cloudflare's default".
 type EdgeTTL struct {
 	// +kubebuilder:validation:Enum=respect_origin;override_origin;bypass_by_default
 	Mode    string `json:"mode"`
-	Default int    `json:"default,omitempty"`
+	Default *int   `json:"default,omitempty"`
 }
 
-// BrowserTTL is the browser-side cache TTL policy.
+// BrowserTTL is the browser-side cache TTL policy. Default is a
+// pointer for the same reason as EdgeTTL.
 type BrowserTTL struct {
 	// +kubebuilder:validation:Enum=respect_origin;override_origin;bypass;bypass_by_default
 	Mode    string `json:"mode"`
-	Default int    `json:"default,omitempty"`
+	Default *int   `json:"default,omitempty"`
 }
 
 // CloudflareCacheRuleStatus reports the last reconcile outcome for
@@ -129,7 +131,13 @@ func (s *CloudflareCacheRuleSpec) IsEnabled() bool {
 
 // DeepCopy machinery ---------------------------------------------------
 
-func (in *EdgeTTL) DeepCopyInto(out *EdgeTTL) { *out = *in }
+func (in *EdgeTTL) DeepCopyInto(out *EdgeTTL) {
+	*out = *in
+	if in.Default != nil {
+		v := *in.Default
+		out.Default = &v
+	}
+}
 func (in *EdgeTTL) DeepCopy() *EdgeTTL {
 	if in == nil {
 		return nil
@@ -138,7 +146,13 @@ func (in *EdgeTTL) DeepCopy() *EdgeTTL {
 	in.DeepCopyInto(o)
 	return o
 }
-func (in *BrowserTTL) DeepCopyInto(out *BrowserTTL) { *out = *in }
+func (in *BrowserTTL) DeepCopyInto(out *BrowserTTL) {
+	*out = *in
+	if in.Default != nil {
+		v := *in.Default
+		out.Default = &v
+	}
+}
 func (in *BrowserTTL) DeepCopy() *BrowserTTL {
 	if in == nil {
 		return nil

@@ -62,16 +62,12 @@ type CloudflareRateLimitParameters struct {
 	MitigationTimeoutSeconds int `json:"mitigationTimeoutSeconds"`
 
 	// CountingExpression narrows what is counted (as opposed to what
-	// matches). When set, only responses / requests matching this
-	// expression tick the counter. Empty means every match ticks.
+	// matches). When set, only requests / responses matching this
+	// expression tick the counter; empty means every match ticks.
+	// Cloudflare infers the phase from the fields referenced in the
+	// expression — an expression that reads http.response.headers
+	// counts in the response phase automatically.
 	CountingExpression string `json:"countingExpression,omitempty"`
-
-	// CountResponseHeader, when non-empty, treats CountingExpression as
-	// operating on the response phase so the rule can key on response
-	// headers set by the origin. Kept explicit so that a reader can tell
-	// which phase the rule targets without inferring it from the
-	// expression syntax.
-	CountsResponse bool `json:"countsResponse,omitempty"`
 }
 
 // CloudflareRateLimitStatus reports the last reconcile outcome for

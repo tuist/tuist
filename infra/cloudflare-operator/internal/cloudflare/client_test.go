@@ -123,6 +123,49 @@ func TestFindRuleByRef(t *testing.T) {
 	}
 }
 
+// TestAddRule_404IsError is the regression test for the silent-404
+// bug: a 404 on POST/PATCH/PUT must surface as an APIError, not as
+// a successful call with an empty result. If the wrong path or a
+// deleted zone returns 404 on AddRule and we treat it as success,
+// the CR looks healthy while nothing is actually configured.
+func TestAddRule_404IsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"success":false,"errors":[{"code":10101,"message":"ruleset not found"}]}`))
+	}))
+	defer server.Close()
+
+	c := New("t", server.URL)
+	_, err := c.AddRule(context.Background(), "z", "rs-1", Rule{Action: "block", Ref: "cfrl_x"})
+	if err == nil {
+		t.Fatal("expected error on POST 404, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("expected IsNotFound(err) to be true, got err=%v", err)
+	}
+}
+
+// TestGetPhaseRuleset_404ReturnsNilNil documents the lazy-create
+// contract at the GET level: a 404 on GET is "no ruleset yet" and
+// surfaces as (nil, nil), NOT as an error. The reconciler relies on
+// this to know when to POST the ruleset.
+func TestGetPhaseRuleset_404ReturnsNilNil(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"success":false,"errors":[{"code":10101,"message":"ruleset not found"}]}`))
+	}))
+	defer server.Close()
+
+	c := New("t", server.URL)
+	rs, err := c.GetPhaseRuleset(context.Background(), "z", RateLimitPhase)
+	if err != nil {
+		t.Fatalf("expected nil error on GET 404, got %v", err)
+	}
+	if rs != nil {
+		t.Errorf("expected nil ruleset on GET 404, got %+v", rs)
+	}
+}
+
 // TestAPIError_MessagePropagation confirms error details lift out of
 // Cloudflare's error envelope so operator logs show the underlying
 // reason rather than raw JSON.
