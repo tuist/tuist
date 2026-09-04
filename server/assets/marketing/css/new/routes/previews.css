@@ -182,250 +182,13 @@
         pointer-events: none;
       }
 
-      /* Phone outline (224x287 crop of the Figma frame) with a skeleton app
-         screen on the illustration ramp. Every block transitions, so the
-         per-screen overrides below read as the UI settling into a slightly
-         different layout each time a streak lands. */
+      /* Phone (224x287 crop of the Figma frame) on the hero stage; its
+         skeleton screen and per-screen layouts are the page-level
+         [data-part="phone"] rules shared with the update card. */
       & > [data-part="stage"] > [data-part="phone"] {
         position: absolute;
         top: 13px;
         left: 843px;
-        width: 224px;
-        height: 287px;
-
-        & > svg {
-          display: block;
-          width: 224px;
-          height: 287px;
-        }
-
-        & > [data-part="screen"] {
-          position: absolute;
-          inset: 0;
-        }
-
-        & [data-part="block"] {
-          display: block;
-          position: absolute;
-          transition:
-            width 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
-            height 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
-            top 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
-            border-radius 480ms ease,
-            background-color 480ms ease;
-          border-radius: var(--noora-radius-2);
-          background: var(--marketing-illustration-neutral-2);
-        }
-
-        & [data-block="island"] {
-          top: 12px;
-          left: 82px;
-          border-radius: 7px;
-          background: var(--marketing-illustration-neutral-3);
-          width: 60px;
-          height: 14px;
-        }
-
-        & [data-block="avatar"] {
-          top: 51px;
-          left: 22px;
-          border-radius: var(--noora-radius-4);
-          width: 45px;
-          height: 45px;
-        }
-
-        & [data-block="name"] {
-          top: 58px;
-          left: 82px;
-          width: var(--name-width);
-          height: 12px;
-        }
-
-        & [data-block="subline"] {
-          top: 76px;
-          left: 82px;
-          background: var(--marketing-illustration-neutral-1);
-          width: var(--subline-width);
-          height: 8px;
-        }
-
-        & [data-block="tab"] {
-          top: 126px;
-          background: var(--marketing-illustration-neutral-1);
-          width: 56px;
-          height: 20px;
-
-          &[data-tab="0"] {
-            left: 23px;
-          }
-
-          &[data-tab="1"] {
-            left: 84px;
-          }
-
-          &[data-tab="2"] {
-            left: 145px;
-          }
-        }
-
-        & [data-block="card"] {
-          top: 163px;
-          left: 23px;
-          background: var(--marketing-illustration-neutral-1);
-          width: 178px;
-          height: var(--card-height);
-
-          & > [data-block="card-title"] {
-            top: 8px;
-            left: 8px;
-            width: 64px;
-            height: 8px;
-          }
-
-          & > [data-block="card-meta"] {
-            top: 8px;
-            right: 8px;
-            width: var(--meta-width);
-            height: 8px;
-          }
-
-          /* Preview list widget: two rows of app icon, title, subtitle and
-             a run pill, stacked under the card header. */
-          & > [data-part="row"] {
-            position: absolute;
-            right: 8px;
-            left: 8px;
-            transition:
-              transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
-              opacity 360ms ease;
-            height: 26px;
-
-            &[data-row="0"] {
-              top: 24px;
-            }
-
-            &[data-row="1"] {
-              top: 52px;
-            }
-
-            /* Third preview: parked below the fold of the card until the
-               card grows to fit it. */
-            &[data-row="2"] {
-              top: 80px;
-              transform: translateY(6px);
-              opacity: 0;
-            }
-
-            & > [data-block="app-icon"] {
-              top: 1px;
-              left: 0;
-              border-radius: var(--noora-radius-3);
-              width: 24px;
-              height: 24px;
-            }
-
-            & > [data-block="row-title"] {
-              top: 4px;
-              left: 32px;
-              width: var(--row-title-width);
-              height: 8px;
-            }
-
-            & > [data-block="row-subtitle"] {
-              top: 16px;
-              left: 32px;
-              width: var(--row-subtitle-width);
-              height: 6px;
-            }
-
-            & > [data-block="run"] {
-              top: 5px;
-              right: 0;
-              border-radius: 8px;
-              width: var(--run-width);
-              height: 16px;
-            }
-          }
-        }
-
-        & [data-block="footer"] {
-          top: var(--footer-top);
-          left: 22px;
-          background: var(--marketing-illustration-neutral-3);
-          width: 179px;
-          height: 20px;
-        }
-
-        /* Screen states — each one a visibly different layout so the
-           change reads at a glance: 0 is the base list; 1 swaps the two
-           rows and rounds the avatar;
-           2 grows the card to fit a third preview and pushes the footer
-           into the fade. The darker run pill marks the preview that just
-           landed. */
-        &[data-screen="0"] {
-          --name-width: 119px;
-          --subline-width: 84px;
-          --meta-width: 28px;
-          --card-height: 86px;
-          --footer-top: 266px;
-          --row-title-width: 70px;
-          --row-subtitle-width: 48px;
-          --run-width: 32px;
-
-          & [data-tab="0"],
-          & [data-row="0"] > [data-block="run"] {
-            background: var(--marketing-illustration-neutral-3);
-          }
-        }
-
-        &[data-screen="1"] {
-          --name-width: 104px;
-          --subline-width: 96px;
-          --meta-width: 36px;
-          --card-height: 86px;
-          --footer-top: 266px;
-          --row-title-width: 58px;
-          --row-subtitle-width: 56px;
-          --run-width: 40px;
-
-          & [data-block="avatar"] {
-            border-radius: 50%;
-          }
-
-          & [data-row="0"] {
-            transform: translateY(28px);
-          }
-
-          & [data-row="1"] {
-            transform: translateY(-28px);
-          }
-
-          & [data-tab="1"],
-          & [data-row="1"] > [data-block="run"] {
-            background: var(--marketing-illustration-neutral-3);
-          }
-        }
-
-        &[data-screen="2"] {
-          --name-width: 112px;
-          --subline-width: 72px;
-          --meta-width: 24px;
-          --card-height: 114px;
-          --footer-top: 288px;
-          --row-title-width: 78px;
-          --row-subtitle-width: 40px;
-          --run-width: 36px;
-
-          & [data-row="2"] {
-            transform: none;
-            opacity: 1;
-          }
-
-          & [data-tab="2"],
-          & [data-row="2"] > [data-block="run"] {
-            background: var(--marketing-illustration-neutral-3);
-          }
-        }
       }
 
       /* Surface-colored fade over the bottom 46px so the phone dissolves
@@ -481,10 +244,12 @@
        the columns. */
     & > [data-part="grid"] {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      /* minmax(0, …) keeps the columns an exact half even when a cell's
+         illustration (the previews table) is wider than its slot. */
+      grid-template-columns: repeat(2, minmax(0, 1fr));
 
       @media (max-width: 720px) {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
       /* Cell structure (Figma: 600x412): 20px top/bottom card padding, a
@@ -496,6 +261,9 @@
         box-sizing: border-box;
         border-top: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-7) 0;
+        /* The fixed-width stage inside the slot must not set the cell's
+           minimum; the slot clips and scales it instead. */
+        min-width: 0;
 
         @media (min-width: 721px) {
           &:nth-child(2n) {
@@ -509,15 +277,419 @@
           }
         }
 
-        /* Illustration slot (600x250); a reserved blank until the artwork
-           lands. */
+        /* Illustration slot (600x250). Each card's composition is fluid or
+           clipped inside it, so the slot never widens the cell (the grid
+           tracks are minmax(0, 1fr) for the same reason). */
         & > [data-part="illustration"] {
           display: flex;
+          position: relative;
           justify-content: center;
           align-items: center;
           margin: 0;
           width: 100%;
           height: 250px;
+          overflow: hidden;
+        }
+
+        /* The code-review slot pins its card 15px from the top and clips
+           the overflow, with a surface-colored fade over the bottom 78px so
+           the comment dissolves instead of being hard-cut. */
+        & > [data-illustration="code-review"] {
+          align-items: flex-start;
+          box-sizing: border-box;
+          padding-top: 15px;
+
+          & > [data-part="fade"] {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
+            height: 78px;
+            pointer-events: none;
+          }
+        }
+
+        /* The previews-list slot pins the table 40px from the cell's top
+           hairline (20px card padding + 20px here) and 40px from its left
+           edge, clips it, and fades the bottom 78px and the right 160px so
+           the wide table trails off on both edges. */
+        & > [data-illustration="audiences"] {
+          justify-content: flex-start;
+          align-items: flex-start;
+          box-sizing: border-box;
+          padding: var(--noora-spacing-7) 0 0 var(--noora-spacing-10);
+
+          /* Both fades sit above the table's body outline, which Noora
+             draws as a z-index 1 pseudo-element and would otherwise stay
+             sharp while everything under it fades. */
+          & > [data-part="fade"] {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: var(--noora-z-index-2);
+            background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
+            height: 78px;
+            pointer-events: none;
+          }
+
+          & > [data-part="fade-right"] {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: var(--noora-z-index-2);
+            background: linear-gradient(to right, transparent, var(--noora-surface-background-primary));
+            width: 160px;
+            pointer-events: none;
+          }
+        }
+
+        /* Noora table at its natural width: the slot does the clipping, so
+           the component's own horizontal scrolling is switched off and its
+           wrapper is sized to the content instead of the slot. */
+        & [data-part="previews-list"] {
+          flex: none;
+          width: max-content;
+
+          & .noora-table {
+            width: max-content;
+            /* The root clips to its own radius now that the scroll wrapper
+               (which normally does it) no longer scrolls; without this the
+               header fill leaks past the rounded corners. */
+            overflow: hidden;
+
+            & [data-part="scroll-container"] {
+              overflow-x: visible;
+            }
+
+            /* Roomier columns than the dashboard default: every cell gets
+               a floor so short values (name, track, commit) don't crowd. */
+            & th,
+            & td {
+              min-width: 148px;
+              white-space: nowrap;
+            }
+          }
+        }
+
+        /* The update slot centers the shared phone 8px below the top edge
+           and fades a shorter 60px at the bottom, so the alert (which ends
+           around 210px once scaled) mostly clears the fade. */
+        & > [data-illustration="click-to-run"] {
+          align-items: flex-start;
+          box-sizing: border-box;
+          padding-top: var(--noora-spacing-4);
+
+          /* Scaled up from its top center so it stays centered and the
+             extra height runs into the fade. */
+          & > [data-part="phone"] {
+            position: relative;
+            flex: none;
+            transform: scale(1.15);
+            transform-origin: top center;
+          }
+
+          & > [data-part="fade"] {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
+            height: 60px;
+            pointer-events: none;
+          }
+        }
+
+        /* iOS-style update alert (Figma: 179x116) on the otherwise empty
+           screen. */
+        & [data-part="alert"] {
+          display: flex;
+          position: absolute;
+          top: 60px;
+          left: 50%;
+          flex-direction: column;
+          gap: var(--noora-spacing-3);
+          transform: translateX(-50%);
+          box-sizing: border-box;
+          border-radius: var(--noora-radius-7);
+          background: var(--marketing-illustration-neutral-1);
+          padding: var(--noora-spacing-4);
+          width: 179px;
+
+          & > [data-part="copy"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-3);
+            padding: 5px 5px 14px;
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+            }
+
+            & > [data-part="description"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+            }
+          }
+
+          & > [data-part="actions"] {
+            display: flex;
+            gap: 10px;
+
+            & > [data-part="button"] {
+              display: flex;
+              flex: 1;
+              justify-content: center;
+              align-items: center;
+              border-radius: 999px;
+              background: var(--marketing-illustration-neutral-3);
+              height: 29px;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+            }
+          }
+        }
+
+        /* GitHub PR comment (Figma: 487x270): hairline-ringed 12px-radius
+           card with a 39px header strip, the run report copy, and a
+           three-column table whose last cell holds the QR code. */
+        & [data-part="comment"] {
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: 12px;
+          background: var(--noora-surface-background-primary);
+          width: min(487px, calc(100% - 2 * var(--noora-spacing-7)));
+          overflow: hidden;
+
+          & > [data-part="comment-header"] {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            border-bottom: 1px solid var(--marketing-stroke-default);
+            padding: var(--noora-spacing-3) var(--noora-spacing-6);
+            white-space: nowrap;
+
+            & > [data-part="author"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) 0.8125rem/1.625rem var(--noora-font-body);
+            }
+
+            & > [data-part="badge"] {
+              box-sizing: border-box;
+              border: 1px solid var(--marketing-illustration-neutral-4);
+              border-radius: var(--noora-radius-3);
+              padding: 3px 6px;
+              color: var(--marketing-illustration-neutral-4);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+            }
+
+            & > [data-part="action"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) 0.8125rem/1.625rem var(--noora-font-body);
+            }
+          }
+
+          & > [data-part="comment-body"] {
+            display: flex;
+            flex-direction: column;
+            padding: var(--noora-spacing-6) var(--noora-spacing-9);
+
+            & > [data-part="report-title"] {
+              margin: 0;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+            }
+
+            & > [data-part="report-subtitle"] {
+              margin: var(--noora-spacing-4) 0 0;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="table"] {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              margin-top: var(--noora-spacing-5);
+              border: 1px solid var(--marketing-stroke-default);
+              border-radius: var(--noora-radius-4);
+              overflow: hidden;
+
+              & > [data-part="column"] {
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+
+                &:not(:first-child) {
+                  border-left: 1px solid var(--marketing-stroke-default);
+                }
+
+                & > [data-part="heading"] {
+                  border-bottom: 1px solid var(--marketing-stroke-default);
+                  padding: 6px;
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                  text-align: center;
+                }
+
+                & > [data-part="value"] {
+                  display: flex;
+                  flex: 1;
+                  justify-content: center;
+                  align-items: center;
+                  padding: 6px;
+
+                  & > [data-part="link"] {
+                    color: light-dark(var(--noora-blue-600), var(--noora-blue-400));
+                    font: var(--noora-font-weight-medium) 0.875rem/1.625rem var(--noora-font-body);
+                    text-decoration: underline;
+                    text-underline-position: from-font;
+                  }
+
+                  /* Theme-following QR: 21 modules across 56px on the
+                     illustration ramp. The margin keeps the cell at the
+                     comp's 82px row height. */
+                  & > [data-part="qr"] {
+                    display: block;
+                    fill: var(--marketing-illustration-neutral-3);
+                    margin: 7px 0;
+                    width: 56px;
+                    height: 56px;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        /* Slack message card (Figma: 541x117): 8px-radius window with a
+           31px translucent title bar and the message row under it. It
+           shrinks with the slot on narrow viewports, keeping 20px sides. */
+        & [data-part="message"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-4);
+          box-sizing: border-box;
+          border: 1px solid var(--marketing-stroke-default);
+          border-radius: var(--noora-radius-4);
+          background: var(--noora-surface-background-primary);
+          padding-bottom: 13px;
+          width: min(541px, calc(100% - 2 * var(--noora-spacing-7)));
+          overflow: hidden;
+
+          /* Title bar: traffic lights on the left, the signed-in avatar on
+             the right, over a faint neutral wash. */
+          & > [data-part="bar"] {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            border-bottom: 1px solid var(--marketing-stroke-default);
+            background: color-mix(in oklch, var(--marketing-illustration-neutral-1) 40%, transparent);
+            padding: 5px 13px;
+            height: 31px;
+
+            & > [data-part="lights"] {
+              display: flex;
+              gap: 6px;
+
+              & > [data-part="light"] {
+                box-sizing: border-box;
+                border-radius: 50%;
+                width: 10px;
+                height: 10px;
+
+                &[data-color="red"] {
+                  background: var(--noora-red-400);
+                }
+
+                &[data-color="yellow"] {
+                  background: var(--noora-yellow-500);
+                }
+
+                &[data-color="green"] {
+                  background: var(--noora-green-500);
+                }
+              }
+            }
+          }
+
+          /* 20px avatar with a green presence dot overhanging its
+             bottom-right corner, ringed in the card's surface color. */
+          & [data-part="avatar"] {
+            display: block;
+            position: relative;
+            flex: none;
+            width: 20px;
+            height: 20px;
+
+            & > img {
+              display: block;
+              border-radius: var(--noora-radius-1);
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+            }
+
+            & > [data-part="status"] {
+              position: absolute;
+              right: -2px;
+              bottom: -2px;
+              box-sizing: border-box;
+              border: 1.5px solid var(--noora-surface-background-primary);
+              border-radius: 50%;
+              background: var(--noora-green-500);
+              width: 8px;
+              height: 8px;
+            }
+          }
+
+          & > [data-part="body"] {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--noora-spacing-4);
+            padding: 0 var(--noora-spacing-7);
+
+            & > [data-part="content"] {
+              display: flex;
+              flex: 1;
+              flex-direction: column;
+              gap: var(--noora-spacing-1);
+              min-width: 0;
+
+              & > [data-part="meta"] {
+                display: flex;
+                align-items: center;
+                gap: var(--noora-spacing-1);
+                white-space: nowrap;
+
+                & > [data-part="author"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+                }
+
+                & > [data-part="time"] {
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+                }
+              }
+
+              & > [data-part="text"] {
+                margin: 0;
+                padding: 3px 0;
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+                & > [data-part="link"] {
+                  color: light-dark(var(--noora-blue-600), var(--noora-blue-400));
+                }
+              }
+            }
+          }
         }
 
         & > [data-part="text"] {
@@ -600,6 +772,251 @@
       display: flex;
       gap: var(--noora-spacing-4);
       margin-top: var(--noora-spacing-9);
+    }
+  }
+
+  /* Phone illustration shared by the hero stage and the update card: the
+     224x287 outline SVG with a skeleton app screen on the illustration
+     ramp. Every block transitions, so the per-screen overrides read as the
+     UI settling into a slightly different layout when a screen changes. */
+  & [data-part="phone"] {
+    width: 224px;
+    height: 287px;
+
+    & > svg {
+      display: block;
+      width: 224px;
+      height: 287px;
+    }
+
+    & > [data-part="screen"] {
+      position: absolute;
+      inset: 0;
+    }
+
+    & [data-part="block"] {
+      display: block;
+      position: absolute;
+      transition:
+        width 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        height 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        top 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        border-radius 480ms ease,
+        background-color 480ms ease;
+      border-radius: var(--noora-radius-2);
+      background: var(--marketing-illustration-neutral-2);
+    }
+
+    /* Dynamic island: darker than the skeleton blocks so it reads as
+         hardware rather than UI. */
+    & [data-block="island"] {
+      top: 12px;
+      left: 82px;
+      border-radius: 7px;
+      background: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-1100));
+      width: 60px;
+      height: 14px;
+    }
+
+    & [data-block="avatar"] {
+      top: 51px;
+      left: 22px;
+      border-radius: var(--noora-radius-4);
+      width: 45px;
+      height: 45px;
+    }
+
+    & [data-block="name"] {
+      top: 58px;
+      left: 82px;
+      width: var(--name-width);
+      height: 12px;
+    }
+
+    & [data-block="subline"] {
+      top: 76px;
+      left: 82px;
+      background: var(--marketing-illustration-neutral-1);
+      width: var(--subline-width);
+      height: 8px;
+    }
+
+    & [data-block="tab"] {
+      top: 126px;
+      background: var(--marketing-illustration-neutral-1);
+      width: 56px;
+      height: 20px;
+
+      &[data-tab="0"] {
+        left: 23px;
+      }
+
+      &[data-tab="1"] {
+        left: 84px;
+      }
+
+      &[data-tab="2"] {
+        left: 145px;
+      }
+    }
+
+    & [data-block="card"] {
+      top: 163px;
+      left: 23px;
+      background: var(--marketing-illustration-neutral-1);
+      width: 178px;
+      height: var(--card-height);
+
+      & > [data-block="card-title"] {
+        top: 8px;
+        left: 8px;
+        width: 64px;
+        height: 8px;
+      }
+
+      & > [data-block="card-meta"] {
+        top: 8px;
+        right: 8px;
+        width: var(--meta-width);
+        height: 8px;
+      }
+
+      /* Preview list widget: two rows of app icon, title, subtitle and
+           a run pill, stacked under the card header. */
+      & > [data-part="row"] {
+        position: absolute;
+        right: 8px;
+        left: 8px;
+        transition:
+          transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
+          opacity 360ms ease;
+        height: 26px;
+
+        &[data-row="0"] {
+          top: 24px;
+        }
+
+        &[data-row="1"] {
+          top: 52px;
+        }
+
+        /* Third preview: parked below the fold of the card until the
+             card grows to fit it. */
+        &[data-row="2"] {
+          top: 80px;
+          transform: translateY(6px);
+          opacity: 0;
+        }
+
+        & > [data-block="app-icon"] {
+          top: 1px;
+          left: 0;
+          border-radius: var(--noora-radius-3);
+          width: 24px;
+          height: 24px;
+        }
+
+        & > [data-block="row-title"] {
+          top: 4px;
+          left: 32px;
+          width: var(--row-title-width);
+          height: 8px;
+        }
+
+        & > [data-block="row-subtitle"] {
+          top: 16px;
+          left: 32px;
+          width: var(--row-subtitle-width);
+          height: 6px;
+        }
+
+        & > [data-block="run"] {
+          top: 5px;
+          right: 0;
+          border-radius: 8px;
+          width: var(--run-width);
+          height: 16px;
+        }
+      }
+    }
+
+    & [data-block="footer"] {
+      top: var(--footer-top);
+      left: 22px;
+      background: var(--marketing-illustration-neutral-3);
+      width: 179px;
+      height: 20px;
+    }
+
+    /* Screen states — each one a visibly different layout so the
+         change reads at a glance: 0 is the base list; 1 swaps the two
+         rows and rounds the avatar;
+         2 grows the card to fit a third preview and pushes the footer
+         into the fade. The darker run pill marks the preview that just
+         landed. */
+    &[data-screen="0"] {
+      --name-width: 119px;
+      --subline-width: 84px;
+      --meta-width: 28px;
+      --card-height: 86px;
+      --footer-top: 266px;
+      --row-title-width: 70px;
+      --row-subtitle-width: 48px;
+      --run-width: 32px;
+
+      & [data-tab="0"],
+      & [data-row="0"] > [data-block="run"] {
+        background: var(--marketing-illustration-neutral-3);
+      }
+    }
+
+    &[data-screen="1"] {
+      --name-width: 104px;
+      --subline-width: 96px;
+      --meta-width: 36px;
+      --card-height: 86px;
+      --footer-top: 266px;
+      --row-title-width: 58px;
+      --row-subtitle-width: 56px;
+      --run-width: 40px;
+
+      & [data-block="avatar"] {
+        border-radius: 50%;
+      }
+
+      & [data-row="0"] {
+        transform: translateY(28px);
+      }
+
+      & [data-row="1"] {
+        transform: translateY(-28px);
+      }
+
+      & [data-tab="1"],
+      & [data-row="1"] > [data-block="run"] {
+        background: var(--marketing-illustration-neutral-3);
+      }
+    }
+
+    &[data-screen="2"] {
+      --name-width: 112px;
+      --subline-width: 72px;
+      --meta-width: 24px;
+      --card-height: 114px;
+      --footer-top: 288px;
+      --row-title-width: 78px;
+      --row-subtitle-width: 40px;
+      --run-width: 36px;
+
+      & [data-row="2"] {
+        transform: none;
+        opacity: 1;
+      }
+
+      & [data-tab="2"],
+      & [data-row="2"] > [data-block="run"] {
+        background: var(--marketing-illustration-neutral-3);
+      }
     }
   }
 }

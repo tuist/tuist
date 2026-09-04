@@ -3525,6 +3525,31 @@ msgstr ""
 msgid "Everything you need to share what you build"
 msgstr ""
 
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Share a build, not a setup"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "Tuist automatically posts Preview links to pull requests, so reviewers can try changes instead of relying on code or images."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "A preview for every version"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Keep everyone on the latest build"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Notify testers when a newer Preview is available, keeping everyone on the latest version for their track."
+msgstr ""
+
 #: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Turn app builds into runnable previews for review, testing, and feedback before they ship."
