@@ -208,7 +208,7 @@
         }
 
         & > [data-part="error"] {
-          color: var(--noora-surface-label-error, #b91c1c);
+          color: var(--noora-surface-label-destructive);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
         }
 
