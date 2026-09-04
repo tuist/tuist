@@ -54,6 +54,24 @@ defmodule Tuist.FeatureFlags do
     Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
   end
 
+  @doc """
+  Whether Sentry envelopes produced by this node should be rerouted to
+  the self-hosted Hive ingest (`../hive`) instead of Sentry. Off by
+  default: flipping `hive_error_tracking_enabled` on in `/ops/flags`
+  (no deploy, no rolling restart) tells `TuistCommon.SentryHTTPClient`
+  to rewrite the destination URL and the `X-Sentry-Auth` header for
+  every subsequent envelope. Flipping the flag off is the immediate
+  revert path if Hive misbehaves.
+
+  Independent of `TUIST_SENTRY_HIVE_DSN`: without a configured Hive
+  DSN the reroute callback returns `nil` even when the flag is on and
+  the SDK keeps sending to Sentry, so enabling the flag on a Pod that
+  is missing the secret is a no-op rather than a drop.
+  """
+  def hive_error_tracking_enabled? do
+    FunWithFlags.enabled?(:hive_error_tracking_enabled)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

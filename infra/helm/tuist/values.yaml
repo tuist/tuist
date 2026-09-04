@@ -448,15 +448,10 @@ server:
   hosted: false
   # Cloudflare Turnstile protects self-service browser registration on hosted
   # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
-  # deployment and the site/secret keys are wired up. `useTestKeys` uses
-  # Cloudflare's public always-passing test key pair, so pre-production
-  # environments can exercise the widget without needing the real secret
-  # (this is the coverage that would have caught the 2026-09-03 outage).
-  # `secretsFrom: eso` pulls the real keys from the TURNSTILE 1Password item
-  # via external-secrets in production.
+  # deployment and the site/secret keys are synced from the TURNSTILE 1Password
+  # item via external-secrets.
   turnstile:
     enabled: false
-    useTestKeys: false
     secretsFrom: eso
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
@@ -630,6 +625,17 @@ server:
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
+      enabled: false
+    # Optional secondary Sentry DSN pointing at the self-hosted Hive ingest
+    # (../hive). Off by default: enabling this on an env syncs `SENTRY_HIVE/dsn`
+    # from that env's 1P vault into `TUIST_SENTRY_HIVE_DSN`. `Tuist.Sentry`
+    # only reroutes envelopes when both this env var is present AND the
+    # `hive_error_tracking_enabled` flag is on in `/ops/flags`, so shipping
+    # the DSN is decoupled from actually cutting traffic over. Enabling this
+    # in an env whose vault does not yet hold the `SENTRY_HIVE` item fails
+    # the whole ExternalSecret sync for the server config, so create the 1P
+    # item in the env's vault before turning this on.
+    hiveSentry:
       enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
@@ -1616,10 +1622,14 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
-    # Xcode compilation cache (CAS) budget (GiB) folded into each per-account
-    # cache image: the CAS gets this share of masterCapGib, the binary cache
-    # the rest minus a reserve. 0 (default) leaves the compilation cache
-    # VM-local (dies with the VM); the binary cache is unaffected.
+    # Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) folded into each
+    # per-account cache image: the CAS gets this share of masterCapGib, the
+    # binary cache the rest minus a reserve. Size it for what the store should
+    # OCCUPY — the compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE,
+    # which bounds one generation of a store that keeps two (the primary plus
+    # the demoted upstream that is still the warm cache). 0 (default) leaves the
+    # compilation cache VM-local (dies with the VM); the binary cache is
+    # unaffected.
     casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,

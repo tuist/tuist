@@ -72,4 +72,16 @@ defmodule Tuist.FeatureFlagsTest do
       refute FeatureFlags.turnstile_enabled?()
     end
   end
+
+  describe "hive_error_tracking_enabled?/0" do
+    test "returns true when the flag is on" do
+      expect(FunWithFlags, :enabled?, fn :hive_error_tracking_enabled -> true end)
+      assert FeatureFlags.hive_error_tracking_enabled?()
+    end
+
+    test "returns false when the flag is off" do
+      expect(FunWithFlags, :enabled?, fn :hive_error_tracking_enabled -> false end)
+      refute FeatureFlags.hive_error_tracking_enabled?()
+    end
+  end
 end

@@ -1629,6 +1629,10 @@ defmodule Tuist.Environment do
     get([:sentry, :dsn], secrets)
   end
 
+  def sentry_hive_dsn(secrets \\ secrets()) do
+    get([:sentry, :hive_dsn], secrets)
+  end
+
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end

@@ -97,6 +97,8 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         |> init_test_session(%{"pending_oauth_signup" => oauth_data})
         |> live(~p"/users/choose-username")
 
+      render_hook(lv, "turnstile_state_changed", %{"id" => "oauth-signup-turnstile", "state" => "ready"})
+
       html =
         lv
         |> form("#choose-username-form", %{"account" => %{"name" => "missingsession"}, "cf-turnstile-response" => ""})
@@ -104,6 +106,39 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
       assert html =~ "Your session has expired"
       assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "parks the submit and shows a verifying message when the user clicks before the widget is ready",
+         %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "oauth-optimistic-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      reject(&Registration.hit/1)
+      reject(&Turnstile.verify/2)
+
+      {:ok, lv, html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      # Button is not pre-disabled.
+      refute html =~ ~s(<button[^>]*disabled)
+
+      after_submit =
+        lv
+        |> form("#choose-username-form", %{"account" => %{"name" => "optimistic"}})
+        |> render_submit()
+
+      assert after_submit =~ "Verifying, one moment"
+      refute after_submit =~ "Please complete the security check"
+      assert {:error, :not_found} = Accounts.get_user_by_email(oauth_data["email"])
     end
 
     test "does not create an OAuth user when the security check is rejected", %{conn: conn} do
@@ -126,6 +161,8 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         conn
         |> init_test_session(%{"pending_oauth_signup" => oauth_data})
         |> live(~p"/users/choose-username")
+
+      render_hook(lv, "turnstile_state_changed", %{"id" => "oauth-signup-turnstile", "state" => "ready"})
 
       html =
         lv
