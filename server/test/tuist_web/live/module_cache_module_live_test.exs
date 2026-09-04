@@ -108,7 +108,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       |> Floki.find("#module-build-history-table thead th")
       |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
 
-    assert headers == ["Result", "Branch", "Commit SHA", "Why", "Ran at"]
+    assert headers == ["Scheme", "Result", "Branch", "Commit SHA", "Why", "Ran at"]
 
     # Three builds, newest first: its sources changed, then a remote hit, then
     # the first build on the branch with nothing to compare against.
@@ -116,7 +116,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       document
       |> Floki.find("#module-build-history-table tbody tr")
       |> Enum.map(fn row ->
-        row |> Floki.find("td") |> Enum.at(3) |> Floki.text() |> String.trim()
+        row |> Floki.find("td") |> Enum.at(4) |> Floki.text() |> String.trim()
       end)
 
     assert reasons == ["Changed", "Cached", "Cold"]
@@ -125,7 +125,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       document
       |> Floki.find("#module-build-history-table tbody tr")
       |> Enum.map(fn row ->
-        row |> Floki.find("td") |> List.first() |> Floki.text() |> String.trim()
+        row |> Floki.find("td") |> Enum.at(1) |> Floki.text() |> String.trim()
       end)
 
     assert results == ["Miss", "Remote hit", "Miss"]
@@ -206,7 +206,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       |> Floki.find("#module-build-history-table tbody tr")
       |> List.first()
       |> Floki.find("td")
-      |> Enum.at(2)
+      |> Enum.at(3)
       |> Floki.text()
       |> String.trim()
 

@@ -579,6 +579,11 @@
             end
           }
         >
+          <:col :let={build} label={dgettext("dashboard_cache", "Scheme")}>
+            <.text_cell label={
+              if build.scheme == "", do: dgettext("dashboard_cache", "None"), else: build.scheme
+            } />
+          </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Result")}>
             <.status_badge_cell
               :if={build.hit == "miss"}

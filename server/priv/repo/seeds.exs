@@ -1936,9 +1936,15 @@ end
 # Create command events for test runs that don't have them yet
 test_run_command_events =
   Enum.map(test_runs_without_events, fn test_run ->
+    # `tuist test` produces an activity log, so in production these events carry
+    # the build run they belong to. That link is where the module cache's Builds
+    # table reads the scheme from.
+    test_build_run = Enum.random(completed_builds)
+
     %{
       id: UUIDv7.generate(),
       test_run_id: test_run.id,
+      build_run_id: test_build_run.id,
       name: "test",
       duration: Enum.random(10_000..100_000),
       tuist_version: "4.1.0",
@@ -2174,9 +2180,9 @@ build_run_command_events =
       status: if(build.status == "success", do: 0, else: 1),
       error_message: nil,
       preview_id: nil,
-      git_ref: nil,
-      git_commit_sha: "build-#{idx}",
-      git_branch: nil,
+      git_ref: "refs/heads/#{build.git_branch || "main"}",
+      git_commit_sha: build.git_commit_sha || SeedHelpers.random_hex(40),
+      git_branch: build.git_branch || "main",
       created_at: build.inserted_at,
       updated_at: build.inserted_at,
       ran_at: build.inserted_at,

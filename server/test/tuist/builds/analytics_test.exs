@@ -2093,6 +2093,54 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert Enum.map(back.rows, & &1.id) == Enum.map(first.rows, & &1.id)
     end
 
+    test "takes the scheme from the build run the command event belongs to", %{project: project} do
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "AppTests",
+          inserted_at: ~N[2024-04-02 10:00:00]
+        )
+
+      linked =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          build_run_id: build_run.id,
+          created_at: ~N[2024-04-02 10:00:00]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: linked.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-1",
+        binary_cache_hit: :miss,
+        sources_hash: "s1"
+      )
+
+      # generate and cache produce no activity log, so they have no build run
+      # and no scheme to show.
+      unlinked =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: ~N[2024-04-03 10:00:00]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: unlinked.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-2",
+        binary_cache_hit: :miss,
+        sources_hash: "s2"
+      )
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core")
+
+      assert Enum.map(page.rows, & &1.scheme) == ["", "AppTests"]
+    end
+
     test "restricts to CI runs when asked", %{project: project} do
       for {is_ci, sources} <- [{true, "ci"}, {false, "local"}] do
         event =

@@ -2515,9 +2515,13 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     `%{rows: [...], has_previous_page: boolean, has_next_page: boolean,
     start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
-    `:id` (the command event), `:ran_at`, `:branch`, `:commit_sha`, `:hit`
-    (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`, `"changed"`,
-    `"upstream"` or `"cold"`).
+    `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
+    `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
+    `"changed"`, `"upstream"` or `"cold"`).
+
+    `:scheme` comes from the build run the command event belongs to and is
+    empty for the commands that produce no activity log, such as `generate` and
+    `cache`.
   """
   def module_build_history(opts \\ []) do
     project_id = Keyword.fetch!(opts, :project_id)
@@ -2555,10 +2559,10 @@ defmodule Tuist.Builds.Analytics do
       |> Map.merge(cursor_params)
 
     query = """
-    SELECT id, ran_at, branch, commit_sha, hit, reason
+    SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
     FROM (
       SELECT
-        id, ran_at, branch, commit_sha, hit,
+        id, scheme, ran_at, branch, commit_sha, hit,
         multiIf(
           hit != 'miss', 'hit',
           rn = 1, 'cold',
@@ -2568,7 +2572,7 @@ defmodule Tuist.Builds.Analytics do
         ) AS reason
       FROM (
         SELECT
-          id, ran_at, branch, commit_sha, hit, own, deps, ext,
+          id, scheme, ran_at, branch, commit_sha, hit, own, deps, ext,
           row_number() OVER w AS rn,
           lagInFrame(own, 1) OVER w AS prev_own,
           lagInFrame(deps, 1) OVER w AS prev_deps,
@@ -2576,6 +2580,7 @@ defmodule Tuist.Builds.Analytics do
         FROM (
           SELECT
             toString(e.id) AS id,
+            coalesce(b.scheme, '') AS scheme,
             e.ran_at AS ran_at,
             coalesce(e.git_branch, '') AS branch,
             coalesce(e.git_commit_sha, '') AS commit_sha,
@@ -2591,6 +2596,16 @@ defmodule Tuist.Builds.Analytics do
             xt.external_hash AS ext
           FROM xcode_targets AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          -- Commands that produce an activity log carry the build run they
+          -- belong to, which is where the scheme lives. Bounded to the same
+          -- project and window so the join builds a small hash table.
+          LEFT JOIN (
+            SELECT id, scheme
+            FROM build_runs
+            WHERE project_id = {project_id:Int64}
+              AND inserted_at >= {start:DateTime64(6)}
+              AND inserted_at <= {end:DateTime64(6)}
+          ) AS b ON e.build_run_id = b.id
           WHERE e.project_id = {project_id:Int64}
             AND e.ran_at >= {start:DateTime64(6)}
             AND e.ran_at <= {end:DateTime64(6)}
@@ -2672,9 +2687,10 @@ defmodule Tuist.Builds.Analytics do
     rows =
       rows
       |> Enum.take(limit)
-      |> Enum.map(fn [id, ran_at, branch, commit_sha, hit, reason] ->
+      |> Enum.map(fn [id, scheme, ran_at, branch, commit_sha, hit, reason] ->
         %{
           id: id,
+          scheme: scheme,
           ran_at: ran_at,
           branch: branch,
           commit_sha: commit_sha,
