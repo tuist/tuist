@@ -68,22 +68,29 @@ spec:
         # PV. The `stateful-worker` class and this whole layout were exercised
         # on staging first, which is the same cascade every deploy follows.
         #
-        # replicas 0 until the machines are ordered. Declaring the pool with no
-        # replicas creates the MachineDeployment and its templates and claims
-        # no host, so this is inert until someone raises the count, and raising
-        # it is then the only cluster-side step. A replica with no host to claim
-        # would not wedge anything either — caph parks the Machine as
-        # `NoAvailableHost` — but zero keeps it obvious that nothing is
-        # expected yet.
+        # Two, because canary's job here is the shape staging cannot prove:
+        # two ClickHouse replicas and a three-member Keeper quorum. The hosts
+        # exist (AX42-1 #3063010 and #3063011, FSN1-DC6), so this claims and
+        # installs them on the next apply.
+        #
+        # They join tainted and idle: `clickhouse.managed.enabled` is still
+        # false in the canary values, so no workload lands on them yet. That
+        # ordering is deliberate. Installing early exercises the provisioning
+        # path on a second cluster and surfaces anything wrong with the disk
+        # layout while there is no schedule pressure, and the layout is fixed
+        # at first install, so it is the step worth doing without a deadline.
         #
         # `statefulRaidLevel` stays 1: canary's AX42-1 has two disks, where
         # levels 1 and 10 describe the same array.        #
-        # PREREQ: the Robot server must be named `tuist-bm-canary-ch-1` so
-        # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
-        # stamped for this cluster.
+        # The Robot servers are named `tuist-bm-canary-ch-1` and `-2`, which
+        # is what `hetzner-robot-controller` matches to reflect them as
+        # HetznerBareMetalHosts stamped for this cluster. caph rewrites those
+        # names to the Machine's during provisioning, which is expected: the
+        # controller matches that shape too, and reaps by server ID rather
+        # than by name so a provisioned host is not mistaken for a stray.
         - class: stateful-worker
           name: md-clickhouse
-          replicas: 0
+          replicas: 2
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
