@@ -1,4 +1,4 @@
-#if canImport(TuistCore)
+#if canImport(TuistCore) && os(macOS)
     import Foundation
     import Path
     import TuistCore
@@ -16,6 +16,8 @@
 
         public func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory)
             async throws -> [CacheStorableItem]
-        { [] }
+        {
+            []
+        }
     }
 #endif

@@ -1,4 +1,4 @@
-#if canImport(TuistCore)
+#if canImport(TuistCore) && os(macOS)
     import Foundation
     import Mockable
     import Path
@@ -8,7 +8,9 @@
     public struct CacheStorableTarget: Hashable, Equatable {
         public let target: GraphTarget
         public let hash: String
-        public var name: String { target.target.name }
+        public var name: String {
+            target.target.name
+        }
 
         public init(target: GraphTarget, hash: String) {
             self.target = target

@@ -87,7 +87,12 @@ public struct ResourceLocator: ResourceLocating {
     // MARK: - Fileprivate
 
     private func frameworkPath(_ name: String) async throws -> AbsolutePath {
-        let frameworkNames = ["lib\(name).dylib", "\(name).framework", "PackageFrameworks/\(name).framework"]
+        let frameworkNames = [
+            "lib\(name).dylib",
+            "lib\(name).so",
+            "\(name).framework",
+            "PackageFrameworks/\(name).framework",
+        ]
         let bundlePath = try AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
 
         var paths: [AbsolutePath] = [

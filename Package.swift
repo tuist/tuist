@@ -27,6 +27,14 @@ let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", packa
 let subprocessDependency: Target.Dependency = .product(name: "Subprocess", package: "swiftlang.swift-subprocess")
 let swifterPMCoreDependency: Target.Dependency = "SwifterPMCore"
 
+var tuistGeneratorExcludes = ["AGENTS.md"]
+#if os(Linux)
+    tuistGeneratorExcludes += [
+        "Mappers/SynthesizedResourceInterfaceProjectMapper.swift",
+        "Utils/SynthesizedResourceInterfacesGenerator.swift",
+    ]
+#endif
+
 // MARK: - Targets
 
 // Cross-platform dependency arrays with macOS-only additions
@@ -327,6 +335,11 @@ var tuistConfigLoaderDependencies: [Target.Dependency] = [
     "TuistConstants",
     "TuistHTTP",
     "TuistRootDirectoryLocator",
+    "TuistLoader",
+    "TuistCore",
+    "TuistAlert",
+    "TuistSupport",
+    "ProjectDescription",
     tomlDecoderDependency,
 ]
 var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
@@ -335,6 +348,10 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConstants",
     "TuistHTTP",
     "TuistRootDirectoryLocator",
+    "TuistLoader",
+    "TuistTesting",
+    "TuistSupport",
+    "ProjectDescription",
     pathDependency,
     fileSystemDependency,
     .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
@@ -407,6 +424,12 @@ var tuistInspectCommandDependencies: [Target.Dependency] = [
     "TuistGit",
     "TuistAlert",
     "TuistEncodable",
+    "TuistGraphLoader",
+    "TuistCore",
+    "TuistLoader",
+    "TuistConfig",
+    "TuistRootDirectoryLocator",
+    xcodeGraphDependency,
     .product(name: "Noora", package: "tuist.Noora"),
     .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS, .linux])),
 ]
@@ -425,14 +448,6 @@ tuistServerDependencies.append(contentsOf: [
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
-tuistConfigLoaderDependencies.append(contentsOf: [
-    "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
-    "ProjectDescription",
-])
-tuistConfigLoaderTestDependencies.append(contentsOf: [
-    "TuistLoader", "TuistTesting",
-    "TuistSupport", "ProjectDescription",
-])
 tuistRegistryCommandDependencies.append(contentsOf: [
     "TuistLoader", "TuistSupport",
 ])
@@ -464,11 +479,10 @@ tuistRunCommandDependencies.append(contentsOf: [
     xcodeGraphDependency,
 ])
 tuistInspectCommandDependencies.append(contentsOf: [
-    "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
+    "TuistKit", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig", "TuistXcodeBuildProducts",
-    "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
-    xcodeGraphDependency,
+    "TuistMachineMetrics", "TuistCASAnalytics",
     commandDependency,
 ])
 #endif
@@ -985,11 +999,28 @@ var targets: [Target] = [
         exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
     ),
+
     // MARK: Cross-platform test targets
     .testTarget(
         name: "TuistConfigLoaderTests",
         dependencies: tuistConfigLoaderTestDependencies,
         path: "cli/Tests/TuistConfigLoaderTests"
+    ),
+    .testTarget(
+        name: "TuistInspectCommandTests",
+        dependencies: [
+            "TuistInspectCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistCore",
+            "TuistGraphLoader",
+            "TuistSupport",
+            "TuistTesting",
+            xcodeGraphDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Tests/TuistInspectCommandTests"
     ),
     .testTarget(
         name: "TuistCASTests",
@@ -1229,6 +1260,162 @@ targets.append(contentsOf: [
     ),
 ])
 
+targets.append(contentsOf: [
+    .target(
+        name: "TuistCore",
+        dependencies: [
+            pathDependency,
+            commandDependency,
+            "TuistConfig",
+            "TuistSupport",
+            xcodeGraphDependency,
+            xcodeProjDependency,
+            mockableDependency,
+            fileSystemDependency,
+            "TuistSimulator",
+            xcodeMetadataDependency,
+            anyCodableDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+            .product(name: "MachOKitC", package: "p-x9.MachOKit", condition: .when(platforms: [.linux])),
+        ],
+        path: "cli/Sources/TuistCore",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistLoader",
+        dependencies: [
+            xcodeProjDependency,
+            pathDependency,
+            commandDependency,
+            "TuistCore",
+            xcodeGraphDependency,
+            "TuistSupport",
+            "TuistMacOSSDK",
+            mockableDependency,
+            "ProjectDescription",
+            fileSystemDependency,
+            "TuistRootDirectoryLocator",
+            "TuistGit",
+        ],
+        path: "cli/Sources/TuistLoader",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistScaffold",
+        dependencies: [
+            pathDependency,
+            "TuistCore",
+            xcodeGraphDependency,
+            "TuistSupport",
+            stencilDependency,
+            mockableDependency,
+            fileSystemDependency,
+            "TuistRootDirectoryLocator",
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
+        ],
+        path: "cli/Sources/TuistScaffold",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistGenerator",
+        dependencies: [
+            xcodeProjDependency,
+            pathDependency,
+            commandDependency,
+            "TuistConfig",
+            "TuistCore",
+            xcodeGraphDependency,
+            "TuistSupport",
+            graphVizDependency,
+            mockableDependency,
+            fileSystemDependency,
+            stencilDependency,
+            "TuistRootDirectoryLocator",
+            "TuistLoader",
+            .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
+            .product(name: "SwiftGenKit", package: "swiftGen.SwiftGen", condition: .when(platforms: [.macOS])),
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
+        ],
+        path: "cli/Sources/TuistGenerator",
+        exclude: tuistGeneratorExcludes,
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistPlugin",
+        dependencies: [
+            commandDependency,
+            xcodeGraphDependency,
+            "TuistLoader",
+            "TuistCore",
+            "TuistSupport",
+            "TuistScaffold",
+            "TuistHTTP",
+            mockableDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistPlugin",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistDependencies",
+        dependencies: [
+            "ProjectDescription",
+            "TuistCore",
+            xcodeGraphDependency,
+            "TuistSupport",
+            "TuistPlugin",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistDependencies",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistGraphLoader",
+        dependencies: [
+            pathDependency,
+            loggingDependency,
+            mockableDependency,
+            fileSystemDependency,
+            "ProjectDescription",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistConstants",
+            "TuistCore",
+            "TuistDependencies",
+            "TuistEnvironment",
+            "TuistGenerator",
+            "TuistLoader",
+            "TuistLogging",
+            "TuistPlugin",
+            "TuistSupport",
+            xcodeGraphDependency,
+        ],
+        path: "cli/Sources/TuistGraphLoader",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+])
+
 // MARK: - macOS-only targets
 
 #if os(macOS)
@@ -1294,27 +1481,6 @@ targets.append(contentsOf: [
         exclude: ["AGENTS.md"]
     ),
     .target(
-        name: "TuistCore",
-        dependencies: [
-            pathDependency,
-            commandDependency,
-            "TuistConfig",
-            "TuistSupport",
-            xcodeGraphDependency,
-            xcodeProjDependency,
-            mockableDependency,
-            fileSystemDependency,
-            "TuistSimulator",
-            xcodeMetadataDependency,
-            anyCodableDependency,
-        ],
-        path: "cli/Sources/TuistCore",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistKit",
         dependencies: [
             pathDependency,
@@ -1339,6 +1505,7 @@ targets.append(contentsOf: [
             "TuistCore",
             "TuistSupport",
             "TuistGenerator",
+            "TuistGraphLoader",
             "TuistAutomation",
             "TuistLoader",
             "TuistConfigLoader",
@@ -1424,51 +1591,6 @@ targets.append(contentsOf: [
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
-        name: "TuistGenerator",
-        dependencies: [
-            xcodeProjDependency,
-            pathDependency,
-            commandDependency,
-            "TuistConfig",
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistSupport",
-            graphVizDependency,
-            mockableDependency,
-            fileSystemDependency,
-            stencilDependency,
-            "TuistRootDirectoryLocator",
-            "TuistLoader",
-            "TuistServer",
-            .product(name: "SwiftGenKit", package: "swiftGen.SwiftGen"),
-            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
-        ],
-        path: "cli/Sources/TuistGenerator",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistScaffold",
-        dependencies: [
-            pathDependency,
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistSupport",
-            stencilDependency,
-            mockableDependency,
-            fileSystemDependency,
-            "TuistRootDirectoryLocator",
-            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
-        ],
-        path: "cli/Sources/TuistScaffold",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistAutomation",
         dependencies: [
             xcodeProjDependency,
@@ -1483,23 +1605,6 @@ targets.append(contentsOf: [
             commandDependency,
         ],
         path: "cli/Sources/TuistAutomation",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistDependencies",
-        dependencies: [
-            "ProjectDescription",
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistSupport",
-            "TuistPlugin",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistDependencies",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -1523,53 +1628,11 @@ targets.append(contentsOf: [
         ]
     ),
     .target(
-        name: "TuistLoader",
-        dependencies: [
-            xcodeProjDependency,
-            pathDependency,
-            commandDependency,
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistSupport",
-            "TuistMacOSSDK",
-            mockableDependency,
-            "ProjectDescription",
-            fileSystemDependency,
-            "TuistRootDirectoryLocator",
-            "TuistGit",
-        ],
-        path: "cli/Sources/TuistLoader",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistProcess",
         dependencies: [
             mockableDependency,
         ],
         path: "cli/Sources/TuistProcess",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistPlugin",
-        dependencies: [
-            commandDependency,
-            xcodeGraphDependency,
-            "TuistLoader",
-            "TuistCore",
-            "TuistSupport",
-            "TuistScaffold",
-            "TuistHTTP",
-            mockableDependency,
-            fileSystemDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistPlugin",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -1761,7 +1824,6 @@ var products: [Product] = [
     ),
 ]
 
-#if os(macOS)
 products.append(
     .library(
         name: "ProjectDescription",
@@ -1769,14 +1831,6 @@ products.append(
         targets: ["ProjectDescription"]
     )
 )
-#else
-products.append(
-    .library(
-        name: "ProjectDescription",
-        targets: ["ProjectDescription"]
-    )
-)
-#endif
 
 #if os(macOS)
 products.append(contentsOf: [

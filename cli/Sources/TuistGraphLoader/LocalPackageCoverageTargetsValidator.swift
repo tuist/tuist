@@ -39,7 +39,9 @@ struct LocalPackageCoverageTargetsValidator: LocalPackageCoverageTargetsValidati
         var productsCache: [AbsolutePath: Set<String>] = [:]
 
         func products(at path: AbsolutePath) async throws -> Set<String> {
-            if let cached = productsCache[path] { return cached }
+            if let cached = productsCache[path] {
+                return cached
+            }
             let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path, disableSandbox: disableSandbox)
             let products = Set(packageInfo.products.map(\.name))
             productsCache[path] = products

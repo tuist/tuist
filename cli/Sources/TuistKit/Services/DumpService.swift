@@ -5,6 +5,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistEncodable
 import TuistEnvironment
+import TuistGraphLoader
 import TuistLoader
 import TuistLogging
 import TuistPlugin

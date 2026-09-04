@@ -7,6 +7,7 @@ import XCTest
 @testable import TuistAutomation
 @testable import TuistCore
 @testable import TuistGenerator
+@testable import TuistGraphLoader
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -131,7 +132,7 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
             super.tearDown()
         }
 
-        func test_binaryCacheWarming_returns_default_mappers() throws {
+        func test_binaryCacheWarming_returns_default_mappers() {
             // Given
             subject =
                 CacheWorkspaceMapperFactory(

@@ -19,7 +19,9 @@ enum ProjectDescriptionHelpersBuilderError: FatalError, Equatable {
         }
     }
 
-    var type: ErrorType { .abort }
+    var type: ErrorType {
+        .abort
+    }
 
     static func == (lhs: ProjectDescriptionHelpersBuilderError, rhs: ProjectDescriptionHelpersBuilderError) -> Bool {
         switch (lhs, rhs) {
@@ -185,7 +187,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             let buildTask = Task {
                 let hash = try await projectDescriptionHelpersHasher.hash(helpersDirectory: path)
                 let moduleCacheDirectory = cacheDirectory.appending(component: hash)
-                let dylibName = "lib\(name).dylib"
+                #if os(macOS)
+                    let dylibName = "lib\(name).dylib"
+                #else
+                    let dylibName = "lib\(name).so"
+                #endif
                 let modulePath = moduleCacheDirectory.appending(component: dylibName)
                 let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
 
@@ -237,7 +243,9 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                     try await fileSystem.move(from: stagingDirectory, to: moduleCacheDirectory)
                     stagingDirectoryWasPublished = true
                 } catch {
-                    if try await fileSystem.exists(moduleCacheDirectory) { return module }
+                    if try await fileSystem.exists(moduleCacheDirectory) {
+                        return module
+                    }
                     throw ProjectDescriptionHelpersBuilderError.failedToPublishCache(
                         destination: moduleCacheDirectory,
                         underlying: error
@@ -265,7 +273,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         let files = try await fileSystem.glob(directory: directory, include: ["**/*.swift"]).collect()
 
         var command: [String] = [
-            "/usr/bin/xcrun", "swiftc",
+            "swiftc",
             "-module-name", moduleName,
             "-emit-module",
             "-emit-module-path", outputDirectory.appending(component: "\(moduleName).swiftmodule").pathString,
@@ -274,21 +282,23 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "-suppress-warnings",
             "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
             "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
-            "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,
         ]
+
+        if projectDescriptionSearchPaths.style != .commandLine {
+            command.append(contentsOf: ["-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString])
+        }
 
         let helperModuleCommands = customProjectDescriptionHelperModules
             .flatMap { [
                 "-I", $0.path.parentDirectory.pathString,
                 "-L", $0.path.parentDirectory.pathString,
-                "-F", $0.path.parentDirectory.pathString,
                 "-l\($0.name)",
             ] }
 
         command.append(contentsOf: helperModuleCommands)
 
-        if projectDescriptionSearchPaths.path.extension == "dylib" {
+        if projectDescriptionSearchPaths.style == .commandLine {
             command.append(contentsOf: ["-lProjectDescription"])
         } else {
             command.append(contentsOf: ["-framework", "ProjectDescription"])

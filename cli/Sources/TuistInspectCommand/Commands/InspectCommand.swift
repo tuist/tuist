@@ -9,12 +9,12 @@ public struct InspectCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         var subcommands: [ParsableCommand.Type] = [
             InspectBundleCommand.self,
+            InspectDependenciesCommand.self,
+            InspectImplicitImportsCommand.self,
+            InspectRedundantImportsCommand.self,
         ]
         #if os(macOS)
             subcommands.append(contentsOf: [
-                InspectDependenciesCommand.self,
-                InspectImplicitImportsCommand.self,
-                InspectRedundantImportsCommand.self,
                 InspectBuildCommand.self,
                 InspectTestCommand.self,
             ])

@@ -11,6 +11,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistGenerator
+import TuistGraphLoader
 import TuistLoader
 import TuistLogging
 import TuistPlugin

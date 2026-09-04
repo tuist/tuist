@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) || os(Linux)
     import FileSystem
     import Mockable
     import Path

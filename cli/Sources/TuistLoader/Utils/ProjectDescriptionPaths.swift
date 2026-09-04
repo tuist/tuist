@@ -6,7 +6,7 @@ import Path
 /// A small utility that works out the various search paths needed
 /// for a given `ProjectDescription` library.
 public struct ProjectDescriptionSearchPaths {
-    enum Style {
+    enum Style: Equatable {
         /// `libProjectDescription.dylib` library built via Swift PM in the command line
         ///
         /// `swift build`

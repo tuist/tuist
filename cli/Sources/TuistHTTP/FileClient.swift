@@ -1,6 +1,9 @@
 import FileSystem
 import Foundation
 import Path
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 
 #if canImport(TuistHAR)
     import TuistHAR
@@ -8,8 +11,8 @@ import Path
     import TuistSupport
 #endif
 
-#if canImport(TuistHAR)
-    enum FileClientError: LocalizedError, FatalError {
+#if canImport(TuistHAR) || os(Linux)
+    enum FileClientError: LocalizedError {
         case urlSessionError(URLRequest, Error, AbsolutePath?)
         case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
         case invalidResponse(URLRequest, AbsolutePath?)
@@ -20,23 +23,22 @@ import Path
         var description: String {
             switch self {
             case let .urlSessionError(request, error, path):
-                return "Received a session error\(pathSubstring(path)) when performing \(request.descriptionForError): \(error.localizedDescription)"
+                return "Received a session error\(pathSubstring(path)) when performing \(requestDescription(request)): \(error.localizedDescription)"
             case let .invalidResponse(request, path):
-                return "Received unexpected response from the network when performing \(request.descriptionForError)\(pathSubstring(path))"
+                return "Received unexpected response from the network when performing \(requestDescription(request))\(pathSubstring(path))"
             case let .serverSideError(request, response, path):
-                return "Received error \(response.statusCode) when performing \(request.descriptionForError)\(pathSubstring(path))"
+                return "Received error \(response.statusCode) when performing \(requestDescription(request))\(pathSubstring(path))"
             case let .noLocalURL(request):
-                return "Could not locate on disk the downloaded file after performing \(request.descriptionForError)"
+                return "Could not locate on disk the downloaded file after performing \(requestDescription(request))"
             }
         }
 
-        var type: ErrorType {
-            switch self {
-            case .urlSessionError: return .bug
-            case .serverSideError: return .bug
-            case .invalidResponse: return .bug
-            case .noLocalURL: return .bug
-            }
+        private func requestDescription(_ request: URLRequest) -> String {
+            #if canImport(TuistHAR)
+                request.descriptionForError
+            #else
+                request.description
+            #endif
         }
 
         private func pathSubstring(_ path: AbsolutePath?) -> String {
@@ -46,8 +48,18 @@ import Path
 
         // MARK: - LocalizedError
 
-        var errorDescription: String? { description }
+        var errorDescription: String? {
+            description
+        }
     }
+
+    #if canImport(TuistHAR)
+        extension FileClientError: FatalError {
+            var type: ErrorType {
+                .bug
+            }
+        }
+    #endif
 
     public protocol FileClienting {
         func upload(file: AbsolutePath, hash: String, to url: URL) async throws -> Bool
@@ -80,14 +92,18 @@ import Path
                 let (localUrl, response) = try await session.download(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     let error = FileClientError.invalidResponse(request, nil)
-                    HARRecorder.recordDetached { recorder in
-                        await Self.recordDownloadError(request: request, error: error, recorder: recorder)
-                    }
+                    #if canImport(TuistHAR)
+                        HARRecorder.recordDetached { recorder in
+                            await Self.recordDownloadError(request: request, error: error, recorder: recorder)
+                        }
+                    #endif
                     throw error
                 }
-                HARRecorder.recordDetached { recorder in
-                    await Self.recordDownload(request: request, response: httpResponse, recorder: recorder)
-                }
+                #if canImport(TuistHAR)
+                    HARRecorder.recordDetached { recorder in
+                        await Self.recordDownload(request: request, response: httpResponse, recorder: recorder)
+                    }
+                #endif
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     let downloadedPath = try AbsolutePath(validating: localUrl.path)
                     try await fileSystem.move(from: downloadedPath, to: destination)
@@ -97,9 +113,11 @@ import Path
             } catch let error as FileClientError {
                 throw error
             } catch {
-                HARRecorder.recordDetached { recorder in
-                    await Self.recordDownloadError(request: request, error: error, recorder: recorder)
-                }
+                #if canImport(TuistHAR)
+                    HARRecorder.recordDetached { recorder in
+                        await Self.recordDownloadError(request: request, error: error, recorder: recorder)
+                    }
+                #endif
                 throw FileClientError.urlSessionError(request, error, destination)
             }
         }
@@ -109,31 +127,35 @@ import Path
                 throw FileClientError.noLocalURL(URLRequest(url: url))
             }
             let fileSize = UInt64(metadata.size)
-            let fileData = try Data(contentsOf: file.url)
+            let fileData = try Data(contentsOf: URL(fileURLWithPath: file.pathString))
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
             let session = resolvedSession()
             do {
                 let (_, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     let error = FileClientError.invalidResponse(request, file)
+                    #if canImport(TuistHAR)
+                        HARRecorder.recordDetached { recorder in
+                            await Self.recordUploadError(
+                                request: request,
+                                error: error,
+                                requestBodySize: Int(fileSize),
+                                recorder: recorder
+                            )
+                        }
+                    #endif
+                    throw error
+                }
+                #if canImport(TuistHAR)
                     HARRecorder.recordDetached { recorder in
-                        await Self.recordUploadError(
+                        await Self.recordUpload(
                             request: request,
-                            error: error,
+                            response: httpResponse,
                             requestBodySize: Int(fileSize),
                             recorder: recorder
                         )
                     }
-                    throw error
-                }
-                HARRecorder.recordDetached { recorder in
-                    await Self.recordUpload(
-                        request: request,
-                        response: httpResponse,
-                        requestBodySize: Int(fileSize),
-                        recorder: recorder
-                    )
-                }
+                #endif
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return true
                 } else {
@@ -142,14 +164,16 @@ import Path
             } catch let error as FileClientError {
                 throw error
             } catch {
-                HARRecorder.recordDetached { recorder in
-                    await Self.recordUploadError(
-                        request: request,
-                        error: error,
-                        requestBodySize: Int(fileSize),
-                        recorder: recorder
-                    )
-                }
+                #if canImport(TuistHAR)
+                    HARRecorder.recordDetached { recorder in
+                        await Self.recordUploadError(
+                            request: request,
+                            error: error,
+                            requestBodySize: Int(fileSize),
+                            recorder: recorder
+                        )
+                    }
+                #endif
                 throw FileClientError.urlSessionError(request, error, file)
             }
         }
@@ -170,115 +194,118 @@ import Path
             session ?? .tuistLargeTransfer
         }
 
-        // MARK: - HAR Recording
+        #if canImport(TuistHAR)
 
-        private static func recordDownload(request: URLRequest, response: HTTPURLResponse, recorder: HARRecorder) async {
-            guard let url = request.url else { return }
-            let metadata = await retrieveHARMetadata(for: url)
-            await recorder.recordRequest(
-                request: request,
-                response: response,
-                requestBody: nil,
-                responseBody: nil,
-                startTime: metadata.startTime,
-                endTime: metadata.endTime,
-                timings: metadata.timings,
-                httpVersion: metadata.httpVersion,
-                requestHeadersSize: metadata.requestHeadersSize,
-                responseHeadersSize: metadata.responseHeadersSize
-            )
-        }
+            // MARK: - HAR Recording
 
-        private static func recordDownloadError(request: URLRequest, error: Error, recorder: HARRecorder) async {
-            guard let url = request.url else { return }
-            let metadata = await retrieveHARMetadata(for: url)
-            await recorder.recordError(
-                request: request,
-                error: error,
-                requestBody: nil,
-                startTime: metadata.startTime,
-                endTime: metadata.endTime,
-                timings: metadata.timings,
-                httpVersion: metadata.httpVersion,
-                requestHeadersSize: metadata.requestHeadersSize
-            )
-        }
-
-        private static func recordUpload(
-            request: URLRequest,
-            response: HTTPURLResponse,
-            requestBodySize: Int,
-            recorder: HARRecorder
-        ) async {
-            guard let url = request.url else { return }
-            let metadata = await retrieveHARMetadata(for: url)
-            await recorder.recordRequest(
-                request: request,
-                response: response,
-                requestBody: nil,
-                responseBody: nil,
-                startTime: metadata.startTime,
-                endTime: metadata.endTime,
-                timings: metadata.timings,
-                httpVersion: metadata.httpVersion,
-                requestHeadersSize: metadata.requestHeadersSize,
-                responseHeadersSize: metadata.responseHeadersSize,
-                requestBodySize: requestBodySize
-            )
-        }
-
-        private static func recordUploadError(
-            request: URLRequest,
-            error: Error,
-            requestBodySize: Int,
-            recorder: HARRecorder
-        ) async {
-            guard let url = request.url else { return }
-            let metadata = await retrieveHARMetadata(for: url)
-            await recorder.recordError(
-                request: request,
-                error: error,
-                requestBody: nil,
-                startTime: metadata.startTime,
-                endTime: metadata.endTime,
-                timings: metadata.timings,
-                httpVersion: metadata.httpVersion,
-                requestHeadersSize: metadata.requestHeadersSize,
-                requestBodySize: requestBodySize
-            )
-        }
-
-        private struct HARMetadataResult {
-            let timings: HAR.Timings?
-            let startTime: Date
-            let endTime: Date
-            let httpVersion: String?
-            let requestHeadersSize: Int?
-            let responseHeadersSize: Int?
-        }
-
-        private static func retrieveHARMetadata(for url: URL) async -> HARMetadataResult {
-            guard let metrics = await URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
-                  let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
-            else {
-                let now = Date()
-                return HARMetadataResult(
-                    timings: nil,
-                    startTime: now,
-                    endTime: now,
-                    httpVersion: nil,
-                    requestHeadersSize: nil,
-                    responseHeadersSize: nil
+            private static func recordDownload(request: URLRequest, response: HTTPURLResponse, recorder: HARRecorder) async {
+                guard let url = request.url else { return }
+                let metadata = await retrieveHARMetadata(for: url)
+                await recorder.recordRequest(
+                    request: request,
+                    response: response,
+                    requestBody: nil,
+                    responseBody: nil,
+                    startTime: metadata.startTime,
+                    endTime: metadata.endTime,
+                    timings: metadata.timings,
+                    httpVersion: metadata.httpVersion,
+                    requestHeadersSize: metadata.requestHeadersSize,
+                    responseHeadersSize: metadata.responseHeadersSize
                 )
             }
-            return HARMetadataResult(
-                timings: harMetadata.timings,
-                startTime: harMetadata.startTime,
-                endTime: harMetadata.endTime,
-                httpVersion: harMetadata.httpVersion,
-                requestHeadersSize: harMetadata.requestHeadersSize,
-                responseHeadersSize: harMetadata.responseHeadersSize
-            )
-        }
+
+            private static func recordDownloadError(request: URLRequest, error: Error, recorder: HARRecorder) async {
+                guard let url = request.url else { return }
+                let metadata = await retrieveHARMetadata(for: url)
+                await recorder.recordError(
+                    request: request,
+                    error: error,
+                    requestBody: nil,
+                    startTime: metadata.startTime,
+                    endTime: metadata.endTime,
+                    timings: metadata.timings,
+                    httpVersion: metadata.httpVersion,
+                    requestHeadersSize: metadata.requestHeadersSize
+                )
+            }
+
+            private static func recordUpload(
+                request: URLRequest,
+                response: HTTPURLResponse,
+                requestBodySize: Int,
+                recorder: HARRecorder
+            ) async {
+                guard let url = request.url else { return }
+                let metadata = await retrieveHARMetadata(for: url)
+                await recorder.recordRequest(
+                    request: request,
+                    response: response,
+                    requestBody: nil,
+                    responseBody: nil,
+                    startTime: metadata.startTime,
+                    endTime: metadata.endTime,
+                    timings: metadata.timings,
+                    httpVersion: metadata.httpVersion,
+                    requestHeadersSize: metadata.requestHeadersSize,
+                    responseHeadersSize: metadata.responseHeadersSize,
+                    requestBodySize: requestBodySize
+                )
+            }
+
+            private static func recordUploadError(
+                request: URLRequest,
+                error: Error,
+                requestBodySize: Int,
+                recorder: HARRecorder
+            ) async {
+                guard let url = request.url else { return }
+                let metadata = await retrieveHARMetadata(for: url)
+                await recorder.recordError(
+                    request: request,
+                    error: error,
+                    requestBody: nil,
+                    startTime: metadata.startTime,
+                    endTime: metadata.endTime,
+                    timings: metadata.timings,
+                    httpVersion: metadata.httpVersion,
+                    requestHeadersSize: metadata.requestHeadersSize,
+                    requestBodySize: requestBodySize
+                )
+            }
+
+            private struct HARMetadataResult {
+                let timings: HAR.Timings?
+                let startTime: Date
+                let endTime: Date
+                let httpVersion: String?
+                let requestHeadersSize: Int?
+                let responseHeadersSize: Int?
+            }
+
+            private static func retrieveHARMetadata(for url: URL) async -> HARMetadataResult {
+                guard let metrics = await URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
+                      let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
+                else {
+                    let now = Date()
+                    return HARMetadataResult(
+                        timings: nil,
+                        startTime: now,
+                        endTime: now,
+                        httpVersion: nil,
+                        requestHeadersSize: nil,
+                        responseHeadersSize: nil
+                    )
+                }
+                return HARMetadataResult(
+                    timings: harMetadata.timings,
+                    startTime: harMetadata.startTime,
+                    endTime: harMetadata.endTime,
+                    httpVersion: harMetadata.httpVersion,
+                    requestHeadersSize: harMetadata.requestHeadersSize,
+                    responseHeadersSize: harMetadata.responseHeadersSize
+                )
+            }
+        #endif
     }
-#endif // canImport(TuistHAR)
+#endif // canImport(TuistHAR) || os(Linux)
