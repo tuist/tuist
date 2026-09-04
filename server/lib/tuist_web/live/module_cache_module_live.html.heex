@@ -584,21 +584,24 @@
               if build.scheme == "", do: dgettext("dashboard_cache", "None"), else: build.scheme
             } />
           </:col>
-          <:col :let={build} label={dgettext("dashboard_cache", "Result")}>
-            <.status_badge_cell
-              :if={build.hit == "miss"}
-              label={dgettext("dashboard_cache", "Miss")}
-              status="error"
-            />
-            <.status_badge_cell
-              :if={build.hit == "local"}
-              label={dgettext("dashboard_cache", "Local hit")}
-              status="success"
-            />
-            <.status_badge_cell
+          <:col :let={build} label={dgettext("dashboard_cache", "Hit")}>
+            <.badge_cell
               :if={build.hit == "remote"}
-              label={dgettext("dashboard_cache", "Remote hit")}
-              status="success"
+              label={dgettext("dashboard_cache", "Remote")}
+              color="focus"
+              style="light-fill"
+            />
+            <.badge_cell
+              :if={build.hit == "local"}
+              label={dgettext("dashboard_cache", "Local")}
+              color="secondary"
+              style="light-fill"
+            />
+            <.badge_cell
+              :if={build.hit == "miss"}
+              label={dgettext("dashboard_cache", "Missed")}
+              color="warning"
+              style="light-fill"
             />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>

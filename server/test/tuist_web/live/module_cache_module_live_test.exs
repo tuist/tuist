@@ -108,7 +108,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       |> Floki.find("#module-build-history-table thead th")
       |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
 
-    assert headers == ["Scheme", "Result", "Branch", "Commit SHA", "Why", "Ran at"]
+    assert headers == ["Scheme", "Hit", "Branch", "Commit SHA", "Why", "Ran at"]
 
     # Three builds, newest first: its sources changed, then a remote hit, then
     # the first build on the branch with nothing to compare against.
@@ -128,7 +128,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
         row |> Floki.find("td") |> Enum.at(1) |> Floki.text() |> String.trim()
       end)
 
-    assert results == ["Miss", "Remote hit", "Miss"]
+    assert results == ["Missed", "Remote", "Missed"]
 
     # The short commit sha is what identifies the build to a reader.
     assert html =~ "abcdef1"
@@ -184,7 +184,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     {:ok, lv, _html} = live(conn, base <> "?builds-reason=hit")
     html = render_async(lv, 2000)
     assert build_rows(lv) == 1
-    assert html =~ "Remote hit"
+    assert html =~ "Remote"
 
     # Ran at is sortable, and its header offers the opposite direction.
     href =
