@@ -43,6 +43,8 @@ const CAS_BATCH_READ_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs";
 const CAS_GET_TREE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree";
+pub(super) const BUILD_EVENT_STREAM_PATH: &str =
+    "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
@@ -267,7 +269,9 @@ impl GrpcWriteAdmissionBody {
             return Ok(());
         };
         let shape = match self.policy {
-            GrpcWriteShapePolicy::ByteStream => DecodeShape::default(),
+            GrpcWriteShapePolicy::ByteStream | GrpcWriteShapePolicy::BuildEventStream => {
+                DecodeShape::default()
+            }
             GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
             GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
         };
@@ -393,7 +397,10 @@ pub(super) async fn reject_overloaded_grpc_writes(
 pub(super) fn is_reapi_write_path(path: &str) -> bool {
     matches!(
         path,
-        BYTESTREAM_WRITE_PATH | ACTION_CACHE_UPDATE_PATH | CAS_BATCH_UPDATE_PATH
+        BYTESTREAM_WRITE_PATH
+            | ACTION_CACHE_UPDATE_PATH
+            | CAS_BATCH_UPDATE_PATH
+            | BUILD_EVENT_STREAM_PATH
     )
 }
 
@@ -430,6 +437,7 @@ pub(super) fn grpc_write_shape_policy(path: &str) -> Option<GrpcWriteShapePolicy
         BYTESTREAM_WRITE_PATH => Some(GrpcWriteShapePolicy::ByteStream),
         CAS_BATCH_UPDATE_PATH => Some(GrpcWriteShapePolicy::BatchUpdate),
         ACTION_CACHE_UPDATE_PATH => Some(GrpcWriteShapePolicy::ActionUpdate),
+        BUILD_EVENT_STREAM_PATH => Some(GrpcWriteShapePolicy::BuildEventStream),
         _ => None,
     }
 }
@@ -482,7 +490,8 @@ where
     fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
         let started_at = Instant::now();
         let route = grpc_accounting_route(request.uri().path());
-        let guard = self.state.start_grpc_request();
+        let guard = (request.uri().path() != BUILD_EVENT_STREAM_PATH)
+            .then(|| self.state.start_grpc_request());
         let state = self.state.clone();
         let future = self.inner.call(request);
         Box::pin(async move {

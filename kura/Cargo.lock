@@ -1393,6 +1393,7 @@ dependencies = [
  "opentelemetry_sdk",
  "prometheus-client",
  "prost",
+ "prost-types",
  "rand 0.9.4",
  "rcgen",
  "reqwest 0.12.28",
@@ -1413,6 +1414,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tonic",
+ "tonic-prost",
  "tower",
  "tracing",
  "tracing-opentelemetry",
@@ -2230,6 +2232,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8991c4cbdb8bc5b11f0b074ffe286c30e523de90fee5ba8132f1399f23cb3dd7"
+dependencies = [
+ "prost",
 ]
 
 [[package]]
