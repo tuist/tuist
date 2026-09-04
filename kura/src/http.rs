@@ -1226,7 +1226,10 @@ async fn reject_overloaded_public_writes(
                 "server is shedding writes due to memory pressure",
             );
         }
-        if state.store.outbox_saturated() {
+        if state
+            .store
+            .outbox_saturated(&state.replication_targets().await)
+        {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(
                 &state.metrics,
@@ -7661,7 +7664,10 @@ mod tests {
         let app = public_router(context.state.clone());
 
         assert!(
-            !context.state.store.outbox_saturated(),
+            !context
+                .state
+                .store
+                .outbox_saturated(&context.state.replication_targets().await),
             "the pre-check must admit this write, or the test is not exercising the gap"
         );
 

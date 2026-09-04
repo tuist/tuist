@@ -398,7 +398,7 @@ impl AppState {
             .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
-        self.refresh_outbox_capacity().await;
+        self.refresh_outbox_capacity(discovery_observed).await;
         membership_update
     }
 
@@ -410,15 +410,19 @@ impl AppState {
     /// blip, which empties the discovered set the same way — for as long as
     /// its messages can sit in the queue, so the cap only shrinks behind a
     /// departure whose messages are actually dropped.
-    pub async fn refresh_outbox_capacity(&self) {
+    ///
+    /// `observed` says whether the view behind an empty set was actually
+    /// seen: every discovery target answered, or there were none to ask. An
+    /// unobserved empty set means the node has no peer view (control plane or
+    /// discovery unreachable), not that every peer left — the same reading
+    /// `process_outbox` gives it when it declines to prune — so the last
+    /// derived total holds rather than collapsing to one share under a
+    /// backlog that is not going anywhere. An observed empty set is a mesh
+    /// that really has no peers, and the total returns to one share.
+    pub async fn refresh_outbox_capacity(&self, observed: bool) {
         let mut peers: BTreeSet<String> = self.replication_targets().await.into_iter().collect();
         peers.extend(self.discovered_only_peer_history().await);
-        // An empty set means the node has no peer view (control plane or
-        // discovery unreachable), not that every peer left — the same reading
-        // `process_outbox` gives it when it declines to prune. Hold the last
-        // derived value rather than collapse to one share under a backlog
-        // that is not going anywhere.
-        if peers.is_empty() {
+        if peers.is_empty() && !observed {
             return;
         }
         self.store.set_replication_peer_count(peers.len());
@@ -862,6 +866,19 @@ mod tests {
             context.state.store.outbox_max_depth(),
             20,
             "a lost view keeps the last derived capacity"
+        );
+
+        // F6: an OBSERVED empty view (every discovery target answered, or
+        // there are none) is a mesh that really has no peers, and the
+        // capacity returns to one share instead of freezing.
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            10,
+            "an observed empty mesh drops to the single-share floor"
         );
     }
 

@@ -198,9 +198,10 @@ pub struct Config {
     pub rocksdb_write_buffer_manager_bytes: usize,
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
-    /// A fixed replication outbox cap. Unset, the cap is
-    /// `outbox_max_depth_per_peer` times the current replication target count
-    /// and follows the mesh as peers join and leave.
+    /// A fixed node-wide replication outbox total that replaces the per-peer
+    /// share when set. Unset, each replication target is bounded by
+    /// `outbox_max_depth_per_peer` and the node by that share times the
+    /// current target count, following the mesh as peers join and leave.
     pub outbox_max_depth: Option<usize>,
     pub outbox_max_depth_per_peer: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,

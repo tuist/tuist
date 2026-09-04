@@ -20877,7 +20877,7 @@
               "transformations": []
             }
           },
-          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them, and it is the total that the cap and the public write gate are enforced against.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
+          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them. Since the per-peer share, the write gate sheds on the deepest single target (outbox_target_messages against outbox_peer_capacity) or on the total against outbox_capacity, whichever trips first.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
           "id": 208,
           "links": [],
           "title": "outbox_lane_messages",
@@ -20990,7 +20990,7 @@
               "transformations": []
             }
           },
-          "description": "Replication outbox room: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000) times the pod's replication target count, re-derived on every membership pass; KURA_OUTBOX_MAX_DEPTH pins a fixed total instead. This is the room, not the shed point: the share is enforced per target, so read outbox_target_messages against outbox_peer_capacity to see whether a pod is shedding.\n\nPrometheus name: `kura_outbox_capacity`",
+          "description": "Replication outbox node-wide total: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000) times the pod's replication target count, capped at 1000000, re-derived on every membership pass; KURA_OUTBOX_MAX_DEPTH replaces it with a fixed total. A write is shed when outbox_messages reaches this, or earlier when one target reaches its share (outbox_target_messages against outbox_peer_capacity).\n\nPrometheus name: `kura_outbox_capacity`",
           "id": 209,
           "links": [],
           "title": "outbox_capacity",
@@ -21107,6 +21107,98 @@
           "id": 210,
           "links": [],
           "title": "outbox_target_messages",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-211": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox messages one target peer may hold: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000), or the fixed KURA_OUTBOX_MAX_DEPTH when that replaces the share. A cache write is shed once any of its targets reaches this. Read outbox_target_messages against it.\n\nPrometheus name: `kura_outbox_peer_capacity`",
+          "id": 211,
+          "links": [],
+          "title": "outbox_peer_capacity",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -23200,11 +23292,24 @@
                         "x": 8,
                         "y": 21
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-211"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Peer replication \u0026 outbox (11)"
+              "title": "Peer replication \u0026 outbox (12)"
             }
           },
           {

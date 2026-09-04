@@ -56,8 +56,13 @@ pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 // holds at most one share and the node's total is this times the peer count.
 // A message costs about half a KiB of RocksDB (key plus JSON body), so a
 // share is ~50 MiB on disk; the in-memory cost is a counter per target.
-// KURA_OUTBOX_MAX_DEPTH adds a fixed node-wide total on top when set.
+// KURA_OUTBOX_MAX_DEPTH replaces it with a fixed node-wide total.
 pub const DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER: usize = 100_000;
+// Node-wide ceiling on the outbox, whatever the peer count. The share bounds
+// each peer, but the depth cap is the only bound on the outbox's RocksDB
+// footprint (the free-space guard covers segment rotation, not metadata), so
+// the total must not grow without limit with the mesh: ten shares, ~500 MiB.
+pub const OUTBOX_MAX_DEPTH_CEILING: usize = 1_000_000;
 // Outbox deliveries dispatched before the drain waits for one to finish, and
 // the only throughput knob the bulk lane has: the drain moves roughly this many
 // messages per per-delivery latency. Every artifact enqueues one message per
