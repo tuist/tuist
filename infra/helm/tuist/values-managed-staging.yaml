@@ -359,13 +359,9 @@ clickhouse:
       enabled: true
       name: backfill-repair
       task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-04T01:00:00Z"
-      # A round minute past the moment that rollout completed, so every write
-      # from here on is mirrored and everything before it is copied. The
-      # overlap this leaves is harmless: a chunk clears the destination's rows
-      # for its range before copying them, so the copy is exact rather than
-      # additive.
-      cutoff: "2026-09-03T23:40:00Z"
+      # Past the rollout that carried the retry, so the window those drops
+      # happened in is recopied. Everything written after it is mirrored.
+      cutoff: "2026-09-04T01:30:00Z"
 
 cache:
   extraEnv:
