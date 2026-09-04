@@ -3,6 +3,12 @@
     import TuistEnvKey
     import TuistSupport
 
+    enum DependencyInspectionOutputFormat: String, CaseIterable, ExpressibleByArgument {
+        case text
+        case summary
+        case json
+    }
+
     struct InspectDependenciesCommand: AsyncParsableCommand {
         static var configuration: CommandConfiguration {
             CommandConfiguration(
@@ -26,26 +32,20 @@
         )
         var only: [DependencyInspectionType] = []
 
+        @Option(
+            name: .long,
+            help: "The output format. Available options: \(DependencyInspectionOutputFormat.allCases.map(\.rawValue).joined(separator: ", "))."
+        )
+        var output: DependencyInspectionOutputFormat = .text
+
         @Flag(
             name: .long,
-            help: "Output the result as JSON."
+            help: "Output the result as JSON. Alias for '--output json'."
         )
         var json: Bool = false
 
-        @Flag(
-            name: .long,
-            help: "Output a concise summary grouped by target."
-        )
-        var summary: Bool = false
-
         @OptionGroup
         var loggingOptions: LoggingOptions
-
-        func validate() throws {
-            if json, summary {
-                throw ValidationError("The flags '--json' and '--summary' are mutually exclusive.")
-            }
-        }
 
         func run() async throws {
             let inspectionTypes: Set<DependencyInspectionType> = if only.isEmpty {
@@ -55,7 +55,11 @@
             }
 
             try await InspectDependenciesCommandService()
-                .run(path: path, inspectionTypes: inspectionTypes, json: json, summary: summary)
+                .run(
+                    path: path,
+                    inspectionTypes: inspectionTypes,
+                    output: json ? .json : output
+                )
         }
     }
 #endif

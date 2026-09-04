@@ -1,4 +1,3 @@
-import ArgumentParser
 import Foundation
 import Mockable
 import Path
@@ -35,15 +34,17 @@ struct InspectDependenciesCommandServiceTests {
         )
     }
 
-    @Test
-    func commandRejectsJSONAndSummaryTogether() throws {
-        var command = InspectDependenciesCommand()
-        command.json = true
-        command.summary = true
+    @Test(arguments: [
+        ([], DependencyInspectionOutputFormat.text),
+        (["--output", "summary"], .summary),
+        (["--output", "json"], .json),
+        (["--json"], .json),
+        (["--output", "summary", "--json"], .json),
+    ])
+    func commandSelectsOutputFormat(arguments: [String], expectedOutput: DependencyInspectionOutputFormat) throws {
+        let command = try InspectDependenciesCommand.parse(arguments)
 
-        #expect(throws: ValidationError.self) {
-            try command.validate()
-        }
+        #expect((command.json ? DependencyInspectionOutputFormat.json : command.output) == expectedOutput)
     }
 
     private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
@@ -164,7 +165,7 @@ struct InspectDependenciesCommandServiceTests {
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant], json: true)
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant], output: .json)
         }
 
         // Then
@@ -203,7 +204,7 @@ struct InspectDependenciesCommandServiceTests {
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], json: true)
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .json)
         }
 
         // Then
@@ -226,7 +227,7 @@ struct InspectDependenciesCommandServiceTests {
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], json: true)
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .json)
 
         // Then
         #expect(ui().contains("[\n\n]"))
@@ -269,7 +270,7 @@ struct InspectDependenciesCommandServiceTests {
             try await subject.run(
                 path: path.pathString,
                 inspectionTypes: [.implicit, .redundant],
-                summary: true
+                output: .summary
             )
         }
 
@@ -301,7 +302,7 @@ struct InspectDependenciesCommandServiceTests {
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], summary: true)
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .summary)
         }
 
         // Then
@@ -324,7 +325,7 @@ struct InspectDependenciesCommandServiceTests {
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], summary: true)
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .summary)
 
         // Then
         #expect(ui().contains("No dependency issues found."))

@@ -29,8 +29,7 @@
         func run(
             path: String?,
             inspectionTypes: Set<DependencyInspectionType>,
-            json: Bool = false,
-            summary: Bool = false
+            output: DependencyInspectionOutputFormat = .text
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -58,7 +57,8 @@
                 checksRun.append("redundant")
             }
 
-            if json {
+            switch output {
+            case .json:
                 try Noora.current.json(
                     results(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
                 )
@@ -66,10 +66,7 @@
                 if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
                     throw DependencyInspectionFormattedIssuesFoundError()
                 }
-                return
-            }
-
-            if summary {
+            case .summary:
                 let results = results(implicitIssues: implicitIssues, redundantIssues: redundantIssues)
                 if results.isEmpty {
                     Noora.current.passthrough("No dependency issues found.")
@@ -80,16 +77,16 @@
                     TerminalText(stringLiteral: results.map(\.summary).joined(separator: "\n"))
                 )
                 throw DependencyInspectionFormattedIssuesFoundError()
-            }
+            case .text:
+                if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
+                    throw InspectImportsServiceError.issuesFound(implicit: implicitIssues, redundant: redundantIssues)
+                }
 
-            if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
-                throw InspectImportsServiceError.issuesFound(implicit: implicitIssues, redundant: redundantIssues)
+                Logger.current.log(
+                    level: .info,
+                    "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+                )
             }
-
-            Logger.current.log(
-                level: .info,
-                "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
-            )
         }
 
         private func collectImplicitIssues(graphTraverser: GraphTraverser) async throws -> [InspectImportsIssue] {
