@@ -237,6 +237,11 @@ defmodule Tuist.Release do
   defp with_flag_store(fun) do
     {:ok, result, _apps} =
       Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        # `:phoenix_pubsub` first, and as an application rather than a child.
+        # Its adapter registers itself with a process the application itself
+        # owns, so supervising `Phoenix.PubSub` without it fails with "no
+        # process ... possibly because its application isn't started".
+        {:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
         {:ok, _} = Supervisor.start_link([{Phoenix.PubSub, name: Tuist.PubSub}], strategy: :one_for_one)
         {:ok, _} = Application.ensure_all_started(:fun_with_flags)
 
