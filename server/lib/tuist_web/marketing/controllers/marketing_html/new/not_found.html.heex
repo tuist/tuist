@@ -1,0 +1,72 @@
+<%!-- Redesigned marketing 404, rendered by TuistWeb.ErrorHTML for public
+URLs (marketing pipeline or no matching route) once :new_marketing_not_found
+is on. One centered hero frame on the 1200px page shell, like the feature
+pages' headers: the copy with the way back home, and under it a 400px box
+with a faded "404" in the mono font.
+
+The eyebrow is the page's secret: it shakes now and then, and hovering or
+pressing it turns the whole page — the navbar, this hero, the footer — into
+its own outline view, every box and glyph drawn as a stroke the way Figma's
+outline mode draws them (NotFoundOutline; outline-mode.css). --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-not-found">
+    <section
+      data-part="hero"
+      id="marketing-not-found-hero"
+      phx-hook="NotFoundOutline"
+      aria-labelledby="marketing-not-found-title"
+    >
+      <div data-part="copy">
+        <button
+          type="button"
+          data-part="eyebrow"
+          aria-pressed="false"
+          title={dgettext("marketing", "Show the page's outlines")}
+        >
+          {dgettext("marketing", "Error 404")}
+        </button>
+        <h1 data-part="title" id="marketing-not-found-title">
+          {dgettext("marketing", "Page not found")}
+        </h1>
+        <p data-part="description">
+          {dgettext("marketing", "The page you were looking for doesn't exist or may have moved")}
+        </p>
+        <div data-part="actions">
+          <.button
+            variant="primary"
+            size="large"
+            label={dgettext("marketing", "Back to home")}
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/")}
+          />
+        </div>
+      </div>
+      <%!-- The "404": the mono glyphs are laid out invisibly and the dither
+      canvas (the footer wordmark's recipe) takes their silhouette as its
+      mask, so the figure is the same dissolving particle field as the big
+      tuist wordmark; in outline mode the canvas goes and the glyphs show
+      as strokes. --%>
+      <div data-part="figure" aria-hidden="true">
+        <canvas
+          data-part="figure-dither"
+          id="marketing-not-found-figure-dither"
+          phx-hook="DitherTexture"
+          data-pitch="2"
+          data-dot="2"
+          data-top="0.5"
+          data-bottom="0.7"
+          data-wave="0.5"
+          data-wave-scale="0.5"
+          data-levels="0"
+          data-speed="5.5"
+          data-dither="on"
+          data-opacity="0.7"
+          data-colors="--marketing-illustration-neutral-1,--marketing-illustration-neutral-5"
+          data-mask="#marketing-not-found-figure-text"
+          data-mask-blur="2"
+          data-hover="off"
+        ></canvas>
+        <span data-part="figure-text" id="marketing-not-found-figure-text">404</span>
+      </div>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

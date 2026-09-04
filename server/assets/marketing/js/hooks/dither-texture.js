@@ -52,7 +52,11 @@
  *                    <path>s — whose filled, blurred silhouette multiplies
  *                    the density field, so the shape's edges dissolve into
  *                    dither instead of being clipped hard. Coords are in
- *                    host CSS px unless data-mask-viewbox is set.
+ *                    host CSS px unless data-mask-viewbox is set. An
+ *                    element with no <path>s but text is a text mask: its
+ *                    text is rasterized in its own computed font exactly
+ *                    where the page laid it out (relative to the canvas),
+ *                    once the fonts have loaded.
  *   data-mask-viewbox: "W H" — the mask paths' coordinate space; the
  *                    silhouette is scaled from it to fill the canvas
  *   data-mask-blur:  mask edge softness in px (default 8)
@@ -300,6 +304,7 @@ export const DitherTexture = {
         ? [maskRoot]
         : Array.from(maskRoot.querySelectorAll("path"))
       : [];
+    this.maskTextEl = maskRoot && !this.maskPathEls.length && maskRoot.textContent.trim() ? maskRoot : null;
     const maskViewBox = (data.maskViewbox || "")
       .trim()
       .split(/[\s,]+/)
@@ -376,6 +381,13 @@ export const DitherTexture = {
     this.observer = new ResizeObserver(this.resize);
     this.observer.observe(host);
     this.resize();
+    // A text mask drawn before its webfont arrives would be the fallback
+    // face: build it again once the fonts are in.
+    if (this.maskTextEl && document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        if (this.observer) this.resize();
+      });
+    }
 
     // devicePixelRatio can change without the element changing size — the
     // window moving to a display with a different scale factor, or browser
@@ -554,18 +566,45 @@ export const DitherTexture = {
   // blur them, and keep both an alpha buffer (2D fallback) and a GL texture
   // (shader) of the result.
   buildMask() {
-    if (!this.maskPathEls.length || !this.width || !this.height) return;
+    if ((!this.maskPathEls.length && !this.maskTextEl) || !this.width || !this.height) return;
     const sharp = document.createElement("canvas");
     sharp.width = this.width;
     sharp.height = this.height;
     const sctx = sharp.getContext("2d");
-    if (this.maskViewBox) {
-      sctx.scale(this.width / this.maskViewBox[0], this.height / this.maskViewBox[1]);
-    }
     sctx.fillStyle = "#fff";
-    for (const el of this.maskPathEls) {
-      const d = el.getAttribute("d");
-      if (d) sctx.fill(new Path2D(d));
+    if (this.maskTextEl) {
+      // The text where the page laid it out: the element's box against the
+      // canvas's, its computed font, the em box centered on the line box.
+      const el = this.maskTextEl;
+      const cs = getComputedStyle(el);
+      const own = this.canvas.getBoundingClientRect();
+      sctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      if ("letterSpacing" in sctx) sctx.letterSpacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+      sctx.textAlign = "left";
+      const text = el.textContent.trim();
+      // The text's own content box (a Range, not the element: that is the
+      // line box, whose half-leading would put the glyphs off by the
+      // font's metrics) and the font's ascent give the exact baseline the
+      // browser drew the glyphs on, so the dither sits on them 1:1.
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const box = range.getBoundingClientRect();
+      const ascent = sctx.measureText(text).fontBoundingBoxAscent;
+      if (ascent) {
+        sctx.textBaseline = "alphabetic";
+        sctx.fillText(text, box.left - own.left, box.top - own.top + ascent);
+      } else {
+        sctx.textBaseline = "middle";
+        sctx.fillText(text, box.left - own.left, box.top - own.top + box.height / 2);
+      }
+    } else {
+      if (this.maskViewBox) {
+        sctx.scale(this.width / this.maskViewBox[0], this.height / this.maskViewBox[1]);
+      }
+      for (const el of this.maskPathEls) {
+        const d = el.getAttribute("d");
+        if (d) sctx.fill(new Path2D(d));
+      }
     }
     const blurred = document.createElement("canvas");
     blurred.width = this.width;
