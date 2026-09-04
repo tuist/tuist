@@ -69,19 +69,23 @@ type Rule struct {
 	LastUpdated      string          `json:"last_updated,omitempty"`
 }
 
-// RuleRateLimit mirrors the fields of the Cloudflare rule's ratelimit
-// block the operator actually sets. Fields Cloudflare accepts but the
-// operator doesn't manage (requests_to_origin, score_per_period,
-// score_response_header_name) are deliberately absent: json decoding
-// drops them on the way in, so a dashboard-set value never participates
-// in the reconciler's drift comparison and cannot cause a spurious
-// PATCH loop.
+// RuleRateLimit mirrors Cloudflare's rate-limit block. All fields the
+// API accepts are decoded so adoption of a dashboard-created rule can
+// round-trip settings the operator does not manage (RequestsToOrigin,
+// ScorePerPeriod, ScoreResponseHeaderName). The reconciler's drift
+// comparison is smart about this — see rulesetRuleDiffers — so
+// dashboard-set fields do NOT cause a spurious PATCH loop, but they
+// ARE preserved on the wire when the operator PATCHes for a
+// legitimate CR-driven reason.
 type RuleRateLimit struct {
-	Characteristics    []string `json:"characteristics"`
-	Period             int      `json:"period"`
-	RequestsPerPeriod  int      `json:"requests_per_period"`
-	MitigationTimeout  int      `json:"mitigation_timeout"`
-	CountingExpression string   `json:"counting_expression,omitempty"`
+	Characteristics         []string `json:"characteristics"`
+	Period                  int      `json:"period"`
+	RequestsPerPeriod       int      `json:"requests_per_period"`
+	MitigationTimeout       int      `json:"mitigation_timeout"`
+	CountingExpression      string   `json:"counting_expression,omitempty"`
+	RequestsToOrigin        bool     `json:"requests_to_origin,omitempty"`
+	ScorePerPeriod          int      `json:"score_per_period,omitempty"`
+	ScoreResponseHeaderName string   `json:"score_response_header_name,omitempty"`
 }
 
 // Ruleset is a phase entrypoint ruleset. Only the fields the operator

@@ -93,3 +93,27 @@ spec:
                 observedGeneration: {type: integer, format: int64}
                 message: {type: string}
                 lastReconciledAt: {type: string, format: date-time}
+                # Standard Kubernetes conditions. Ready is what
+                # kstatus-based gating (Flux Kustomization health,
+                # kubectl wait --for=condition=Ready) watches. It is
+                # True only after a successful active reconcile has
+                # applied the current spec — read_only, paused, and
+                # error paths hold Ready=False.
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason]
+                    properties:
+                      type: {type: string, maxLength: 316}
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      observedGeneration: {type: integer, format: int64, minimum: 0}
+                      lastTransitionTime: {type: string, format: date-time}
+                      reason:
+                        type: string
+                        maxLength: 1024
+                      message:
+                        type: string
+                        maxLength: 32768

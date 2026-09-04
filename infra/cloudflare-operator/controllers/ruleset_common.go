@@ -102,13 +102,21 @@ func driveRulesetDelete(
 
 // rulesetRuleDiffers compares only the fields the operator sets on
 // `existing` against `desired`. Server-side bookkeeping (ID, Version,
-// LastUpdated) is ignored. `action_parameters` is compared as a
-// *managed-key* diff: the operator considers drift when any key
-// present on either side of the managed set differs. Cloudflare-
-// added defaults that neither desired nor a previous render set are
-// ignored; keys the operator has stopped setting (which is drift by
-// intent) are detected because both existing and desired are parsed
-// and any operator-owned key present in one and not the other counts.
+// LastUpdated) is ignored.
+//
+// For the rate-limit block the diff is field-by-CR-managed-field: the
+// operator manages Characteristics, Period, RequestsPerPeriod,
+// MitigationTimeout, CountingExpression, and treats a difference in
+// any of those as drift. Fields Cloudflare accepts but the CR does not
+// model (RequestsToOrigin, ScorePerPeriod, ScoreResponseHeaderName)
+// are ignored on comparison, but round-trip verbatim on the wire so
+// an adopted rule keeps them.
+//
+// `action_parameters` is compared symmetrically: keys present on
+// either side but not the other, or with a different value, count as
+// drift. That catches "removed a field from CR" (a real regression
+// the review reproduced) without flapping on Cloudflare-side key
+// ordering.
 func rulesetRuleDiffers(existing, desired *cloudflare.Rule) bool {
 	if existing == nil || desired == nil {
 		return existing != desired
@@ -120,10 +128,27 @@ func rulesetRuleDiffers(existing, desired *cloudflare.Rule) bool {
 		existing.Ref != desired.Ref {
 		return true
 	}
-	if !reflect.DeepEqual(existing.RateLimit, desired.RateLimit) {
+	if !rateLimitManagedEqual(existing.RateLimit, desired.RateLimit) {
 		return true
 	}
 	return !actionParametersEqual(existing.ActionParameters, desired.ActionParameters)
+}
+
+// rateLimitManagedEqual returns true iff the CR-managed rate-limit
+// fields match. Fields Cloudflare stores that the CR does not model
+// are ignored — a dashboard-set RequestsToOrigin does not cause the
+// reconciler to think the CR is out of sync.
+func rateLimitManagedEqual(a, b *cloudflare.RuleRateLimit) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Period != b.Period ||
+		a.RequestsPerPeriod != b.RequestsPerPeriod ||
+		a.MitigationTimeout != b.MitigationTimeout ||
+		a.CountingExpression != b.CountingExpression {
+		return false
+	}
+	return reflect.DeepEqual(a.Characteristics, b.Characteristics)
 }
 
 // actionParametersEqual reports whether two action_parameters blobs

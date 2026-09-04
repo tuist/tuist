@@ -1,27 +1,40 @@
 // Package controllers holds the reconcilers for the Cloudflare
-// operator. The rate-limit reconciler is designed for a safe first
-// production rollout:
+// operator.
 //
-//   - spec.mode defaults to `read_only`: reconciles compute the intended
-//     diff, log it, mirror it into status.proposedChanges, but issue no
-//     Cloudflare writes. This includes ruleset creation and finalizer
-//     cleanup — a CR in read_only mode never touches Cloudflare.
-//   - spec.paused halts the reconcile loop entirely; useful as
-//     break-glass without editing every field.
-//   - spec.adopt.ruleId binds the CR to an existing (e.g. dashboard-
-//     created) rule by its Cloudflare id, so the operator manages that
-//     rule directly instead of creating a duplicate under its own ref.
-//   - spec.createNewRule must be explicitly true for the operator to
-//     POST a brand-new rule; the combination of adopt=nil and
-//     createNewRule=false is a hard refusal, so an accidental
-//     `kubectl apply` cannot spawn a rule alongside a dashboard-managed
-//     one.
-//   - spec.retainOnDelete (default true) leaves the Cloudflare rule
-//     alone on CR deletion. The finalizer drops without a rule delete.
+// Rate-limit reconciler design (safe first deploy):
+//
+//   - spec.mode defaults to read_only; in read_only the operator
+//     computes the intended diff, mirrors it into
+//     status.proposedChanges and status.conditions[Ready]=False
+//     (Reason=ReadOnly), and never issues a Cloudflare write —
+//     including no ruleset creation, no rule delete on finalizer
+//     cleanup, and no delete on an in-flight CR removal.
+//   - spec.paused halts the reconcile loop entirely, including the
+//     delete branch. The finalizer stays; the object sits in
+//     Terminating until spec.paused flips back to false.
+//   - spec.adopt.ruleId is checked before any ruleset-create
+//     decision. If the phase ruleset or the target rule id is
+//     missing the plan fails closed rather than creating a new
+//     ruleset + rule under the operator's ref.
+//   - Adoption preserves the live rule's ref and merges only the
+//     CR-managed fields over the live payload. Cloudflare-stored
+//     fields the operator does not model (extra rate-limit knobs,
+//     future action-parameter keys) round-trip verbatim, so the
+//     first adoption reconcile of a matching dashboard rule is a
+//     real zero-change no-op.
 //   - status.managedZoneId records the zone the rule actually lives
-//     in; the delete path uses this rather than spec.zoneId so a
-//     mutation to spec.zoneId cannot orphan the rule (spec.zoneId is
-//     also declared immutable at the CRD level as a belt-and-braces).
+//     in and the delete path uses it, so a zoneId mutation cannot
+//     orphan a rule even if CRD-level CEL is bypassed.
+//   - status.observedGeneration is only advanced on a successful
+//     active reconcile. read_only, paused, and error paths hold
+//     observedGeneration back, so kstatus consumers (Flux
+//     Kustomization health checks, `kubectl wait`) see the CR as
+//     NotReady until an active reconcile actually applies the
+//     current spec.
+//   - The controller filters status-only updates via a
+//     GenerationChangedPredicate so a status patch does not
+//     re-enqueue the CR and turn the resync interval into a hammer
+//     loop against the Cloudflare API.
 package controllers
 
 import (
@@ -35,8 +48,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	cfv1alpha1 "github.com/tuist/tuist/infra/cloudflare-operator/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
@@ -66,15 +82,24 @@ func (r *CloudflareRateLimitReconciler) Reconcile(ctx context.Context, req ctrl.
 	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	// Paused short-circuits everything, including deletion. The
+	// finalizer stays; a Terminating paused CR sits in place until
+	// paused flips back to false. This is what makes paused a real
+	// break-glass rather than "halt writes on new specs but still
+	// process a delete that has already been queued".
+	if cr.Spec.Paused {
+		logger.V(1).Info("reconcile paused, skipping (including delete branch)")
+		if !cr.DeletionTimestamp.IsZero() {
+			return ctrl.Result{RequeueAfter: resyncOrDefault(r.ResyncInterval)}, r.setNotReady(ctx, cr, cfv1alpha1.ReasonPaused, "paused: delete held", cr.Status.ObservedGeneration)
+		}
+		return ctrl.Result{RequeueAfter: resyncOrDefault(r.ResyncInterval)}, r.setNotReady(ctx, cr, cfv1alpha1.ReasonPaused, "paused", cr.Status.ObservedGeneration)
+	}
+
 	ref := ruleRef(cr)
 
 	if !cr.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, logger, cr, ref)
-	}
-
-	if cr.Spec.Paused {
-		logger.V(1).Info("reconcile paused, skipping")
-		return ctrl.Result{RequeueAfter: resyncOrDefault(r.ResyncInterval)}, nil
 	}
 
 	added, err := ensureFinalizer(ctx, r.Client, cr)
@@ -88,24 +113,24 @@ func (r *CloudflareRateLimitReconciler) Reconcile(ctx context.Context, req ctrl.
 	desired := renderRule(cr, ref)
 	plan, err := r.planReconcile(ctx, cr, desired)
 	if err != nil {
-		_ = writeRateLimitStatus(ctx, r.Client, cr, ref, plan.rulesetID, plan.ruleID, err.Error(), "", cr.Generation)
+		_ = r.writeStatus(ctx, cr, ref, plan.rulesetID, plan.ruleID, err.Error(), "", cfv1alpha1.ReasonReconcileError, metav1.ConditionFalse, cr.Status.ObservedGeneration)
 		return ctrl.Result{}, err
 	}
 
 	mode := cr.Spec.EffectiveMode()
 	if mode == cfv1alpha1.ReconcileModeReadOnly {
 		logger.Info("read_only: would "+plan.action, "rulesetId", plan.rulesetID, "ruleId", plan.ruleID, "ref", ref)
-		if err := writeRateLimitStatus(ctx, r.Client, cr, ref, plan.rulesetID, plan.ruleID, "read_only: "+plan.action, plan.summary, cr.Generation); err != nil {
+		if err := r.writeStatus(ctx, cr, ref, plan.rulesetID, plan.ruleID, "read_only: "+plan.action, plan.summary, cfv1alpha1.ReasonReadOnly, metav1.ConditionFalse, cr.Status.ObservedGeneration); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: resyncOrDefault(r.ResyncInterval)}, nil
 	}
 
 	if err := r.applyPlan(ctx, logger, cr, desired, plan); err != nil {
-		_ = writeRateLimitStatus(ctx, r.Client, cr, ref, plan.rulesetID, plan.ruleID, err.Error(), "", cr.Generation)
+		_ = r.writeStatus(ctx, cr, ref, plan.rulesetID, plan.ruleID, err.Error(), "", cfv1alpha1.ReasonReconcileError, metav1.ConditionFalse, cr.Status.ObservedGeneration)
 		return ctrl.Result{}, err
 	}
-	if err := writeRateLimitStatus(ctx, r.Client, cr, ref, plan.rulesetID, plan.ruleID, plan.action, "", cr.Generation); err != nil {
+	if err := r.writeStatus(ctx, cr, ref, plan.rulesetID, plan.ruleID, plan.action, "", cfv1alpha1.ReasonReconciled, metav1.ConditionTrue, cr.Generation); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: resyncOrDefault(r.ResyncInterval)}, nil
@@ -113,12 +138,11 @@ func (r *CloudflareRateLimitReconciler) Reconcile(ctx context.Context, req ctrl.
 
 // rateLimitPlan is what planReconcile hands back to the executor.
 type rateLimitPlan struct {
-	// operation is one of: create, adopt-noop, update, in-sync.
+	// operation is one of: create, adopt-noop, adopt-update, update,
+	// in-sync.
 	operation string
 
-	// action is a short label suitable for status.message and logs
-	// (e.g. "created", "would create", "updated", "in sync",
-	// "adoption failed: rule id not found").
+	// action is a short label suitable for status.message and logs.
 	action string
 
 	// summary is a longer proposed-changes string used only for
@@ -134,27 +158,26 @@ type rateLimitPlan struct {
 }
 
 // planReconcile figures out what the reconciler would do, without
-// making any Cloudflare writes past the read-only GET. The output is
-// consumed both by read_only mode (to render the plan) and by active
-// mode (to execute it).
+// making any Cloudflare writes past the read-only GET.
+//
+// Adoption is checked before any create branch, so an active
+// adoption CR whose target ruleset or rule is missing fails closed
+// rather than silently creating a new ruleset + rule under the
+// operator's own ref.
 func (r *CloudflareRateLimitReconciler) planReconcile(ctx context.Context, cr *cfv1alpha1.CloudflareRateLimit, desired cloudflare.Rule) (rateLimitPlan, error) {
 	plan := rateLimitPlan{}
 	rs, err := r.CF.GetPhaseRuleset(ctx, cr.Spec.ZoneID, cloudflare.RateLimitPhase)
 	if err != nil {
 		return plan, fmt.Errorf("get ruleset: %w", err)
 	}
-	if rs == nil {
-		// No ruleset yet. In read_only we advertise a create; in
-		// active the executor will POST the ruleset first.
-		plan.operation = "create-ruleset-and-rule"
-		plan.action = "would create ruleset + rule"
-		plan.summary = "phase ruleset absent; would POST ruleset then POST rule"
-		return plan, nil
-	}
-	plan.rulesetID = rs.ID
 
-	// Adoption path: the CR pins a specific Cloudflare rule id.
 	if cr.Spec.Adopt != nil {
+		if rs == nil {
+			plan.operation = "adopt-missing"
+			plan.action = fmt.Sprintf("adoption target %q not found: zone %s has no %s ruleset", cr.Spec.Adopt.RuleID, cr.Spec.ZoneID, cloudflare.RateLimitPhase)
+			return plan, errors.New(plan.action)
+		}
+		plan.rulesetID = rs.ID
 		existing := cloudflare.FindRuleByID(rs, cr.Spec.Adopt.RuleID)
 		if existing == nil {
 			plan.operation = "adopt-missing"
@@ -175,9 +198,22 @@ func (r *CloudflareRateLimitReconciler) planReconcile(ctx context.Context, cr *c
 		return plan, nil
 	}
 
-	// Managed-by-ref path. Existing rule wins the id; new rules
-	// require the explicit CreateNewRule flag to prevent accidental
-	// duplicates.
+	// No-adopt, non-existent ruleset: the operator creates the ruleset
+	// and the rule together, subject to CreateNewRule.
+	if rs == nil {
+		if !cr.Spec.CreateNewRule {
+			plan.operation = "refuse-create"
+			plan.action = "refusing to create: set spec.createNewRule=true or spec.adopt.ruleId"
+			return plan, errors.New(plan.action)
+		}
+		plan.operation = "create-ruleset-and-rule"
+		plan.action = "would create ruleset + rule"
+		plan.summary = "phase ruleset absent; would POST ruleset then POST rule"
+		return plan, nil
+	}
+	plan.rulesetID = rs.ID
+
+	// Managed-by-ref path.
 	existing := cloudflare.FindRuleByRef(rs, desired.Ref)
 	if existing == nil {
 		if !cr.Spec.CreateNewRule {
@@ -244,8 +280,7 @@ func (r *CloudflareRateLimitReconciler) applyPlan(ctx context.Context, logger lo
 // reconcileDelete handles the CR delete path. Behaviour depends on
 // spec.retainOnDelete (default true) and spec.mode. The zone comes
 // from status.managedZoneId when set — that is where the rule
-// actually lives, and using spec.zoneId here would leak a rule if
-// zoneId had been mutated before CEL made it immutable.
+// actually lives.
 func (r *CloudflareRateLimitReconciler) reconcileDelete(ctx context.Context, logger logr.Logger, cr *cfv1alpha1.CloudflareRateLimit, ref string) (ctrl.Result, error) {
 	zone := cr.Status.ManagedZoneID
 	if zone == "" {
@@ -266,9 +301,17 @@ func (r *CloudflareRateLimitReconciler) reconcileDelete(ctx context.Context, log
 	return ctrl.Result{}, removeFinalizerAndPersist(ctx, r.Client, cr)
 }
 
-// writeRateLimitStatus stamps the rate-limit-specific status fields
-// (managedZoneId, mode, proposedChanges) on top of the shared ones.
-func writeRateLimitStatus(ctx context.Context, c client.Client, cr *cfv1alpha1.CloudflareRateLimit, ref, rulesetID, ruleID, message, proposed string, generation int64) error {
+// writeStatus stamps the CR status. observedGeneration only advances
+// when the caller explicitly hands in cr.Generation on success paths;
+// read_only, paused, and error paths hold it back so kstatus sees
+// the CR as NotReady until a real active reconcile applies the spec.
+func (r *CloudflareRateLimitReconciler) writeStatus(
+	ctx context.Context,
+	cr *cfv1alpha1.CloudflareRateLimit,
+	ref, rulesetID, ruleID, message, proposed, reason string,
+	readyStatus metav1.ConditionStatus,
+	observedGeneration int64,
+) error {
 	patch := client.MergeFrom(cr.DeepCopy())
 	cr.Status.Ref = ref
 	cr.Status.RulesetID = rulesetID
@@ -276,27 +319,60 @@ func writeRateLimitStatus(ctx context.Context, c client.Client, cr *cfv1alpha1.C
 	cr.Status.Message = message
 	cr.Status.ProposedChanges = proposed
 	cr.Status.Mode = cr.Spec.EffectiveMode()
-	cr.Status.ObservedGeneration = cr.Generation
-	if cr.Status.ManagedZoneID == "" && cr.Spec.ZoneID != "" {
+	cr.Status.ObservedGeneration = observedGeneration
+	if cr.Status.ManagedZoneID == "" && cr.Spec.ZoneID != "" && readyStatus == metav1.ConditionTrue {
 		// Only stamp on first successful pass; never overwrite so a
 		// zoneId mutation cannot re-point our delete.
 		cr.Status.ManagedZoneID = cr.Spec.ZoneID
 	}
-	_ = generation
 	now := metav1Now()
+	cond := metav1.Condition{
+		Type:               cfv1alpha1.ConditionTypeReady,
+		Status:             readyStatus,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: now,
+		ObservedGeneration: observedGeneration,
+	}
+	setCondition(&cr.Status.Conditions, cond)
 	cr.Status.LastReconciledAt = &now
-	return c.Status().Patch(ctx, cr, patch)
+	return r.Status().Patch(ctx, cr, patch)
+}
+
+// setNotReady is a small helper for the paused branches that write a
+// minimal status update without touching the rule fields.
+func (r *CloudflareRateLimitReconciler) setNotReady(ctx context.Context, cr *cfv1alpha1.CloudflareRateLimit, reason, message string, observedGeneration int64) error {
+	return r.writeStatus(ctx, cr, cr.Status.Ref, cr.Status.RulesetID, cr.Status.RuleID, message, "", reason, metav1.ConditionFalse, observedGeneration)
+}
+
+// setCondition overlays cond onto conds, replacing any existing entry
+// of the same Type. LastTransitionTime is only updated when the
+// status actually changed.
+func setCondition(conds *[]metav1.Condition, cond metav1.Condition) {
+	for i, existing := range *conds {
+		if existing.Type == cond.Type {
+			if existing.Status == cond.Status {
+				cond.LastTransitionTime = existing.LastTransitionTime
+			}
+			(*conds)[i] = cond
+			return
+		}
+	}
+	*conds = append(*conds, cond)
 }
 
 // mergeAdopted takes the live Cloudflare rule as the baseline and
-// overlays only the fields the CR explicitly sets. Fields Cloudflare
-// stores that the operator does not model (things beyond
-// Action/Expression/Description/Enabled/RateLimit) are preserved
-// verbatim, so an adoption reconcile of a dashboard-created rule
-// produces zero drift unless the CR intentionally changes something.
+// overlays only the fields the CR explicitly sets. The adopted rule's
+// Ref is preserved unchanged so a first-adoption reconcile of a
+// dashboard-created rule (whose ref is not the operator's derived
+// one) is not forced into a spurious PATCH. For the rate-limit
+// block, individual CR-managed fields are copied over the live block
+// so Cloudflare-stored fields the operator does not model round-trip
+// verbatim on the wire.
 func mergeAdopted(base, desired cloudflare.Rule) cloudflare.Rule {
 	out := base
-	out.Ref = desired.Ref // ref may be set by adoption
+	// Ref: keep the adopted rule's ref. The operator finds the rule
+	// by id going forward.
 	if desired.Action != "" {
 		out.Action = desired.Action
 	}
@@ -308,7 +384,7 @@ func mergeAdopted(base, desired cloudflare.Rule) cloudflare.Rule {
 	}
 	out.Enabled = desired.Enabled
 	if desired.RateLimit != nil {
-		out.RateLimit = desired.RateLimit
+		out.RateLimit = mergeRateLimit(out.RateLimit, desired.RateLimit)
 	}
 	if len(desired.ActionParameters) > 0 {
 		out.ActionParameters = desired.ActionParameters
@@ -316,9 +392,27 @@ func mergeAdopted(base, desired cloudflare.Rule) cloudflare.Rule {
 	return out
 }
 
+// mergeRateLimit overlays the CR-managed rate-limit fields onto a
+// base block, preserving unmodeled fields the CR does not touch
+// (RequestsToOrigin, ScorePerPeriod, ScoreResponseHeaderName).
+func mergeRateLimit(base, desired *cloudflare.RuleRateLimit) *cloudflare.RuleRateLimit {
+	if base == nil {
+		return desired
+	}
+	if desired == nil {
+		return base
+	}
+	out := *base
+	out.Characteristics = append([]string(nil), desired.Characteristics...)
+	out.Period = desired.Period
+	out.RequestsPerPeriod = desired.RequestsPerPeriod
+	out.MitigationTimeout = desired.MitigationTimeout
+	out.CountingExpression = desired.CountingExpression
+	return &out
+}
+
 // summariseDiff is a compact human-readable diff for status /
-// proposedChanges. Not exhaustive — covers the fields most likely
-// to change and hides the rest so status stays readable.
+// proposedChanges.
 func summariseDiff(existing, desired *cloudflare.Rule) string {
 	if existing == nil {
 		return "would create"
@@ -336,8 +430,11 @@ func summariseDiff(existing, desired *cloudflare.Rule) string {
 	if existing.Enabled != desired.Enabled {
 		fields = append(fields, fmt.Sprintf("enabled: %v -> %v", existing.Enabled, desired.Enabled))
 	}
-	if desired.RateLimit != nil && (existing.RateLimit == nil || !reflect.DeepEqual(existing.RateLimit, desired.RateLimit)) {
+	if !rateLimitManagedEqual(existing.RateLimit, desired.RateLimit) {
 		fields = append(fields, "ratelimit differs")
+	}
+	if !reflect.DeepEqual(existing.RateLimit, desired.RateLimit) && rateLimitManagedEqual(existing.RateLimit, desired.RateLimit) {
+		// managed-equal but object-different means non-modeled fields differ; no drift.
 	}
 	if len(fields) == 0 {
 		return "action_parameters differ"
@@ -349,17 +446,13 @@ func summariseDiff(existing, desired *cloudflare.Rule) string {
 	return out
 }
 
-// ruleRef derives the operator's stable identifier for a CR, used as
-// the Cloudflare rule's Ref so subsequent reconciles find the same
-// rule without a state backend. Must satisfy Cloudflare's regex
-// (^[a-zA-Z0-9_]{1,32}$); see makeRef.
+// ruleRef derives the operator's stable identifier for a CR (used
+// only for non-adopted, operator-created rules).
 func ruleRef(cr *cfv1alpha1.CloudflareRateLimit) string {
 	return makeRef(rateLimitRefPrefix, cr.Name, string(cr.UID))
 }
 
 // renderRule turns a CR into the Cloudflare rule payload we PUT.
-// Kept pure so tests can compare desired output without an API round
-// trip.
 func renderRule(cr *cfv1alpha1.CloudflareRateLimit, ref string) cloudflare.Rule {
 	return cloudflare.Rule{
 		Action:      cr.Spec.Action,
@@ -377,8 +470,39 @@ func renderRule(cr *cfv1alpha1.CloudflareRateLimit, ref string) cloudflare.Rule 
 	}
 }
 
+// SetupWithManager wires the reconciler with a
+// GenerationChangedPredicate on the owned CR type so status-only
+// updates do not re-enqueue. Without this the LastReconciledAt patch
+// on every pass would immediately re-trigger a reconcile and turn
+// ResyncInterval into ~0.
 func (r *CloudflareRateLimitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cfv1alpha1.CloudflareRateLimit{}).
+		For(&cfv1alpha1.CloudflareRateLimit{},
+			builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				annotationOrDeletionChanged(),
+			)),
+		).
 		Complete(r)
+}
+
+// annotationOrDeletionChanged supplements GenerationChangedPredicate so
+// that finalizer/deletion transitions (which do not bump Generation)
+// still enqueue.
+func annotationOrDeletionChanged() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if e.ObjectOld == nil || e.ObjectNew == nil {
+				return false
+			}
+			// Deletion transition.
+			oldDel := e.ObjectOld.GetDeletionTimestamp()
+			newDel := e.ObjectNew.GetDeletionTimestamp()
+			if (oldDel == nil) != (newDel == nil) {
+				return true
+			}
+			// Finalizer transition.
+			return !reflect.DeepEqual(e.ObjectOld.GetFinalizers(), e.ObjectNew.GetFinalizers())
+		},
+	}
 }

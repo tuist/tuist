@@ -146,10 +146,35 @@ type CloudflareRateLimitParameters struct {
 	CountingExpression string `json:"countingExpression,omitempty"`
 }
 
+// Standard condition types this CRD sets on Status.Conditions. The
+// `Ready` condition is what kstatus-based gating (Flux Kustomizations,
+// `kubectl wait --for=condition=Ready`) reads: True only when a
+// reconcile has actually applied the desired state — i.e. the CR is
+// not paused, not sitting in read_only, and the last active pass
+// succeeded.
+const (
+	ConditionTypeReady = "Ready"
+	ConditionTypeMode  = "Mode"
+
+	// Ready condition reasons.
+	ReasonReconciled     = "Reconciled"
+	ReasonReadOnly       = "ReadOnly"
+	ReasonPaused         = "Paused"
+	ReasonReconcileError = "ReconcileError"
+)
+
 // CloudflareRateLimitStatus reports the last reconcile outcome for
 // operator visibility. Cloudflare is the source of truth; this is a
 // summary, not authoritative.
 type CloudflareRateLimitStatus struct {
+	// Conditions carries the machine-readable state — chiefly the
+	// Ready condition kstatus consumers watch. Read `status.message`
+	// only for human-oriented context.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
 	// Ref is the stable identifier the operator sets on the
 	// Cloudflare rule so it can find and update the same rule across
 	// reconciles without a state backend. Empty when the CR adopts
@@ -292,6 +317,12 @@ func (in *CloudflareRateLimitParameters) DeepCopy() *CloudflareRateLimitParamete
 
 func (in *CloudflareRateLimitStatus) DeepCopyInto(out *CloudflareRateLimitStatus) {
 	*out = *in
+	if in.Conditions != nil {
+		out.Conditions = make([]metav1.Condition, len(in.Conditions))
+		for i := range in.Conditions {
+			in.Conditions[i].DeepCopyInto(&out.Conditions[i])
+		}
+	}
 	if in.LastReconciledAt != nil {
 		out.LastReconciledAt = (*in.LastReconciledAt).DeepCopy()
 	}

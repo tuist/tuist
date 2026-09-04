@@ -390,35 +390,236 @@ func TestReconcile_AddsFinalizer(t *testing.T) {
 	}
 }
 
-// TestMergeAdopted_PreservesUnmodeledFields verifies the adoption
-// merge keeps anything the operator does not touch (represented here
-// as ActionParameters on a rate-limit rule, even though rate-limit
-// rules don't typically use it; the field exercises the code path).
-func TestMergeAdopted_PreservesUnmodeledFields(t *testing.T) {
+// TestMergeAdopted_PreservesUnmodeledFieldsAndBaseRef verifies the
+// adoption merge keeps the base rule's ref (dashboard-set, not the
+// operator's derived one) and preserves any Cloudflare-stored fields
+// the CR does not model. This is the fix for Marek's P2 finding:
+// replacing the ref on an adopted rule would force a spurious PATCH
+// on every first-adoption reconcile, breaking the zero-change gate.
+func TestMergeAdopted_PreservesUnmodeledFieldsAndBaseRef(t *testing.T) {
 	base := cloudflare.Rule{
 		ID:               "existing",
+		Ref:              "dashboard-orig-ref",
 		Action:           "log",
 		Expression:       "true",
 		Description:      "was here",
 		Enabled:          true,
 		ActionParameters: json.RawMessage(`{"cf_only":"leave-me"}`),
+		RateLimit: &cloudflare.RuleRateLimit{
+			Characteristics:         []string{"cf.colo.id"},
+			Period:                  10,
+			RequestsPerPeriod:       10,
+			MitigationTimeout:       60,
+			RequestsToOrigin:        true, // unmodeled by CR — must survive
+			ScorePerPeriod:          42,   // unmodeled by CR — must survive
+			ScoreResponseHeaderName: "x-score",
+		},
 	}
 	desired := cloudflare.Rule{
-		Ref:         "cfrl_x",
+		Ref:         "cfrl_operator_derived",
 		Action:      "managed_challenge",
 		Expression:  `(http.request.method eq "GET")`,
 		Description: "op says so",
 		Enabled:     true,
+		RateLimit: &cloudflare.RuleRateLimit{
+			Characteristics:   []string{"cf.colo.id", "ip.src"},
+			Period:            60,
+			RequestsPerPeriod: 100,
+			MitigationTimeout: 60,
+		},
 	}
 	got := mergeAdopted(base, desired)
 	if got.Action != desired.Action {
 		t.Errorf("action not overridden: %s", got.Action)
 	}
-	if got.Ref != desired.Ref {
-		t.Errorf("ref not set: %s", got.Ref)
+	if got.Ref != base.Ref {
+		t.Errorf("ref changed: got %q, want %q (base ref must survive)", got.Ref, base.Ref)
 	}
 	if string(got.ActionParameters) != `{"cf_only":"leave-me"}` {
 		t.Errorf("unmodeled action_parameters lost: %s", got.ActionParameters)
+	}
+	if !got.RateLimit.RequestsToOrigin {
+		t.Error("unmodeled RequestsToOrigin lost")
+	}
+	if got.RateLimit.ScorePerPeriod != 42 {
+		t.Errorf("unmodeled ScorePerPeriod lost: %d", got.RateLimit.ScorePerPeriod)
+	}
+	if got.RateLimit.ScoreResponseHeaderName != "x-score" {
+		t.Errorf("unmodeled ScoreResponseHeaderName lost: %q", got.RateLimit.ScoreResponseHeaderName)
+	}
+	if got.RateLimit.RequestsPerPeriod != 100 {
+		t.Errorf("CR-managed RequestsPerPeriod not applied: %d", got.RateLimit.RequestsPerPeriod)
+	}
+}
+
+// TestReconcile_AdoptFailsClosedWhenRulesetMissing is the regression
+// for Marek's P1 #1: an active adoption CR against a zone whose
+// http_ratelimit ruleset does not exist must fail closed rather than
+// planning create-ruleset-and-rule.
+func TestReconcile_AdoptFailsClosedWhenRulesetMissing(t *testing.T) {
+	cr := sampleActiveCR("uid-adopt-nors")
+	cr.Spec.Adopt = &cfv1alpha1.AdoptRule{RuleID: "dashboard-rule-x"}
+	cr.Spec.CreateNewRule = false
+	cr.Finalizers = []string{finalizer}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: nil} // no ruleset exists yet
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err == nil {
+		t.Fatal("expected adoption to fail when ruleset is missing")
+	}
+	if cf.createCalls != 0 {
+		t.Errorf("must not create ruleset on failed adoption, got %d", cf.createCalls)
+	}
+	if cf.addCalls != 0 {
+		t.Errorf("must not add rule on failed adoption, got %d", cf.addCalls)
+	}
+}
+
+// TestReconcile_PausedStopsDelete is the regression for Marek's P2
+// #4: a CR being deleted while paused must not issue DeleteRule.
+// Paused is documented as break-glass and must halt every side
+// effect, including a delete already queued by kubectl.
+func TestReconcile_PausedStopsDelete(t *testing.T) {
+	cr := sampleActiveCR("uid-paused-del")
+	cr.Spec.Paused = true
+	cr.Spec.RetainOnDelete = false
+	cr.Finalizers = []string{finalizer}
+	now := metav1.NewTime(time.Now().UTC())
+	cr.DeletionTimestamp = &now
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{ID: "rs-1", Rules: []cloudflare.Rule{{ID: "r1", Ref: ruleRef(cr)}}}}
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(cf.deletedRules) != 0 {
+		t.Errorf("paused CR must not delete on CF, got %v", cf.deletedRules)
+	}
+	// Finalizer must still be on the CR: paused means the deletion
+	// is held, not carried out.
+	got := &cfv1alpha1.CloudflareRateLimit{}
+	if err := kClient.Get(context.Background(), types.NamespacedName{Name: cr.Name}, got); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !containsFinalizer(got.Finalizers, finalizer) {
+		t.Error("paused delete must not drop the finalizer")
+	}
+}
+
+// TestReconcile_AdoptZeroChangeWithDashboardRef is the regression for
+// Marek's P2 #5: a live rule with a dashboard-style ref (different
+// from the operator's derived one) whose modeled fields match the
+// CR must be an actual no-op. Previous code forced ref := desired.Ref
+// in mergeAdopted, which made rulesetRuleDiffers report drift.
+func TestReconcile_AdoptZeroChangeWithDashboardRef(t *testing.T) {
+	cr := sampleActiveCR("uid-adopt-dashref")
+	cr.Spec.Adopt = &cfv1alpha1.AdoptRule{RuleID: "dashboard-rule-1"}
+	cr.Spec.CreateNewRule = false
+	cr.Finalizers = []string{finalizer}
+
+	// Live rule: same modeled fields as the CR would render, but a
+	// dashboard-style ref (empty here is the most realistic case for
+	// a rule created via the UI).
+	live := renderRule(cr, "")
+	live.ID = "dashboard-rule-1"
+	live.Ref = "" // dashboard didn't set one
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{ID: "rs-1", Rules: []cloudflare.Rule{live}}}
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.addCalls != 0 || cf.updateCalls != 0 {
+		t.Fatalf("adoption of matching rule must be a zero-change no-op even with mismatched ref: add=%d update=%d", cf.addCalls, cf.updateCalls)
+	}
+}
+
+// TestReconcile_RoundTripsUnmodeledRateLimitFields is the regression
+// for Marek's P1 #2: an active adoption UPDATE (CR changed something)
+// must preserve Cloudflare-stored fields the CR does not model.
+func TestReconcile_RoundTripsUnmodeledRateLimitFields(t *testing.T) {
+	cr := sampleActiveCR("uid-roundtrip")
+	cr.Spec.Adopt = &cfv1alpha1.AdoptRule{RuleID: "dashboard-rule-2"}
+	cr.Spec.CreateNewRule = false
+	cr.Spec.Description = "changed to force update"
+	cr.Finalizers = []string{finalizer}
+
+	live := renderRule(cr, "")
+	live.ID = "dashboard-rule-2"
+	live.Ref = ""
+	live.Description = "original"
+	live.RateLimit.RequestsToOrigin = true
+	live.RateLimit.ScorePerPeriod = 7
+
+	var sent cloudflare.Rule
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{
+		ruleset: &cloudflare.Ruleset{ID: "rs-1", Rules: []cloudflare.Rule{live}},
+		updateRule: func(_ string, rule cloudflare.Rule) (*cloudflare.Ruleset, error) {
+			sent = rule
+			return &cloudflare.Ruleset{ID: "rs-1", Rules: []cloudflare.Rule{rule}}, nil
+		},
+	}
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.updateCalls != 1 {
+		t.Fatalf("expected exactly one UpdateRule call, got %d", cf.updateCalls)
+	}
+	if !sent.RateLimit.RequestsToOrigin {
+		t.Error("PATCH lost unmodeled RequestsToOrigin=true")
+	}
+	if sent.RateLimit.ScorePerPeriod != 7 {
+		t.Errorf("PATCH lost unmodeled ScorePerPeriod: got %d", sent.RateLimit.ScorePerPeriod)
+	}
+	if sent.Description != "changed to force update" {
+		t.Errorf("PATCH did not apply the CR-driven description: %q", sent.Description)
+	}
+}
+
+// TestReconcile_ObservedGenerationOnlyOnSuccess is the regression
+// for Eduardo's kstatus concern: observedGeneration must not catch
+// up to metadata.generation on read_only / paused / failure paths,
+// otherwise a permanently-failing rule reads as Current.
+func TestReconcile_ObservedGenerationOnlyOnSuccess(t *testing.T) {
+	// read_only: observedGeneration stays at 0 even though
+	// metadata.generation is 1 after the initial create.
+	cr := sampleActiveCR("uid-obsgen-ro")
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeReadOnly
+	cr.Finalizers = []string{finalizer}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{ID: "rs-1"}}
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	got := &cfv1alpha1.CloudflareRateLimit{}
+	_ = kClient.Get(context.Background(), types.NamespacedName{Name: cr.Name}, got)
+	if got.Status.ObservedGeneration == got.Generation && got.Generation > 0 {
+		t.Errorf("read_only must NOT advance observedGeneration (got %d, gen %d)", got.Status.ObservedGeneration, got.Generation)
+	}
+	// Ready condition should be False with Reason=ReadOnly.
+	if len(got.Status.Conditions) == 0 {
+		t.Fatal("expected Ready condition to be set")
+	}
+	cond := got.Status.Conditions[0]
+	if cond.Type != cfv1alpha1.ConditionTypeReady || cond.Status != metav1.ConditionFalse || cond.Reason != cfv1alpha1.ReasonReadOnly {
+		t.Errorf("expected Ready=False Reason=ReadOnly, got %+v", cond)
 	}
 }
 
