@@ -112,3 +112,69 @@ subjects:
   - kind: ServiceAccount
     name: flux-diff
     namespace: org-tuist
+---
+# `flux diff kustomization` reads the in-cluster Kustomization to resolve the
+# source and reconciliation settings before building. Without this the diff
+# fails with Forbidden, which the workflow's `|| true` would have swallowed —
+# reporting "no changes" for a job that never ran. Cluster-scoped read (rather
+# than a Role in flux-system) because that namespace does not exist until
+# bootstrap, and these objects carry no secret material.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-diff-kustomization-read
+rules:
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["gitrepositories"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-diff-kustomization-read
+roleRef:
+  kind: ClusterRole
+  name: flux-diff-kustomization-read
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: flux-diff
+    namespace: org-tuist
+---
+# RBAC CANNOT express "may only preview". Kubernetes authorizes a dry-run write
+# exactly like a real one, so the create/update/patch grants above would let any
+# PR-controlled workflow drop `--dry-run=server` and mutate live Clusters — e.g.
+# scale a production worker pool — before review. The narrow verbs are necessary
+# but not sufficient; admission is where the dry-run restriction is enforceable.
+#
+# This denies any non-dry-run write to a Cluster from the flux-diff identity.
+# Applying stays Flux's alone, which is the property the whole design depends on.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: flux-diff-dry-run-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cluster.x-k8s.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusters"]
+  matchConditions:
+    - name: only-the-flux-diff-identity
+      expression: "request.userInfo.username == 'system:serviceaccount:org-tuist:flux-diff'"
+  validations:
+    - expression: "has(request.dryRun) && request.dryRun"
+      message: "flux-diff may only issue dry-run writes; applying is Flux's alone"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: flux-diff-dry-run-only
+spec:
+  policyName: flux-diff-dry-run-only
+  validationActions: ["Deny"]

@@ -350,16 +350,34 @@ max by (cluster) (
 - Pending period: 15 minutes
 - Summary: `{{ $value }} live Cluster(s) are absent from git (stale)`
 
-### Reconciliation-check telemetry missing
+### Reconciliation checks stopped running
+
+The CronJob pushes to a Pushgateway, which is a **store, not a scrape target**:
+once a value is pushed it is served indefinitely, so `absent()` /
+`absent_over_time()` on the gauges can never fire even if the job has been dead
+for days. Alert on the age of the completion stamp instead.
+
+```promql
+time() - max by (cluster) (
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}
+) > 5400
+```
+
+- Pending period: 0 minutes
+- Summary: `Orphan-server / stale-cluster checks have not completed for {{ $value | humanizeDuration }} (CronJob failing, or Pushgateway lost its store)`
+
+Threshold is 3× the 30-minute schedule, so a single missed run does not page.
+The companion `absent_over_time(...)` on the same series still catches the
+distinct case where the Pushgateway is redeployed and comes back empty:
 
 ```promql
 absent_over_time(
-  capi_reconciliation_orphan_servers{cluster="tuist-management"}[30m]
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}[1h]
 )
 ```
 
 - Pending period: 0 minutes
-- Summary: `Orphan-server / stale-cluster reconciliation telemetry is missing (CronJob or Pushgateway down)`
+- Summary: `Reconciliation-check telemetry absent entirely (Pushgateway reset or never scraped)`
 
 ### Cluster API admission webhook failing (fleet-wide write freeze)
 

@@ -65,6 +65,11 @@ jobs:
           install_args: "--locked kubectl"
           cache: "false"
       - uses: fluxcd/flux2/action@v2.9.5
+        with:
+          # The action ref pins the action's code; its `version` input defaults
+          # to the LATEST Flux release. Pin it explicitly so the CLI matches the
+          # controllers committed in infra/flux/mgmt/flux-system/.
+          version: 2.9.5
       - uses: 1password/install-cli-action@v2
       - name: Load flux-diff kubeconfig from 1Password
         id: kubeconfig
@@ -100,6 +105,7 @@ jobs:
           changed=$(git diff --name-only "$base"...HEAD -- infra/k8s/clusters/workloads \
             | sed -n 's#^infra/k8s/clusters/workloads/\([^/]*\)/.*#\1#p' | sort -u)
           out="$(mktemp)"
+          failed="$(mktemp)"
           if [ -z "$changed" ]; then
             echo "_No workload Cluster manifests changed._" > "$out"
           else
@@ -108,13 +114,28 @@ jobs:
               [ -d "$dir" ] || continue
               echo "### \`$c\`" >> "$out"
               echo '```diff' >> "$out"
-              # Server-side dry-run apply of this cluster's Kustomization
-              # build against live. Non-zero exit just means "there is a
-              # diff" (or the Kustomization is new), so don't fail the step.
-              flux diff kustomization "cluster-$c" --path="./$dir" >> "$out" 2>&1 || true
+              # Server-side dry-run apply of this cluster's Kustomization build
+              # against live. A non-zero exit here is AMBIGUOUS: `flux diff`
+              # exits non-zero both when there is a diff (the normal, expected
+              # case) and when it failed outright. So the exit code cannot gate
+              # the step — but swallowing it with a bare `|| true` is how a job
+              # that never ran reports "no changes". Capture, render, then scan
+              # for failure signatures and surface them loudly below.
+              step_out="$(mktemp)"
+              flux diff kustomization "cluster-$c" --path="./$dir" >"$step_out" 2>&1 || true
+              cat "$step_out" >> "$out"
+              if grep -qiE 'forbidden|is not authorized|no matches for kind|failed to|unable to|connection refused|unauthorized' "$step_out"; then
+                echo "$c" >> "$failed"
+              fi
               echo '```' >> "$out"
               echo >> "$out"
             done
+          fi
+          # A missing Kustomization is expected until Flux is bootstrapped, so
+          # it is reported but does not fail the job; anything else does.
+          if [ -s "$failed" ]; then
+            echo "::error::flux diff could not complete for: $(tr '\n' ' ' < "$failed")"
+            echo "diff_failed=true" >> "$GITHUB_OUTPUT"
           fi
           {
             echo 'body<<FLUXEOF'

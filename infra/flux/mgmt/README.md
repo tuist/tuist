@@ -75,41 +75,49 @@ Pre-flight first — it is non-mutating and confirms the cluster can host Flux:
 flux check --pre
 ```
 
-Then bootstrap. The App credentials live in the `FLUX_GITHUB_APP` item in
-`tuist-k8s-mgmt` (fields `app_id` / `installation_id`, plus the
-`private-key.pem` attachment):
+Then bootstrap. **`flux bootstrap github` does not accept GitHub App flags** —
+verified against 2.9.5, which offers only `--token` / `--token-auth` (a PAT) or
+`--private-key-file` (an SSH deploy key). GitHub App authentication in Flux is a
+property of the *`GitRepository`* resource, not of the bootstrap CLI. So the two
+are split deliberately:
+
+- **Bootstrap** authenticates with a short-lived PAT (`repo` scope), used once
+  and never stored. It only needs to push `flux-system/` and create the deploy
+  credential.
+- **Ongoing source access** uses the GitHub App, via `spec.provider: github` on
+  the committed `GitRepository` plus the App fields ESO syncs into the
+  `flux-system` secret. That is what rotates.
 
 ```bash
-export FLUX_GITHUB_APP_ID=$(op read --account tuist.1password.com \
-  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/app_id")
-export FLUX_GITHUB_APP_INSTALLATION_ID=$(op read --account tuist.1password.com \
-  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/installation_id")
-op read --account tuist.1password.com \
-  "op://tuist-k8s-mgmt/FLUX_GITHUB_APP/private-key.pem" \
-  --out-file ./flux-app.pem && chmod 600 ./flux-app.pem
+export GITHUB_TOKEN=<short-lived PAT with repo scope>
 
 flux bootstrap github \
   --owner=tuist \
   --repository=tuist \
   --branch=main \
   --path=infra/flux/mgmt \
-  --app-id="$FLUX_GITHUB_APP_ID" \
-  --app-installation-id="$FLUX_GITHUB_APP_INSTALLATION_ID" \
-  --app-private-key-file=./flux-app.pem
+  --token-auth
 
-rm -f ./flux-app.pem
+unset GITHUB_TOKEN
 ```
+
+Immediately afterwards, hand source authentication over to the App:
+
+```bash
+kubectl apply -f ../../k8s/mgmt/flux-git-externalsecret.yaml
+kubectl -n flux-system annotate gitrepository flux-system \
+  reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite
+```
+
+Between bootstrap and that ESO sync the `GitRepository` will briefly report an
+auth failure: the committed manifest already declares `provider: github`, so
+source-controller looks for App fields the secret does not have until ESO fills
+them in. It self-heals on the next reconcile — confirm with
+`flux get sources git flux-system`.
 
 The root Kustomization in `gotk-sync.yaml` (path `./infra/flux/mgmt`) then
 reconciles the per-cluster `Kustomization` CRs in this directory, and Flux
 tracks and upgrades itself from git thereafter.
-
-Then wire credential rotation, so the App key is ESO-synced rather than frozen
-at whatever bootstrap wrote:
-
-```bash
-kubectl apply -f ../../k8s/mgmt/flux-git-externalsecret.yaml
-```
 
 Verify — expect `flux-system` Ready plus one Kustomization per cluster:
 

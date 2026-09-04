@@ -9,8 +9,10 @@
 #       (removed from git but still running under CAPI with valid Machine
 #       owners, so the orphan check can't see them). "Managed by Flux" is
 #       read straight from the Flux Kustomization inventories, so the check
-#       stays correct with no separate list to maintain. `tuist-preview` is
-#       excluded — it is git-managed outside Flux by mgmt-cluster-apply.yml.
+#       stays correct with no separate list to maintain. `tuist-preview` and
+#       `tuist-pentest` are excluded — they are git-managed outside Flux by
+#       mgmt-cluster-apply.yml, so they never appear in a Flux inventory and
+#       would otherwise report as permanently stale.
 #
 # A CronJob can't be scraped directly, so it pushes two gauges to a tiny
 # Pushgateway that alloy-metrics scrapes (annotationAutodiscovery) into
@@ -193,7 +195,10 @@ spec:
 
                   # (b) Stale clusters: live Clusters not in any Flux
                   # Kustomization inventory (i.e. removed from git but still
-                  # running), excluding the non-Flux-managed preview cluster.
+                  # running). Clusters that are git-managed OUTSIDE Flux by
+                  # mgmt-cluster-apply.yml are never in that inventory, so they
+                  # must be excluded or they report as permanently stale. Keep
+                  # this in step with the flat clusters/cluster-*.yaml set.
                   git_clusters=$(kubectl get kustomizations.kustomize.toolkit.fluxcd.io \
                     -n flux-system -o json \
                     | jq -r '.items[].status.inventory.entries[]?.id' \
@@ -201,12 +206,18 @@ spec:
                   stale=0
                   for c in $(kubectl get clusters.cluster.x-k8s.io -A \
                       -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
-                    [ "$c" = "tuist-preview" ] && continue
+                    case "$c" in tuist-preview|tuist-pentest) continue ;; esac
                     echo "$git_clusters" | grep -qx "$c" || stale=$((stale + 1))
                   done
 
                   echo "orphan_servers=$orphans stale_clusters=$stale"
-                  printf '# TYPE capi_reconciliation_orphan_servers gauge\ncapi_reconciliation_orphan_servers %s\n# TYPE capi_reconciliation_stale_clusters gauge\ncapi_reconciliation_stale_clusters %s\n' \
-                    "$orphans" "$stale" \
+                  # The completion timestamp is what makes a STOPPED CronJob
+                  # detectable. Pushgateway is a store, not a scrape target that
+                  # goes away: once these gauges are pushed it keeps serving the
+                  # last values indefinitely, so `absent()`/`absent_over_time()`
+                  # can never fire. Alerting is on the age of this stamp instead
+                  # (see alerts.md).
+                  printf '# TYPE capi_reconciliation_orphan_servers gauge\ncapi_reconciliation_orphan_servers %s\n# TYPE capi_reconciliation_stale_clusters gauge\ncapi_reconciliation_stale_clusters %s\n# TYPE capi_reconciliation_last_success_timestamp_seconds gauge\ncapi_reconciliation_last_success_timestamp_seconds %s\n' \
+                    "$orphans" "$stale" "$(date +%s)" \
                     | curl -sf --data-binary @- \
                       "$PUSHGW/metrics/job/reconciliation-checks"

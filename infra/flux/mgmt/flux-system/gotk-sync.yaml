@@ -6,6 +6,10 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
+  # Without `provider: github`, source-controller treats the secret as generic
+  # basic-auth and silently ignores the GitHub App fields ESO syncs into it —
+  # rotating the App would then not rotate what Flux actually uses.
+  provider: github
   ref:
     branch: main
   secretRef:
