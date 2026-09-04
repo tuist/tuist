@@ -27,7 +27,10 @@ struct VolumeSpaceTests {
 
         let space = try #require(VolumeSpace.read(at: neverCreated))
 
-        #expect(space == VolumeSpace.read(at: directory))
+        // `totalBytes` identifies the volume and does not move; `freeBytes` is a live reading that any
+        // unrelated write on the machine can change between two calls, so it is not comparable across them.
+        #expect(space.totalBytes == VolumeSpace.read(at: directory)?.totalBytes)
+        #expect(space.freeBytes > 0)
     }
 
     @Test func isExhaustedTracksTheThreshold() {

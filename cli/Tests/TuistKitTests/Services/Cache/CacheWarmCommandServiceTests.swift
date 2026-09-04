@@ -4,6 +4,7 @@
     import Foundation
     import Mockable
     import Path
+    import Synchronization
     import Testing
     import TuistAutomation
     import TuistCache
@@ -199,7 +200,7 @@
 
                     // macOS is built last, so what it sees is the peak the whole command has to fit on disk.
                     if productsDirectoryName == "Debug" {
-                        recorder.iOSOutputAtLastBuild = [
+                        recorder.recordIOSOutputAtLastBuild([
                             derivedDataPath.appending(components: ["Build", "Products", "Debug-iphonesimulator"]),
                             derivedDataPath.appending(components: ["Build", "Products", "Debug-iphoneos"]),
                             derivedDataPath.appending(components: [
@@ -208,12 +209,12 @@
                                 "Fixtures.build",
                                 "Debug-iphonesimulator",
                             ]),
-                        ].filter { fileManager.fileExists(atPath: $0.pathString) }
+                        ].filter { fileManager.fileExists(atPath: $0.pathString) })
                     }
 
                     let index = try #require(passthroughXcodeBuildArguments.firstIndex(of: "-resultBundlePath"))
                     let resultBundlePath = try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
-                    recorder.resultBundlePaths.append(resultBundlePath)
+                    recorder.recordResultBundle(resultBundlePath)
 
                     for directory in [
                         resultBundlePath,
@@ -251,9 +252,24 @@
             }
         }
 
-        private final class BuildRecorder: @unchecked Sendable {
-            var iOSOutputAtLastBuild: [AbsolutePath]?
-            var resultBundlePaths: [AbsolutePath] = []
+        private final class BuildRecorder: Sendable {
+            private struct State {
+                var iOSOutputAtLastBuild: [AbsolutePath]?
+                var resultBundlePaths: [AbsolutePath] = []
+            }
+
+            private let state = Mutex(State())
+
+            func recordIOSOutputAtLastBuild(_ paths: [AbsolutePath]) {
+                state.withLock { $0.iOSOutputAtLastBuild = paths }
+            }
+
+            func recordResultBundle(_ path: AbsolutePath) {
+                state.withLock { $0.resultBundlePaths.append(path) }
+            }
+
+            var iOSOutputAtLastBuild: [AbsolutePath]? { state.withLock { $0.iOSOutputAtLastBuild } }
+            var resultBundlePaths: [AbsolutePath] { state.withLock { $0.resultBundlePaths } }
         }
 
         private func run(
