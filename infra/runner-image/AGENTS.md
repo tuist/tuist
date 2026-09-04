@@ -273,8 +273,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
-  client, built from `cas-plugin/` by the image workflow the same way
-  `runner-shell-agent` is. `cas_proxy_client` prefers the binary beside the tuist
+  client, built from `cas-plugin/` alongside `runner-shell-agent` by
+  `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
+  `runner.pkr.hcl` is a MANDATORY input and the template has two callers
+  (`runner-image.yml` and `server-production-deployment.yml`'s
+  `runner-image-build`), so a binary built in only one fails the other with
+  `Bad source` — on the release path that takes down the whole cascade. Add new
+  provisioned binaries to that action, not to a workflow. `cas_proxy_client` prefers the binary beside the tuist
   that `tuist setup cache` installed (it matches the proxy actually running,
   which is what a drain must talk to) and falls back to this one. It exists
   because a plain `xcodebuild` workflow never runs Tuist, so it installs no

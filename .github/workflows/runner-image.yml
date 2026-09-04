@@ -50,10 +50,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: infra/runner-image/go.mod
-
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
@@ -69,39 +65,12 @@ jobs:
 
       - uses: ./.github/actions/reclaim-tart-disk
 
-      - name: Build runner shell agent
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
-
-      # The Rust toolchain the cas-plugin needs, resolved from cas-plugin/mise.toml
-      # rather than pinned here (single source of truth, matching cli-build-publish).
-      - uses: jdx/mise-action@v4.0.1
+      # Every binary runner.pkr.hcl provisions, built the same way the
+      # production cascade builds them — see the action for why it is shared.
+      - uses: ./.github/actions/build-runner-image-binaries
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: rust
-          working_directory: cas-plugin
-          cache: "false"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # The image's last-resort CAS prune client. A plain `xcodebuild` workflow
-      # never runs Tuist, so it installs no cas-proxy of its own — and without a
-      # binary here nothing on the machine can bound the compilation cache those
-      # jobs write, which is how the per-account cache volume filled every ~2
-      # days. Native arm64: the guest is Apple Silicon macOS, like this builder,
-      # so no universal binary is needed (the CLI bundle builds one because it
-      # ships to developer machines; this copy never leaves the image).
-      #
-      # Built FROM the crate directory, as mise/tasks/cli/bundle.sh does, so mise
-      # resolves the toolchain from cas-plugin/mise.toml rather than the root's.
-      - name: Build CAS prune client
-        run: |
-          set -euo pipefail
-          (cd cas-plugin && cargo build --release --bin tuist-cas-proxy)
-          install -m 0755 cas-plugin/target/release/tuist-cas-proxy \
-            infra/runner-image/build/tuist-cas-proxy
+          mise-version: ${{ env.MISE_VERSION }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         id: build
