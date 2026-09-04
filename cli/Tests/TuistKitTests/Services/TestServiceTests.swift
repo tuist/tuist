@@ -739,9 +739,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(runsCacheDirectory)
 
         let firstResultBundlePath = runsCacheDirectory
-            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeOne")
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeOne.xcresult")
         let secondResultBundlePath = runsCacheDirectory
-            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeTwo")
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeTwo.xcresult")
 
         // When
         try await testRun(
@@ -3269,7 +3269,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let expectedResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: "run-id", Constants.resultBundleName)
+                .appending(components: "run-id", "\(Constants.resultBundleName).xcresult")
 
         given(generator)
             .generateWithGraph(path: .any, options: .any)

@@ -423,6 +423,19 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
+  # Dedicated HTTP origin for Bazel build events. Bazel Build Event Service
+  # traffic terminates at Kura, which forwards normalized events only to the
+  # authenticated server webhook exposed by this ingress.
+  bazelEvents:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations:
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
   resources: {}
   extraEnv: []
   # Additional env from Secrets or ConfigMaps. List of objects with
@@ -433,11 +446,22 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
-  # Cloudflare Turnstile protects self-service browser registration on hosted
-  # deployments. Its site and secret keys are synced from the TURNSTILE
-  # 1Password item only when this switch is on.
-  turnstile:
-    enabled: false
+  # Browser real user monitoring. Set collectorUrl to the endpoint the browser
+  # posts Grafana Faro payloads to; a same-origin path keeps the request free of
+  # CORS and leaves the Content Security Policy untouched. Empty disables it and
+  # ships no browser telemetry at all.
+  faro:
+    collectorUrl: ""
+    # In-cluster address of the Faro receiver. Setting it renders an
+    # ExternalName Service plus a dedicated Ingress that routes collectorUrl's
+    # path at it, which is what keeps the collector same-origin with the site.
+    # That Ingress rewrites to /collect, the only path Alloy's faro.receiver
+    # serves. ingress-nginx rejects an Ingress that claims a host and path
+    # another Ingress already defines, so collectorUrl has to be a path no
+    # other Ingress on the host lists, and it cannot be moved onto or off the
+    # server Ingress in the same upgrade that renders it here.
+    receiverHost: ""
+    receiverPort: 12347
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:
@@ -568,8 +592,8 @@ server:
           clientId: client_id
           clientSecret: client_secret
   # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
-  # OAuth/OIDC provider keys, the Mailgun API key, PostHog, Loops, the ClickHouse
-  # URL, Plain, the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # OAuth/OIDC provider keys, the Mailgun API key, the ClickHouse URL,
+  # the cache API key, and the Phoenix/Cloak/Guardian secret keys)
   # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
   # env var names, mounted via envFrom. This is what lets managed envs drop
   # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P
@@ -590,11 +614,6 @@ server:
       role: tuist_ops_readonly
       existingSecret: ""
       passwordKey: password
-    # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
-    # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
-    # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
-    posthog:
-      enabled: true
     # Newsletter signups go to Atlas, which is our own deployment. Only the
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.
@@ -2203,12 +2222,25 @@ runnersFleetLinux:
   # runner container. 0 disables it.
   idleTimeoutSeconds: 300
   # Linux Kata sandbox admission is shared across every pool using this
-  # fleet selector. Keeping only four sandboxes in the pre-poller start
-  # phase prevents a queue spike from asking both bare-metal kubelets to
-  # boot dozens of virtual machines at once. Per-pool / per-shape values
-  # override these defaults; the controller enforces the lowest sibling maximum.
+  # fleet selector. The budget is per node and the controller multiplies
+  # it by the fleet's healthy node count: what a start burst threatens is
+  # one kubelet and one Kata runtime, so the limit belongs per host, and
+  # expressing it fleet-wide meant adding machines raised capacity without
+  # raising start throughput. A cordoned or NotReady node takes its share
+  # of the budget with it. Per-pool / per-shape values override these
+  # defaults; the controller enforces the lowest sibling maximum.
+  #
+  # 6 per node. The fleet's fill rate is this budget divided by sandbox
+  # boot time, so it is what bounds how fast queued Linux work can start.
+  # Three per node ran saturated on 2026-09-03 (737 admission refusals in
+  # ten minutes) while the four hosts sat at 0-17% CPU and 1-37% memory,
+  # and boots completed in 82s to 3m37s with no start timeouts, so there
+  # was headroom on both the hosts and the 300s budget. Raise it further
+  # only against `tuist_runners_pool_pod_start_timeouts_total`: boot time
+  # climbing toward startTimeoutSeconds is the fleet saying a host is
+  # being asked to bring up too many microVMs at once.
   provisioning:
-    maxConcurrentPerFleetSelector: 4
+    maxConcurrentPerNode: 6
     # Starts after the scheduler binds the Pod to a node. 0 disables.
     startTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
@@ -2249,7 +2281,7 @@ runnersFleetLinux:
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
     #   provisioning:
-    #     maxConcurrentPerFleetSelector: 4
+    #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300
     #   autoscaling:
     #     enabled: true

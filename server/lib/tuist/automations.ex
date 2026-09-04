@@ -328,10 +328,23 @@ defmodule Tuist.Automations do
   Resolving the latest status per test case already makes those retries
   invisible, without a separate hash aggregation over event identifiers.
   """
-  def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+  def list_active_alert_events(alert_or_id, test_case_ids \\ nil)
+
+  # Callers holding the alert already carry the generation the events are
+  # scoped to, so taking it off the struct skips a lookup that the evaluation
+  # worker would otherwise repeat for every range it evaluates.
+  def list_active_alert_events(%Alert{id: alert_id, baseline_generation: baseline_generation}, test_case_ids) do
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  def list_active_alert_events(alert_id, test_case_ids) do
     baseline_generation =
       Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
 
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, test_case_ids) do
     AlertEvent
     |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
     |> filter_alert_events_by_test_case_ids(test_case_ids)

@@ -40,8 +40,25 @@ defmodule TuistOpsWeb.PolicyController do
 
   Resolved by the user's Tailscale role (Owner / Admin / Member,
   looked up via `TuistOps.JIT.TailscaleClient.user_role/1`) plus
-  any `:active` Elevation row in `tailscale_jit_elevations` for
-  (user, env). See `resolve/2` for the full decision table.
+  the env's write tier. Envs flagged by
+  `TuistOps.JIT.Policy.always_write_env?/1` (staging) hand their
+  write group to every engineering identity unconditionally;
+  every other env needs an `:active` Elevation row in
+  `tailscale_jit_elevations` for (user, env). See `resolve/2` for
+  the full decision table.
+
+  Staging barely reaches this endpoint any more. Because its tier
+  needs no per-request lookup, staging kubectl goes straight over
+  the tailnet to Tailscale's API server proxy, which impersonates
+  from `tailscale.com/cap/kubernetes` ACL grants without calling
+  us (see `infra/helm/tailscale-operator/values-staging.yaml`).
+  `kube-staging.tuist.dev` still routes here as an off-tailnet
+  fallback, so the staging branches stay — and must stay in step
+  with those grants, which are the other half of the same
+  decision. One behavioural difference is known and deliberate:
+  the ACL's `autogroup:member` is role-agnostic, so a non-
+  engineering tailnet role (Auditor, Billing admin) that this
+  module denies outright is admitted on the tailnet path.
 
   ## Reachability + trust boundary
 
@@ -113,7 +130,7 @@ defmodule TuistOpsWeb.PolicyController do
           base_groups == [] ->
             {:deny, "role #{inspect(role)} has no cluster access tier"}
 
-          active_elevation?(subject, env) and elevated_allowed?(role, env) ->
+          write_access?(subject, env) and elevated_allowed?(role, env) ->
             {:allow, subject, base_groups ++ [env_write_group(env)]}
 
           true ->
@@ -135,6 +152,12 @@ defmodule TuistOpsWeb.PolicyController do
   defp base_impersonate_groups(role) when role in [:owner, :admin], do: ["tuist-admins"]
   defp base_impersonate_groups(:member), do: ["tuist-eng"]
   defp base_impersonate_groups(_), do: []
+
+  # Staging's write tier is standing access; canary and production
+  # need a live elevation row behind it.
+  defp write_access?(subject, env) do
+    Policy.always_write_env?(env) or active_elevation?(subject, env)
+  end
 
   defp env_write_group("staging"), do: "tuist-staging-write"
   defp env_write_group("canary"), do: "tuist-canary-write"

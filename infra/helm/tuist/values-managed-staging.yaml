@@ -61,12 +61,6 @@ server:
 
   replicaCount: 1
 
-  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
-  config:
-    posthog:
-      enabled: false
-
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
   # them to Grafana Cloud Tempo. Logs follow a different path — the server
@@ -255,6 +249,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  bazelEvents:
+    enabled: true
+    host: build-staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   autoscaling:
     enabled: false

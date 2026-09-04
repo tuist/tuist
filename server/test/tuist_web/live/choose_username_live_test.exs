@@ -7,8 +7,6 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
-  alias TuistWeb.RateLimit.Registration
-  alias TuistWeb.Turnstile
 
   describe "Choose username page" do
     test "redirects to login when session has no pending_oauth_signup", %{conn: conn} do
@@ -76,66 +74,6 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
   end
 
   describe "username selection" do
-    test "asks the user to reload when the session token is missing", %{conn: conn} do
-      email = "oauth-missing-session-#{System.unique_integer([:positive])}@example.com"
-
-      oauth_data = %{
-        "provider" => "google",
-        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
-        "email" => email,
-        "provider_organization_id" => nil,
-        "oauth_return_url" => nil
-      }
-
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-      stub(Registration, :hit, fn _session_token -> {:error, :missing_session} end)
-      reject(&Turnstile.verify/2)
-
-      {:ok, lv, _html} =
-        conn
-        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
-        |> live(~p"/users/choose-username")
-
-      html =
-        lv
-        |> form("#choose-username-form", %{"account" => %{"name" => "missingsession"}, "cf-turnstile-response" => ""})
-        |> render_submit()
-
-      assert html =~ "Your session has expired"
-      assert {:error, :not_found} = Accounts.get_user_by_email(email)
-    end
-
-    test "does not create an OAuth user when the security check is rejected", %{conn: conn} do
-      email = "oauth-rejected-#{System.unique_integer([:positive])}@example.com"
-
-      oauth_data = %{
-        "provider" => "google",
-        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
-        "email" => email,
-        "provider_organization_id" => nil,
-        "oauth_return_url" => nil
-      }
-
-      stub(Turnstile, :required?, fn -> true end)
-      stub(Turnstile, :site_key, fn -> "site-key" end)
-      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
-      stub(Turnstile, :verify, fn _token, [expected_action: "oauth_signup"] -> {:error, :rejected} end)
-
-      {:ok, lv, _html} =
-        conn
-        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
-        |> live(~p"/users/choose-username")
-
-      html =
-        lv
-        |> form("#choose-username-form", %{"account" => %{"name" => "oauthrejected"}})
-        |> render_submit()
-
-      assert html =~ "Please complete the security check and try again."
-      assert {:error, :not_found} = Accounts.get_user_by_email(email)
-    end
-
     test "creates user and redirects to complete-signup on valid username", %{conn: conn} do
       oauth_data = %{
         "provider" => "google",

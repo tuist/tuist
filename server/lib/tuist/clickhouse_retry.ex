@@ -10,6 +10,14 @@ defmodule Tuist.ClickHouseRetry do
   half-dead socket surface as `:timeout`. Both clear within
   milliseconds and are safe to retry on idempotent reads/writes.
 
+  `with_result_retry/2` additionally retries ClickHouse's memory-limit
+  error (code 241). Both the per-user budget and the process-wide ceiling
+  raise it, and both clear on their own once the queries holding the
+  memory finish, so the write is worth re-attempting rather than failing
+  the caller. The code is matched directly: the message wording differs
+  between the two limits and has changed across ClickHouse releases, so
+  matching on it silently stops recognising the error.
+
   Used by `Tuist.IngestRepo` (writes: `insert`, `insert_all`, `all`)
   and `Tuist.ClickHouseRepo` (reads: `all`, `one`, `aggregate`,
   `exists?`, `preload`, `query`, `query!`) so every wired Repo call
@@ -21,7 +29,7 @@ defmodule Tuist.ClickHouseRetry do
   require Logger
 
   @max_retries 3
-  @max_user_memory_retries 8
+  @max_memory_retries 8
 
   def with_retry(fun, retries_left \\ @max_retries) do
     fun.()
@@ -43,31 +51,29 @@ defmodule Tuist.ClickHouseRetry do
 
   def with_result_retry(fun, opts \\ []) do
     transport_retries = Keyword.get(opts, :transport_retries, @max_retries)
-    user_memory_retries = Keyword.get(opts, :user_memory_retries, @max_user_memory_retries)
+    memory_retries = Keyword.get(opts, :memory_retries, @max_memory_retries)
 
-    with_result_retry(fun, transport_retries, transport_retries, user_memory_retries, user_memory_retries)
+    with_result_retry(fun, transport_retries, transport_retries, memory_retries, memory_retries)
   end
 
-  def user_memory_limit_error?(%Ch.Error{code: 241, message: message}) do
-    String.contains?(message, "for user")
-  end
+  def memory_limit_error?(%Ch.Error{code: 241}), do: true
 
-  def user_memory_limit_error?(_error), do: false
+  def memory_limit_error?(_error), do: false
 
   defp with_result_retry(
          fun,
          transport_retries_left,
          initial_transport_retries,
-         user_memory_retries_left,
-         initial_user_memory_retries
+         memory_retries_left,
+         initial_memory_retries
        ) do
     case fun.() do
       {:error, %Ch.Error{} = error} = result ->
-        if user_memory_limit_error?(error) and user_memory_retries_left > 0 do
-          delay = retry_delay(initial_user_memory_retries, user_memory_retries_left, 2_000)
+        if memory_limit_error?(error) and memory_retries_left > 0 do
+          delay = retry_delay(initial_memory_retries, memory_retries_left, 2_000)
 
           Logger.warning(
-            "ClickHouse user memory budget is busy, retrying in #{delay}ms (#{user_memory_retries_left} retries left)"
+            "ClickHouse is over its memory budget, retrying in #{delay}ms (#{memory_retries_left} retries left)"
           )
 
           Process.sleep(delay)
@@ -76,8 +82,8 @@ defmodule Tuist.ClickHouseRetry do
             fun,
             transport_retries_left,
             initial_transport_retries,
-            user_memory_retries_left - 1,
-            initial_user_memory_retries
+            memory_retries_left - 1,
+            initial_memory_retries
           )
         else
           result
@@ -90,8 +96,8 @@ defmodule Tuist.ClickHouseRetry do
           error,
           transport_retries_left,
           initial_transport_retries,
-          user_memory_retries_left,
-          initial_user_memory_retries
+          memory_retries_left,
+          initial_memory_retries
         )
 
       {:error, error} = result when is_struct(error, DBConnection.ConnectionError) ->
@@ -101,8 +107,8 @@ defmodule Tuist.ClickHouseRetry do
           error,
           transport_retries_left,
           initial_transport_retries,
-          user_memory_retries_left,
-          initial_user_memory_retries
+          memory_retries_left,
+          initial_memory_retries
         )
 
       result ->
@@ -116,8 +122,8 @@ defmodule Tuist.ClickHouseRetry do
          error,
          transport_retries_left,
          initial_transport_retries,
-         user_memory_retries_left,
-         initial_user_memory_retries
+         memory_retries_left,
+         initial_memory_retries
        ) do
     if transport_retries_left > 0 do
       delay = retry_delay(initial_transport_retries, transport_retries_left)
@@ -132,8 +138,8 @@ defmodule Tuist.ClickHouseRetry do
         fun,
         transport_retries_left - 1,
         initial_transport_retries,
-        user_memory_retries_left,
-        initial_user_memory_retries
+        memory_retries_left,
+        initial_memory_retries
       )
     else
       result
