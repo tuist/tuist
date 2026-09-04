@@ -10,6 +10,8 @@ defmodule TuistWeb.ChooseUsernameLive do
   alias TuistWeb.SignupProtection
   alias TuistWeb.Turnstile
 
+  require Logger
+
   @impl true
   def mount(_params, session, socket) do
     case session["pending_oauth_signup"] do
@@ -171,6 +173,8 @@ defmodule TuistWeb.ChooseUsernameLive do
     do: socket |> assign(:turnstile_ready?, true) |> assign(:turnstile_error, nil)
 
   defp apply_turnstile_state(socket, "unavailable") do
+    log_turnstile_failure(:unavailable, "oauth_signup")
+
     socket
     |> assign(:turnstile_ready?, false)
     |> assign(
@@ -183,6 +187,8 @@ defmodule TuistWeb.ChooseUsernameLive do
   end
 
   defp apply_turnstile_state(socket, "error") do
+    log_turnstile_failure(:error, "oauth_signup")
+
     socket
     |> assign(:turnstile_ready?, false)
     |> assign(
@@ -192,6 +198,22 @@ defmodule TuistWeb.ChooseUsernameLive do
   end
 
   defp apply_turnstile_state(socket, _state), do: assign(socket, :turnstile_ready?, false)
+
+  # Server-side evidence for the failure classes the widget produces before
+  # the user ever clicks Continue. See the twin in user_registration_live.ex
+  # for the full rationale.
+  defp log_turnstile_failure(state, action) do
+    Logger.warning("Turnstile widget reported #{state} on #{action}",
+      turnstile_state: state,
+      turnstile_action: action
+    )
+
+    :telemetry.execute(
+      [:tuist, :turnstile, :failure],
+      %{count: 1},
+      %{state: state, action: action}
+    )
+  end
 
   defp choose_username(username, socket) do
     username = String.trim(username)

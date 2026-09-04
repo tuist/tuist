@@ -12,6 +12,8 @@ defmodule TuistWeb.UserRegistrationLive do
   alias TuistWeb.SignupProtection
   alias TuistWeb.Turnstile
 
+  require Logger
+
   def render(assigns) do
     ~H"""
     <.noora_registration {assigns} />
@@ -373,6 +375,8 @@ defmodule TuistWeb.UserRegistrationLive do
     do: socket |> assign(:turnstile_ready?, true) |> assign(:turnstile_error, nil)
 
   defp apply_turnstile_state(socket, "unavailable") do
+    log_turnstile_failure(:unavailable, "email_signup")
+
     socket
     |> assign(:turnstile_ready?, false)
     |> assign(
@@ -385,6 +389,8 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   defp apply_turnstile_state(socket, "error") do
+    log_turnstile_failure(:error, "email_signup")
+
     socket
     |> assign(:turnstile_ready?, false)
     |> assign(
@@ -394,6 +400,26 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   defp apply_turnstile_state(socket, _state), do: assign(socket, :turnstile_ready?, false)
+
+  # Server-side evidence for the failure classes the widget produces before
+  # the user ever clicks Sign up. Turnstile.verify/2's existing warnings only
+  # fire once the token reaches siteverify, which never happens when the
+  # widget itself is broken. Logging + telemetry here mean a silent widget
+  # failure (script blocked, live_navigate stripping the load, challenge
+  # errored out) leaves a countable trail regardless of whether the user
+  # tries to submit or bounces.
+  defp log_turnstile_failure(state, action) do
+    Logger.warning("Turnstile widget reported #{state} on #{action}",
+      turnstile_state: state,
+      turnstile_action: action
+    )
+
+    :telemetry.execute(
+      [:tuist, :turnstile, :failure],
+      %{count: 1},
+      %{state: state, action: action}
+    )
+  end
 
   defp save_user(user_params, socket) do
     case user_params
