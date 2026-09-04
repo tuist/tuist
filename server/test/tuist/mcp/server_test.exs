@@ -43,6 +43,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_xcode_build_issues" in tool_names
       assert "list_xcode_build_cache_tasks" in tool_names
       assert "list_xcode_build_cas_outputs" in tool_names
+      assert "list_bazel_invocations" in tool_names
+      assert "get_bazel_invocation" in tool_names
+      assert "list_bazel_invocation_logs" in tool_names
+      assert "get_bazel_invocation_log" in tool_names
+      assert "list_bazel_cache_events" in tool_names
+      assert "get_bazel_cache_event" in tool_names
       assert "list_test_runs" in tool_names
       assert "list_test_module_runs" in tool_names
       assert "list_test_suite_runs" in tool_names
@@ -70,7 +76,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.24.0"
+      assert server.version == "1.25.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

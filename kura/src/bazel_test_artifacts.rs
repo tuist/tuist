@@ -1,9 +1,10 @@
 //! Best-effort delivery of Bazel's conventional test artifacts to Tuist.
 //!
-//! The cache request only enqueues digest metadata after an action-cache result
-//! has been read or written. This worker reads and forwards the artifact later, under a
-//! strict size cap and a background memory reservation, so a slow control
-//! plane can never delay or inflate a cache write.
+//! The Build Event Protocol handler only enqueues target metadata and artifact
+//! digests. This worker reads and forwards the artifacts later, under a strict
+//! size cap and a background memory reservation. Result admission never waits;
+//! only the small invocation-completion marker applies bounded backpressure so
+//! accepted results are processed in order.
 
 use std::{sync::Arc, time::Duration};
 
@@ -33,20 +34,61 @@ const MAX_BAZEL_TEST_ARTIFACT_QUEUE_DEPTH: usize = 64;
 
 #[derive(Clone)]
 pub struct BazelTestArtifactDelivery {
-    sender: mpsc::Sender<BazelTestArtifact>,
+    sender: mpsc::Sender<DeliveryEvent>,
     metrics: Metrics,
 }
 
 #[derive(Clone, Debug)]
-pub struct BazelTestArtifact {
+pub struct BazelTestResult {
     pub account_handle: String,
     pub project_handle: String,
     pub invocation_id: String,
     pub target_label: String,
-    pub action_digest: String,
+    pub run: i32,
+    pub shard: i32,
+    pub attempt: i32,
+    pub status: &'static str,
+    pub duration_ms: u64,
+    pub started_at_ms: u64,
+    pub cached: bool,
+    pub is_ci: bool,
+    pub sequence_number: i64,
+    pub artifacts: Vec<BazelTestArtifact>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BazelTestInvocationFinished {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub invocation_id: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct BazelTestSummary {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub invocation_id: String,
+    pub target_label: String,
+    pub status: &'static str,
+    pub total_run_count: i32,
+    pub total_num_cached: i32,
+    pub duration_ms: u64,
+    pub started_at_ms: u64,
+    pub finished_at_ms: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct BazelTestArtifact {
     pub artifact_kind: BazelTestArtifactKind,
     pub digest: String,
     pub size: u64,
+}
+
+#[derive(Clone, Debug)]
+enum DeliveryEvent {
+    TestResult(BazelTestResult),
+    TestSummary(BazelTestSummary),
+    InvocationFinished(BazelTestInvocationFinished),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,15 +125,52 @@ struct Runtime {
 }
 
 #[derive(Serialize)]
-struct Payload<'a> {
+struct TestResultPayload<'a> {
+    event_kind: &'static str,
     account_handle: &'a str,
     project_handle: &'a str,
     invocation_id: &'a str,
     target_label: &'a str,
-    action_digest: &'a str,
+    run: i32,
+    shard: i32,
+    attempt: i32,
+    status: &'a str,
+    duration_ms: u64,
+    started_at_ms: u64,
+    cached: bool,
+    is_ci: bool,
+    sequence_number: i64,
+    artifacts: Vec<ArtifactPayload<'a>>,
+}
+
+#[derive(Serialize)]
+struct ArtifactPayload<'a> {
     artifact_kind: &'a str,
     digest: &'a str,
     content_base64: String,
+}
+
+#[derive(Serialize)]
+struct InvocationFinishedPayload<'a> {
+    event_kind: &'static str,
+    account_handle: &'a str,
+    project_handle: &'a str,
+    invocation_id: &'a str,
+}
+
+#[derive(Serialize)]
+struct TestSummaryPayload<'a> {
+    event_kind: &'static str,
+    account_handle: &'a str,
+    project_handle: &'a str,
+    invocation_id: &'a str,
+    target_label: &'a str,
+    status: &'a str,
+    total_run_count: i32,
+    total_num_cached: i32,
+    duration_ms: u64,
+    started_at_ms: u64,
+    finished_at_ms: u64,
 }
 
 impl BazelTestArtifactDelivery {
@@ -133,15 +212,9 @@ impl BazelTestArtifactDelivery {
     }
 
     /// Queues metadata only. This deliberately never waits for I/O, memory, or
-    /// webhook capacity on the action-cache path.
-    pub fn enqueue(&self, artifact: BazelTestArtifact) {
-        if artifact.size == 0 || artifact.size > MAX_BAZEL_TEST_ARTIFACT_BYTES {
-            self.metrics
-                .record_analytics_event("bazel_test_artifact", "skipped_size", 1);
-            return;
-        }
-
-        match self.sender.try_send(artifact) {
+    /// webhook capacity on the build-event stream.
+    pub fn enqueue_test_result(&self, test_result: BazelTestResult) {
+        match self.sender.try_send(DeliveryEvent::TestResult(test_result)) {
             Ok(()) => {
                 self.metrics
                     .record_analytics_event("bazel_test_artifact", "enqueued", 1);
@@ -152,22 +225,75 @@ impl BazelTestArtifactDelivery {
             }
         }
     }
-}
 
-impl Runtime {
-    async fn run(self, mut receiver: mpsc::Receiver<BazelTestArtifact>) {
-        while let Some(artifact) = receiver.recv().await {
-            self.deliver(artifact).await;
+    pub fn enqueue_test_summary(&self, test_summary: BazelTestSummary) {
+        match self
+            .sender
+            .try_send(DeliveryEvent::TestSummary(test_summary))
+        {
+            Ok(()) => {
+                self.metrics
+                    .record_analytics_event("bazel_test_summary", "enqueued", 1);
+            }
+            Err(_) => {
+                self.metrics
+                    .record_analytics_event("bazel_test_summary", "dropped", 1);
+            }
         }
     }
 
-    async fn deliver(&self, artifact: BazelTestArtifact) {
+    /// Queues a completion marker behind every accepted result for the same
+    /// invocation. Waiting for bounded queue capacity preserves ordering
+    /// without allocating beyond the configured delivery budget.
+    pub async fn enqueue_invocation_finished(&self, invocation: BazelTestInvocationFinished) {
+        match self
+            .sender
+            .send(DeliveryEvent::InvocationFinished(invocation))
+            .await
+        {
+            Ok(()) => {
+                self.metrics.record_analytics_event(
+                    "bazel_test_artifact_completion",
+                    "enqueued",
+                    1,
+                );
+            }
+            Err(_) => {
+                self.metrics
+                    .record_analytics_event("bazel_test_artifact_completion", "dropped", 1);
+            }
+        }
+    }
+}
+
+impl Runtime {
+    async fn run(self, mut receiver: mpsc::Receiver<DeliveryEvent>) {
+        while let Some(event) = receiver.recv().await {
+            match event {
+                DeliveryEvent::TestResult(test_result) => {
+                    self.deliver_test_result(test_result).await;
+                }
+                DeliveryEvent::TestSummary(test_summary) => {
+                    self.deliver_test_summary(test_summary).await;
+                }
+                DeliveryEvent::InvocationFinished(invocation) => {
+                    self.deliver_invocation_finished(invocation).await;
+                }
+            }
+        }
+    }
+
+    async fn deliver_test_result(&self, test_result: BazelTestResult) {
         // Hold the reservation until the raw bytes, base64 payload, serialized
         // request, and retry clone have all been released. The largest live
         // representation is bounded by the artifact size plus four expanded
         // or serialized copies.
-        let reservation_bytes = artifact
-            .size
+        let artifact_bytes = test_result
+            .artifacts
+            .iter()
+            .map(|artifact| artifact.size)
+            .sum::<u64>();
+        let reservation_bytes = artifact_bytes
             .saturating_mul(5)
             .saturating_add(DELIVERY_MEMORY_OVERHEAD_BYTES);
         let _reservation = match self
@@ -183,19 +309,37 @@ impl Runtime {
             }
         };
 
-        let Some(bytes) = self.read_artifact(&artifact).await else {
-            return;
-        };
+        let mut artifacts = Vec::with_capacity(test_result.artifacts.len());
+        for artifact in &test_result.artifacts {
+            let Some(bytes) = self
+                .read_artifact(&test_result.project_handle, artifact)
+                .await
+            else {
+                continue;
+            };
+            artifacts.push(ArtifactPayload {
+                artifact_kind: artifact.artifact_kind.as_str(),
+                digest: &artifact.digest,
+                content_base64: STANDARD.encode(bytes),
+            });
+        }
 
-        let payload = Payload {
-            account_handle: &artifact.account_handle,
-            project_handle: &artifact.project_handle,
-            invocation_id: &artifact.invocation_id,
-            target_label: &artifact.target_label,
-            action_digest: &artifact.action_digest,
-            artifact_kind: artifact.artifact_kind.as_str(),
-            digest: &artifact.digest,
-            content_base64: STANDARD.encode(bytes),
+        let payload = TestResultPayload {
+            event_kind: "test_result",
+            account_handle: &test_result.account_handle,
+            project_handle: &test_result.project_handle,
+            invocation_id: &test_result.invocation_id,
+            target_label: &test_result.target_label,
+            run: test_result.run,
+            shard: test_result.shard,
+            attempt: test_result.attempt,
+            status: test_result.status,
+            duration_ms: test_result.duration_ms,
+            started_at_ms: test_result.started_at_ms,
+            cached: test_result.cached,
+            is_ci: test_result.is_ci,
+            sequence_number: test_result.sequence_number,
+            artifacts,
         };
         let body = match serde_json::to_vec(&payload) {
             Ok(body) => body,
@@ -207,6 +351,60 @@ impl Runtime {
             }
         };
 
+        self.post(body).await;
+    }
+
+    async fn deliver_test_summary(&self, test_summary: BazelTestSummary) {
+        let payload = TestSummaryPayload {
+            event_kind: "test_summary",
+            account_handle: &test_summary.account_handle,
+            project_handle: &test_summary.project_handle,
+            invocation_id: &test_summary.invocation_id,
+            target_label: &test_summary.target_label,
+            status: test_summary.status,
+            total_run_count: test_summary.total_run_count,
+            total_num_cached: test_summary.total_num_cached,
+            duration_ms: test_summary.duration_ms,
+            started_at_ms: test_summary.started_at_ms,
+            finished_at_ms: test_summary.finished_at_ms,
+        };
+        let body = match serde_json::to_vec(&payload) {
+            Ok(body) => body,
+            Err(error) => {
+                warn!("failed to encode Bazel test summary payload: {error}");
+                self.metrics
+                    .record_analytics_event("bazel_test_summary", "encode_error", 1);
+                return;
+            }
+        };
+
+        self.post(body).await;
+    }
+
+    async fn deliver_invocation_finished(&self, invocation: BazelTestInvocationFinished) {
+        let payload = InvocationFinishedPayload {
+            event_kind: "invocation_finished",
+            account_handle: &invocation.account_handle,
+            project_handle: &invocation.project_handle,
+            invocation_id: &invocation.invocation_id,
+        };
+        let body = match serde_json::to_vec(&payload) {
+            Ok(body) => body,
+            Err(error) => {
+                warn!("failed to encode Bazel test artifact completion payload: {error}");
+                self.metrics.record_analytics_event(
+                    "bazel_test_artifact_completion",
+                    "encode_error",
+                    1,
+                );
+                return;
+            }
+        };
+
+        self.post(body).await;
+    }
+
+    async fn post(&self, body: Vec<u8>) {
         for attempt in 0..DELIVERY_ATTEMPTS {
             let started_at = std::time::Instant::now();
             let response = self
@@ -272,31 +470,35 @@ impl Runtime {
         }
     }
 
-    async fn read_artifact(&self, artifact: &BazelTestArtifact) -> Option<Vec<u8>> {
+    async fn read_artifact(
+        &self,
+        project_handle: &str,
+        artifact: &BazelTestArtifact,
+    ) -> Option<Vec<u8>> {
         let key = blob_key(&format!("{}/{}", artifact.digest, artifact.size));
-        let manifest = match self.store.manifest_for_key(
-            ArtifactProducer::Reapi,
-            &artifact.project_handle,
-            &key,
-        ) {
-            Ok(Some(manifest)) if manifest.size == artifact.size => manifest,
-            Ok(Some(_)) => {
-                self.metrics
-                    .record_analytics_event("bazel_test_artifact", "size_mismatch", 1);
-                return None;
-            }
-            Ok(None) => {
-                self.metrics
-                    .record_analytics_event("bazel_test_artifact", "missing", 1);
-                return None;
-            }
-            Err(error) => {
-                warn!("failed to resolve Bazel test artifact manifest: {error}");
-                self.metrics
-                    .record_analytics_event("bazel_test_artifact", "read_error", 1);
-                return None;
-            }
-        };
+        let manifest =
+            match self
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, project_handle, &key)
+            {
+                Ok(Some(manifest)) if manifest.size == artifact.size => manifest,
+                Ok(Some(_)) => {
+                    self.metrics
+                        .record_analytics_event("bazel_test_artifact", "size_mismatch", 1);
+                    return None;
+                }
+                Ok(None) => {
+                    self.metrics
+                        .record_analytics_event("bazel_test_artifact", "missing", 1);
+                    return None;
+                }
+                Err(error) => {
+                    warn!("failed to resolve Bazel test artifact manifest: {error}");
+                    self.metrics
+                        .record_analytics_event("bazel_test_artifact", "read_error", 1);
+                    return None;
+                }
+            };
 
         match self
             .store

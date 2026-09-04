@@ -7,15 +7,19 @@ does not expose a second Build Event Service listener.
 
 ## Test artifacts
 
-- Kura recognizes only Bazel's conventional `test.xml` and `test.log` action
-  outputs after an action-cache write has committed.
-- Kura queues metadata, reads at most 256 KiB under a background-memory
-  reservation, and posts the content to the signed test-artifacts webhook.
-  The cache write never waits for delivery.
-- The webhook waits for the matching invocation, parses JUnit XML into the
-  shared test-run data model, and stores sanitized `test.log` output as an
-  invocation log. It uses Postgres receipts keyed by artifact identity to make
-  retries idempotent.
+- Kura recognizes only Bazel's conventional `test.xml` and `test.log` files
+  referenced by Build Event Protocol test-result events.
+- Kura queues per-attempt facts, per-target summaries, and artifact digests,
+  reads at most 256 KiB per artifact under a background-memory reservation,
+  and posts at most two files per result to the signed test-artifacts webhook.
+  Results never wait for queue capacity. The completion marker waits for
+  bounded capacity so accepted events remain ordered.
+- The webhook performs bounded validation and upserts raw results and summaries
+  in PostgreSQL without parsing Extensible Markup Language. The invocation
+  completion event schedules an idempotent Oban job.
+- The build processor waits for the completed invocation, combines all
+  delivered targets and attempts into one shared test run, and stores sanitized
+  `test.log` output as invocation logs.
 - Tuist never pulls cache artifacts from Kura. Artifact delivery is bounded and
   best effort, so a lost diagnostic never affects a build or cache operation.
 
@@ -23,6 +27,9 @@ does not expose a second Build Event Service listener.
 
 - `bazel_invocations` stores completed commands received from Kura.
 - `bazel_invocation_logs` stores sanitized, ordered log chunks in ClickHouse.
+- `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
+  durably stage bounded raw test results in PostgreSQL until processing
+  succeeds; a daily job removes any records older than 90 days.
 - Test cases and failure details derived from JUnit reports use the shared
   `test_runs` data model and retain the Bazel invocation identifier.
 - Update `server/data-export.md` and the public retention guide whenever a

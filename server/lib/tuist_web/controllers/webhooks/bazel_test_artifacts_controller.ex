@@ -5,8 +5,11 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
   alias Tuist.Projects
   alias TuistWeb.Plugs.RequireCacheEndpointPlug
 
+  require Logger
+
   @max_artifact_bytes 256 * 1_024
-  @test_log_sequence_offset 1_000_000_000_000
+  @max_artifacts_per_result 2
+  @valid_statuses ["success", "failure", "flaky", "skipped"]
 
   def handle(conn, payload) when is_map(payload) do
     conn = RequireCacheEndpointPlug.call(conn, [])
@@ -14,48 +17,45 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
     if conn.halted do
       conn
     else
-      with {:ok, artifact} <- parse_artifact(payload),
-           {:ok, project} <- bazel_project(artifact),
-           {:ok, invocation} <- Bazel.get_invocation(project.id, artifact.invocation_id) do
-        receipt = receipt_attributes(project, artifact)
-
-        case Bazel.claim_test_artifact_receipt(receipt) do
-          :already_claimed ->
-            accepted(conn, project, artifact)
-
-          :claimed ->
-            try do
-              persist_artifact(conn, project, invocation, artifact, receipt)
-            rescue
-              exception ->
-                Bazel.delete_test_artifact_receipt(receipt)
-                reraise exception, __STACKTRACE__
-            end
-        end
+      with {:ok, event} <- parse_event(payload),
+           {:ok, project} <- bazel_project(event) do
+        persist_event(conn, project, event)
       else
         {:error, :invalid_payload} -> invalid_payload(conn)
-        {:error, :not_found} -> retry_later(conn)
       end
     end
+  rescue
+    exception ->
+      Logger.error("bazel: could not persist test event: #{Exception.message(exception)}")
+      service_unavailable(conn)
   end
 
   def handle(conn, _params), do: invalid_payload(conn)
 
-  defp persist_artifact(conn, project, invocation, artifact, receipt) do
-    case artifact.artifact_kind do
-      "junit" ->
-        case Bazel.ingest_test_report(project, invocation, test_result(artifact, invocation), artifact.content) do
-          :ok ->
-            accepted(conn, project, artifact)
+  defp persist_event(conn, project, %{event_kind: "test_result"} = event) do
+    event
+    |> Map.drop([:account_handle, :project_handle, :event_kind])
+    |> Map.put(:project_id, project.id)
+    |> Bazel.upsert_test_result()
 
-          {:error, _reason} ->
-            Bazel.delete_test_artifact_receipt(receipt)
-            invalid_payload(conn)
-        end
+    :ok = Bazel.record_test_invocation_event(project.id, event.invocation_id)
+    accepted(conn)
+  end
 
-      "log" ->
-        Bazel.create_invocation_logs([test_log(project.id, artifact)])
-        accepted(conn, project, artifact)
+  defp persist_event(conn, project, %{event_kind: "test_summary"} = event) do
+    event
+    |> Map.drop([:account_handle, :project_handle, :event_kind])
+    |> Map.put(:project_id, project.id)
+    |> Bazel.upsert_test_summary()
+
+    :ok = Bazel.record_test_invocation_event(project.id, event.invocation_id)
+    accepted(conn)
+  end
+
+  defp persist_event(conn, project, %{event_kind: "invocation_finished"} = event) do
+    case Bazel.complete_test_invocation(project.id, event.invocation_id) do
+      {:ok, _job} -> accepted(conn)
+      {:error, _reason} -> service_unavailable(conn)
     end
   end
 
@@ -68,102 +68,185 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
     end
   end
 
-  defp parse_artifact(payload) do
-    with %{
-           "account_handle" => account_handle,
-           "project_handle" => project_handle,
-           "invocation_id" => invocation_id,
-           "target_label" => target_label,
-           "action_digest" => action_digest,
-           "artifact_kind" => artifact_kind,
-           "digest" => digest,
-           "content_base64" => content_base64
-         } <- payload,
-         true <- valid_string?(account_handle, 255),
-         true <- valid_string?(project_handle, 255),
-         true <- valid_string?(invocation_id, 255),
+  defp parse_event(%{
+         "event_kind" => "test_result",
+         "account_handle" => account_handle,
+         "project_handle" => project_handle,
+         "invocation_id" => invocation_id,
+         "target_label" => target_label,
+         "run" => run,
+         "shard" => shard,
+         "attempt" => attempt,
+         "status" => status,
+         "duration_ms" => duration_ms,
+         "started_at_ms" => started_at_ms,
+         "cached" => cached,
+         "is_ci" => is_ci,
+         "sequence_number" => sequence_number,
+         "artifacts" => artifacts
+       }) do
+    with :ok <- valid_identity(account_handle, project_handle, invocation_id),
          true <- valid_string?(target_label, 1_024),
-         true <- valid_digest?(action_digest),
-         true <- artifact_kind in ["junit", "log"],
-         true <- valid_digest?(digest),
-         {:ok, content} <- Base.decode64(content_base64),
-         true <- byte_size(content) in 1..@max_artifact_bytes,
-         true <- valid_content?(artifact_kind, content) do
+         true <- non_negative_integer?(run),
+         true <- non_negative_integer?(shard),
+         true <- positive_integer?(attempt),
+         true <- status in @valid_statuses,
+         true <- non_negative_integer?(duration_ms),
+         true <- non_negative_integer?(started_at_ms),
+         {:ok, started_at} <- DateTime.from_unix(started_at_ms, :millisecond),
+         true <- is_boolean(cached),
+         true <- is_boolean(is_ci),
+         true <- non_negative_integer?(sequence_number),
+         {:ok, artifact_attributes} <- parse_artifacts(artifacts) do
       {:ok,
-       %{
+       Map.merge(artifact_attributes, %{
+         event_kind: "test_result",
          account_handle: account_handle,
          project_handle: project_handle,
          invocation_id: invocation_id,
          target_label: target_label,
-         action_digest: String.downcase(action_digest),
-         artifact_kind: artifact_kind,
-         digest: String.downcase(digest),
-         content: content
+         run: run,
+         shard: shard,
+         attempt: attempt,
+         status: status,
+         duration_ms: min(duration_ms, 2_147_483_647),
+         started_at: DateTime.truncate(started_at, :second),
+         cached: cached,
+         is_ci: is_ci,
+         sequence_number: sequence_number
+       })}
+    else
+      _ -> {:error, :invalid_payload}
+    end
+  end
+
+  defp parse_event(%{
+         "event_kind" => "test_summary",
+         "account_handle" => account_handle,
+         "project_handle" => project_handle,
+         "invocation_id" => invocation_id,
+         "target_label" => target_label,
+         "status" => status,
+         "total_run_count" => total_run_count,
+         "total_num_cached" => total_num_cached,
+         "duration_ms" => duration_ms,
+         "started_at_ms" => started_at_ms,
+         "finished_at_ms" => finished_at_ms
+       }) do
+    with :ok <- valid_identity(account_handle, project_handle, invocation_id),
+         true <- valid_string?(target_label, 1_024),
+         true <- status in @valid_statuses,
+         true <- non_negative_integer?(total_run_count),
+         true <- non_negative_integer?(total_num_cached),
+         true <- total_num_cached <= total_run_count,
+         true <- non_negative_integer?(duration_ms),
+         true <- non_negative_integer?(started_at_ms),
+         true <- non_negative_integer?(finished_at_ms),
+         true <- started_at_ms <= finished_at_ms,
+         {:ok, started_at} <- DateTime.from_unix(started_at_ms, :millisecond),
+         {:ok, finished_at} <- DateTime.from_unix(finished_at_ms, :millisecond) do
+      {:ok,
+       %{
+         event_kind: "test_summary",
+         account_handle: account_handle,
+         project_handle: project_handle,
+         invocation_id: invocation_id,
+         target_label: target_label,
+         status: status,
+         total_run_count: min(total_run_count, 2_147_483_647),
+         total_num_cached: min(total_num_cached, 2_147_483_647),
+         duration_ms: min(duration_ms, 2_147_483_647),
+         started_at: DateTime.truncate(started_at, :second),
+         finished_at: DateTime.truncate(finished_at, :second)
        }}
     else
       _ -> {:error, :invalid_payload}
     end
   end
 
+  defp parse_event(%{
+         "event_kind" => "invocation_finished",
+         "account_handle" => account_handle,
+         "project_handle" => project_handle,
+         "invocation_id" => invocation_id
+       }) do
+    with :ok <- valid_identity(account_handle, project_handle, invocation_id) do
+      {:ok,
+       %{
+         event_kind: "invocation_finished",
+         account_handle: account_handle,
+         project_handle: project_handle,
+         invocation_id: invocation_id
+       }}
+    end
+  end
+
+  defp parse_event(_payload), do: {:error, :invalid_payload}
+
+  defp parse_artifacts(artifacts) when is_list(artifacts) and length(artifacts) <= @max_artifacts_per_result do
+    Enum.reduce_while(artifacts, {:ok, %{}}, fn artifact, {:ok, attributes} ->
+      case parse_artifact(artifact) do
+        {:ok, kind, digest, content} ->
+          {:cont,
+           {:ok,
+            attributes
+            |> Map.put(String.to_existing_atom("#{kind}_digest"), digest)
+            |> Map.put(String.to_existing_atom("#{kind}_content"), content)}}
+
+        {:error, :invalid_payload} ->
+          {:halt, {:error, :invalid_payload}}
+      end
+    end)
+  end
+
+  defp parse_artifacts(_artifacts), do: {:error, :invalid_payload}
+
+  defp parse_artifact(%{"artifact_kind" => kind, "digest" => digest, "content_base64" => content_base64})
+       when kind in ["junit", "log"] do
+    with true <- valid_digest?(digest),
+         {:ok, content} <- Base.decode64(content_base64),
+         true <- byte_size(content) in 1..@max_artifact_bytes,
+         true <- String.valid?(content) do
+      {:ok, kind, String.downcase(digest), content}
+    else
+      _ -> {:error, :invalid_payload}
+    end
+  end
+
+  defp parse_artifact(_artifact), do: {:error, :invalid_payload}
+
+  defp valid_identity(account_handle, project_handle, invocation_id) do
+    if valid_string?(account_handle, 255) and valid_string?(project_handle, 255) and
+         valid_string?(invocation_id, 255) do
+      :ok
+    else
+      {:error, :invalid_payload}
+    end
+  end
+
   defp valid_string?(value, max_bytes), do: is_binary(value) and byte_size(value) in 1..max_bytes
+  defp positive_integer?(value), do: is_integer(value) and value > 0
+  defp non_negative_integer?(value), do: is_integer(value) and value >= 0
 
   defp valid_digest?(digest) do
     is_binary(digest) and byte_size(digest) == 64 and digest =~ ~r/\A[0-9a-fA-F]{64}\z/
   end
 
-  defp valid_content?("junit", _content), do: true
-  defp valid_content?("log", content), do: String.valid?(content)
-
-  defp receipt_attributes(project, artifact) do
-    %{
-      project_id: project.id,
-      invocation_id: artifact.invocation_id,
-      target_label: artifact.target_label,
-      action_digest: artifact.action_digest,
-      artifact_kind: artifact.artifact_kind,
-      artifact_digest: artifact.digest
-    }
-  end
-
-  defp test_log(project_id, artifact) do
-    message =
-      "[Bazel test log for #{artifact.target_label}]\n" <>
-        Bazel.sanitize_log_message(artifact.content)
-
-    %{
-      invocation_id: artifact.invocation_id,
-      sequence_number:
-        @test_log_sequence_offset + :erlang.phash2({artifact.target_label, artifact.digest}, 1_000_000_000),
-      stream: "stdout",
-      message: message,
-      project_id: project_id,
-      observed_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    }
-  end
-
-  defp test_result(artifact, invocation) do
-    %{
-      target_label: artifact.target_label,
-      status: if(invocation.status == "failure", do: "failure", else: "success"),
-      duration_ms: 0
-    }
-  end
-
-  defp retry_later(conn) do
-    conn
-    |> put_status(:conflict)
-    |> json(%{error: "Bazel invocation is not ready"})
-    |> halt()
-  end
-
   defp invalid_payload(conn) do
     conn
     |> put_status(:bad_request)
-    |> json(%{error: "Invalid Bazel test artifact"})
+    |> json(%{error: "Invalid Bazel test event"})
     |> halt()
   end
 
-  defp accepted(conn, _project, _artifact) do
+  defp service_unavailable(conn) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Bazel test event could not be persisted"})
+    |> halt()
+  end
+
+  defp accepted(conn) do
     conn
     |> put_status(:accepted)
     |> json(%{})

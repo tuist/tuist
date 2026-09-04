@@ -39,7 +39,6 @@ use crate::{
     analytics::{ReapiCacheAnalyticsContext, ReapiCacheAnalyticsEvent},
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     auth::{AccessDecision, RequestContext},
-    bazel_test_artifacts::{BazelTestArtifact, BazelTestArtifactKind},
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
         RESPONSE_STREAM_SEND_BUFFER_BYTES, encoded_response_stream_chunk_bytes,
@@ -70,11 +69,6 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
-const MAX_BAZEL_TEST_ARTIFACTS_PER_ACTION_RESULT: usize = 2;
-const MAX_BAZEL_TEST_ARTIFACT_ACCOUNT_HANDLE_BYTES: usize = 255;
-const MAX_BAZEL_TEST_ARTIFACT_PROJECT_HANDLE_BYTES: usize = 255;
-const MAX_BAZEL_TEST_ARTIFACT_INVOCATION_ID_BYTES: usize = 255;
-const MAX_BAZEL_TEST_ARTIFACT_TARGET_LABEL_BYTES: usize = 1_024;
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
@@ -335,90 +329,6 @@ impl ReapiService {
                 .try_into()
                 .unwrap_or(u64::MAX),
         });
-    }
-
-    /// Bazel includes the logical paths of action outputs in `ActionResult`.
-    /// A raw CAS upload has only a digest, so this post-commit action-cache
-    /// hook is the sole place Kura can safely recognize its conventional
-    /// `test.xml` and `test.log` outputs. It only enqueues metadata and is not
-    /// part of the client response path.
-    fn bazel_test_artifacts_for_action_result(
-        &self,
-        metadata: &tonic::metadata::MetadataMap,
-        namespace_id: &str,
-        action_digest: &str,
-        action_result: &reapi::ActionResult,
-    ) -> Vec<BazelTestArtifact> {
-        if self.state.bazel_test_artifacts.is_none() {
-            return Vec::new();
-        }
-
-        let attribution = reapi_request_metadata(metadata);
-        if attribution.client_kind != "bazel" {
-            return Vec::new();
-        }
-        if attribution.invocation_id.is_empty()
-            || attribution.invocation_id.len() > MAX_BAZEL_TEST_ARTIFACT_INVOCATION_ID_BYTES
-        {
-            self.state.metrics.record_analytics_event(
-                "bazel_test_artifact",
-                "missing_invocation",
-                1,
-            );
-            return Vec::new();
-        }
-        if attribution.target_label.is_empty()
-            || attribution.target_label.len() > MAX_BAZEL_TEST_ARTIFACT_TARGET_LABEL_BYTES
-        {
-            self.state
-                .metrics
-                .record_analytics_event("bazel_test_artifact", "missing_target", 1);
-            return Vec::new();
-        }
-
-        let account_handle = usage_tenant_id(metadata, &self.state.config.tenant_id);
-        if account_handle.len() > MAX_BAZEL_TEST_ARTIFACT_ACCOUNT_HANDLE_BYTES
-            || namespace_id.len() > MAX_BAZEL_TEST_ARTIFACT_PROJECT_HANDLE_BYTES
-        {
-            self.state
-                .metrics
-                .record_analytics_event("bazel_test_artifact", "invalid_identity", 1);
-            return Vec::new();
-        }
-        let artifacts = action_result
-            .output_files
-            .iter()
-            .filter_map(|output| {
-                let artifact_kind = BazelTestArtifactKind::from_output_path(&output.path)?;
-                let digest = output.digest.as_ref()?;
-                if digest_key(digest).is_err() {
-                    return None;
-                }
-                let Ok(size) = u64::try_from(digest.size_bytes) else {
-                    return None;
-                };
-
-                Some(BazelTestArtifact {
-                    account_handle: account_handle.clone(),
-                    project_handle: namespace_id.to_owned(),
-                    invocation_id: attribution.invocation_id.clone(),
-                    target_label: attribution.target_label.clone(),
-                    action_digest: action_digest.to_owned(),
-                    artifact_kind,
-                    digest: digest.hash.clone(),
-                    size,
-                })
-            })
-            .take(MAX_BAZEL_TEST_ARTIFACTS_PER_ACTION_RESULT)
-            .collect::<Vec<_>>();
-
-        if artifacts.is_empty() {
-            self.state
-                .metrics
-                .record_analytics_event("bazel_test_artifact", "not_test_action", 1);
-        }
-
-        artifacts
     }
 
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
@@ -1530,15 +1440,6 @@ impl ActionCache for ReapiService {
             }
         }
 
-        // A cached Bazel test does not write a new action result. Associate its
-        // conventional outputs with this invocation while the result still
-        // carries their names and digests.
-        let bazel_test_artifacts = self.bazel_test_artifacts_for_action_result(
-            request.metadata(),
-            namespace_id,
-            &digest.hash,
-            &action_result,
-        );
         let mut response = Response::new(action_result);
         let response_memory = materialization_budget
             .into_inner()
@@ -1564,11 +1465,6 @@ impl ActionCache for ReapiService {
                 duration: analytics_started_at.elapsed(),
             },
         );
-        if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
-            for artifact in bazel_test_artifacts {
-                delivery.enqueue(artifact);
-            }
-        }
         Ok(response)
     }
 
@@ -1652,16 +1548,6 @@ impl ActionCache for ReapiService {
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
-        let bazel_test_artifacts = if applied {
-            self.bazel_test_artifacts_for_action_result(
-                &metadata,
-                namespace_id,
-                &action_digest,
-                &action_result,
-            )
-        } else {
-            Vec::new()
-        };
         let mut response = Response::new(action_result);
         self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
@@ -1683,11 +1569,6 @@ impl ActionCache for ReapiService {
                     duration: analytics_started_at.elapsed(),
                 },
             );
-            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
-                for artifact in bazel_test_artifacts {
-                    delivery.enqueue(artifact);
-                }
-            }
         }
         Ok(response)
     }

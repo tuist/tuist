@@ -4,9 +4,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateBazelInvocationLogsTable do
   def change do
     create table(:bazel_invocation_logs,
              primary_key: false,
-             engine: "MergeTree",
+             engine: "ReplacingMergeTree(inserted_at)",
              options:
-               "PARTITION BY toYYYYMM(observed_at) ORDER BY (project_id, invocation_id, sequence_number) TTL observed_at + INTERVAL 90 DAY"
+               "PARTITION BY toYYYYMM(observed_at) ORDER BY (project_id, invocation_id, sequence_number, id) TTL observed_at + INTERVAL 90 DAY"
            ) do
       add :id, :uuid, null: false
       add :invocation_id, :string, null: false

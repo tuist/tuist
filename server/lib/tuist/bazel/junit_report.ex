@@ -1,17 +1,15 @@
 defmodule Tuist.Bazel.JunitReport do
   @moduledoc false
 
-  import SweetXml
-
-  @max_report_bytes 5 * 1024 * 1024
+  @max_report_bytes 5 * 1_024 * 1_024
   @max_test_cases 10_000
   @max_field_bytes 1_024
   @max_failure_message_bytes 8 * 1_024
 
   def parse(report) when is_binary(report) and byte_size(report) <= @max_report_bytes do
     with :ok <- reject_unsafe_document(report),
-         {:ok, document} <- parse_document(report) do
-      test_suites = xpath(document, ~x"//testsuite"l)
+         {:ok, document} <- Saxy.SimpleForm.parse_string(report, expand_entity: :skip) do
+      test_suites = elements_named(document, "testsuite")
 
       test_cases =
         test_suites
@@ -19,6 +17,8 @@ defmodule Tuist.Bazel.JunitReport do
         |> Enum.take(@max_test_cases)
 
       {:ok, %{test_suites: suites_for(test_suites, test_cases), test_cases: test_cases}}
+    else
+      {:error, _reason} -> {:error, :invalid_report}
     end
   end
 
@@ -32,17 +32,21 @@ defmodule Tuist.Bazel.JunitReport do
     end
   end
 
-  defp parse_document(report) do
-    {:ok, SweetXml.parse(report, quiet: true)}
-  rescue
-    _ -> {:error, :invalid_report}
+  defp elements_named({tag, _attributes, children} = element, name) do
+    current = if local_name(tag) == name, do: [element], else: []
+
+    current ++
+      Enum.flat_map(children, fn
+        {_tag, _attributes, _children} = child -> elements_named(child, name)
+        _text -> []
+      end)
   end
 
   defp test_cases_for_suite(test_suite) do
     suite_name = attribute(test_suite, "name") || "Unnamed suite"
 
     test_suite
-    |> xpath(~x"./testcase"l)
+    |> child_elements("testcase")
     |> Enum.map(fn test_case ->
       {status, failures} = status_and_failures(test_case)
 
@@ -76,13 +80,13 @@ defmodule Tuist.Bazel.JunitReport do
   end
 
   defp status_and_failures(test_case) do
-    failure_nodes = xpath(test_case, ~x"./failure"l) ++ xpath(test_case, ~x"./error"l)
+    failure_nodes = child_elements(test_case, "failure") ++ child_elements(test_case, "error")
 
     cond do
       failure_nodes != [] ->
         {"failure", Enum.map(failure_nodes, &failure/1)}
 
-      xpath(test_case, ~x"./skipped"l) != [] ->
+      child_elements(test_case, "skipped") != [] ->
         {"skipped", []}
 
       true ->
@@ -92,15 +96,19 @@ defmodule Tuist.Bazel.JunitReport do
 
   defp failure(failure) do
     message =
-      attribute(failure, "message") ||
-        failure
-        |> xpath(~x"string(.)"s)
-        |> to_string()
-        |> String.trim()
+      failure
+      |> attribute("message")
+      |> Kernel.||(failure |> text_content() |> String.trim())
+      |> Tuist.Bazel.sanitize_log_message()
 
     %{
       message: truncate(message, @max_failure_message_bytes),
-      path: attribute(failure, "file") || "",
+      path:
+        failure
+        |> attribute("file")
+        |> Kernel.||("")
+        |> Tuist.Bazel.sanitize_log_message()
+        |> truncate(@max_field_bytes),
       line_number: integer_attribute(failure, "line") || 0,
       issue_type: "assertion_failure"
     }
@@ -123,22 +131,21 @@ defmodule Tuist.Bazel.JunitReport do
     end
   end
 
-  defp attribute(element, "name"), do: xpath_attribute(element, ~x"string(./@name)"s)
-  defp attribute(element, "time"), do: xpath_attribute(element, ~x"string(./@time)"s)
-  defp attribute(element, "duration"), do: xpath_attribute(element, ~x"string(./@duration)"s)
-  defp attribute(element, "message"), do: xpath_attribute(element, ~x"string(./@message)"s)
-  defp attribute(element, "file"), do: xpath_attribute(element, ~x"string(./@file)"s)
-  defp attribute(element, "line"), do: xpath_attribute(element, ~x"string(./@line)"s)
+  defp child_elements({_tag, _attributes, children}, name) do
+    Enum.filter(children, fn
+      {tag, _attributes, _children} -> local_name(tag) == name
+      _text -> false
+    end)
+  end
 
-  defp xpath_attribute(element, xpath) do
-    element
-    |> xpath(xpath)
-    |> to_string()
-    |> String.trim()
-    |> truncate(@max_field_bytes)
+  defp attribute({_tag, attributes, _children}, name) do
+    attributes
+    |> Enum.find_value(fn {attribute_name, value} ->
+      if local_name(attribute_name) == name, do: value
+    end)
     |> case do
-      "" -> nil
-      value -> value
+      nil -> nil
+      value -> value |> String.trim() |> truncate(@max_field_bytes) |> empty_to_nil()
     end
   end
 
@@ -154,6 +161,18 @@ defmodule Tuist.Bazel.JunitReport do
         end
     end
   end
+
+  defp text_content({_tag, _attributes, children}) do
+    Enum.map_join(children, fn
+      text when is_binary(text) -> text
+      {:cdata, text} -> text
+      {_tag, _attributes, _children} = child -> text_content(child)
+    end)
+  end
+
+  defp local_name(name), do: name |> String.split(":") |> List.last()
+  defp empty_to_nil(""), do: nil
+  defp empty_to_nil(value), do: value
 
   defp truncate(value, max_bytes) when is_binary(value) do
     value

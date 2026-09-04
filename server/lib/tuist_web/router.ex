@@ -750,6 +750,8 @@ defmodule TuistWeb.Router do
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
+          get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end

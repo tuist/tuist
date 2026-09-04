@@ -54,6 +54,49 @@ defmodule Tuist.Bazel.JunitReportTest do
   end
 
   test "rejects documents containing declarations" do
-    assert {:error, :unsafe_document} = JunitReport.parse("<!DOCTYPE testsuite><testsuite />")
+    assert {:error, :invalid_report} = JunitReport.parse("<!DOCTYPE testsuite><testsuite />")
+  end
+
+  test "returns an error for malformed XML without exiting the caller" do
+    assert {:error, :invalid_report} = JunitReport.parse("<testsuite><testcase></testsuite>")
+  end
+
+  test "parses arbitrary element names without creating atoms" do
+    suffix = System.unique_integer([:positive])
+    element_name = "extension_#{suffix}"
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(element_name) end
+
+    assert {:ok, %{test_cases: []}} =
+             JunitReport.parse("<testsuite><#{element_name}>value</#{element_name}></testsuite>")
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(element_name) end
+  end
+
+  test "sanitizes credential-shaped failure details and local paths" do
+    report = """
+    <testsuite name="ExampleTests">
+      <testcase name="fails">
+        <failure file="/Users/developer/project/test.exs" line="7">Authorization: Bearer secret-token --token another-token</failure>
+      </testcase>
+    </testsuite>
+    """
+
+    assert {:ok, %{test_cases: [%{failures: [failure]}]}} = JunitReport.parse(report)
+    assert failure.message == "Authorization: <REDACTED> --token <REDACTED>"
+    assert failure.path == "<LOCAL_PATH>"
+  end
+
+  test "does not redact ordinary parser diagnostics" do
+    report = """
+    <testsuite name="ExampleTests">
+      <testcase name="fails">
+        <failure>unexpected token: identifier</failure>
+      </testcase>
+    </testsuite>
+    """
+
+    assert {:ok, %{test_cases: [%{failures: [failure]}]}} = JunitReport.parse(report)
+    assert failure.message == "unexpected token: identifier"
   end
 end
