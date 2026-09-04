@@ -23,6 +23,26 @@ import XcodeGraph
 
 #if canImport(TuistCacheEE)
 
+    enum CacheWarmCommandServiceError: LocalizedError {
+        case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
+
+        var errorDescription: String? {
+            switch self {
+            case let .diskExhausted(scratchDirectory, space, underlyingError):
+                return """
+                Warming the cache ran out of disk space. The volume holding the build's scratch directory \
+                (\(scratchDirectory.pathString)) has \(space.formattedFreeSpace).
+
+                A warm builds every scheme and destination before it stores anything, so it needs room for all of \
+                them at once, on top of whatever else shares that volume — the compilation cache store and the \
+                local binary cache included.
+
+                The build reported: \(underlyingError.localizedDescription)
+                """
+            }
+        }
+    }
+
     // swiftlint:disable:next type_body_length
     public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
@@ -51,6 +71,7 @@ import XcodeGraph
         private let cacheStorageFactory: CacheStorageFactorying
         private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
         private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
+        private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
 
         public init() {
             let contentHasher = ContentHasher()
@@ -101,6 +122,7 @@ import XcodeGraph
             self.cacheStorageFactory = cacheStorageFactory
             self.scratchDirectoryPreparer = scratchDirectoryPreparer
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
+            buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
         // swiftlint:disable:next function_body_length
@@ -266,6 +288,23 @@ import XcodeGraph
             case .temporary:
                 let compilationCacheCASArgument = try await compilationCacheCASArgument(scratchDirectory: nil)
                 try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
+                    do {
+                        try await archive(
+                            graph,
+                            projectPath: projectPath,
+                            configuration: configuration,
+                            hashesByTargetToBeCached: hashesByTargetToBeCached,
+                            cacheStorage: cacheStorage,
+                            isReleaseConfiguration: isReleaseConfiguration,
+                            in: temporaryDirectory,
+                            compilationCacheCASArgument: compilationCacheCASArgument
+                        )
+                    } catch {
+                        throw diskExhaustionError(for: error, scratchDirectory: temporaryDirectory) ?? error
+                    }
+                }
+            case let .callerOwned(path):
+                do {
                     try await archive(
                         graph,
                         projectPath: projectPath,
@@ -273,22 +312,31 @@ import XcodeGraph
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
-                        in: temporaryDirectory,
-                        compilationCacheCASArgument: compilationCacheCASArgument
+                        in: path,
+                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
                     )
+                } catch {
+                    throw diskExhaustionError(for: error, scratchDirectory: path) ?? error
                 }
-            case let .callerOwned(path):
-                try await archive(
-                    graph,
-                    projectPath: projectPath,
-                    configuration: configuration,
-                    hashesByTargetToBeCached: hashesByTargetToBeCached,
-                    cacheStorage: cacheStorage,
-                    isReleaseConfiguration: isReleaseConfiguration,
-                    in: path,
-                    compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
-                )
             }
+        }
+
+        /// Re-reports a failed warm as an out-of-disk failure when the scratch volume has nothing left.
+        ///
+        /// A warm keeps every destination's derived data, the assembled XCFrameworks and the copies the local
+        /// cache stores on one volume, so it is the command most likely to exhaust it. What surfaces when that
+        /// happens is whatever write lost the race — `error closing '…/Foo.o' for output: No space left on
+        /// device`, or just `The Xcode build system has crashed` — and it never says which volume filled, which
+        /// is why this has repeatedly been chased as a compiler or cache-integrity problem instead.
+        ///
+        /// Returns nil on a volume that still has room, so an ordinary build failure is reported as itself.
+        private func diskExhaustionError(for error: Error, scratchDirectory: AbsolutePath) -> Error? {
+            guard let space = VolumeSpace.read(at: scratchDirectory), space.isExhausted else { return nil }
+            return CacheWarmCommandServiceError.diskExhausted(
+                scratchDirectory: scratchDirectory,
+                space: space,
+                underlyingError: error
+            )
         }
 
         // swiftlint:disable:next function_body_length
@@ -326,6 +374,22 @@ import XcodeGraph
 
             let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
+            // Products directories that must survive the reclaim each destination's build is followed by.
+            //
+            // The configuration's own directory always does: it is where host products land — macro plugins
+            // and other build tools that every destination, not just the macOS one, links against — and it
+            // is also where the macro pass looks for what it built. It is the last destination built anyway,
+            // so keeping it costs nothing at the point where disk usage peaks.
+            //
+            // The bundle pass then adds the directory it builds into, because it reads its artifacts straight
+            // out of derived data rather than from the scratch `artifacts/` tree.
+            var reservedProductsDirectoryNames: Set<String> = [configuration]
+            for (scheme, _) in bundlesSchemes {
+                guard let platform = Platform.allCases.first(where: { scheme.name.hasSuffix($0.caseValue) })
+                else { continue }
+                reservedProductsDirectoryNames.insert(productsDirectory(platform: platform, configuration: configuration))
+            }
+
             var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
             for (scheme, _) in binariesSchemes {
                 try await buildBinarySchemes(
@@ -337,7 +401,8 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
-                    compilationCacheCASArgument: compilationCacheCASArgument
+                    compilationCacheCASArgument: compilationCacheCASArgument,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -350,7 +415,8 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
-                    compilationCacheCASArgument: compilationCacheCASArgument
+                    compilationCacheCASArgument: compilationCacheCASArgument,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -461,18 +527,11 @@ import XcodeGraph
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 compilationCacheCASArgument,
             ]
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: arguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: arguments
             )
 
             var macrosToStore: [CacheGraphTargetBuiltArtifact] = []
@@ -539,18 +598,11 @@ import XcodeGraph
             } else {
                 arguments.append(.destination("generic/platform=\(platform.caseValue)"))
             }
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: arguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: arguments
             )
 
             // NOTE: This logic doesn't account for multi-platform bundle targets.
@@ -747,7 +799,8 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
@@ -760,13 +813,10 @@ import XcodeGraph
                 try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
                 Logger.current.info("Building scheme \(scheme.name) for the simulator", metadata: .section)
-                try await xcodeBuildController.build(
+                try await build(
                     xcodebuildTarget,
                     scheme: scheme.name,
-                    destination: nil,
-                    rosetta: false,
                     derivedDataPath: derivedDataPath,
-                    clean: false,
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
@@ -787,25 +837,29 @@ import XcodeGraph
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []),
-                    passthroughXcodeBuildArguments: [
-                        "-resultBundlePath",
-                        derivedDataPath.appending(component: UUID().uuidString).pathString,
-                    ]
+                    ] : [])
                 )
 
+                let productsDirectoryName = productsDirectory(
+                    platform: platform,
+                    configuration: configuration,
+                    destination: .simulator
+                )
                 let productsDirectory = derivedDataPath
                     .appending(
                         // swiftlint:disable:next force_try
-                        try RelativePath(
-                            validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .simulator))"
-                        )
+                        try RelativePath(validating: "Build/Products/\(productsDirectoryName)")
                     )
                 try await copyDerivedDataArtifacts(
                     into: simulatorArtifactsDirectory,
                     productsDirectory: productsDirectory,
                     platform: platform,
                     binaryArtifactDirectories: &binaryArtifactDirectories
+                )
+                await buildOutputReclaimer.reclaim(
+                    derivedDataPath: derivedDataPath,
+                    productsDirectoryName: productsDirectoryName,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -843,26 +897,22 @@ import XcodeGraph
                 deviceArguments.append(.destination("generic/platform=\(platform.caseValue)"))
             }
 
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: deviceArguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: deviceArguments
             )
 
+            let productsDirectoryName = productsDirectory(
+                platform: platform,
+                configuration: configuration,
+                destination: .device
+            )
             let productsDirectory = derivedDataPath
                 .appending(
                     // swiftlint:disable:next force_try
-                    try RelativePath(
-                        validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .device))"
-                    )
+                    try RelativePath(validating: "Build/Products/\(productsDirectoryName)")
                 )
 
             try await copyDerivedDataArtifacts(
@@ -870,6 +920,11 @@ import XcodeGraph
                 productsDirectory: productsDirectory,
                 platform: platform,
                 binaryArtifactDirectories: &binaryArtifactDirectories
+            )
+            await buildOutputReclaimer.reclaim(
+                derivedDataPath: derivedDataPath,
+                productsDirectoryName: productsDirectoryName,
+                reservedProductsDirectoryNames: reservedProductsDirectoryNames
             )
         }
 
@@ -881,7 +936,8 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "iOS"])
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
@@ -891,13 +947,10 @@ import XcodeGraph
             let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
             try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
@@ -916,25 +969,61 @@ import XcodeGraph
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                ] : []),
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                ] : [])
             )
 
+            let productsDirectoryName = productsDirectory(
+                platform: .iOS,
+                configuration: configuration,
+                destination: .device,
+                isMacCatalystVariant: true
+            )
             let productsDirectory = derivedDataPath
-                .appending(
-                    try RelativePath(
-                        validating: "Build/Products/\(productsDirectory(platform: .iOS, configuration: configuration, destination: .device, isMacCatalystVariant: true))"
-                    )
-                )
+                .appending(try RelativePath(validating: "Build/Products/\(productsDirectoryName)"))
             try await copyDerivedDataArtifacts(
                 into: macCatalystArtifactsDirectory,
                 productsDirectory: productsDirectory,
                 platform: .iOS,
                 binaryArtifactDirectories: &binaryArtifactDirectories
             )
+            await buildOutputReclaimer.reclaim(
+                derivedDataPath: derivedDataPath,
+                productsDirectoryName: productsDirectoryName,
+                reservedProductsDirectoryNames: reservedProductsDirectoryNames
+            )
+        }
+
+        /// Runs one of the warm's builds, giving it a result bundle that is removed as soon as it returns.
+        ///
+        /// `-resultBundlePath` is passed only so xcodebuild does not drop a bundle next to the project. The
+        /// warm never reads them back, so without this every invocation leaves one behind in derived data for
+        /// the rest of the command.
+        private func build(
+            _ xcodebuildTarget: XcodeBuildTarget,
+            scheme: String,
+            derivedDataPath: AbsolutePath,
+            arguments: [XcodeBuildArgument]
+        ) async throws {
+            let resultBundlePath = derivedDataPath.appending(component: UUID().uuidString)
+            do {
+                try await xcodeBuildController.build(
+                    xcodebuildTarget,
+                    scheme: scheme,
+                    destination: nil,
+                    rosetta: false,
+                    derivedDataPath: derivedDataPath,
+                    clean: false,
+                    arguments: arguments,
+                    passthroughXcodeBuildArguments: [
+                        "-resultBundlePath",
+                        resultBundlePath.pathString,
+                    ]
+                )
+            } catch {
+                await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
+                throw error
+            }
+            await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
         }
 
         private func copyDerivedDataArtifacts(

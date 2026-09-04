@@ -168,6 +168,93 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory) func run_reclaimsADestinationsBuildOutputBeforeBuildingTheNextOne() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let recorder = BuildRecorder()
+            let fileSystem = FileSystem()
+
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willProduce { _, _, _, _, derivedDataPath, _, arguments, passthroughXcodeBuildArguments in
+                    let derivedDataPath = try #require(derivedDataPath)
+                    let productsDirectoryName = if arguments.contains(.destination("generic/platform=iOS Simulator")) {
+                        "Debug-iphonesimulator"
+                    } else if arguments.contains(.destination("generic/platform=iOS")) {
+                        "Debug-iphoneos"
+                    } else {
+                        "Debug"
+                    }
+
+                    // macOS is built last, so what it sees is the peak the whole command has to fit on disk.
+                    if productsDirectoryName == "Debug" {
+                        var stillPresent: [AbsolutePath] = []
+                        for path in [
+                            derivedDataPath.appending(components: ["Build", "Products", "Debug-iphonesimulator"]),
+                            derivedDataPath.appending(components: ["Build", "Products", "Debug-iphoneos"]),
+                            derivedDataPath.appending(components: [
+                                "Build",
+                                "Intermediates.noindex",
+                                "Fixtures.build",
+                                "Debug-iphonesimulator",
+                            ]),
+                        ] {
+                            if try await fileSystem.exists(path) { stillPresent.append(path) }
+                        }
+                        recorder.iOSOutputAtLastBuild = stillPresent
+                    }
+
+                    let index = try #require(passthroughXcodeBuildArguments.firstIndex(of: "-resultBundlePath"))
+                    let resultBundlePath = try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+                    recorder.resultBundlePaths.append(resultBundlePath)
+
+                    for directory in [
+                        resultBundlePath,
+                        derivedDataPath.appending(components: ["Build", "Products", productsDirectoryName]),
+                        derivedDataPath.appending(components: [
+                            "Build",
+                            "Intermediates.noindex",
+                            "Fixtures.build",
+                            productsDirectoryName,
+                        ]),
+                    ] {
+                        try await fileSystem.makeDirectory(at: directory)
+                        try await fileSystem.writeText("output", at: directory.appending(component: "Output"))
+                    }
+                }
+
+            try await run(
+                noUpload: false,
+                scratchDirectory: scratchDirectory,
+                schemes: [.test(name: "Binaries-Cache-iOS"), .test(name: "Binaries-Cache-macOS")]
+            )
+
+            #expect(recorder.iOSOutputAtLastBuild == [])
+            // The configuration's own directory holds host products every destination links against, so it is
+            // the one the warm keeps.
+            #expect(try await fileSystem.exists(
+                scratchDirectory.appending(components: ["derived-data", "Build", "Products", "Debug"])
+            ))
+            #expect(recorder.resultBundlePaths.count == 3)
+            for resultBundlePath in recorder.resultBundlePaths {
+                #expect(try await fileSystem.exists(resultBundlePath) == false)
+            }
+        }
+
+        private final class BuildRecorder: @unchecked Sendable {
+            var iOSOutputAtLastBuild: [AbsolutePath]?
+            var resultBundlePaths: [AbsolutePath] = []
+        }
+
         private func run(
             noUpload: Bool,
             configuration: String? = nil,
