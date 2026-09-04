@@ -3942,6 +3942,62 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "list_slowest_test_cases/3" do
+    test "ranks by median duration and honours the limit" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testFast", [100, 100, 100, 100, 100, 100])
+      run_test_case(project, "testMedium", [500, 500, 500, 500, 500, 500])
+      run_test_case(project, "testSlow", [900, 900, 900, 900, 900, 900])
+
+      # When
+      slowest = Tests.list_slowest_test_cases(project.id, 2)
+
+      # Then
+      assert Enum.map(slowest, & &1.name) == ["testSlow", "testMedium"]
+      assert Enum.map(slowest, & &1.duration_p50_ms) == [900.0, 500.0]
+      assert Enum.map(slowest, & &1.duration_sample_count) == [6, 6]
+    end
+
+    test "excludes a test case with too few runs to rank" do
+      # Given - the under-sampled test case is the slowest by far, so it would
+      # lead the ranking if the sample floor were not applied.
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testBarelyRan", [50_000, 50_000, 50_000])
+      run_test_case(project, "testRanEnough", [100, 100, 100, 100, 100, 100])
+
+      # When
+      slowest = Tests.list_slowest_test_cases(project.id, 5)
+
+      # Then
+      assert Enum.map(slowest, & &1.name) == ["testRanEnough"]
+    end
+
+    test "returns an empty list when nothing clears the sample floor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testBarelyRan", [100, 100])
+
+      # When / Then
+      assert Tests.list_slowest_test_cases(project.id, 5) == []
+    end
+
+    test "scopes the ranking to the requested environment" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testSlowOnCi", [900, 900, 900, 900, 900, 900], is_ci: true)
+      run_test_case(project, "testSlowLocally", [1500, 1500, 1500, 1500, 1500, 1500], is_ci: false)
+
+      # When
+      on_ci = Tests.list_slowest_test_cases(project.id, 5, is_ci: true)
+      locally = Tests.list_slowest_test_cases(project.id, 5, is_ci: false)
+
+      # Then
+      assert Enum.map(on_ci, & &1.name) == ["testSlowOnCi"]
+      assert Enum.map(locally, & &1.name) == ["testSlowLocally"]
+    end
+  end
+
   describe "list_test_cases/2" do
     test "returns empty list when no test cases exist" do
       # Given

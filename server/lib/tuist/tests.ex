@@ -2628,6 +2628,89 @@ defmodule Tuist.Tests do
   defp page_query_settings(_joined_duration_fields), do: @duration_join_settings
 
   @doc """
+  The slowest test cases in the active window, ranked by median duration.
+
+  `list_test_cases/3` answers the same question when it is ordered by
+  `:duration_p50`, but ranking through it has to join the project's whole
+  duration aggregate to `test_cases` before `LIMIT` applies, so it merges every
+  test case the project recorded in the window to return a handful. Ranking
+  from the aggregate on its own lets ClickHouse keep a bounded top-N instead,
+  and the `test_cases` rows are read afterwards for the identifiers that won.
+
+  Only test cases that cleared `#{@min_duration_samples}` runs in the window are
+  ranked. Sorting unranked ones to the back and dropping them afterwards gives
+  the same list, but it makes the rank a project-wide sort to discard most of
+  its own output, so the floor is applied here instead. A project without
+  enough ranked test cases gets a short list.
+  """
+  def list_slowest_test_cases(project_id, limit, opts \\ []) do
+    is_ci = Keyword.get(opts, :is_ci)
+    window_start = active_window_start_date()
+
+    ranking_query =
+      from(stats in TestCaseDurationDailyStatsPerCase,
+        where: stats.project_id == ^project_id,
+        where: stats.date >= ^window_start,
+        group_by: stats.test_case_id,
+        having: fragment("uniqExactMerge(run_count) >= ?", ^@min_duration_samples),
+        order_by: [
+          desc: fragment("round(quantileMerge(0.5)(p50_duration))"),
+          asc: stats.test_case_id
+        ],
+        limit: ^limit,
+        select: %{
+          test_case_id: stats.test_case_id,
+          duration_p50_ms: fragment("round(quantileMerge(0.5)(p50_duration))"),
+          duration_sample_count: fragment("uniqExactMerge(run_count)")
+        }
+      )
+
+    ranked =
+      ranking_query
+      |> apply_duration_environment_filter(is_ci)
+      |> ClickHouseRepo.all(settings: @duration_join_settings)
+
+    ranked
+    |> Enum.map(& &1.test_case_id)
+    |> read_ranked_test_cases(project_id, is_ci)
+    |> merge_ranked_durations(ranked)
+  end
+
+  defp read_ranked_test_cases([], _project_id, _is_ci), do: %{}
+
+  defp read_ranked_test_cases(test_case_ids, project_id, is_ci) do
+    from(test_case in TestCase,
+      hints: ["FINAL"],
+      where: test_case.project_id == ^project_id,
+      where: test_case.id in ^test_case_ids
+    )
+    |> apply_active_window(is_ci)
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  # Keeps the aggregate's ranking rather than the order the rows came back in,
+  # and drops a ranked identifier the window no longer admits instead of
+  # rendering a test case the listing itself would not show.
+  defp merge_ranked_durations(test_cases_by_id, ranked) do
+    Enum.flat_map(ranked, fn row ->
+      case Map.fetch(test_cases_by_id, row.test_case_id) do
+        {:ok, test_case} ->
+          [
+            %{
+              test_case
+              | duration_p50_ms: row.duration_p50_ms,
+                duration_sample_count: row.duration_sample_count
+            }
+          ]
+
+        :error ->
+          []
+      end
+    end)
+  end
+
+  @doc """
   Duration fields `list_test_cases/3` can compute and sort by.
   """
   def duration_fields, do: @duration_fields
