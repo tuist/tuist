@@ -1,6 +1,5 @@
 defmodule Tuist.ClickHouse.TablesTest do
   use ExUnit.Case, async: true
-
   use Mimic
 
   alias Tuist.ClickHouse.Tables

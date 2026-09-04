@@ -1,6 +1,5 @@
 defmodule Tuist.IngestRepo.ShadowWriteTest do
   use ExUnit.Case, async: true
-
   use Mimic
 
   alias Tuist.IngestRepo.ShadowWrite
