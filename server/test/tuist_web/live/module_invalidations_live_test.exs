@@ -101,6 +101,89 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert table_rows(html) == 5
   end
 
+  test "only the sorted column header is clickable, and it flips direction", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: ~N[2024-01-31 09:00:00]
+      )
+
+    for name <- ["Core", "Networking"] do
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: name,
+        product: "framework",
+        binary_cache_hash: "h-#{name}",
+        binary_cache_hit: :miss,
+        sources_hash: "s-#{name}"
+      )
+    end
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?after=Core")
+
+    links =
+      lv
+      |> render_async(2000)
+      |> Floki.parse_document!()
+      |> Floki.find(~s(#all-modules-table thead [data-part="sort-link"]))
+
+    # Misses is the default sort, so it is the only sortable header. The other
+    # columns are reached through the sort dropdown.
+    assert length(links) == 1
+
+    href = links |> List.first() |> Floki.attribute("href") |> List.first()
+
+    # Misses opens descending, so the header offers the opposite.
+    assert href =~ "sort-by=invalidations"
+    assert href =~ "sort-order=asc"
+
+    # A cursor points at a position in the old order, so re-sorting drops it.
+    refute href =~ "after="
+  end
+
+  test "picking a column from the dropdown opens it worst first", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: ~N[2024-01-31 09:00:00]
+      )
+
+    XcodeFixtures.xcode_target_fixture(
+      command_event_id: event.id,
+      name: "Core",
+      product: "framework",
+      binary_cache_hash: "h-Core",
+      binary_cache_hit: :miss,
+      sources_hash: "s-Core"
+    )
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
+
+    render_async(lv, 2000)
+
+    # The lowest hit rate is the worst, so that column opens ascending while the
+    # count columns open descending.
+    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "hit_rate") =~ "sort-order=asc"
+    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "invalidations") =~ "sort-order=desc"
+    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "blast_radius") =~ "sort-order=desc"
+  end
+
   defp table_rows(html) do
     html
     |> Floki.parse_document!()

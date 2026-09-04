@@ -42,6 +42,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
               "analytics-start-date",
               "analytics-end-date",
               "sort-by",
+              "sort-order",
               "q",
               "after",
               "before"
@@ -99,6 +100,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   defp assign_modules(socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     sort_by = if params["sort-by"] in @sort_options, do: params["sort-by"], else: "invalidations"
+    sort_order = if params["sort-order"] in ~w(asc desc), do: params["sort-order"], else: default_sort_order(sort_by)
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
@@ -107,6 +109,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:sort_by, sort_by)
+      |> assign(:sort_order, sort_order)
       |> assign(:search, params["q"] || "")
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
@@ -140,15 +143,55 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     end
   end
 
-  defp sort_modules(modules, "blast_radius"), do: sort_worst_first(modules, &(&1.blast_radius || -1))
-  # Worst first, like every other option: the lowest hit rate is the biggest problem.
-  defp sort_modules(modules, "hit_rate"), do: Enum.sort_by(modules, &{&1.hit_rate, &1.name})
-  defp sort_modules(modules, field), do: sort_worst_first(modules, &Map.fetch!(&1, String.to_existing_atom(field)))
+  defp sort_modules(modules, "blast_radius", order), do: sort_by_value(modules, &(&1.blast_radius || -1), order)
+  defp sort_modules(modules, "hit_rate", order), do: sort_by_value(modules, & &1.hit_rate, order)
+
+  defp sort_modules(modules, field, order),
+    do: sort_by_value(modules, &Map.fetch!(&1, String.to_existing_atom(field)), order)
 
   # Cursors address rows by position, so ties have to break the same way on
   # every render. The name is the tiebreaker because it is what the cursor
   # itself carries.
-  defp sort_worst_first(modules, key_fun), do: Enum.sort_by(modules, &{-key_fun.(&1), &1.name})
+  defp sort_by_value(modules, key_fun, "asc"), do: Enum.sort_by(modules, &{key_fun.(&1), &1.name})
+  defp sort_by_value(modules, key_fun, _desc), do: Enum.sort_by(modules, &{-key_fun.(&1), &1.name})
+
+  # Each column opens on its worst-first direction: most misses, fewest hits,
+  # most dependents.
+  defp default_sort_order("hit_rate"), do: "asc"
+  defp default_sort_order(_field), do: "desc"
+
+  @doc """
+  Patch for clicking a sortable column header, which flips its direction.
+  """
+  def column_patch_sort(%{uri: uri, sort_by: sort_by, sort_order: sort_order}, column) do
+    order =
+      case {sort_by == column, sort_order} do
+        {true, "asc"} -> "desc"
+        {true, _} -> "asc"
+        {false, _} -> default_sort_order(column)
+      end
+
+    sort_query(uri, column, order)
+  end
+
+  @doc """
+  Patch for picking a column from the sort dropdown, which opens it on its own
+  default direction.
+  """
+  def sort_dropdown_patch(uri, column), do: sort_query(uri, column, default_sort_order(column))
+
+  # A cursor addresses a row by position, so it means nothing once the order
+  # changes.
+  defp sort_query(uri, column, order) do
+    query =
+      uri.query
+      |> Query.put("sort-by", column)
+      |> Query.put("sort-order", order)
+      |> Query.drop("after")
+      |> Query.drop("before")
+
+    "?#{query}"
+  end
 
   @doc """
   Slices an already sorted and filtered list into the page addressed by the

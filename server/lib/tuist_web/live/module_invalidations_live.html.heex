@@ -102,7 +102,7 @@
             :for={value <- ~w(invalidations hit_rate blast_radius)}
             value={value}
             label={sort_label(value)}
-            patch={"?#{Query.put(@uri.query, "sort-by", value)}"}
+            patch={sort_dropdown_patch(@uri, value)}
             data-selected={@sort_by == value}
           >
             <:right_icon :if={@sort_by == value}><.check /></:right_icon>
@@ -130,12 +130,16 @@
       </.empty_card_section>
 
       <%= if @modules.ok? && not Enum.empty?(@modules.result) do %>
-        <% filtered = @modules.result |> sort_modules(@sort_by) |> filter_modules(@search) %>
+        <% filtered =
+          @modules.result |> sort_modules(@sort_by, @sort_order) |> filter_modules(@search) %>
         <% page = page_of(filtered, @after_cursor, @before_cursor) %>
         <.module_invalidations_table
           :if={not Enum.empty?(page.rows)}
           id="all-modules-table"
           rows={page.rows}
+          sort_by={@sort_by}
+          sort_order={@sort_order}
+          sort_patch={fn column -> column_patch_sort(assigns, column) end}
           row_navigate={
             fn module ->
               ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
