@@ -58,6 +58,56 @@ defmodule Tuist.ClickHouse.Tables do
     List.flatten(rows)
   end
 
+  @doc """
+  How the two servers' schemas differ: tables one has and the other does not,
+  and columns that differ on the tables they share.
+
+  This exists because comparing data cannot see it. Every other check here
+  enumerates the destination, so a table that only the source has is not
+  compared, not reported, and not missing from any total: it is invisible by
+  construction. The way it does surface is a mirrored write failing against a
+  column that is not there, which is swallowed by design, so the first real
+  symptom would be a rising error counter with nothing pointing at the cause.
+
+  It matters most at the moment the in-cluster server becomes primary. Until
+  then a missing column costs a dropped mirror write; after it, the write is
+  no longer the mirrored kind and the ingest path breaks.
+  """
+  def schema_drift(source, target) do
+    left = columns_by_table(source)
+    right = columns_by_table(target)
+
+    shared = left |> Map.keys() |> Enum.filter(&Map.has_key?(right, &1))
+
+    %{
+      missing_on_destination: left |> Map.keys() |> Kernel.--(Map.keys(right)) |> Enum.sort(),
+      missing_on_source: right |> Map.keys() |> Kernel.--(Map.keys(left)) |> Enum.sort(),
+      differing_columns:
+        shared
+        |> Enum.flat_map(fn table ->
+          {a, b} = {MapSet.difference(left[table], right[table]), MapSet.difference(right[table], left[table])}
+          if MapSet.size(a) == 0 and MapSet.size(b) == 0, do: [], else: [{table, MapSet.to_list(a), MapSet.to_list(b)}]
+        end)
+        |> Enum.sort()
+    }
+  end
+
+  defp columns_by_table(endpoint) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        """
+        SELECT table, name, type FROM system.columns
+        WHERE database = {database:String} AND table NOT LIKE '.inner%'
+        """,
+        %{"database" => endpoint.database},
+        log: false
+      )
+
+    rows
+    |> Enum.group_by(fn [table, _name, _type] -> table end, fn [_table, name, type] -> "#{name} #{type}" end)
+    |> Map.new(fn {table, columns} -> {table, MapSet.new(columns)} end)
+  end
+
   defp view_targets(target) do
     %{rows: rows} =
       target.repo.query!(

@@ -55,9 +55,11 @@ defmodule Tuist.ClickHouse.Workers.ParityWorker do
 
     case Parity.compare(since: since) do
       {:ok, report} ->
+        drift = length(report.schema.missing_on_destination) + length(report.schema.differing_columns)
+
         :telemetry.execute(
           [:tuist, :clickhouse, :parity],
-          %{compared: report.compared, differing: length(report.differing)},
+          %{compared: report.compared, differing: length(report.differing), schema_drift: drift},
           %{}
         )
 

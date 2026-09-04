@@ -35,6 +35,16 @@ defmodule Tuist.ClickHouse.PromExPlugin do
           measurement: :differing,
           description: "Tables whose fingerprints differ between the two ClickHouse servers over the last window."
         ),
+        # Separate from `differing` because the two mean different things: rows
+        # can diverge and be repaired by re-running the backfill, whereas a
+        # schema that has drifted breaks the ingest path the moment the
+        # in-cluster server becomes primary.
+        last_value(
+          [:tuist, :clickhouse, :parity, :schema_drift],
+          event_name: [:tuist, :clickhouse, :parity],
+          measurement: :schema_drift,
+          description: "Tables or columns present on one ClickHouse server and not the other."
+        ),
         last_value(
           [:tuist, :clickhouse, :parity, :compared],
           event_name: [:tuist, :clickhouse, :parity],

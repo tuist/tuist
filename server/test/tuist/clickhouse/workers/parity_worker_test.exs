@@ -1,10 +1,11 @@
 defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
   use ExUnit.Case, async: true
-
   use Mimic
 
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.Workers.ParityWorker
+
+  defp no_drift, do: %{missing_on_destination: [], missing_on_source: [], differing_columns: []}
 
   describe "perform/1" do
     test "does not compare anything when writes are not being mirrored" do
@@ -27,7 +28,7 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
         # lands inside some window rather than between two of them.
         assert DateTime.diff(DateTime.utc_now(), since, :hour) >= 1
 
-        {:ok, %{compared: 3, matching: [], differing: [], skipped: [], derived: %{}}}
+        {:ok, %{compared: 3, matching: [], differing: [], skipped: [], derived: %{}, schema: no_drift()}}
       end)
 
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
@@ -42,13 +43,35 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
     end
 
+    test "counts schema drift as well as diverged rows" do
+      # The two are reported separately because they are repaired differently:
+      # rows by re-running the backfill, a drifted schema by migrating the
+      # server that was missed.
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+
+      expect(Parity, :compare, fn _opts ->
+        {:ok,
+         %{
+           compared: 2,
+           matching: [],
+           differing: [],
+           skipped: [],
+           derived: %{},
+           schema: %{missing_on_destination: ["bazel_invocations"], missing_on_source: [], differing_columns: []}
+         }}
+      end)
+
+      assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
+    end
+
     test "reports a difference without failing the job" do
       # Returning an error would make Oban retry, and the retry compares a
       # window that has since moved, turning one real difference into several.
       stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
 
       expect(Parity, :compare, fn _opts ->
-        {:ok, %{compared: 2, matching: [], differing: [%{table: "build_runs"}], skipped: [], derived: %{}}}
+        {:ok,
+         %{compared: 2, matching: [], differing: [%{table: "build_runs"}], skipped: [], derived: %{}, schema: no_drift()}}
       end)
 
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})

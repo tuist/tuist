@@ -72,12 +72,15 @@ defmodule Tuist.ClickHouse.Parity do
       window = if since, do: " written since #{since}", else: ""
       Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
 
+      drift = Tables.schema_drift(source, target)
+
       {matching, differing, skipped} = split(source, target, copied, since, as_of)
       {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
 
       report = %{
         compared: length(copied) - length(skipped),
         skipped: skipped,
+        schema: drift,
         matching: Enum.map(matching, & &1.table),
         differing: Enum.map(differing, &Map.delete(&1, :matches)),
         derived: %{
@@ -91,6 +94,12 @@ defmodule Tuist.ClickHouse.Parity do
         Logger.info("ClickHouse parity: all #{report.compared} copied table(s) agree")
       else
         Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} copied table(s) differ")
+      end
+
+      if drift.missing_on_destination != [] or drift.differing_columns != [] do
+        Logger.error(
+          "ClickHouse schema drift: #{inspect(Map.take(drift, [:missing_on_destination, :differing_columns]))}"
+        )
       end
 
       if report.derived.differing != [] do

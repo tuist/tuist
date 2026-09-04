@@ -62,6 +62,60 @@ defmodule Tuist.Release do
           reconcile_ops_clickhouse(repo)
         end)
     end
+
+    replay_ingest_migrations_onto_bare_metal()
+  end
+
+  # Applies the ingest migrations to the in-cluster ClickHouse as well, for as
+  # long as one is configured (spec #73).
+  #
+  # Without this the two schemas drift from the moment the schema was cloned.
+  # Migrations run against `Tuist.IngestRepo`, which is ClickHouse Cloud, and
+  # nothing applies them to the other server, so the first migration to land
+  # afterwards leaves a table or column that only one of them has. During the
+  # dual write that shows up as mirrored writes failing and being dropped; at
+  # the moment the in-cluster server becomes primary it stops being tolerable,
+  # because those writes are no longer the mirrored kind and the ingest path
+  # simply breaks.
+  #
+  # It replays them rather than migrating a second repository, because the
+  # migrations reach ClickHouse two ways: `Ecto.Migration.execute/1`, which
+  # goes through the adapter, and `Tuist.IngestRepo.query!/1`, which 53 of them
+  # call directly. Pointing that repository's *dynamic* repo at the in-cluster
+  # server redirects both, and `schema_migrations` with them, so each server
+  # keeps its own record of what it has applied. The migrations are portable
+  # because none of them names a database: the few that need one ask the server
+  # with `currentDatabase()`.
+  #
+  # Best-effort on purpose. Cloud is the system of record for the whole
+  # migration, and a deploy must not fail because the server being migrated
+  # onto is unreachable. A failure here leaves drift, which the parity check
+  # reports, rather than a blocked release.
+  defp replay_ingest_migrations_onto_bare_metal do
+    if Environment.clickhouse_bare_metal_url() do
+      {:ok, _, _} =
+        Ecto.Migrator.with_repo(Tuist.ShadowIngestRepo, fn shadow ->
+          {:ok, _, _} =
+            Ecto.Migrator.with_repo(IngestRepo, fn ingest ->
+              ingest.put_dynamic_repo(shadow)
+
+              try do
+                applied = Ecto.Migrator.run(ingest, :up, all: true)
+                Logger.info("Replayed #{length(applied)} ingest migration(s) onto the in-cluster ClickHouse")
+              after
+                ingest.put_dynamic_repo(ingest)
+              end
+            end)
+        end)
+    end
+  rescue
+    error ->
+      Logger.error("Could not replay the ingest migrations onto the in-cluster ClickHouse: #{Exception.message(error)}")
+      :ok
+  catch
+    :exit, reason ->
+      Logger.error("Could not replay the ingest migrations onto the in-cluster ClickHouse: #{inspect(reason)}")
+      :ok
   end
 
   @doc """
@@ -143,9 +197,16 @@ defmodule Tuist.Release do
     load_app()
 
     case Parity.compare() do
-      {:ok, %{differing: []} = report} ->
-        Logger.info("ClickHouse parity holds across #{report.compared} table(s)")
+      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas included")
         :ok
+
+      # Gated separately from the row comparison, and deliberately fatal. Until
+      # the in-cluster server is primary a missing column costs a dropped
+      # mirror write; from that moment it breaks the ingest path, so this is
+      # the condition to clear before a cutover rather than after one.
+      {:ok, %{differing: []} = report} ->
+        raise "ClickHouse schema drift: #{inspect(Map.take(report.schema, [:missing_on_destination, :differing_columns]))}"
 
       {:ok, report} ->
         raise "ClickHouse parity failed: #{inspect(report.differing)}"
