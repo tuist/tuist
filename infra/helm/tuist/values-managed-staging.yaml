@@ -353,16 +353,18 @@ clickhouse:
     # That row was repaired by running the backfill again with a later cutoff,
     # which cleared and recopied only the range whose end had moved.
     #
-    # Current step: compare the two servers over the read path rather than the
-    # ingest path. It is the same comparison, through the connection the
-    # dashboards use, which is `readonly` and carries per-query and per-user
-    # memory ceilings that have only ever been exercised against Cloud. A
-    # setting this server refuses would otherwise surface at the moment the
-    # read flag was turned on. Next: that flag.
+    # That comparison then ran again over the read path, through the connection
+    # the dashboards use, and all 60 copied tables agreed there too.
+    #
+    # Current step: serve staging's reads from the in-cluster server. The task
+    # only sets the flag, which is the real switch: turning it back off is one
+    # click on the ops flags page, with no deploy, and it takes actors so a
+    # single account can be moved first. This runs it from a deploy because
+    # nothing else can reach that page in this environment.
     migration:
       enabled: true
-      name: read-parity
-      task: Tuist.Release.check_clickhouse_reads
+      name: read-cutover
+      task: Tuist.Release.enable_clickhouse_bare_metal_reads
       cutoff: "2026-09-04T01:30:00Z"
 
 cache:
