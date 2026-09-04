@@ -2742,12 +2742,10 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  How many distinct modules were built on each day of the window, and how many
-  of them were a cache miss.
+  How many distinct modules were built on each day of the window.
 
   ## Returns
-    `%{dates: [iso8601], counts: [integer], rebuilt: [integer]}`, one entry per
-    day in the range.
+    `%{dates: [iso8601], counts: [integer]}`, one entry per day in the range.
   """
   def modules_timeseries(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
@@ -2764,8 +2762,7 @@ defmodule Tuist.Builds.Analytics do
     query = """
     SELECT
       toDate(e.ran_at) AS day,
-      uniqExact(xt.name) AS modules,
-      uniqExactIf(xt.name, xt.binary_cache_hit = 'miss') AS rebuilt
+      uniqExact(xt.name) AS modules
     FROM xcode_targets AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
@@ -2778,11 +2775,8 @@ defmodule Tuist.Builds.Analytics do
 
     by_day =
       case ClickHouseRepo.query(query, params) do
-        {:ok, %{rows: rows}} ->
-          Map.new(rows, fn [day, modules, rebuilt] -> {normalize_date(day), {modules, rebuilt}} end)
-
-        _ ->
-          %{}
+        {:ok, %{rows: rows}} -> Map.new(rows, fn [day, modules] -> {normalize_date(day), modules} end)
+        _ -> %{}
       end
 
     dates =
@@ -2793,8 +2787,7 @@ defmodule Tuist.Builds.Analytics do
 
     %{
       dates: Enum.map(dates, &Date.to_iso8601/1),
-      counts: Enum.map(dates, fn date -> by_day |> Map.get(date, {0, 0}) |> elem(0) end),
-      rebuilt: Enum.map(dates, fn date -> by_day |> Map.get(date, {0, 0}) |> elem(1) end)
+      counts: Enum.map(dates, &Map.get(by_day, &1, 0))
     }
   end
 

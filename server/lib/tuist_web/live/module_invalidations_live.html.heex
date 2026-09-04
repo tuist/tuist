@@ -80,7 +80,6 @@
       do:
         analytics_totals(
           @module_count.result,
-          @modules_series.result,
           @timeseries.result,
           @miss_reasons_series.result
         ) %>
@@ -108,19 +107,16 @@
       />
       <.widget
         loading={!analytics_ready}
-        id="widget-rebuilt"
-        title={dgettext("dashboard_cache", "Rebuilt modules")}
-        legend_color="destructive"
+        id="widget-hits"
+        title={dgettext("dashboard_cache", "Hits")}
+        legend_color="primary"
         description={
-          dgettext(
-            "dashboard_cache",
-            "Modules that were a cache miss on their busiest day, so had to be rebuilt rather than fetched."
-          )
+          dgettext("dashboard_cache", "Module builds served from cache instead of being rebuilt.")
         }
-        value={if totals, do: Integer.to_string(totals.rebuilt)}
+        value={if totals, do: Integer.to_string(totals.hits)}
         phx_click="select_widget"
-        phx_value_widget="rebuilt"
-        selected={@analytics_selected_widget == "rebuilt"}
+        phx_value_widget="hits"
+        selected={@analytics_selected_widget == "hits"}
       />
       <.widget
         loading={!analytics_ready}
@@ -214,25 +210,25 @@
     </.card_section>
 
     <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "rebuilt"}
+      :if={@timeseries.ok? && @analytics_selected_widget == "hits"}
       data-part="analytics-chart-section"
     >
       <.chart
-        id="modules-rebuilt-chart"
-        type="line"
+        id="modules-hits-chart"
+        type="bar"
         extra_options={
           %{
             grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
             tooltip: %{},
             xAxis: %{
               type: "category",
-              data: @modules_series.result.dates,
+              data: @timeseries.result.dates,
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  List.first(@modules_series.result.dates),
-                  List.last(@modules_series.result.dates)
+                  List.first(@timeseries.result.dates),
+                  List.last(@timeseries.result.dates)
                 ]
               }
             },
@@ -245,10 +241,11 @@
         }
         series={[
           %{
-            name: dgettext("dashboard_cache", "Rebuilt modules"),
-            data: @modules_series.result.rebuilt,
-            type: "line",
-            color: "var:noora-chart-destructive"
+            name: dgettext("dashboard_cache", "Hits"),
+            data: @timeseries.result.reuses,
+            type: "bar",
+            color: "var:noora-chart-primary",
+            barMaxWidth: 18
           }
         ]}
         y_axis_min={0}

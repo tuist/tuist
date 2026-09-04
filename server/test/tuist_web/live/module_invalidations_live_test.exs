@@ -99,7 +99,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     {:ok, lv, _html} = live(conn, base)
     render_async(lv, 2000)
 
-    for id <- ~w(widget-modules widget-rebuilt widget-misses) do
+    for id <- ~w(widget-modules widget-hits widget-misses) do
       assert has_element?(lv, "##{id}")
     end
 
@@ -110,19 +110,20 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     # Misses is the default selection, so the reason breakdown is the chart.
     assert has_element?(lv, "#modules-miss-reasons-chart")
 
-    # Both modules are in the project, but only Core had to be rebuilt.
+    # Two modules built once each: Core missed, Networking came from cache.
     assert has_element?(lv, "#widget-modules", "2")
-    assert has_element?(lv, "#widget-rebuilt", "1")
+    assert has_element?(lv, "#widget-hits", "1")
+    assert has_element?(lv, "#widget-misses", "1")
 
     # The misses widget opens on the total rather than on one reason.
     assert has_element?(lv, "#widget-misses", "Misses")
 
     # Clicking a widget swaps in its chart. Driving the click rather than
     # loading the URL is what catches a patch target the client rejects.
-    click_widget(lv, "rebuilt")
+    click_widget(lv, "hits")
     render_async(lv, 2000)
 
-    assert has_element?(lv, "#modules-rebuilt-chart")
+    assert has_element?(lv, "#modules-hits-chart")
     refute has_element?(lv, "#modules-miss-reasons-chart")
 
     click_widget(lv, "modules")

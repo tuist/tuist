@@ -182,12 +182,10 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   least once. The module count is the project's latest commit on its default
   branch, and the rest come from the series, which cover every module.
   """
-  def analytics_totals(module_count, modules_series, timeseries, miss_reasons) do
+  def analytics_totals(module_count, timeseries, miss_reasons) do
     %{
       modules: module_count,
-      # A module counts once however many times it was rebuilt, so this is how
-      # much of the project churned rather than how often.
-      rebuilt: Enum.max(modules_series.rebuilt, fn -> 0 end),
+      hits: Enum.sum(timeseries.reuses),
       misses: Enum.sum(timeseries.invalidations),
       changed: Enum.sum(miss_reasons.changed),
       upstream: Enum.sum(miss_reasons.upstream),
