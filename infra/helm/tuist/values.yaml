@@ -423,6 +423,19 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
+  # Dedicated HTTP origin for Bazel build events. Bazel Build Event Service
+  # traffic terminates at Kura, which forwards normalized events only to the
+  # authenticated server webhook exposed by this ingress.
+  bazelEvents:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations:
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
   resources: {}
   extraEnv: []
   # Additional env from Secrets or ConfigMaps. List of objects with

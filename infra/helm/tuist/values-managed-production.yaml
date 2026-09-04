@@ -261,6 +261,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
+  bazelEvents:
+    enabled: true
+    host: build.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
     requests:
