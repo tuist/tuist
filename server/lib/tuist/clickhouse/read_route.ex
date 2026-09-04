@@ -5,9 +5,13 @@ defmodule Tuist.ClickHouse.ReadRoute do
 
   This is the last step of the migration and the only one a customer can see,
   so it is the one that has to be reversible in seconds rather than in a
-  deploy. It is therefore a `FunWithFlags` toggle, flipped from `/ops/flags`,
-  and it takes actors: a single organization can be moved across and watched
-  before the rest follow, and moved back without touching anything else.
+  deploy. It is therefore a `FunWithFlags` toggle, flipped from `/ops/flags`.
+
+  It is deliberately global rather than per actor. Routing is decided at the
+  repository boundary, where there is no request and therefore no organization
+  to decide for; threading one through every read path is the coupling this
+  module exists to avoid. So the rollout is all reads or none, and the safety
+  it trades that against is how quickly it reverses.
 
   ## Why a dynamic repository
 
