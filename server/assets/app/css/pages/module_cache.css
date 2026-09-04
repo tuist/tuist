@@ -82,7 +82,6 @@
         }
       }
     }
-
   }
 }
 
@@ -138,9 +137,9 @@
       gap: var(--noora-spacing-6);
 
       & > form {
+        flex: 1;
         min-width: 220px;
         max-width: 360px;
-        flex: 1;
 
         & .noora-text-input {
           width: 100%;
@@ -239,9 +238,9 @@
         gap: var(--noora-spacing-6);
 
         & > form {
+          flex: 1;
           min-width: 220px;
           max-width: 320px;
-          flex: 1;
 
           & .noora-text-input {
             width: 100%;
@@ -274,5 +273,4 @@
       visibility: hidden;
     }
   }
-
 }

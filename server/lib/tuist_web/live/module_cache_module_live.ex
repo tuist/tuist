@@ -168,8 +168,10 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       socket,
       [:module, :timeseries, :dependents_series, :miss_reasons_series],
       fn ->
-        all_modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations()
-        index = Map.new(all_modules, &{&1.name, &1})
+        # Fetching the top N by miss count and looking this module up in it
+        # loses the page's own module once the project has more modules than
+        # the cutoff, so ask for it by name.
+        row = opts |> Keyword.put(:name, name) |> Analytics.module_invalidations() |> List.first()
 
         timeseries =
           opts
@@ -177,7 +179,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
           |> Analytics.module_invalidation_timeseries()
           |> with_hit_rates()
 
-        module = build_module(index[name], name, timeseries)
+        module = build_module(row, name, timeseries, opts)
 
         dependents_series =
           Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
@@ -199,7 +201,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   # When a module has invalidations its row exists; otherwise synthesize a
   # zeroed row from the time series so the page still renders (e.g. a module
   # that only ever reused from cache in the window).
-  defp build_module(nil, name, timeseries) do
+  defp build_module(nil, name, timeseries, opts) do
     invalidations = Enum.sum(timeseries.invalidations)
     reuses = Enum.sum(timeseries.reuses)
     appearances = invalidations + reuses
@@ -215,11 +217,13 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       self_changes: 0,
       dependency_induced: 0,
       unclassified: invalidations,
-      blast_radius: nil
+      # A module with no misses still has dependents; the graph knows them even
+      # though there is no invalidation row to read them from.
+      blast_radius: Analytics.module_dependents_count(Keyword.put(opts, :name, name))
     }
   end
 
-  defp build_module(row, _name, timeseries) do
+  defp build_module(row, _name, timeseries, _opts) do
     reuses = Enum.sum(timeseries.reuses)
 
     row

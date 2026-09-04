@@ -2388,6 +2388,7 @@ defmodule Tuist.Builds.Analytics do
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     {filter_sql, filter_params} = module_invalidation_filters(opts)
+    {filter_sql_e2, _} = module_invalidation_filters(opts, "e2")
 
     params =
       Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
@@ -2419,7 +2420,7 @@ defmodule Tuist.Builds.Analytics do
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND xt2.binary_cache_hash IS NOT NULL
-        AND notEmpty(xt2.dependencies)#{String.replace(filter_sql, "e.", "e2.")}
+        AND notEmpty(xt2.dependencies)#{filter_sql_e2}
     )
     GROUP BY name
     """
@@ -2496,20 +2497,26 @@ defmodule Tuist.Builds.Analytics do
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
-    ClickHouseRepo.all(
-      from(e in Event,
-        where:
-          e.project_id == ^project_id and
-            e.ran_at >= ^start_datetime and
-            e.ran_at <= ^end_datetime and
-            e.cacheable_targets_count > 0 and
-            not is_nil(e.git_branch) and e.git_branch != "",
-        distinct: true,
-        order_by: [asc: e.git_branch],
-        limit: 100,
-        select: e.git_branch
-      )
+    limit = Keyword.get(opts, :limit, 100)
+
+    # Ordering alphabetically and cutting at the limit drops the tail of the
+    # alphabet, which on a busy project is arbitrary. Take the busiest branches
+    # instead, so the cut falls on the ones nobody is filtering by, then sort
+    # what survives for the dropdown.
+    from(e in Event,
+      where:
+        e.project_id == ^project_id and
+          e.ran_at >= ^start_datetime and
+          e.ran_at <= ^end_datetime and
+          e.cacheable_targets_count > 0 and
+          not is_nil(e.git_branch) and e.git_branch != "",
+      group_by: e.git_branch,
+      order_by: [desc: count(e.id)],
+      limit: ^limit,
+      select: e.git_branch
     )
+    |> ClickHouseRepo.all()
+    |> Enum.sort()
   end
 
   @doc """
@@ -2831,6 +2838,7 @@ defmodule Tuist.Builds.Analytics do
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     {filter_sql, filter_params} = module_invalidation_filters(Keyword.delete(opts, :git_branch))
+    {filter_sql_e2, _} = module_invalidation_filters(Keyword.delete(opts, :git_branch), "e2")
 
     params =
       Map.merge(
@@ -2864,7 +2872,7 @@ defmodule Tuist.Builds.Analytics do
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND e2.git_branch = {branch:String}
-        AND xt2.binary_cache_hash IS NOT NULL#{String.replace(filter_sql, "e.", "e2.")}
+        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}
     )
     """
 
@@ -2874,17 +2882,41 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  defp module_invalidation_filters(opts) do
+  @doc """
+  How many modules transitively depend on one module, or nil when no build in
+  the window carries dependency edges yet.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_dependents_count(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    # The graph itself is never scoped to one module, so drop the name before
+    # reading it.
+    opts
+    |> Keyword.delete(:name)
+    |> latest_graph_dependencies()
+    |> case do
+      edges when map_size(edges) == 0 -> nil
+      edges -> edges |> reverse_edges() |> then(&downstream_dependents(name, &1)) |> MapSet.size()
+    end
+  end
+
+  defp module_invalidation_filters(opts, alias_name \\ "e") do
     {sql, params} =
       case Keyword.get(opts, :is_ci) do
-        true -> {" AND e.is_ci = true", %{}}
-        false -> {" AND e.is_ci = false", %{}}
+        true -> {" AND #{alias_name}.is_ci = true", %{}}
+        false -> {" AND #{alias_name}.is_ci = false", %{}}
         _ -> {"", %{}}
       end
 
     case Keyword.get(opts, :git_branch) do
       branch when is_binary(branch) and branch != "" ->
-        {sql <> " AND e.git_branch = {branch:String}", Map.put(params, :branch, branch)}
+        {sql <> " AND #{alias_name}.git_branch = {branch:String}", Map.put(params, :branch, branch)}
 
       _ ->
         {sql, params}
@@ -2933,7 +2965,6 @@ defmodule Tuist.Builds.Analytics do
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL
       AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
     GROUP BY day
     ORDER BY day
@@ -3087,7 +3118,10 @@ defmodule Tuist.Builds.Analytics do
     SELECT
       toDate(e.ran_at) AS day,
       xt.name AS name,
-      argMax(xt.dependencies, e.ran_at) AS deps
+      -- Taking the newest row outright returns [] whenever that build came from
+      -- a CLI that does not send edges, which would drop this module's edges
+      -- for the day while its neighbours keep theirs.
+      argMaxIf(xt.dependencies, e.ran_at, notEmpty(xt.dependencies)) AS deps
     FROM xcode_targets AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}

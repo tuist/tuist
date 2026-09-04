@@ -224,6 +224,7 @@ defmodule TuistWeb.ModuleCacheLive do
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
     {start_datetime, end_datetime} = socket.assigns.analytics_period
     analytics_environment = socket.assigns.analytics_environment
+    analytics_branch = socket.assigns.analytics_branch
 
     assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
       base_query =
@@ -238,11 +239,9 @@ defmodule TuistWeb.ModuleCacheLive do
         )
 
       base_query =
-        case analytics_environment do
-          "ci" -> from(e in base_query, where: e.is_ci == true)
-          "local" -> from(e in base_query, where: e.is_ci == false)
-          _ -> base_query
-        end
+        base_query
+        |> scope_runs_to_environment(analytics_environment)
+        |> scope_runs_to_branch(analytics_branch)
 
       events =
         base_query
@@ -294,8 +293,30 @@ defmodule TuistWeb.ModuleCacheLive do
   # growing event stream.
   @summary_module_limit 5_000
 
+  defp scope_runs_to_environment(query, "ci"), do: from(e in query, where: e.is_ci == true)
+  defp scope_runs_to_environment(query, "local"), do: from(e in query, where: e.is_ci == false)
+  defp scope_runs_to_environment(query, _any), do: query
+
+  # Without this the page shows a branch-scoped card above an unscoped list.
+  defp scope_runs_to_branch(query, "any"), do: query
+  defp scope_runs_to_branch(query, branch), do: from(e in query, where: e.git_branch == ^branch)
+
   defp assign_module_invalidations(%{assigns: %{selected_project: project}} = socket, _params) do
     opts = analytics_opts(socket.assigns)
+
+    if opts == socket.assigns[:module_invalidations_opts] do
+      socket
+    else
+      socket
+      |> assign(:module_invalidations_opts, opts)
+      |> assign_module_invalidations_async(opts, project)
+    end
+  end
+
+  # Widget and chart-type selections patch the URL, which re-runs handle_params.
+  # Without this guard each of those pays for the module query, the branch list
+  # and the summary again.
+  defp assign_module_invalidations_async(socket, opts, project) do
     {start_datetime, end_datetime} = socket.assigns.analytics_period
 
     assign_async(socket, [:module_invalidations, :module_invalidations_summary, :cache_branches], fn ->

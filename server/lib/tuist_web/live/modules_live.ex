@@ -222,7 +222,14 @@ defmodule TuistWeb.ModulesLive do
     end
   end
 
-  defp sort_modules(modules, "blast_radius", order), do: sort_by_value(modules, &(&1.blast_radius || -1), order)
+  # A module whose CLI has not reported edges has no dependent count at all.
+  # Coercing it to a number would rank it among real counts, so it sorts to the
+  # end whichever way the column is pointing.
+  defp sort_modules(modules, "blast_radius", order) do
+    {known, unknown} = Enum.split_with(modules, &is_integer(&1.blast_radius))
+    sort_by_value(known, & &1.blast_radius, order) ++ Enum.sort_by(unknown, & &1.name)
+  end
+
   defp sort_modules(modules, "hit_rate", order), do: sort_by_value(modules, & &1.hit_rate, order)
 
   defp sort_modules(modules, field, order),
