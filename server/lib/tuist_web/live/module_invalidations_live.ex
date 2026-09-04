@@ -12,7 +12,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @sort_options ~w(invalidations hit_rate blast_radius self_changes dependency_induced)
+  @sort_options ~w(invalidations hit_rate self_changes dependency_induced unclassified blast_radius)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -124,6 +124,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Dependents")
   def sort_label("self_changes"), do: dgettext("dashboard_cache", "Changed")
   def sort_label("dependency_induced"), do: dgettext("dashboard_cache", "Upstream")
+  def sort_label("unclassified"), do: dgettext("dashboard_cache", "Cold")
   def sort_label(_), do: dgettext("dashboard_cache", "Misses")
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")

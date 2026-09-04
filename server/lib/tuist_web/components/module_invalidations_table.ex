@@ -2,9 +2,9 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
   @moduledoc """
   Shared table of modules ranked by cache misses, used both on the Module Cache
   dashboard card and the standalone "all modules" page. Each row shows the
-  module, its miss count out of the builds it took part in, its cache hit rate,
-  whether those misses came from its own content changing or from an upstream
-  dependency, and how many modules depend on it.
+  module, its miss count split into the three reasons a module misses, its cache
+  hit rate, and how many modules depend on it. Changed, Upstream and Cold sum to
+  Misses.
   """
   use Phoenix.Component
   use Gettext, backend: TuistWeb.Gettext
@@ -26,14 +26,17 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
       <:col :let={module} label={dgettext("dashboard_cache", "Misses")}>
         <.text_cell label={Integer.to_string(module.invalidations)} />
       </:col>
-      <:col :let={module} label={dgettext("dashboard_cache", "Builds")}>
-        <.text_cell label={Integer.to_string(module.appearances)} />
+      <:col :let={module} label={dgettext("dashboard_cache", "Changed")}>
+        <.text_cell label={Integer.to_string(module.self_changes)} />
+      </:col>
+      <:col :let={module} label={dgettext("dashboard_cache", "Upstream")}>
+        <.text_cell label={Integer.to_string(module.dependency_induced)} />
+      </:col>
+      <:col :let={module} label={dgettext("dashboard_cache", "Cold")}>
+        <.text_cell label={Integer.to_string(module.unclassified)} />
       </:col>
       <:col :let={module} label={dgettext("dashboard_cache", "Cache hit rate")}>
         <.text_cell label={"#{module.hit_rate}%"} />
-      </:col>
-      <:col :let={module} label={dgettext("dashboard_cache", "Why")}>
-        <.why_split module={module} />
       </:col>
       <:col :let={module} label={dgettext("dashboard_cache", "Dependents")}>
         <.text_cell label={Integer.to_string(module.blast_radius || 0)} />
@@ -41,43 +44,4 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
     </.table>
     """
   end
-
-  attr :module, :map, required: true
-
-  @doc """
-  Renders the self-change vs dependency-induced split bar with labelled badges.
-  """
-  def why_split(assigns) do
-    ~H"""
-    <div class="module-invalidations-why">
-      <div data-part="bar">
-        <span
-          data-part="changed"
-          style={"width: #{segment_width(@module.self_changes, @module.invalidations)}"}
-        ></span>
-        <span
-          data-part="upstream"
-          style={"width: #{segment_width(@module.dependency_induced, @module.invalidations)}"}
-        ></span>
-      </div>
-      <div data-part="badges">
-        <.badge
-          label={dgettext("dashboard_cache", "%{count} changed", count: @module.self_changes)}
-          color="primary"
-          size="small"
-          dot
-        />
-        <.badge
-          label={dgettext("dashboard_cache", "%{count} upstream", count: @module.dependency_induced)}
-          color="secondary"
-          size="small"
-          dot
-        />
-      </div>
-    </div>
-    """
-  end
-
-  def segment_width(_count, total) when total in [0, nil], do: "0%"
-  def segment_width(count, total), do: "#{Float.round(count / total * 100, 1)}%"
 end
