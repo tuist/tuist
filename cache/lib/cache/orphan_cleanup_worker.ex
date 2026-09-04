@@ -17,6 +17,14 @@ defmodule Cache.OrphanCleanupWorker do
   ETS entry for a file older than this window, the file will be correctly
   identified as an orphan and removed — the next cache miss triggers a
   re-upload, so the system is self-healing.
+
+  Partially written temporary files (`.tmp.*` from the S3 read-through
+  download path, `.cache-upload-*` from the streaming upload path) are
+  orphans under the same rule: they are renamed into place on success and
+  removed on failure, so one that outlives `@min_age_seconds` belongs to a
+  process that died mid-write. The age window is not a fixed deadline for a
+  transfer — every written chunk advances the mtime, so an in-flight
+  transfer of any size or duration is never considered stale.
   """
 
   use Oban.Worker, queue: :maintenance, max_attempts: 1
@@ -137,16 +145,11 @@ defmodule Cache.OrphanCleanupWorker do
             {[full | dirs], files, checked}
 
           {:ok, %File.Stat{type: :regular, size: size, mtime: mtime}} ->
-            cond do
-              tmp_file?(entry) ->
-                {dirs, files, checked + 1}
-
-              now - mtime >= @min_age_seconds ->
-                key = Path.relative_to(full, root)
-                {dirs, [{key, size} | files], checked + 1}
-
-              true ->
-                {dirs, files, checked + 1}
+            if now - mtime >= @min_age_seconds do
+              key = Path.relative_to(full, root)
+              {dirs, [{key, size} | files], checked + 1}
+            else
+              {dirs, files, checked + 1}
             end
 
           _ ->
@@ -211,10 +214,6 @@ defmodule Cache.OrphanCleanupWorker do
       :ok -> try_remove_empty_ancestors(Path.dirname(dir), storage_dir)
       {:error, _} -> :ok
     end
-  end
-
-  defp tmp_file?(filename) do
-    String.starts_with?(filename, [".tmp.", ".cache-upload-"])
   end
 
   defp log_summary(%{orphans_deleted: 0, dirs_scanned: dirs}) do

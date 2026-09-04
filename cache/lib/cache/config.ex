@@ -166,7 +166,7 @@ defmodule Cache.Config do
     Application.get_env(:cache, :xcode_database_interactions_enabled, true)
   end
 
-  @default_orphan_scan_max_dirs 50
+  @default_orphan_scan_max_dirs 1000
   def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)
 
   def repo_busy_timeout_ms(repo \\ Cache.Repo) do
