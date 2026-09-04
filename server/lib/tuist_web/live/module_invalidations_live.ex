@@ -172,16 +172,12 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   understate the hit rate.
   """
   def analytics_totals(modules, timeseries, miss_reasons) do
-    misses = Enum.sum(timeseries.invalidations)
-    hits = Enum.sum(timeseries.reuses)
     changed = Enum.sum(miss_reasons.changed)
     upstream = Enum.sum(miss_reasons.upstream)
 
     %{
       modules: length(modules),
-      misses: misses,
-      hits: hits,
-      hit_rate: percentage(hits, hits + misses),
+      misses: Enum.sum(timeseries.invalidations),
       # Of the misses we could attribute, the share an upstream dependency
       # caused. This is the fraction better module boundaries can remove.
       upstream_share: percentage(upstream, changed + upstream)

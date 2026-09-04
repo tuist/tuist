@@ -1965,16 +1965,32 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert length(series.dates) == 2
     end
 
-    test "the reason split also covers every module without a name", %{
+    test "the reason split classifies each module against its own history", %{
       project: project,
-      target: target,
       event: event
     } do
-      first = event.(~N[2024-04-01 10:00:00])
-      target.(first, "Core", :miss, "s1")
+      build = fn event_id, name, hit, sources, deps ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
 
+      first = event.(~N[2024-04-01 10:00:00])
+      build.(first, "Core", :miss, "s1", "d1")
+      build.(first, "Networking", :miss, "n1", "d1")
+
+      # Core's own sources changed. Networking's did not; only its dependency
+      # hash moved, so it is upstream. Two modules in one build is what catches
+      # a window that compares one module against another.
       second = event.(~N[2024-04-02 10:00:00])
-      target.(second, "Core", :miss, "s2")
+      build.(second, "Core", :miss, "s2", "d1")
+      build.(second, "Networking", :miss, "n1", "d2")
 
       series =
         Analytics.module_miss_reasons_timeseries(
@@ -1983,9 +1999,9 @@ defmodule Tuist.Builds.AnalyticsTest do
           end_datetime: ~U[2024-04-02 23:59:59Z]
         )
 
-      # First build has nothing to compare against, the second changed.
-      assert series.cold == [1, 0]
+      assert series.cold == [2, 0]
       assert series.changed == [0, 1]
+      assert series.upstream == [0, 1]
     end
   end
 

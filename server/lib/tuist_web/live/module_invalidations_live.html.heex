@@ -118,22 +118,6 @@
       />
       <.widget
         loading={!analytics_ready}
-        id="widget-hit-rate"
-        title={dgettext("dashboard_cache", "Cache hit rate")}
-        legend_color="primary"
-        description={
-          dgettext(
-            "dashboard_cache",
-            "Share of module builds served from cache instead of rebuilt."
-          )
-        }
-        value={if totals, do: "#{totals.hit_rate}%"}
-        phx_click="select_widget"
-        phx_value_widget="hit_rate"
-        selected={@analytics_selected_widget == "hit_rate"}
-      />
-      <.widget
-        loading={!analytics_ready}
         id="widget-upstream-share"
         title={dgettext("dashboard_cache", "Upstream share")}
         legend_color="secondary"
@@ -160,7 +144,7 @@
     >
       <.chart
         id="modules-with-misses-chart"
-        type="bar"
+        type="line"
         extra_options={
           %{
             grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
@@ -188,9 +172,8 @@
           %{
             name: dgettext("dashboard_cache", "Modules"),
             data: @modules_series.result.counts,
-            type: "bar",
-            color: "var:noora-chart-primary",
-            barMaxWidth: 18
+            type: "line",
+            color: "var:noora-chart-primary"
           }
         ]}
         y_axis_min={0}
@@ -247,50 +230,6 @@
           }
         ]}
         y_axis_min={0}
-        grid_lines
-      />
-    </.card_section>
-
-    <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "hit_rate"}
-      data-part="analytics-chart-section"
-    >
-      <.chart
-        id="modules-hit-rate-chart"
-        type="line"
-        extra_options={
-          %{
-            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
-            tooltip: %{},
-            xAxis: %{
-              type: "category",
-              data: @timeseries.result.dates,
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                customValues: [
-                  List.first(@timeseries.result.dates),
-                  List.last(@timeseries.result.dates)
-                ]
-              }
-            },
-            yAxis: %{
-              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-              axisLabel: %{color: "var:noora-surface-label-secondary"}
-            },
-            legend: %{show: false}
-          }
-        }
-        series={[
-          %{
-            name: dgettext("dashboard_cache", "Cache hit rate"),
-            data: @timeseries.result.hit_rates,
-            type: "line",
-            color: "var:noora-chart-primary"
-          }
-        ]}
-        y_axis_min={0}
-        y_axis_max={100}
         grid_lines
       />
     </.card_section>

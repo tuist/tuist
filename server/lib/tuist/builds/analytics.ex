@@ -2915,7 +2915,7 @@ defmodule Tuist.Builds.Analytics do
       countIf(hit = 'miss') AS misses
     FROM (
       SELECT
-        day, hit, own, deps, ext,
+        day, name, product, hit, own, deps, ext,
         row_number() OVER w AS rn,
         lagInFrame(own, 1) OVER w AS prev_own,
         lagInFrame(deps, 1) OVER w AS prev_deps,
@@ -2925,6 +2925,8 @@ defmodule Tuist.Builds.Analytics do
           toDate(e.ran_at) AS day,
           e.ran_at AS ran_at,
           coalesce(e.git_branch, '') AS branch,
+          xt.name AS name,
+          xt.product AS product,
           xt.binary_cache_hit AS hit,
           cityHash64(
             xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
@@ -2939,11 +2941,10 @@ defmodule Tuist.Builds.Analytics do
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
-          AND xt.binary_cache_hash IS NOT NULL
           AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
       )
       WINDOW w AS (
-        PARTITION BY branch
+        PARTITION BY name, product, branch
         ORDER BY ran_at ASC
         ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
       )

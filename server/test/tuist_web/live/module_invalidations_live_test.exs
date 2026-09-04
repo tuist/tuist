@@ -99,26 +99,22 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     {:ok, lv, _html} = live(conn, base)
     render_async(lv, 2000)
 
-    for id <- ~w(widget-modules widget-misses widget-hit-rate widget-upstream-share) do
+    for id <- ~w(widget-modules widget-misses widget-upstream-share) do
       assert has_element?(lv, "##{id}")
     end
 
+    # The cache hit rate is on the table and the dashboard already, so it is
+    # deliberately not a widget here.
+    refute has_element?(lv, "#widget-hit-rate")
+
     # Misses is the default selection, so its chart is the one rendered.
     assert has_element?(lv, "#modules-misses-chart")
-    refute has_element?(lv, "#modules-hit-rate-chart")
 
     # Only Core missed, out of two module builds.
     assert has_element?(lv, "#widget-modules", "1")
-    assert has_element?(lv, "#widget-hit-rate", "50.0%")
 
     # Clicking a widget swaps in its chart. Driving the click rather than
     # loading the URL is what catches a patch target the client rejects.
-    click_widget(lv, "hit_rate")
-    render_async(lv, 2000)
-
-    assert has_element?(lv, "#modules-hit-rate-chart")
-    refute has_element?(lv, "#modules-misses-chart")
-
     click_widget(lv, "upstream_share")
     render_async(lv, 2000)
 
