@@ -75,7 +75,7 @@ pub async fn enqueue_replication_for_artifact(
     state: &SharedState,
     manifest: &crate::artifact::manifest::ArtifactManifest,
 ) {
-    for peer in replication_targets(state).await {
+    for peer in replication_targets(state).iter() {
         if let Err(error) = state.store.enqueue(OutboxMessage {
             target: peer.clone(),
             operation: ReplicationOperation::UpsertArtifact {
@@ -262,8 +262,8 @@ async fn outbox_task_loop(state: SharedState) {
     }
 }
 
-pub async fn replication_targets(state: &SharedState) -> Vec<String> {
-    state.replication_targets().await
+pub fn replication_targets(state: &SharedState) -> Arc<Vec<String>> {
+    state.replication_targets()
 }
 
 pub(crate) async fn read_bounded_body(
@@ -818,7 +818,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         return Ok(());
     }
 
-    let current_targets: BTreeSet<String> = state.replication_targets().await.into_iter().collect();
+    let current_targets: BTreeSet<String> = state.replication_targets().iter().cloned().collect();
     // Discovery-only peers (in-cluster siblings, cross-region pods) are
     // treated like the static seeds: never pruned. Their absence usually
     // means a network flap, not departure, and the re-join backfill only
@@ -2014,6 +2014,7 @@ mod tests {
             "https://gone-peer.test:7443".to_string(),
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
         local
             .state
             .store
@@ -2024,6 +2025,7 @@ mod tests {
         local.state.dynamic_peers.store(std::sync::Arc::new(vec![
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
 
         process_outbox(&local.state)
             .await

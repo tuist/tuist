@@ -383,10 +383,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
             "server is shedding writes due to memory pressure; retry the write",
         ));
     }
-    if state
-        .store
-        .outbox_saturated(&state.outbox_gate_targets.load())
-    {
+    if state.store.outbox_saturated(&state.replication_targets()) {
         state
             .metrics
             .record_memory_action("grpc_write_rejected_outbox");

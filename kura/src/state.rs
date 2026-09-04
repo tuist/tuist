@@ -64,11 +64,12 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into discovery/replication
     // targets on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
-    /// The replication target list as of the last membership pass, for the
-    /// pre-body write gates: they run on every write and must not re-derive
-    /// it under the readiness lock. Staleness is bounded by the pass
-    /// interval, and the reservation behind the gate is exact.
-    pub outbox_gate_targets: ArcSwap<Vec<String>>,
+    /// The replication target list, shared immutable and replaced whole by
+    /// `rebuild_replication_targets` whenever one of its inputs changes
+    /// (static seeds, the heartbeat peer list, the discovered view). Every
+    /// write reads it, so it is a pointer load rather than a walk of the
+    /// readiness state under its lock.
+    pub(crate) replication_target_cache: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
@@ -143,6 +144,19 @@ impl Drop for BackfillBodiesPeerSlot {
 pub struct ReplicationBackoff {
     next_attempt: Instant,
     failures: u32,
+}
+
+/// The replication targets known before any membership pass: the static
+/// seeds minus the node itself.
+pub fn static_replication_targets(config: &Config) -> Vec<String> {
+    config
+        .peers
+        .iter()
+        .filter(|peer| **peer != config.node_url)
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 impl AppState {
@@ -425,10 +439,9 @@ impl AppState {
     /// backlog that is not going anywhere. An observed empty set is a mesh
     /// that really has no peers, and the total returns to one share.
     pub async fn refresh_outbox_capacity(&self, observed: bool) {
-        let targets = self.replication_targets().await;
+        let targets = self.rebuild_replication_targets().await;
         let mut peers: BTreeSet<String> = targets.iter().cloned().collect();
         peers.extend(self.discovered_only_peer_history().await);
-        self.outbox_gate_targets.store(Arc::new(targets));
         if peers.is_empty() && !observed {
             return;
         }
@@ -469,13 +482,24 @@ impl AppState {
         }
     }
 
-    pub async fn replication_targets(&self) -> Vec<String> {
+    /// The peers a write enqueues one outbox message for. A shared snapshot:
+    /// exact as of the last input change, which every input mutation
+    /// follows with `rebuild_replication_targets`.
+    pub fn replication_targets(&self) -> Arc<Vec<String>> {
+        self.replication_target_cache.load_full()
+    }
+
+    /// Re-derives the replication targets from the static seeds, the
+    /// heartbeat peer list and the discovered view, and publishes them.
+    pub async fn rebuild_replication_targets(&self) -> Arc<Vec<String>> {
         let snapshot = self.readiness_snapshot().await;
         let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
         targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
-        targets.into_iter().collect()
+        let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());
+        self.replication_target_cache.store(targets.clone());
+        targets
     }
 
     /// Segment count as a percentage of the ring's desired total, the ring

@@ -1226,10 +1226,7 @@ async fn reject_overloaded_public_writes(
                 "server is shedding writes due to memory pressure",
             );
         }
-        if state
-            .store
-            .outbox_saturated(&state.outbox_gate_targets.load())
-        {
+        if state.store.outbox_saturated(&state.replication_targets()) {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(
                 &state.metrics,
@@ -1931,7 +1928,7 @@ async fn put_keyvalue(
             );
         }
     };
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
 
     match state
         .store
@@ -2322,7 +2319,7 @@ async fn complete_module_upload(
             namespace_id: upload.namespace_id,
         });
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     match state
         .store
         .complete_multipart_upload_and_enqueue(&query.upload_id, &body.parts, &targets)
@@ -2383,7 +2380,7 @@ async fn clean_namespace(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     match state
         .store
         .delete_namespace_and_enqueue(&namespace.namespace_id, &targets)
@@ -3470,7 +3467,7 @@ async fn put_blob_artifact(
         }
     };
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     let result = state
         .store
         .persist_artifact_from_path_and_enqueue(
@@ -7667,7 +7664,7 @@ mod tests {
             !context
                 .state
                 .store
-                .outbox_saturated(&context.state.replication_targets().await),
+                .outbox_saturated(&context.state.replication_targets()),
             "the pre-check must admit this write, or the test is not exercising the gap"
         );
 

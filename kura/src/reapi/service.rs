@@ -534,7 +534,7 @@ impl ReapiService {
             drop(file);
         }
 
-        let targets = replication_targets(&self.state).await;
+        let targets = replication_targets(&self.state);
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
         // blob (retry, or a client that skips FindMissingBlobs) must not be
@@ -1528,7 +1528,7 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let targets = replication_targets(&self.state).await;
+        let targets = replication_targets(&self.state);
         let (manifest, applied) = self
             .state
             .store
@@ -2445,7 +2445,7 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let targets = replication_targets(state).await;
+    let targets = replication_targets(state);
     let persisted = state
         .store
         .persist_artifact_from_bytes_and_enqueue(

@@ -1397,25 +1397,18 @@ impl Store {
         })
     }
 
-    /// The counter for a target, created on first sight. Creation rewrites
-    /// the map, which only happens when a peer is new to this process.
-    fn outbox_target_counter(&self, target: &str) -> Arc<AtomicUsize> {
-        if let Some(counter) = self.outbox_target_depth.load().get(target) {
-            return counter.clone();
-        }
-        let counter = Arc::new(AtomicUsize::new(0));
+    /// Makes sure every target has a counter. Rewrites the map only for a
+    /// peer new to this process, so the write path almost never takes it.
+    fn ensure_outbox_targets(&self, targets: &[String]) {
         self.outbox_target_depth.rcu(|depths| {
             let mut depths = HashMap::clone(depths);
-            depths
-                .entry(target.to_owned())
-                .or_insert_with(|| counter.clone());
+            for target in targets {
+                depths
+                    .entry(target.clone())
+                    .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
+            }
             depths
         });
-        self.outbox_target_depth
-            .load()
-            .get(target)
-            .cloned()
-            .unwrap_or(counter)
     }
 
     /// Drops the counters of targets that are neither replication targets
@@ -1482,11 +1475,16 @@ impl Store {
 
         if self.outbox_max_depth_fixed.is_none() {
             let per_peer = self.outbox_max_depth_per_peer;
+            let mut depths = self.outbox_target_depth.load();
+            if targets.iter().any(|target| !depths.contains_key(target)) {
+                self.ensure_outbox_targets(targets);
+                depths = self.outbox_target_depth.load();
+            }
             for (taken, target) in targets.iter().enumerate() {
-                let counter = self.outbox_target_counter(target);
-                let claimed = counter.fetch_update(Ordering::AcqRel, Ordering::Acquire, |depth| {
-                    (depth < per_peer).then_some(depth + 1)
-                });
+                let claimed =
+                    depths[target].fetch_update(Ordering::AcqRel, Ordering::Acquire, |depth| {
+                        (depth < per_peer).then_some(depth + 1)
+                    });
                 if let Err(depth) = claimed {
                     self.release_outbox_slots(&targets[..taken]);
                     release_atomic_slots(&self.outbox_depth, slots - taken);
@@ -7800,8 +7798,13 @@ impl Store {
             // binary does not know (a rollback across a wire addition), and
             // that is a per-message drain failure, not a reason to keep the
             // store from opening. The row still holds a slot in the total.
-            match serde_json::from_slice::<OutboxTarget>(&value) {
-                Ok(message) => *per_target.entry(message.target).or_insert(0) += 1,
+            match serde_json::from_slice::<OutboxTarget<'_>>(&value) {
+                Ok(message) => match per_target.get_mut(message.target) {
+                    Some(depth) => *depth += 1,
+                    None => {
+                        per_target.insert(message.target.to_owned(), 1);
+                    }
+                },
                 Err(error) => tracing::warn!(
                     key = %String::from_utf8_lossy(&key),
                     "outbox row is not attributable to a target: {error}"
@@ -8920,8 +8923,9 @@ fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> 
 /// The target half of a persisted `OutboxMessage`, for counting rows the
 /// current binary may not be able to decode in full.
 #[derive(Deserialize)]
-struct OutboxTarget {
-    target: String,
+struct OutboxTarget<'a> {
+    #[serde(borrow)]
+    target: &'a str,
 }
 
 /// Whether an outbox key belongs to the bulk lane. The lane is the key's first
