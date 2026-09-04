@@ -18,6 +18,7 @@
 go 1.25.0
 
 use (
+	./infra/cloudflare-operator
 	./infra/cluster-api-provider-tuist
 	./infra/egress-tree-agent
 	./infra/hetzner-robot-controller
