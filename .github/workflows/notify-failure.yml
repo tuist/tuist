@@ -10,6 +10,7 @@ on:
       - Cache Release
       - CLI
       - CLI Cache EE
+      - CLI Canary Release
       - CNPG Restore Drill
       - Gradle
       - Gradle Cache Acceptance
