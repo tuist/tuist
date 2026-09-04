@@ -389,13 +389,8 @@ impl ReapiService {
             .output_files
             .iter()
             .filter_map(|output| {
-                let Some(artifact_kind) = BazelTestArtifactKind::from_output_path(&output.path)
-                else {
-                    return None;
-                };
-                let Some(digest) = output.digest.as_ref() else {
-                    return None;
-                };
+                let artifact_kind = BazelTestArtifactKind::from_output_path(&output.path)?;
+                let digest = output.digest.as_ref()?;
                 if digest_key(digest).is_err() {
                     return None;
                 }
