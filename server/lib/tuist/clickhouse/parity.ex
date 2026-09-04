@@ -108,28 +108,12 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final_clause(endpoint, table)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}"
 
     %{rows: [values]} = endpoint.repo.query!(statement, [], log: false)
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
   rescue
     error -> %{error: Exception.message(error)}
-  end
-
-  # `FINAL` is only valid on an engine that deduplicates, and applying it to a
-  # plain MergeTree is an error rather than a no-op.
-  defp final_clause(endpoint, table) do
-    %{rows: rows} =
-      endpoint.repo.query!(
-        "SELECT engine FROM system.tables WHERE database = {database:String} AND name = {table:String}",
-        %{"database" => endpoint.database, "table" => table},
-        log: false
-      )
-
-    case rows do
-      [[engine]] -> if String.contains?(engine, ["Replacing", "Collapsing"]), do: " FINAL", else: ""
-      _ -> ""
-    end
   end
 
   defp numeric_columns(endpoint, table) do

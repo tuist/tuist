@@ -20,6 +20,8 @@ defmodule Tuist.ClickHouse.Tables do
   The tables to copy: everything on the destination that no materialized view
   writes into.
   """
+  @collapsing_families ["Replacing", "Collapsing", "Aggregating", "Summing"]
+
   def copied(target) do
     derived = view_targets(target)
 
@@ -71,6 +73,34 @@ defmodule Tuist.ClickHouse.Tables do
     |> List.flatten()
     |> Enum.flat_map(&List.wrap(view_target(&1, target.database)))
     |> MapSet.new()
+  end
+
+  @doc """
+  ` FINAL` when the table's engine collapses rows on merge, and an empty
+  string otherwise.
+
+  Counting without it compares merge schedules rather than data. A freshly
+  copied table is small enough that its first merge runs immediately, while
+  the source has the same rows spread over parts it has not merged yet, so the
+  destination reports fewer rows for data that is identical. That is exactly
+  what the first staging backfill saw: 84 rows against 42 on an
+  `AggregatingMergeTree`, and 118 against 113 on a `ReplacingMergeTree`.
+
+  `FINAL` is not valid on a plain `MergeTree`, where it is an error rather
+  than a no-op, so the engine has to be asked first.
+  """
+  def final_clause(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        "SELECT engine FROM system.tables WHERE database = {database:String} AND name = {table:String}",
+        %{"database" => endpoint.database, "table" => table},
+        log: false
+      )
+
+    case rows do
+      [[engine]] -> if String.contains?(engine, @collapsing_families), do: " FINAL", else: ""
+      _ -> ""
+    end
   end
 
   @doc """

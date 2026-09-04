@@ -304,10 +304,14 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
+  # Counted through `FINAL` where the engine collapses rows, because the two
+  # servers merge on their own schedules and the raw row count of a table that
+  # has just been written is not comparable with one that has been sitting
+  # there. See `Tuist.ClickHouse.Tables.final_clause/2`.
   defp count(endpoint, table, chunk) do
     result =
       endpoint.repo.query!(
-        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)} WHERE #{predicate(chunk)}",
+        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)} WHERE #{predicate(chunk)}",
         [],
         log: false
       )
