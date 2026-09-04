@@ -1141,7 +1141,9 @@ histogram_quantile(0.5,
   )
 )
 and on (cluster, pod) (
-  max by (cluster, pod) (kura_backfill_ring_fullness_percent{cluster="tuist-production"}) >= 100
+  min by (cluster, pod) (
+    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[1d])
+  ) >= 100
 )
 ```
 
@@ -1161,13 +1163,90 @@ and on (cluster, pod) (
   younger than a day (median age of the youngest artifact in each segment the
   ring rotated out over the last day). Overnight and weekend builds will miss.
   Rings run full by design; what this measures is whether the claim is enough
-  for the account's write rate, so the lever is the account's storage claim
-  (Tuist.Kura.ClaimSizing proposes the size), not the region. If several
-  accounts in one region fire together, the region is the problem, see "Kura
-  region cannot place another instance" for disk.`
+  for the account's write rate. The lever is the account's storage claim,
+  which Tuist.Kura.ClaimSizing sizes and applies on its own, so this fires
+  only where that loop cannot fix it: the claim is clamped at the plan ceiling
+  (64Gi air and pro, 256Gi enterprise), the region has no disk to grow into
+  (see "Kura region cannot place another instance"), or sizing itself is
+  stuck. Only rings that have been full for the whole day count: a ring
+  rebuilt more recently cannot report an eviction older than itself, so it
+  would fire on its own age.`
 
-The critical tier of **Kura instance retention horizon short** below, which
-carries the reasoning.
+Kura instances are expected to use all the disk they are given: every
+production ring runs at 100% of its desired segment count, and a full ring is
+not a signal of anything. What the customer feels is how long an artifact
+survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
+records, for every segment the ring rotates out, the age of the youngest
+content in it, which is exactly "how soon after being written can an artifact
+disappear". Under a day, overnight and weekend builds miss.
+
+**Per instance, not per region.** The write rate that empties a ring is one
+account's, and so is the lever: the storage claim, which
+`Tuist.Kura.ClaimSizing` sizes per account. The region only enters when the
+claim cannot grow because the box is full, which is the disk row of **Kura
+region cannot place another instance**. A region-level median would also hide
+the case that matters: on 2026-09-02 one account's instances sat at about
+three days in both US regions while every other instance in the fleet sat
+above ten, and the region medians read as "about three days" purely because
+of it.
+
+**There is no warning tier, because sizing is the actor.**
+`Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
+its proposals unattended every ten minutes, within a fleet-wide budget of five
+applies an hour. Its own `retention_floor_days` is 3, so any instance whose
+retention falls under two days is already inside the band sizing is working
+on, and it is deliberately unhurried there: the rung that matches a one-day
+shed age needs five consecutive qualifying days before it grows the claim. A
+two-day rule therefore alerts on a control loop that is mid-confirmation and
+would keep alerting for days while it does its job. A rule at two days was
+deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
+only on the artifact described below. One day is the tier worth waking
+someone: it means the loop did not keep up, or cannot act at all.
+
+What is genuinely actionable and still has no rule of its own is *sizing
+blocked*: the claim clamped at the plan ceiling, or open proposals the worker
+is not draining. Neither is visible to Prometheus today, because the server
+exports no claim-size or ceiling metric. That is the rule to add, in place of
+the two-day tier.
+
+**Only a ring that has been full for a whole day counts.** Fullness is the
+segment count against the ring's desired total, so it reads 100 in steady
+state on every instance; the gate keeps a ring that is still filling (after a
+bootstrap, or while the segment count is converging) out of the rule even if
+it rotates a segment early. It has to be `min_over_time` across the
+threshold's own window, not the instantaneous value: a ring is rebuilt from
+empty whenever its instance lands on a new node, since the cache is
+local-path, and a rebuilt ring holds nothing older than itself, so the oldest
+eviction it can possibly report is its own age. An instantaneous gate opens
+the moment the refill completes and the rule then fires on the rebuild, every
+time, for as long as the threshold. `min_over_time(...[1d]) >= 100` is exactly
+the invariant the threshold needs: content *could* be a day old, so a median
+under a day is real.
+
+This is not hypothetical. On 2026-09-03 at 10:20 UTC both
+`kura-tuist-eu-central-1` replicas moved from node `...fleet-tkhrc-wktsj` to
+`...-x47qf`; ring fullness went 100 to 1 on both and climbed back to 100 about
+25 hours later. The rollup median shed age for that account-region went from
+1,124,768s (13d) on 09-03 to 86,347s (~24h) on 09-04, with
+`median_ring_span_seconds` collapsing identically (1,169,349 to 85,242) while
+its scw-fr-par instance held at ~11 days. Both tiers fired within an hour of
+the refill completing, on rings whose entire contents were younger than the
+threshold. Sizing correctly proposed nothing: one day of evidence, and the
+matching rung needs five.
+
+**Bucket edges are coarse but sit where the threshold is.** The histogram's
+edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
+interpolated inside a bucket, but the threshold coincides with an edge. The
+`[1d]` window is one day of rotations: long enough that a single early
+rotation does not set the median, short enough to react within the day the
+claim became too small.
+
+Measured on 2026-09-04 with the gate in place, the rule returns ten instances
+and the shortest median is 216,000s (2.5 days, one account's four instances);
+the rest read between ten and thirty days, and three instances have shed no
+segment at all in the window (`NaN`, which the `< 86400` threshold does not
+match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
+the one to watch as its usage grows.
 
 ### Kura egress budget almost entirely consumed
 
@@ -2725,68 +2804,6 @@ Measured on 2026-09-02, every production pod's one-hour average sits well
 under half its request; over the previous 7 days a few pods peaked above their
 request at a single 10-minute sample, which is the allowed behaviour and which
 the hour average filters out.
-
-### Kura instance retention horizon short
-
-Same query as **Kura instance retention horizon under a day**.
-
-- Threshold: `< 172800` seconds (two days), as a separate threshold expression
-  on `A`
-- Pending period: 60 minutes
-- Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
-  `affected_service` for the cache component.
-- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
-  {{ $labels.region }} evicts artifacts after a median of
-  {{ $values.A.Value | humanizeDuration }}; grow its storage claim`
-- Description: `The instance's ring is full and the median age of the
-  artifacts it evicts has dropped under two days. Rings run full by design;
-  this measures whether the account's claim is enough for its write rate, so
-  the lever is the account's storage claim (Tuist.Kura.ClaimSizing proposes
-  the size). Under a day is paged separately.`
-
-Kura instances are expected to use all the disk they are given: every
-production ring runs at 100% of its desired segment count, and a full ring is
-not a signal of anything. What the customer feels is how long an artifact
-survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
-records, for every segment the ring rotates out, the age of the youngest
-content in it, which is exactly "how soon after being written can an artifact
-disappear". A median under two days means a build that reuses yesterday's
-artifacts is starting to miss; under a day, overnight and weekend builds miss.
-
-**Per instance, not per region.** The write rate that empties a ring is one
-account's, and so is the lever: the storage claim, which
-`Tuist.Kura.ClaimSizing` already proposes growing or shrinking per account.
-The region only enters when the claim cannot grow because the box is full,
-which is the disk row of **Kura region cannot place another instance**. A
-region-level median would also hide the case that matters: on 2026-09-02 one
-account's instances sat at about three days in both US regions while every
-other instance in the fleet sat above ten, and the region medians read as
-"about three days" purely because of it.
-
-**Only a full ring counts.** A new or recently restarted instance starts with
-an empty ring and fills over days; it has not shed anything, so it has no
-samples here and cannot fire, but the `and` on
-`kura_backfill_ring_fullness_percent >= 100` makes the intent explicit and
-keeps a ring that is still filling (after a bootstrap, or while the segment
-count is converging) out of the rule even if it rotates a segment early.
-Fullness is the segment count against the ring's desired total, so it reads
-100 in steady state on every instance and is the right gate, not an alarm.
-
-**Bucket edges are coarse but sit where the thresholds are.** The histogram's
-edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
-interpolated inside a bucket, but both thresholds coincide with an edge. The
-`[1d]` window is one day of rotations: long enough that a single early
-rotation does not set the median, short enough to react within the day the
-claim became too small.
-
-Measured on 2026-09-02 across production with the rule's own one-day window,
-every full ring's median is five days or more (one account's four instances
-at about five, the rest between ten and thirty); over a seven-day window that
-same account reads about three days. Nothing is under two days, so both rules
-are quiet on creation; that account is the one to watch as its usage grows.
 
 ### Kura egress budget heavily used
 
