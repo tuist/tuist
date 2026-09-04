@@ -263,8 +263,8 @@ internal class StressNewTestsGate(
     ): StressNewTestsReport? {
         val firstPassFailed = executed.any { it.resultType == TestResult.ResultType.FAILURE && !it.isQuarantined }
         if (firstPassFailed) {
-            heading()
-            logger.lifecycle("  Skipped: the first pass already failed, so nothing was stressed.")
+            // Nothing is printed: the build already has failing tests to look at, and a note
+            // about what the gate did not do on top of them is noise.
             return skipped("first_pass_failed", newCount = 0, inventoryCount = 0)
         }
 
@@ -286,8 +286,7 @@ internal class StressNewTestsGate(
         }
 
         response.guard?.let { guard ->
-            heading()
-            logger.lifecycle("  " + guardDescription(guard))
+            logger.lifecycle("Tuist: " + guardDescription(guard))
             return skipped(guard.kind, newCount = guard.newCount, inventoryCount = guard.inventoryCount)
         }
 
@@ -403,7 +402,7 @@ internal class StressNewTestsGate(
             inventoryCount = response.inventoryCount,
             testCases = candidates.map { it.toReport() }
         )
-        print(report, response.parameters.wallClockCeilingMs)
+        print(report, response.parameters.wallClockCeilingMs, response.parameters.candidateCap)
         return report
     }
 
@@ -422,12 +421,12 @@ internal class StressNewTestsGate(
         logger.lifecycle("Tuist: Stress-testing new tests")
     }
 
-    private fun print(report: StressNewTestsReport, ceilingMs: Long) {
+    private fun print(report: StressNewTestsReport, ceilingMs: Long, candidateCap: Int) {
         heading()
-        logger.lifecycle("  ${report.newCount} new test cases, ${report.stressedCount} stressed, ${report.excludedCount} excluded")
+        logger.lifecycle("  ${report.newCount} new test cases, ${report.stressedCount} rerun, ${report.excludedCount} skipped")
         val width = report.testCases.maxOfOrNull { it.identifier.length } ?: 0
         for (candidate in report.testCases) {
-            logger.lifecycle("  ${candidate.identifier.padEnd(width)}   ${outcomeDescription(candidate, ceilingMs)}")
+            logger.lifecycle("  ${candidate.identifier.padEnd(width)}   ${outcomeDescription(candidate, ceilingMs, candidateCap)}")
         }
         if (report.mode == StressNewTestsMode.REPORT) {
             for (candidate in report.blockingCandidates) {
@@ -449,28 +448,34 @@ internal class StressNewTestsGate(
             return if (suiteName.isNotBlank()) "$suiteName.$method" else "*.$method"
         }
 
-        fun outcomeDescription(candidate: StressNewTestsCandidateReport, ceilingMs: Long): String = when (candidate.outcome) {
+        fun outcomeDescription(
+            candidate: StressNewTestsCandidateReport,
+            ceilingMs: Long,
+            candidateCap: Int
+        ): String = when (candidate.outcome) {
             "passed" -> "${candidate.repetitions} repetitions, passed"
             "disagreed" -> "${candidate.repetitions} repetitions, ${candidate.failedRepetitions} failed" +
                 if (candidate.isQuarantined) " (muted)" else ""
-            "excluded_too_slow" -> "excluded, slower than the curve's last bucket"
-            "excluded_candidate_cap" -> "excluded, beyond the candidate cap"
+            "excluded_too_slow" -> "skipped, it takes too long to run repeatedly"
+            "excluded_candidate_cap" -> "skipped, this build had already reached its limit of $candidateCap new test cases"
             "not_stressed_ceiling" -> {
                 val seconds = ceilingMs / 1000
-                val ceiling = if (seconds >= 60) "${seconds / 60} minute" else "$seconds second"
-                "not stressed, the $ceiling wall-clock ceiling was reached"
+                val limit = if (seconds >= 60) "${seconds / 60} minute" else "$seconds second"
+                "skipped, this build had already spent its $limit rerun budget"
             }
-            else -> "not stressed, the stress pass failed to run"
+            else -> "skipped, the reruns could not be started"
         }
 
         fun guardDescription(guard: StressGuard): String = when (guard.kind) {
             "no_default_branch" ->
-                "Skipped: the project has no default branch, so no test case can be new. Set one in the project settings."
+                "Skipped stress testing new tests: the project has no default branch, so Tuist cannot tell which test cases are new. " +
+                    "Set one in the project settings."
             "no_default_branch_history" ->
-                "Skipped: no test case has run in CI on the default branch yet, so all ${guard.newCount} test cases would read as new."
+                "Skipped stress testing new tests: no test case has run in CI on the default branch yet, so all ${guard.newCount} " +
+                    "of this build's test cases would count as new."
             else ->
-                "Skipped: ${guard.newCount} of the build's test cases are new against ${guard.inventoryCount} on the default branch, " +
-                    "so the bulk-change guard ran nothing."
+                "Skipped stress testing new tests: ${guard.newCount} test cases look new against ${guard.inventoryCount} on the " +
+                    "default branch, which usually means they were renamed or moved rather than added."
         }
 
         fun blockedMessage(report: StressNewTestsReport): String =

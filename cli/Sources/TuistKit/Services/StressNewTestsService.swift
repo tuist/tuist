@@ -250,8 +250,8 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 inventoryCount: 0,
                 candidates: []
             )
-            printHeading()
-            Logger.current.notice("Skipped: the first pass already failed, so nothing was stressed.")
+            // Nothing is printed: the run already has failing tests to look at, and a note
+            // about what the gate did not do on top of them is noise.
             return result
         }
 
@@ -289,7 +289,6 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
 
         if let guardSignal = verdict._guard {
-            printHeading()
             Logger.current.notice("\(Self.guardDescription(guardSignal))")
             return StressNewTestsResult(
                 mode: mode,
@@ -349,7 +348,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
             inventoryCount: verdict.inventory_count,
             candidates: candidates
         )
-        print(result, ceiling: ceiling)
+        print(result, ceiling: ceiling, candidateCap: verdict.parameters.candidate_cap)
         return result
     }
 
@@ -489,15 +488,15 @@ public struct StressNewTestsService: StressNewTestsServicing {
         Logger.current.notice("Stress-testing new tests", metadata: .section)
     }
 
-    private func print(_ result: StressNewTestsResult, ceiling: Duration) {
+    private func print(_ result: StressNewTestsResult, ceiling: Duration, candidateCap: Int) {
         printHeading()
         Logger.current.notice(
-            "\(result.newCount) new test cases, \(result.stressedCount) stressed, \(result.excludedCount) excluded"
+            "\(result.newCount) new test cases, \(result.stressedCount) rerun, \(result.excludedCount) skipped"
         )
         let width = result.candidates.map(\.identifier.description.count).max() ?? 0
         for candidate in result.candidates {
             let name = candidate.identifier.description.padding(toLength: width, withPad: " ", startingAt: 0)
-            Logger.current.notice("\(name)   \(Self.outcomeDescription(candidate, ceiling: ceiling))")
+            Logger.current.notice("\(name)   \(Self.outcomeDescription(candidate, ceiling: ceiling, candidateCap: candidateCap))")
         }
         if result.mode == .report {
             for candidate in result.blockingCandidates {
@@ -511,7 +510,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
     }
 
-    static func outcomeDescription(_ candidate: StressNewTestsCandidate, ceiling: Duration) -> String {
+    static func outcomeDescription(_ candidate: StressNewTestsCandidate, ceiling: Duration, candidateCap: Int) -> String {
         switch candidate.outcome {
         case .passed:
             return "\(candidate.repetitions) repetitions, passed"
@@ -519,25 +518,26 @@ public struct StressNewTestsService: StressNewTestsServicing {
             let muted = candidate.isQuarantined ? " (muted)" : ""
             return "\(candidate.repetitions) repetitions, \(candidate.failedRepetitions) failed\(muted)"
         case .excludedTooSlow:
-            return "excluded, slower than the curve's last bucket"
+            return "skipped, it takes too long to run repeatedly"
         case .excludedCandidateCap:
-            return "excluded, beyond the candidate cap"
+            return "skipped, this run had already reached its limit of \(candidateCap) new test cases"
         case .notStressedCeiling:
             let seconds = Int(ceiling.components.seconds)
-            return "not stressed, the \(seconds / 60 > 0 ? "\(seconds / 60) minute" : "\(seconds) second") wall-clock ceiling was reached"
+            let limit = seconds / 60 > 0 ? "\(seconds / 60) minute" : "\(seconds) second"
+            return "skipped, this run had already spent its \(limit) rerun budget"
         case .notStressedError:
-            return "not stressed, the stress pass failed to run"
+            return "skipped, the reruns could not be started"
         }
     }
 
     static func guardDescription(_ signal: Components.Schemas.StressNewTestsVerdict._guardPayload) -> String {
         switch signal.kind {
         case .no_default_branch:
-            return "Skipped: the project has no default branch, so no test case can be new. Set one in the project settings."
+            return "Skipped stress testing new tests: the project has no default branch, so Tuist cannot tell which test cases are new. Set one in the project settings."
         case .no_default_branch_history:
-            return "Skipped: no test case has run in CI on the default branch yet, so all \(signal.new_count) test cases would read as new."
+            return "Skipped stress testing new tests: no test case has run in CI on the default branch yet, so all \(signal.new_count) of this run's test cases would count as new."
         case .bulk_change:
-            return "Skipped: \(signal.new_count) of the run's test cases are new against \(signal.inventory_count) on the default branch, so the bulk-change guard ran nothing."
+            return "Skipped stress testing new tests: \(signal.new_count) test cases look new against \(signal.inventory_count) on the default branch, which usually means they were renamed or moved rather than added."
         }
     }
 }
