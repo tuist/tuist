@@ -148,7 +148,7 @@ msgstr ""
 #: lib/tuist_web/live/bundles_live.html.heex:362
 #: lib/tuist_web/live/cache_runs_live.ex:60
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
-#: lib/tuist_web/live/module_cache_module_live.html.heex:607
+#: lib/tuist_web/live/module_cache_module_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -274,7 +274,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:160
 #: lib/tuist_web/live/bundles_live.html.heex:392
-#: lib/tuist_web/live/module_cache_module_live.html.heex:615
+#: lib/tuist_web/live/module_cache_module_live.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -1190,14 +1190,9 @@ msgid "Builds"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:584
-#: lib/tuist_web/live/module_cache_module_live.html.heex:611
-#, elixir-autogen, elixir-format
-msgid "None"
-msgstr ""
-
 #: lib/tuist_web/live/module_cache_module_live.html.heex:618
 #, elixir-autogen, elixir-format
-msgid "Why"
+msgid "None"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:304
@@ -1216,11 +1211,6 @@ msgstr ""
 msgid "Search commit sha"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:540
-#, elixir-autogen, elixir-format
-msgid "Why:"
-msgstr ""
-
 #: lib/tuist_web/live/module_cache_module_live.html.heex:587
 #, elixir-autogen, elixir-format
 msgid "Hit"
@@ -1234,4 +1224,14 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.html.heex:590
 #, elixir-autogen, elixir-format
 msgid "Remote"
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.html.heex:607
+#, elixir-autogen, elixir-format
+msgid "Reason"
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.html.heex:540
+#, elixir-autogen, elixir-format
+msgid "Reason:"
 msgstr ""

@@ -537,7 +537,7 @@
         <.dropdown
           id="builds-reason-dropdown"
           label={builds_reason_label(@builds_reason)}
-          secondary_text={dgettext("dashboard_cache", "Why:")}
+          secondary_text={dgettext("dashboard_cache", "Reason:")}
         >
           <.dropdown_item
             :for={value <- ~w(any hit changed upstream cold)}
@@ -604,6 +604,13 @@
               style="light-fill"
             />
           </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Reason")}>
+            <.badge_cell
+              label={build_reason_label(build.reason)}
+              color={build_reason_color(build.reason)}
+              style="light-fill"
+            />
+          </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell
               icon="git_branch"
@@ -614,13 +621,6 @@
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(build.commit_sha)} />
-          </:col>
-          <:col :let={build} label={dgettext("dashboard_cache", "Why")}>
-            <.badge_cell
-              label={build_reason_label(build.reason)}
-              color={build_reason_color(build.reason)}
-              style="light-fill"
-            />
           </:col>
           <:col
             :let={build}
