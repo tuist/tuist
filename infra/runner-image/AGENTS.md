@@ -190,8 +190,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
-  The store is bounded by `prune_cas_stores`, second in teardown, and by nothing
-  else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
+  The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
+  job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit
   and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
   falls off — which no part of a build ever calls, so the store grew without
@@ -205,7 +205,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   budgets the CAS as a whole while llcas only takes a per-generation bound per
   store, so handing each the full figure would let a two-lane job occupy twice
   the CAS the image was sized for. Teardown is the only place that can count the
-  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist. A pruned store settles at ~2x its per-generation limit
+  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
+  The teardown pass (second, after the drain) bounds what the FLEET inherits: the
+  image is measured and promoted right after it. The attach pass bounds what THIS
+  job inherits, and covers the case teardown cannot reach — a master that is
+  already over budget can fill the volume mid-build and fail the job, and a
+  failed job never promotes, so teardown is skipped and no replacement is ever
+  published. That is the wedge that ends in a manual reset; pruning at attach
+  gives the job the headroom to succeed so its own teardown publishes the fix.
+  The attach pass runs AFTER `CACHE_INVENTORY_BEFORE` is snapshotted, and that
+  order is load-bearing: pruning first folds the collection into the baseline, so
+  a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
+  (verified both ways — same digest when reversed). Taking the baseline first
+  makes the collection itself the change that earns the promote, the same
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. A pruned store settles at ~2x its per-generation limit
   (primary + the demoted upstream, which is the warm cache), which is why
   `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
   `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports

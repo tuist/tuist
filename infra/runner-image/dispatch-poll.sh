@@ -789,6 +789,21 @@ cas_store_dirs() {
 # calls it, so the directory grows without bound (measured 9.4x its limit and
 # still climbing). This is the call.
 #
+# It runs at BOTH ends of a job, and the two are not redundant.
+#
+# At TEARDOWN it bounds what the fleet inherits: the image is measured and
+# promoted straight after, so every host that later clones this master starts
+# from a bounded store.
+#
+# At ATTACH it bounds what THIS job inherits, which is the case teardown cannot
+# reach. A master that is already over budget — promoted before this path
+# existed, or converged from a host still running an older image — can fill the
+# volume mid-build and FAIL the job, and a failed job never promotes, so
+# teardown is skipped and no replacement is ever published. That is the wedge
+# that leaves an account needing a manual reset. Pruning at attach gives the job
+# the headroom to succeed, and its teardown then publishes the bounded image, so
+# the account heals itself on its next job instead of on an operator's.
+#
 # Placement in teardown is load-bearing on three sides:
 #   - AFTER drain_cas_publications: a prune deletes objects, and deleting one the
 #     spool still owed the remote would strand the association naming it;
@@ -809,15 +824,9 @@ cas_store_dirs() {
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
 # promotion.
 #
-# Skipped when the job failed, on the same rc gate as the drain and for the
-# matching reason. A non-zero rc never promotes, so there is no image for a
-# prune to shrink — and the drain was skipped too, so the spool may still owe
-# the remote objects this would delete. Nothing inherits those associations
-# (the branch is discarded), but "prune only what has been drained" is the
-# invariant worth being unable to get wrong later.
+# The teardown call site applies an rc gate; the attach one does not need it
+# (nothing has been drained yet because nothing has been written yet).
 prune_cas_stores() {
-  local rc="${1:-1}"
-  [ "${rc}" = "0" ] || return 0
   [ -n "${CACHE_MOUNT}" ] || return 0
   local stores
   stores=$(cas_store_dirs)
@@ -910,6 +919,24 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      # Bound the store this job INHERITED, before the job can run out of room
+      # in it. Nothing has opened it yet — `tuist setup cache` has not run, so
+      # there is no proxy, and a runner VM is single-shot so no previous one
+      # survives — which makes this the most quiescent moment in the VM's life
+      # and the only one besides teardown where a rotation can happen at all.
+      #
+      # AFTER the inventory snapshot, and that order is load-bearing: the
+      # snapshot is the baseline the dirty check compares against, so pruning
+      # first would fold the collection into the baseline and a pure-cache-hit
+      # job would then read as clean, be discarded, and leave the over-budget
+      # master in place — the opposite of the intent. Taking the baseline first
+      # makes the collection itself the change that earns the promote, which is
+      # the same reasoning that puts reclaim_cas_if_disabled at teardown.
+      #
+      # Deliberately not time-bounded. It delays the job's start only by what it
+      # frees, which is space the job was going to need, and killing an unlink
+      # midway would leave a half-collected generation behind.
+      prune_cas_stores
       return 0
     fi
     sleep 1
@@ -1534,7 +1561,17 @@ HOOK
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
-      prune_cas_stores "${rc}"
+      #
+      # Gated on rc, like the drain and for the matching reason. A non-zero rc
+      # never promotes, so there is no image for this to shrink — and the drain
+      # was skipped too, so the spool may still owe the remote objects this
+      # would delete. Nothing inherits those associations (the branch is
+      # discarded), but "prune only what has been drained" is the invariant
+      # worth being unable to get wrong later. The attach-time prune is what
+      # covers a failing job, from the other end.
+      if [ "${rc}" = "0" ]; then
+        prune_cas_stores
+      fi
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting
       # that would authorize a promote is skipped. report_cache_dirty writes the
