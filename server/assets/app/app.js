@@ -45,10 +45,10 @@ import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
 import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
 import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
-import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -75,7 +75,6 @@ Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
 Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
-Hooks.Turnstile = Turnstile;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -138,13 +137,7 @@ liveSocket.connect();
 
 setupQueryMemory();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.

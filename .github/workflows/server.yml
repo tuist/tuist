@@ -11,6 +11,7 @@ on:
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -22,6 +23,7 @@ on:
       - .github/actions/setup-server-mix/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   merge_group: {}
 
@@ -394,6 +396,15 @@ jobs:
       - name: Check CSS custom property references
         working-directory: ${{ github.workspace }}
         run: mise run css:lint-tokens server
+  image-budget:
+    name: Image budget
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check marketing image budget
+        working-directory: ${{ github.workspace }}
+        run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
     name: esbuild
     runs-on: tuist-linux

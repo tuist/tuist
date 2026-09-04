@@ -40,6 +40,8 @@ use crate::{
     utils::directory_size_bytes,
 };
 
+// Bound request and header state per connection independently of the response
+// memory pools. Additional cache traffic can use another connection.
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 // The co-hosted listener carries large Bazel REAPI uploads, so it advertises a
 // 4 MiB stream window (a single ByteStream write is otherwise capped at
@@ -1575,6 +1577,254 @@ mod tests {
         let _ = server.await;
     }
 
+    #[derive(Clone, Copy)]
+    struct ConnectionShardingSample {
+        requests_per_second: f64,
+        p50_us: u64,
+        p95_us: u64,
+        p99_us: u64,
+    }
+
+    async fn run_connection_sharding_sample(
+        channels: &[tonic::transport::Channel],
+        resource_name: Arc<str>,
+        request_count: usize,
+        concurrency: usize,
+        expected_bytes: usize,
+    ) -> ConnectionShardingSample {
+        use bazel_remote_apis::google::bytestream::{
+            ReadRequest, byte_stream_client::ByteStreamClient,
+        };
+        use futures_util::StreamExt as _;
+
+        let started_at = Instant::now();
+        let mut latencies = futures_util::stream::iter(0..request_count)
+            .map(|index| {
+                let channel = channels[index % channels.len()].clone();
+                let resource_name = resource_name.clone();
+                async move {
+                    let request_started_at = Instant::now();
+                    let mut responses = ByteStreamClient::new(channel)
+                        .read(ReadRequest {
+                            resource_name: resource_name.as_ref().to_owned(),
+                            read_offset: 0,
+                            read_limit: 0,
+                        })
+                        .await
+                        .expect("benchmark read should start")
+                        .into_inner();
+                    let mut received_bytes = 0_usize;
+                    while let Some(response) = responses
+                        .message()
+                        .await
+                        .expect("benchmark response should decode")
+                    {
+                        received_bytes = received_bytes.saturating_add(response.data.len());
+                    }
+                    assert_eq!(received_bytes, expected_bytes);
+                    request_started_at.elapsed().as_micros() as u64
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
+        let elapsed = started_at.elapsed();
+        latencies.sort_unstable();
+        let percentile = |percent: usize| {
+            let index = latencies
+                .len()
+                .saturating_mul(percent)
+                .div_ceil(100)
+                .saturating_sub(1)
+                .min(latencies.len().saturating_sub(1));
+            latencies[index]
+        };
+        ConnectionShardingSample {
+            requests_per_second: request_count as f64 / elapsed.as_secs_f64(),
+            p50_us: percentile(50),
+            p95_us: percentile(95),
+            p99_us: percentile(99),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn bytestream_connection_sharding_benchmark() {
+        use sha2::{Digest as _, Sha256};
+
+        use crate::{artifact::producer::ArtifactProducer, utils::blob_key};
+
+        const BLOB_BYTES: usize = 256 * 1024;
+        const CONCURRENCY: usize = 512;
+        const CONNECTION_COUNTS: [usize; 4] = [1, 2, 4, 8];
+        const REQUESTS_PER_SAMPLE: usize = 10_000;
+        const SAMPLE_COUNT: usize = 3;
+        const GIBIBYTE: u64 = 1024 * 1024 * 1024;
+
+        let context = test_context(|config| {
+            config.memory_limit_bytes = 4 * GIBIBYTE;
+            config.memory_soft_limit_bytes = 2 * GIBIBYTE;
+            config.memory_hard_limit_bytes = 3 * GIBIBYTE;
+        })
+        .await;
+        let blob = vec![0x5a; BLOB_BYTES];
+        let hash = hex::encode(Sha256::digest(&blob));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "default",
+                &blob_key(&format!("{hash}/{BLOB_BYTES}")),
+                "application/octet-stream",
+                &blob,
+            )
+            .await
+            .expect("benchmark blob should persist");
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind benchmark listener");
+        let addr = listener.local_addr().expect("benchmark listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let state = context.state.clone();
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        let endpoint = format!("http://{addr}");
+        let max_connections = *CONNECTION_COUNTS.last().expect("connection counts");
+        let mut channels = Vec::with_capacity(max_connections);
+        for _ in 0..max_connections {
+            channels.push(
+                tonic::transport::Endpoint::from_shared(endpoint.clone())
+                    .expect("benchmark endpoint should be valid")
+                    .connect()
+                    .await
+                    .expect("benchmark connection should open"),
+            );
+        }
+        let resource_name: Arc<str> = Arc::from(format!("default/blobs/{hash}/{BLOB_BYTES}"));
+
+        for channel in &channels {
+            run_connection_sharding_sample(
+                std::slice::from_ref(channel),
+                resource_name.clone(),
+                1,
+                1,
+                BLOB_BYTES,
+            )
+            .await;
+        }
+
+        let mut samples = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+        for sample_index in 0..SAMPLE_COUNT {
+            let order: &[usize] = if sample_index % 2 == 0 {
+                &[0, 1, 2, 3]
+            } else {
+                &[3, 2, 1, 0]
+            };
+            for &connection_index in order {
+                let connection_count = CONNECTION_COUNTS[connection_index];
+                samples[connection_index].push(
+                    run_connection_sharding_sample(
+                        &channels[..connection_count],
+                        resource_name.clone(),
+                        REQUESTS_PER_SAMPLE,
+                        CONCURRENCY,
+                        BLOB_BYTES,
+                    )
+                    .await,
+                );
+            }
+        }
+
+        let median = |values: &mut [f64]| {
+            values.sort_unstable_by(f64::total_cmp);
+            values[values.len() / 2]
+        };
+        let median_integer = |values: &mut [u64]| {
+            values.sort_unstable();
+            values[values.len() / 2]
+        };
+        let mut medians = Vec::with_capacity(CONNECTION_COUNTS.len());
+        for (connection_count, connection_samples) in CONNECTION_COUNTS.into_iter().zip(samples) {
+            let requests_per_second = median(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.requests_per_second)
+                    .collect::<Vec<_>>(),
+            );
+            let p50_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p50_us)
+                    .collect::<Vec<_>>(),
+            );
+            let p95_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p95_us)
+                    .collect::<Vec<_>>(),
+            );
+            let p99_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p99_us)
+                    .collect::<Vec<_>>(),
+            );
+            println!(
+                "connection sharding benchmark: connections={connection_count} requests_per_second={requests_per_second:.3} p50_us={p50_us} p95_us={p95_us} p99_us={p99_us}"
+            );
+            medians.push(ConnectionShardingSample {
+                requests_per_second,
+                p50_us,
+                p95_us,
+                p99_us,
+            });
+        }
+
+        let one_connection = medians[0].requests_per_second;
+        let best_sharded = medians[1..]
+            .iter()
+            .map(|sample| sample.requests_per_second)
+            .max_by(f64::total_cmp)
+            .expect("at least one sharded sample");
+        println!(
+            "METRIC connection_sharding_speedup_ratio={:.6}",
+            best_sharded / one_connection
+        );
+        for (connection_count, sample) in CONNECTION_COUNTS.into_iter().zip(medians) {
+            println!(
+                "METRIC connections_{connection_count}_requests_per_second={:.3}",
+                sample.requests_per_second
+            );
+            println!(
+                "METRIC connections_{connection_count}_p50_us={}",
+                sample.p50_us
+            );
+            println!(
+                "METRIC connections_{connection_count}_p95_us={}",
+                sample.p95_us
+            );
+            println!(
+                "METRIC connections_{connection_count}_p99_us={}",
+                sample.p99_us
+            );
+        }
+
+        shutdown_tx.send(true).expect("signal benchmark shutdown");
+        server
+            .await
+            .expect("benchmark server task should finish")
+            .expect("benchmark server should shut down cleanly");
+    }
+
     // Same as above but over TLS (reusing the public cert): both HTTPS and REAPI
     // gRPC ride one TLS port, ALPN-negotiated (http/1.1 for HTTP, h2 for gRPC).
     #[tokio::test]
@@ -1726,6 +1976,7 @@ mod tests {
         let guard = context
             .state
             .start_http_request(crate::runtime::HttpTrafficClass::Public);
+        context.state.enter_draining();
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),
@@ -1745,6 +1996,7 @@ mod tests {
     async fn wait_for_inflight_drain_times_out_when_requests_do_not_finish() {
         let context = test_context(|_| {}).await;
         let _guard = context.state.start_grpc_request();
+        context.state.enter_draining();
 
         assert!(
             !wait_for_inflight_drain(

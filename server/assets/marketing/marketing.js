@@ -4,6 +4,7 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 import Noora from "noora";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
@@ -20,13 +21,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
 });
 liveSocket.connect();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 window.liveSocket = liveSocket;
 

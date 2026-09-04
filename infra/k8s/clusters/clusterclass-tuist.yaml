@@ -419,6 +419,17 @@ spec:
     # the host is claimed: the layout is fixed at install, so changing it
     # afterwards means a reinstall and a replica rebuild from the peer.
     # Do not set 0: caph rewrites RAID 0 to 1 in the installimage wrapper.
+    #
+    # EVERY Cluster CR must declare this explicitly, including the ones with
+    # no stateful pool. A defaulted variable a Cluster does not declare is
+    # appended to the live `spec.topology.variables` by the topology
+    # controller in ALPHABETICAL order, while `kubectl diff` appends it after
+    # the declared ones; the two orders then disagree on every subsequent
+    # run and the post-apply drift check in `mgmt-cluster-apply.yml` can
+    # never converge. That is what turned the merge of #12799 red. The three
+    # older defaulted variables hid the problem by happening to sort after
+    # the declared ones already. Any future variable with a `default` needs
+    # the same treatment in the same change.
     - name: statefulRaidLevel
       required: false
       schema:

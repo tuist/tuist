@@ -145,13 +145,27 @@ extension FileSystem {
         }
         try await move(from: nested.absolutePath, to: temp.absolutePath, options: [])
         for entry in try await contentsOfDirectory(at: temp) {
-            try await move(
-                from: entry.absolutePath,
-                to: url.appendingPathComponent(entry.lastPathComponent).absolutePath,
-                options: []
-            )
+            let destination = url.appendingPathComponent(entry.lastPathComponent)
+            if isSymlink(entry) {
+                try moveSymbolicLink(from: entry, to: destination)
+            } else {
+                try await move(from: entry.absolutePath, to: destination.absolutePath, options: [])
+            }
         }
         try await remove(temp.absolutePath)
+    }
+
+    private func moveSymbolicLink(from source: URL, to destination: URL) throws {
+        let result = source.path.withCString { sourcePath in
+            destination.path.withCString { destinationPath in
+                rename(sourcePath, destinationPath)
+            }
+        }
+        guard result == 0 else {
+            let errorCode = errno
+            let message = String(cString: strerror(errorCode))
+            throw ToolError.message("failed to move symbolic link from \(source.path) to \(destination.path): \(message)")
+        }
     }
 
     /// Materialise `source` at `destination`, removing any existing item first. By default,

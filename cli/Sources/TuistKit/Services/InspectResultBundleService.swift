@@ -197,8 +197,11 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
-        // xcodebuild creates result-bundle as a symlink to result-bundle.xcresult,
-        // so we resolve it to ensure the archiver zips the actual directory.
+        // Older Xcode versions dropped a `<name>` → `<name>.xcresult` symlink
+        // alongside the bundle when `-resultBundlePath` was given without an
+        // extension, and callers might still pass such a path through
+        // `--result-bundle-path`. Resolve any symlink so the archiver zips the
+        // real directory, not the pointer.
         let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
 
         // A populated xcresult bundle has Info.plist at its root. If it's

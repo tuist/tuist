@@ -104,12 +104,6 @@ server:
         flat_monthly: ["price_1S7y0PQ9gGM5W1ag9rjNl7FP"]
         flat_yearly: []
 
-  # Canary runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
-  config:
-    posthog:
-      enabled: false
-
   autoscaling:
     enabled: false
 
@@ -197,6 +191,30 @@ server:
       # traffic-driven placement is observable rather than collapsing onto a
       # single funded region.
       value: ca-east,eu-central
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Every account this environment provisions comes from an acceptance
+      # test run, and a test account never builds again. On the production
+      # 90-day default none of them are ever reclaimed, so each cascade run
+      # leaves its instances behind and the namespace grows without bound:
+      # kura went from 5 pods to 61 in six hours on 2026-09-03, saturating
+      # local-path storage and adding ~9.7k active series. A one-day window
+      # with no tracking grace reclaims a run's accounts by the next day,
+      # matching staging.
+      #
+      # The `tuist` account above takes cache demand on every cascade run, so
+      # it stays live through the working week and cold-returns after a quiet
+      # weekend, which is the same path staging exercises.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # The production default is @daily, which would leave an instance
+      # eligible for up to another day against the one-day window above.
+      # Hourly closes that to an hour; staging's */5 buys nothing here, where
+      # nobody is watching a single instance through its cycle.
+      value: "0 * * * *"
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.

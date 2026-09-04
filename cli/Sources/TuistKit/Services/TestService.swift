@@ -400,7 +400,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -692,7 +692,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -841,7 +841,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -1765,12 +1765,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return resultBundlePath
         }
 
+        // Always emit a `.xcresult`-suffixed per-scheme path, whether the caller
+        // gave us an extension or not. `xcodebuild -resultBundlePath` writes the
+        // bundle at the exact path passed, and Xcode 26 stopped adding the
+        // historical `<name>` → `<name>.xcresult` symlink alongside it. Without
+        // the suffix the bundle lands in a directory the server's post-upload
+        // resolver does not recognise, and the run is marked failed_processing.
         let schemePathComponent = schemeName.toValidInBundleIdentifier()
         let pathComponent: String
         if let pathExtension = resultBundlePath.extension {
             pathComponent = "\(resultBundlePath.basenameWithoutExt)-\(schemePathComponent).\(pathExtension)"
         } else {
-            pathComponent = "\(resultBundlePath.basename)-\(schemePathComponent)"
+            pathComponent = "\(resultBundlePath.basename)-\(schemePathComponent).xcresult"
         }
 
         return resultBundlePath.parentDirectory.appending(component: pathComponent)

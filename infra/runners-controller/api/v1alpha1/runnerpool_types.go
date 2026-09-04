@@ -102,9 +102,10 @@ type RunnerPoolSpec struct {
 
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a
-	// bound Pod may take to start its dispatch poller. The controller uses the
-	// lowest maxConcurrentPerFleetSelector configured by sibling pools so a
-	// mismatched pool cannot weaken the shared safety boundary.
+	// bound Pod may take to start its dispatch poller. The bound is
+	// maxConcurrentPerNode times the fleet's healthy node count, using the
+	// lowest per-node value configured by sibling pools so a mismatched pool
+	// cannot weaken the shared safety boundary.
 	//
 	// Linux only. macOS runner Pods use the Tart host lifecycle and do not
 	// participate in this admission gate.
@@ -220,22 +221,24 @@ type RunnerPoolAutoscaling struct {
 }
 
 const (
-	defaultMaxConcurrentProvisioningPerFleetSelector int32 = 4
-	defaultProvisioningStartTimeoutSeconds           int32 = 300
+	defaultMaxConcurrentProvisioningPerNode int32 = 6
+	defaultProvisioningStartTimeoutSeconds  int32 = 300
 )
 
 // RunnerPoolProvisioning carries the Linux Kata sandbox admission knobs.
 // Pointer fields preserve a deliberate zero for startTimeoutSeconds while
 // allowing the custom-resource defaults to distinguish an omitted value.
 type RunnerPoolProvisioning struct {
-	// MaxConcurrentPerFleetSelector is the maximum number of Linux runner
-	// Pods that may be waiting for their dispatch poller to start across all
-	// sibling pools sharing the same operating system and FleetSelector. The lowest sibling value is
-	// authoritative for the shared fleet. Default 4.
-	// +kubebuilder:default=4
+	// MaxConcurrentPerNode is the maximum number of Linux runner Pods that
+	// may be waiting for their dispatch poller to start per healthy fleet
+	// node, across all sibling pools sharing the same operating system and
+	// FleetSelector. The controller multiplies it by the node count to get
+	// the shared fleet ceiling, and uses the lowest sibling value so one
+	// mismatched pool cannot weaken the fleet boundary. Default 6.
+	// +kubebuilder:default=6
 	// +kubebuilder:validation:Minimum=1
 	// +optional
-	MaxConcurrentPerFleetSelector *int32 `json:"maxConcurrentPerFleetSelector,omitempty"`
+	MaxConcurrentPerNode *int32 `json:"maxConcurrentPerNode,omitempty"`
 
 	// StartTimeoutSeconds bounds how long a Linux runner Pod that has been
 	// assigned to a node may wait for its dispatch poller to start. Timed-out
@@ -247,14 +250,14 @@ type RunnerPoolProvisioning struct {
 	StartTimeoutSeconds *int32 `json:"startTimeoutSeconds,omitempty"`
 }
 
-func (p *RunnerPoolProvisioning) MaxConcurrentPerFleetSelectorOrDefault() int32 {
+func (p *RunnerPoolProvisioning) MaxConcurrentPerNodeOrDefault() int32 {
 	// The custom-resource schema rejects 0. Keep the non-positive fallback
 	// defensive for typed test clients and clusters whose schema has not yet
 	// been upgraded; unlike StartTimeoutSeconds, zero never disables this cap.
-	if p == nil || p.MaxConcurrentPerFleetSelector == nil || *p.MaxConcurrentPerFleetSelector <= 0 {
-		return defaultMaxConcurrentProvisioningPerFleetSelector
+	if p == nil || p.MaxConcurrentPerNode == nil || *p.MaxConcurrentPerNode <= 0 {
+		return defaultMaxConcurrentProvisioningPerNode
 	}
-	return *p.MaxConcurrentPerFleetSelector
+	return *p.MaxConcurrentPerNode
 }
 
 func (p *RunnerPoolProvisioning) StartTimeoutSecondsOrDefault() int32 {

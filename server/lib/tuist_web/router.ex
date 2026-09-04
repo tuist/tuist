@@ -40,7 +40,6 @@ defmodule TuistWeb.Router do
 
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
-    turnstile_source = if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
 
     [
       frame_ancestors: "'self'",
@@ -53,10 +52,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://*.posthog.com https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
+      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com",
+      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 
@@ -721,6 +720,13 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id", GradleController, :get_build
         end
 
+        scope "/bazel" do
+          get "/invocations", BazelController, :list_invocations
+          get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/cache-events", BazelController, :list_cache_events
+          get "/cache-events/:cache_event_id", BazelController, :get_cache_event
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -1208,6 +1214,7 @@ defmodule TuistWeb.Router do
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
+      live "/invocations", BazelInvocationsLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive

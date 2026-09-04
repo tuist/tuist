@@ -45,6 +45,13 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
     public func run(
         directory: String?
     ) async throws {
+        try await run(directory: directory, buildInsights: true)
+    }
+
+    public func run(
+        directory: String?,
+        buildInsights: Bool
+    ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -84,7 +91,8 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             endpoint: endpoint,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
-            credentialHelperPath: credentialHelperPath
+            credentialHelperPath: credentialHelperPath,
+            buildInsights: buildInsights
         )
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
 
@@ -92,7 +100,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             .alert(
                 "Generated \(bazelrcPath.pathString)",
                 takeaways: [
-                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache",
+                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache\(buildInsights ? " and invocation insights" : "")",
                 ]
             )
         )

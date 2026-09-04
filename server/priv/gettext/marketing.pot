@@ -1536,7 +1536,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:39
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:95
-#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:42
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
 msgstr ""

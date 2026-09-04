@@ -304,7 +304,7 @@ func instanceTypeOrDefault(t string) string {
 // brings the PN VLAN up first. The leading indent prefix is supplied by the
 // caller so it nests correctly under cloud-init's YAML block or stands alone in
 // a bare script.
-func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup string) string {
+func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup, containerdQuota string) string {
 	// Pipe `containerd config default` through sed so the rendered config sets
 	// the CRI registry config_path to /etc/containerd/certs.d. containerd v2
 	// emits an empty `[plugins."io.containerd.grpc.v1.cri".registry]` table, so
@@ -366,13 +366,7 @@ export DEBIAN_FRONTEND=noninteractive
 # mounted filesystem (single-partition Elastic Metal), and the trailing 'true'
 # keeps set -e happy regardless.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; }; true'
-# Bound the image store's share of /data. It is the one consumer on that
-# filesystem that is not a tenant, and nothing else caps it: image GC keys on
-# the FILESYSTEM being 85%% full, so on a box whose tenants are light containerd
-# can grow into the headroom their quotas were written against and starve them
-# below their own ceilings. Tolerated on failure (see containerdQuotaScript).
-%[10]s
-# The kura cache PVCs use a local-path StorageClass that carves each PV as a
+%[10]s# The kura cache PVCs use a local-path StorageClass that carves each PV as a
 # directory under /opt/local-path-provisioner. Bind that onto /data too, so the
 # cache volumes land on the big disk rather than the ~20G root: without it two
 # co-located replicas (replicas>=2 on a single box) fill the root and the second
@@ -391,7 +385,7 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuotaSetup(sudo, writeFile), kataSetup)
+		containerdQuota, kataSetup)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -532,7 +526,7 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime)), "      ")
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints))), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -597,7 +591,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime))
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -721,6 +715,31 @@ if ! has_project_quota; then
 fi
 `
 
+// kuraCacheTaintKey marks a box as a Kura cache region. Every cache fleet
+// template hardcodes it (ovh-fleet.yaml, ovh-fleets.yaml's default,
+// dedibox-fleet.yaml); a pool that is not a cache region overrides nodeTaints
+// with its own, which is already what keeps it out of the cache-only surfaces
+// keyed off that map. Reusing it here keeps one source of truth for "is this a
+// cache box" rather than adding a second that can drift from the taint.
+const kuraCacheTaintKey = "tuist.dev/kura-cache"
+
+// hostsKuraCacheVolumes reports whether tenant cache volumes land on this box's
+// /data, which is the only thing the image-store quota exists to protect.
+//
+// Absence of the taint means no quota. The two ways to be wrong here are
+// asymmetric: quota-ing a box that has no tenants buys nothing and costs a hard
+// ENOSPC ceiling that no GC can clear (image GC keys on the filesystem, which is
+// nowhere near full), while skipping a box that does have tenants only returns
+// it to the defence-in-depth it had before the quota existed.
+func hostsKuraCacheVolumes(taints []corev1.Taint) bool {
+	for _, taint := range taints {
+		if taint.Key == kuraCacheTaintKey {
+			return true
+		}
+	}
+	return false
+}
+
 // containerdProjectID is the reserved XFS project for the image store. Volume
 // projects are hashed into [1000, 16000999] by the provisioner hook, so a small
 // fixed id below that range cannot collide with one.
@@ -801,11 +820,20 @@ xfs_quota -x -c "limit -p bhard=$bytes $projid" "$data"
 // after the image store has been relocated onto /data (the directory has to
 // exist to carry a project) and after apt has installed xfsprogs, which is why
 // it lives in bootstrapBody rather than beside the /data mount setup.
-func containerdQuotaSetup(sudo string, writeFile func(producer, path string) string) string {
+func containerdQuotaSetup(sudo string, writeFile func(producer, path string) string, cacheVolumes bool) string {
+	if !cacheVolumes {
+		return ""
+	}
 	return strings.Join([]string{
+		"# Bound the image store's share of /data. It is the one consumer on that",
+		"# filesystem that is not a tenant, and nothing else caps it: image GC keys on",
+		"# the FILESYSTEM being 85% full, so on a box whose tenants are light containerd",
+		"# can grow into the headroom their quotas were written against and starve them",
+		"# below their own ceilings. Tolerated on failure (see containerdQuotaScript).",
 		writeFile("printf '%s' "+shellSingleQuote(containerdQuotaScript), containerdQuotaPath),
 		sudo + "chmod 0755 " + containerdQuotaPath,
 		sudo + "bash " + containerdQuotaPath + " || echo 'tuist: could not bound the containerd image store; continuing' >&2",
+		"",
 	}, "\n")
 }
 
