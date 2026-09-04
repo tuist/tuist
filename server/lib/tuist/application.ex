@@ -422,7 +422,12 @@ defmodule Tuist.Application do
     if Environment.clickhouse_bare_metal_url() do
       [
         {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
-        Tuist.IngestRepo.ShadowWrite.child_spec_for_supervision(),
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
         # The read side of the same server. Reads move onto it a flag at a
         # time, so both have to be connected at once.
         {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}

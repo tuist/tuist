@@ -80,12 +80,8 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   # or the destination keeps rows the source has erased.
   @write_prefixes ["insert", "alter table"]
 
+  # Started by `Tuist.Application`, which is also where the bound on it lives.
   @supervisor __MODULE__.TaskSupervisor
-
-  # A memory bound rather than a throughput one: the destination's pool is
-  # small, so tasks queue on it, and this caps how much is held waiting when it
-  # stops draining.
-  @max_in_flight 100
 
   @attempts 3
 
@@ -123,11 +119,6 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     end
 
     :ok
-  end
-
-  @doc false
-  def child_spec_for_supervision do
-    {Task.Supervisor, name: @supervisor, max_children: @max_in_flight}
   end
 
   @doc false
@@ -169,7 +160,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
       {:error, :max_children} ->
         :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :dropped})
 
-        Logger.error("Shadow ClickHouse write (#{kind}) dropped: #{@max_in_flight} already in flight")
+        Logger.error("Shadow ClickHouse write (#{kind}) dropped: too many already in flight")
         :error
 
       {:error, reason} ->
