@@ -440,6 +440,66 @@ defmodule Tuist.Runners.BuildkiteTest do
       mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
       assert Repo.get(WorkflowJob, mapping.workflow_job_id).status == "cancelled"
     end
+
+    test "requeues a job whose runner died between dispatch and acquisition", %{
+      installation: installation,
+      job: job
+    } do
+      # The runner took the job and died before its agent acquired it.
+      # Nothing else can recover this: the claim is deleted without a
+      # requeue, the orphan sweeper resolves through the GitHub API which
+      # knows nothing about a Buildkite job, and the job is filtered out
+      # of every later poll because a lifecycle row exists for it. Without
+      # a Buildkite-side recovery the customer's job is stranded forever.
+      mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
+      running(mapping.workflow_job_id)
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 0} = Buildkite.poll(installation)
+
+      row = Repo.get(WorkflowJob, mapping.workflow_job_id)
+      assert row.status == "queued"
+      assert is_nil(row.pod_name)
+      assert is_nil(row.claimed_at)
+    end
+
+    test "leaves a dispatched job alone when Buildkite refuses to re-reserve it", %{
+      installation: installation,
+      job: job
+    } do
+      # A refusal is ambiguous for a dispatched job: Buildkite withholds a
+      # job that an agent has already acquired, so the most likely reading
+      # is that it is running right now. Cancelling it here would destroy a
+      # live build's record.
+      mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
+      running(mapping.workflow_job_id)
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, _uuids, _expiry -> {:ok, []} end)
+
+      assert {:ok, 0} = Buildkite.poll(installation)
+
+      assert Repo.get(WorkflowJob, mapping.workflow_job_id).status == "running"
+    end
+
+    defp running(workflow_job_id) do
+      Repo.update_all(
+        from(w in WorkflowJob, where: w.workflow_job_id == ^workflow_job_id),
+        set: [
+          status: "running",
+          pod_name: "tuist-runner-pod-1",
+          claimed_at: DateTime.truncate(DateTime.utc_now(), :second)
+        ]
+      )
+    end
   end
 
   describe "job_trusted?/2" do

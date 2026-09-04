@@ -113,19 +113,51 @@ json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
 }
 
 report_finish() {
-  local started body http attempt
+  local started body http attempt exit_status
   started=$(cat "${STATE_DIR}/job-started-at" 2>/dev/null || echo 0)
   body=$(mktemp)
 
-  # BUILDKITE_COMMAND_EXIT_STATUS is the job's own status. A cancelled job
-  # reports separately, and the two mean different things to the customer:
-  # a cancel is not a failure and must not read as one on the dashboard.
+  # The billable window ends when the customer's work ends, not when our
+  # reporting finishes. FINISHED_AT is sampled before `upload_logs` runs,
+  # so shipping a large log does not inflate what the customer is charged
+  # for.
+  #
+  # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone, so a
+  # post-command or artifact hook that fails the job would otherwise be
+  # reported as a success. BUILDKITE_LAST_HOOK_EXIT_STATUS carries the
+  # exit code of the hook that ran before this one, and the agent runs the
+  # global pre-exit hook last (plugin, then repository, then agent), so
+  # between them they cover the phases that can fail a job after the
+  # command.
+  #
+  # Neither is Buildkite's own final verdict — the agent alone cannot know
+  # it, and reading it back would mean asking customers for a REST API
+  # token far broader than the cluster token this integration needs. A job
+  # failed only by something after this hook will still read as passing.
+  exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
+  if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
+     && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then
+    echo "$(date -u +%FT%TZ) buildkite-hook: command succeeded but a later hook exited ${BUILDKITE_LAST_HOOK_EXIT_STATUS}; reporting failure"
+    exit_status="${BUILDKITE_LAST_HOOK_EXIT_STATUS}"
+  fi
+
+  # These land in a JSON number literal. Anything non-numeric would make
+  # the report unparseable, and the window is recorded nowhere else.
+  case "${exit_status}" in
+    '' | *[!0-9]*)
+      echo "$(date -u +%FT%TZ) buildkite-hook: unusable exit status '${exit_status}'; reporting failure"
+      exit_status=1
+      ;;
+  esac
+
+  # A cancelled job reports separately: a cancel is not a failure and must
+  # not read as one on the dashboard.
   cat >"${body}" <<JSON
 {
-  "exit_status": ${BUILDKITE_COMMAND_EXIT_STATUS:-1},
+  "exit_status": ${exit_status},
   "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false},
   "started_at": ${started},
-  "finished_at": $(date +%s)
+  "finished_at": ${FINISHED_AT}
 }
 JSON
 
@@ -144,6 +176,9 @@ JSON
   rm -f "${body}"
   echo "$(date -u +%FT%TZ) buildkite-hook: finish report gave up; job window is lost"
 }
+
+# Stamp the end of the customer's work before any reporting overhead.
+FINISHED_AT=$(date +%s)
 
 upload_logs
 report_finish

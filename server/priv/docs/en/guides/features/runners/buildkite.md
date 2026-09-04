@@ -36,9 +36,14 @@ Tuist begins watching the cluster within a minute.
 
 ## Name a queue after a profile {#name-a-queue-after-a-profile}
 
-A Buildkite job says where it wants to run with a queue, and a Tuist runner <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> describes what it runs on. Tuist connects the two by name: a job is picked up when its queue key matches one of your profiles.
+A Buildkite job says where it wants to run with a queue, and a Tuist runner <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> describes what it runs on. Tuist connects the two by name: a job is picked up when its queue key matches a profile's label.
 
-Every enabled account starts with two profiles, `linux` and `macos`, so create self-hosted queues with those keys in your cluster. Both fleets run Buildkite jobs:
+> [!IMPORTANT]
+> **The queue key is the profile's label, not its name**
+>
+> A profile named `macos` has the label `tuist-macos`, the same string you would put in `runs-on:` on GitHub Actions. The queue key must match that label exactly. A queue named after the bare profile name is never polled, and jobs sent to it wait forever with nothing reporting an error.
+
+Every enabled account starts with two profiles, `linux` and `macos`, so create self-hosted queues keyed **`tuist-linux`** and **`tuist-macos`**. Both fleets run Buildkite jobs:
 
 ```yaml
 # .buildkite/pipeline.yml
@@ -46,12 +51,12 @@ steps:
   - label: "Test"
     command: tuist test
     agents:
-      queue: macos
+      queue: tuist-macos
 ```
 
-The **Runners → Buildkite** page lists the queue keys your profiles currently offer. Queues that match no profile are left alone, so your own agents keep serving them.
+The **Runners → Buildkite** page lists the exact queue keys your profiles currently offer — copy them from there rather than constructing them by hand. Queues that match no profile are left alone, so your own agents keep serving them.
 
-To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create a profile</.localized_link> for it and add a queue with the same name.
+To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create a profile</.localized_link> for it and add a queue keyed with that profile's label.
 
 > [!IMPORTANT]
 > **Select Xcode with the runner profile**
@@ -68,7 +73,7 @@ The runner reports with a credential scoped to the single job it is running, min
 
 Work through these in order:
 
-1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal one of the queue keys listed on the **Runners → Buildkite** page. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
+1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal one of the queue keys listed on the **Runners → Buildkite** page — including the `tuist-` prefix. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
 2. **Is the pipeline in the same cluster as the queues and the token?** See the warning above. This is the most common cause and the hardest to see.
 3. **Does the Tuist settings page show an error?** A revoked or wrong-cluster token is reported there under the connection.
 

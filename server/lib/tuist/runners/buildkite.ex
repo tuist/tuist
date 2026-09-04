@@ -66,6 +66,7 @@ defmodule Tuist.Runners.Buildkite do
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   require Logger
 
@@ -74,6 +75,9 @@ defmodule Tuist.Runners.Buildkite do
   @reservation_seconds 3600
   @acquisition_token_lifetime_seconds 900
   @list_limit 100
+
+  # Non-terminal lifecycle states a lapsed reservation can still speak to.
+  @recoverable_statuses ~w(queued claimed running)
 
   @doc """
   How long a Stacks reservation is held. Buildkite's default, and well
@@ -232,7 +236,14 @@ defmodule Tuist.Runners.Buildkite do
         {retaken, lost} = Enum.split_with(jobs, &MapSet.member?(reserved_set, &1.job_uuid))
 
         mark_reserved(Enum.map(retaken, & &1.job_uuid))
-        Enum.each(lost, &abandon(&1, account))
+        Enum.each(retaken, &recover_stranded(&1, account))
+
+        # Only a job we had merely queued is abandoned on a refused
+        # reservation. For a `claimed` or `running` row a refusal is
+        # ambiguous — the job may be executing right now on a runner whose
+        # acquisition took it out of the schedulable pool — and completing
+        # that as cancelled would destroy a live build's record.
+        lost |> Enum.filter(&(&1.status == "queued")) |> Enum.each(&abandon(&1, account))
 
         :ok
 
@@ -248,9 +259,17 @@ defmodule Tuist.Runners.Buildkite do
     end
   end
 
-  # Only `queued` rows. Once a Pod has claimed one, its agent holds an
-  # acquisition token and the job has left `scheduled` on Buildkite's
-  # side, so the reservation has nothing left to protect.
+  # `queued` rows are the ordinary case: we hold the job and have not
+  # dispatched it yet.
+  #
+  # `claimed` and `running` are the recovery case. A runner that dies
+  # after dispatch but before its agent acquires the job leaves the
+  # lifecycle row non-terminal forever: `Claims.release_by_pod_name/1`
+  # deletes the claim without requeueing (on GitHub, whether the job runs
+  # again is GitHub's call), `OrphanedRunnersWorker` resolves that through
+  # the GitHub API which knows nothing about a Buildkite job, and
+  # `known_job_uuids/1` filters the job out of every later poll because a
+  # lifecycle row exists. Without this the job is stranded permanently.
   defp lapsed_reservations(account_id) do
     now = DateTime.utc_now()
 
@@ -260,14 +279,31 @@ defmodule Tuist.Runners.Buildkite do
         on: w.workflow_job_id == j.workflow_job_id,
         where:
           j.account_id == ^account_id and not is_nil(j.reserved_until) and
-            j.reserved_until < ^now and w.status == "queued",
+            j.reserved_until < ^now and w.status in ^@recoverable_statuses,
         select: %{
           job_uuid: j.job_uuid,
           workflow_job_id: j.workflow_job_id,
-          queue_key: j.queue_key
+          queue_key: j.queue_key,
+          status: w.status
         }
       )
     )
+  end
+
+  # Buildkite granted the reservation again, which it only does for a job
+  # sitting in `scheduled`. Nothing is running it, so a non-terminal
+  # lifecycle row is a runner that died between dispatch and acquisition.
+  # Requeueing returns it to the dispatch pool under the same surrogate id.
+  defp recover_stranded(%{status: "queued"}, _account), do: :ok
+
+  defp recover_stranded(%{workflow_job_id: workflow_job_id, status: status}, account) do
+    Logger.info("runners: recovering stranded buildkite job",
+      account: account.name,
+      workflow_job_id: workflow_job_id,
+      state: status
+    )
+
+    WorkflowJobs.requeue(workflow_job_id)
   end
 
   defp mark_reserved([]), do: :ok
