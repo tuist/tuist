@@ -172,7 +172,6 @@
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
             let recorder = BuildRecorder()
-            let fileSystem = FileSystem()
 
             given(xcodeBuildController)
                 .build(
@@ -185,7 +184,10 @@
                     arguments: .any,
                     passthroughXcodeBuildArguments: .any
                 )
+                // Mockable hands this a synchronous closure even for an async requirement, so the seeding
+                // and the observation both go through FileManager rather than FileSystem.
                 .willProduce { _, _, _, _, derivedDataPath, _, arguments, passthroughXcodeBuildArguments in
+                    let fileManager = FileManager.default
                     let derivedDataPath = try #require(derivedDataPath)
                     let productsDirectoryName = if arguments.contains(.destination("generic/platform=iOS Simulator")) {
                         "Debug-iphonesimulator"
@@ -197,8 +199,7 @@
 
                     // macOS is built last, so what it sees is the peak the whole command has to fit on disk.
                     if productsDirectoryName == "Debug" {
-                        var stillPresent: [AbsolutePath] = []
-                        for path in [
+                        recorder.iOSOutputAtLastBuild = [
                             derivedDataPath.appending(components: ["Build", "Products", "Debug-iphonesimulator"]),
                             derivedDataPath.appending(components: ["Build", "Products", "Debug-iphoneos"]),
                             derivedDataPath.appending(components: [
@@ -207,10 +208,7 @@
                                 "Fixtures.build",
                                 "Debug-iphonesimulator",
                             ]),
-                        ] {
-                            if try await fileSystem.exists(path) { stillPresent.append(path) }
-                        }
-                        recorder.iOSOutputAtLastBuild = stillPresent
+                        ].filter { fileManager.fileExists(atPath: $0.pathString) }
                     }
 
                     let index = try #require(passthroughXcodeBuildArguments.firstIndex(of: "-resultBundlePath"))
@@ -227,8 +225,11 @@
                             productsDirectoryName,
                         ]),
                     ] {
-                        try await fileSystem.makeDirectory(at: directory)
-                        try await fileSystem.writeText("output", at: directory.appending(component: "Output"))
+                        try fileManager.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
+                        #expect(fileManager.createFile(
+                            atPath: directory.appending(component: "Output").pathString,
+                            contents: Data("output".utf8)
+                        ))
                     }
                 }
 
