@@ -35,7 +35,6 @@ defmodule TuistWeb.ModuleInvalidationsLive do
           URI.encode_query(
             Map.take(params, [
               "analytics-environment",
-              "analytics-branch",
               "analytics-date-range",
               "analytics-start-date",
               "analytics-end-date",
@@ -81,9 +80,8 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     Enum.filter(modules, &String.contains?(String.downcase(&1.name), query))
   end
 
-  defp assign_modules(%{assigns: %{selected_project: project}} = socket, params) do
+  defp assign_modules(socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_branch = params["analytics-branch"] || "any"
     sort_by = if params["sort-by"] in @sort_options, do: params["sort-by"], else: "invalidations"
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -92,44 +90,28 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:analytics_preset, preset)
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
-      |> assign(:analytics_branch, analytics_branch)
       |> assign(:sort_by, sort_by)
 
-    {start_datetime, end_datetime} = period
     opts = analytics_opts(socket.assigns)
 
-    assign_async(socket, [:modules, :cache_branches], fn ->
+    assign_async(socket, [:modules], fn ->
       modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations() |> sort_modules(sort_by)
 
-      branches =
-        Analytics.cache_branches(
-          project_id: project.id,
-          start_datetime: start_datetime,
-          end_datetime: end_datetime
-        )
-
-      {:ok, %{modules: modules, cache_branches: branches}}
+      {:ok, %{modules: modules}}
     end)
   end
 
   defp analytics_opts(%{
          selected_project: project,
          analytics_period: {start_datetime, end_datetime},
-         analytics_environment: env,
-         analytics_branch: branch
+         analytics_environment: env
        }) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
-    opts =
-      case env do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    case branch do
-      "any" -> opts
-      branch -> Keyword.put(opts, :git_branch, branch)
+    case env do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
     end
   end
 
@@ -147,7 +129,4 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
   defp environment_label(_), do: dgettext("dashboard_cache", "Any")
-
-  defp branch_label("any"), do: dgettext("dashboard_cache", "Any")
-  defp branch_label(branch), do: branch
 end

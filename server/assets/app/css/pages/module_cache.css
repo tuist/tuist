@@ -108,25 +108,17 @@
     & > [data-part="filters"] {
       display: flex;
       flex-wrap: wrap;
-      justify-content: space-between;
       align-items: center;
-      gap: var(--noora-spacing-4);
+      gap: var(--noora-spacing-6);
 
-      & > [data-part="search"] {
-        flex: 1;
+      & > form {
         min-width: 220px;
         max-width: 360px;
+        flex: 1;
 
         & .noora-text-input {
           width: 100%;
         }
-      }
-
-      & > [data-part="controls"] {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--noora-spacing-4);
       }
     }
 

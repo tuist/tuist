@@ -21,31 +21,6 @@
         <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
-    <.dropdown
-      id="module-invalidations-branch-dropdown"
-      label={branch_label(@analytics_branch)}
-      secondary_text={dgettext("dashboard_cache", "Branch:")}
-    >
-      <.dropdown_item
-        value="any"
-        label={dgettext("dashboard_cache", "Any")}
-        patch={"?#{Query.put(@uri.query, "analytics-branch", "any")}"}
-        data-selected={@analytics_branch == "any"}
-      >
-        <:right_icon :if={@analytics_branch == "any"}><.check /></:right_icon>
-      </.dropdown_item>
-      <%= if @cache_branches.ok? do %>
-        <.dropdown_item
-          :for={branch <- @cache_branches.result}
-          value={branch}
-          label={branch}
-          patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
-          data-selected={@analytics_branch == branch}
-        >
-          <:right_icon :if={@analytics_branch == branch}><.check /></:right_icon>
-        </.dropdown_item>
-      <% end %>
-    </.dropdown>
     <.date_picker
       id="module-invalidations-date-range-picker"
       name="analytics-date-range"
@@ -106,36 +81,36 @@
   >
     <.card_section data-part="modules-table-section">
       <div data-part="filters">
-        <form id="module-search-form" phx-change="search" phx-submit="search" data-part="search">
+        <form id="module-search-form" phx-change="search" phx-submit="search">
           <.text_input
             type="search"
             id="module-search"
             name="q"
             value={@search}
             placeholder={dgettext("dashboard_cache", "Search modules")}
+            show_suffix={false}
+            data-part="search"
             phx-debounce="200"
           />
         </form>
-        <div data-part="controls">
-          <.dropdown
-            id="module-invalidations-sort-dropdown"
-            label={sort_label(@sort_by)}
-            secondary_text={dgettext("dashboard_cache", "Sort by:")}
+        <.dropdown
+          id="module-invalidations-sort-dropdown"
+          label={sort_label(@sort_by)}
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={
+              value <-
+                ~w(invalidations hit_rate blast_radius self_changes dependency_induced)
+            }
+            value={value}
+            label={sort_label(value)}
+            patch={"?#{Query.put(@uri.query, "sort-by", value)}"}
+            data-selected={@sort_by == value}
           >
-            <.dropdown_item
-              :for={
-                value <-
-                  ~w(invalidations hit_rate blast_radius self_changes dependency_induced)
-              }
-              value={value}
-              label={sort_label(value)}
-              patch={"?#{Query.put(@uri.query, "sort-by", value)}"}
-              data-selected={@sort_by == value}
-            >
-              <:right_icon :if={@sort_by == value}><.check /></:right_icon>
-            </.dropdown_item>
-          </.dropdown>
-        </div>
+            <:right_icon :if={@sort_by == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
       </div>
 
       <div :if={!@modules.ok?} data-part="skeleton">

@@ -42,14 +42,15 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert has_element?(lv, "#all-modules-table")
     assert html =~ "Core"
 
-    # Environment, branch and date range filter the page; search and sort are
-    # table controls and stay with the table.
+    # Environment and date range filter the page; search and sort are table
+    # controls and stay with the table.
     assert has_element?(lv, "#module-invalidations > [data-part=\"filters\"] #module-invalidations-environment-dropdown")
-    assert has_element?(lv, "#module-invalidations > [data-part=\"filters\"] #module-invalidations-branch-dropdown")
+    refute has_element?(lv, "#module-invalidations-branch-dropdown")
     assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-invalidations-sort-dropdown")
     assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-search")
 
-    # Both builds missed, so Core never came from cache.
+    # Core missed both of the two builds it took part in.
+    assert html =~ "Builds"
     assert html =~ "Cache hit rate"
     assert html =~ "0.0%"
   end
