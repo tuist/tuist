@@ -445,7 +445,7 @@ struct StressRepetitionKey: Hashable {
 private func stressRepetitions(
     for key: StressRepetitionKey,
     in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
-        .repetition_resultsPayloadPayload]],
+            .repetition_resultsPayloadPayload]],
     after ownCount: Int
 ) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
     .repetitionsPayloadPayload]
