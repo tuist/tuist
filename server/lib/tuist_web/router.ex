@@ -41,7 +41,20 @@ defmodule TuistWeb.Router do
 
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
-    turnstile_source = if TuistWeb.Turnstile.required?(), do: " https://challenges.cloudflare.com", else: ""
+
+    # Deliberately reads the env-var toggle directly rather than the
+    # flag-aware `TuistWeb.Turnstile.required?/0`. This plug feeds the
+    # `:content_security_policy` pipeline, which the app, marketing, docs,
+    # image and ueberauth pipelines all use, so a per-request
+    # `FunWithFlags.enabled?(:turnstile_kill_switch)` would fire on every
+    # page load site-wide for a widget only two LiveViews ever render — and
+    # the underlying store `raise`s on a cold cache during a Postgres blip,
+    # which would 500 pages that previously had no DB dependency here.
+    # Flipping the kill switch still turns off the widget and the verify
+    # path everywhere immediately; the only thing left behind is a CSP
+    # source pointing at a host nothing loads from.
+    turnstile_source =
+      if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
 
     [
       frame_ancestors: "'self'",
