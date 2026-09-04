@@ -631,6 +631,17 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Optional secondary Sentry DSN pointing at the self-hosted Hive ingest
+    # (../hive). Off by default: enabling this on an env syncs `SENTRY_HIVE/dsn`
+    # from that env's 1P vault into `TUIST_SENTRY_HIVE_DSN`. `Tuist.Sentry`
+    # only reroutes envelopes when both this env var is present AND the
+    # `hive_error_tracking_enabled` flag is on in `/ops/flags`, so shipping
+    # the DSN is decoupled from actually cutting traffic over. Enabling this
+    # in an env whose vault does not yet hold the `SENTRY_HIVE` item fails
+    # the whole ExternalSecret sync for the server config, so create the 1P
+    # item in the env's vault before turning this on.
+    hiveSentry:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by

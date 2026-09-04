@@ -72,6 +72,12 @@ server:
   config:
     atlasEmail:
       enabled: true
+    # SENTRY_HIVE 1P item exists in `tuist-k8s-production`; the DSN (same
+    # value as canary and staging) is synced in as TUIST_SENTRY_HIVE_DSN
+    # and the `hive_error_tracking_enabled` flag in `/ops/flags` decides at
+    # runtime whether envelopes go there instead of Sentry.
+    hiveSentry:
+      enabled: true
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
