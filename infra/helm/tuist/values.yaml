@@ -1622,10 +1622,14 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
-    # Xcode compilation cache (CAS) budget (GiB) folded into each per-account
-    # cache image: the CAS gets this share of masterCapGib, the binary cache
-    # the rest minus a reserve. 0 (default) leaves the compilation cache
-    # VM-local (dies with the VM); the binary cache is unaffected.
+    # Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) folded into each
+    # per-account cache image: the CAS gets this share of masterCapGib, the
+    # binary cache the rest minus a reserve. Size it for what the store should
+    # OCCUPY — the compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE,
+    # which bounds one generation of a store that keeps two (the primary plus
+    # the demoted upstream that is still the warm cache). 0 (default) leaves the
+    # compilation cache VM-local (dies with the VM); the binary cache is
+    # unaffected.
     casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,

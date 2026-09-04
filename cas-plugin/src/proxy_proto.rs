@@ -29,6 +29,13 @@
 //! status 0 = records remain (body = how many), status 2 = the proxy could not
 //! run it. Asked by a runner's teardown before the CAS store it covers is
 //! promoted as an account's cache master; see `Proxy::drain_publications`.
+//! PRUNE (op 6): payload = u64 big-endian per-generation byte limit (zero =
+//! leave whatever limit the store already carries). Rotates the store's
+//! generation chain and DELETES the generations that fall off it. status 1 =
+//! pruned (body = bytes reclaimed), status 0 = the proxy holds no handle on
+//! this path (so the caller may prune it itself), status 2 = it could not run
+//! it. Asked by a runner's teardown before the image is measured, so the
+//! promoted master carries a bounded store; see `Proxy::prune_ondisk`.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -62,6 +69,16 @@ pub const OP_FETCH_OBJECT: u8 = 4;
 /// instead would make a stale launchd proxy reject every request, from every
 /// build on the machine, until it restarts.
 pub const OP_DRAIN: u8 = 5;
+/// Bound this path's on-disk store: rotate its generation chain and delete what
+/// falls off. Added without a `PROTOCOL_VERSION` bump for the same reason as
+/// OP_DRAIN — the frame layout is untouched, and a proxy that predates the op
+/// answers `bad op`, which the caller reads as "cannot ask".
+///
+/// It lives here rather than in the caller because llcas only rotates a store
+/// when its LAST handle closes, and on a machine running the proxy that handle
+/// is the proxy's own: a caller pruning from a handle of its own would find the
+/// chain still live, collect nothing, and report success.
+pub const OP_PRUNE: u8 = 6;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -146,6 +163,12 @@ pub struct ProxyClient {
 /// a proxy that spends its whole budget still gets to answer instead of the
 /// read timing out on a drain that IS running.
 const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
+
+/// How long a prune may take before the caller stops waiting. A prune that has
+/// something to collect costs a few hundred ms (measured 300-500 ms), but it
+/// unlinks a whole generation directory — tens of thousands of files on a full
+/// store — so the ceiling is sized for the pathological case, not the median.
+const PRUNE_READ_TIMEOUT: Duration = Duration::from_secs(300);
 
 impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
@@ -271,6 +294,42 @@ impl ProxyClient {
         }
     }
 
+    /// Asks the proxy to bound the on-disk store at `cas_path` to `limit_bytes`
+    /// per generation: rotate the generation chain and delete what falls off it.
+    ///
+    /// `Ok(Some(bytes))` is a prune the proxy ran, reclaiming that many bytes;
+    /// `Ok(None)` means the proxy holds no handle on the path, so nothing is
+    /// keeping the store open and the CALLER may prune it itself; an `Err` is a
+    /// proxy that could not answer (nothing listening, or one too old to know
+    /// the op) — which says nothing about whether a handle is held, so a prune
+    /// the caller then runs itself may well collect nothing.
+    ///
+    /// `limit_bytes` of 0 leaves whatever limit the store already carries.
+    pub fn prune(&self, cas_path: &str, limit_bytes: u64) -> Result<Option<u64>, String> {
+        let mut stream = self
+            .connect_with_read_timeout(PRUNE_READ_TIMEOUT)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_PRUNE,
+                cas_path: cas_path.to_string(),
+                instance: String::new(),
+                payload: limit_bytes.to_be_bytes().to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            // An unparseable count is still a prune that ran; only the byte
+            // figure is lost, so it must not read as "no handle held".
+            STATUS_HIT => Ok(Some(String::from_utf8_lossy(&body).parse().unwrap_or(0))),
+            STATUS_MISS => Ok(None),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
     pub fn publish(&self, cas_path: &str, instance: &str, record_path: &str) -> Result<(), String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
@@ -337,6 +396,26 @@ mod tests {
             "/Volumes/cache/CompilationCache.noindex/plugin"
         );
         assert_eq!(read.payload, vec![0x00, 0x01, 0xD4, 0xC0]);
+    }
+
+    /// The prune rides the same frame layout too, and carries no instance: a
+    /// store's SIZE is a property of the path, not of the account whose cache it
+    /// holds, and the teardown that asks for one has no instance to declare.
+    #[test]
+    fn a_prune_request_carries_its_per_generation_limit_and_no_instance() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_PRUNE,
+            cas_path: "/Volumes/cache/CompilationCache.noindex/plugin".to_string(),
+            instance: String::new(),
+            payload: 5_368_709_120u64.to_be_bytes().to_vec(),
+        });
+        assert_eq!(read.op, OP_PRUNE);
+        assert!(read.instance.is_empty());
+        assert_eq!(
+            u64::from_be_bytes(read.payload.try_into().unwrap()),
+            5_368_709_120
+        );
     }
 
     #[test]
