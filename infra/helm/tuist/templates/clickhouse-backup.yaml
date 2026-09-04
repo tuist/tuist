@@ -1,0 +1,141 @@
+{{- if and .Values.clickhouse.managed.enabled .Values.clickhouse.managed.backup.enabled }}
+{{- $m := .Values.clickhouse.managed }}
+{{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+{{- $chSecretName := printf "%s-credentials" $chName }}
+{{- /*
+Backups for the in-cluster ClickHouse (spec #73).
+
+While ClickHouse Cloud is still the system of record this is belt and braces.
+The moment reads and writes both live here it is the only copy: a RAID mirror
+survives a dead disk, not a dropped table, a bad migration or a lost machine.
+
+## Weekly full, daily incremental, and why the chain is two long
+
+A full backup of production's dataset is on the order of a terabyte, so taking
+one daily is neither cheap to store nor quick to write. The usual answer is a
+chain of incrementals, each based on the one before it, but that makes every
+restore depend on every backup since the last full: one corrupt or expired
+link and everything after it is unrecoverable.
+
+So each incremental is based on its own week's full, never on yesterday's
+incremental. Restoring is always exactly two steps, whichever day you pick,
+and losing one day's backup costs that day rather than the rest of the week.
+
+The pairing is by ISO week, computed identically by both jobs, which is why
+the full runs on Monday: ISO weeks start on Monday, so every incremental from
+Tuesday through Sunday resolves to the full taken at the start of its own
+week. Moving the full to Sunday would silently pair each incremental with the
+previous week's full.
+
+If a full fails, that week's incrementals fail too, because their base is
+missing. That is deliberate. The alternative is an "incremental" that quietly
+promotes itself to a full and takes a terabyte by surprise.
+
+## Restoring
+
+Both steps run from a client against the server, `--host` being the service:
+
+    RESTORE DATABASE `<db>` FROM Disk('backups', 'full/<YYYY-Www>')
+    RESTORE DATABASE `<db>` FROM Disk('backups', 'incremental/<YYYY-Www>/<YYYY-MM-DD>')
+
+Into a server that already holds the database, add
+`SETTINGS allow_non_empty_tables=true` or drop it first. Restoring somewhere
+else needs the same `backups` disk declared there, which means the same
+`clickhouse.managed.backup` values and object-storage credentials.
+
+## Retention is not here
+
+ClickHouse writes backups but never removes them, and it cannot list or delete
+object storage from SQL, so pruning belongs to a bucket lifecycle rule on the
+`{{ $m.backup.prefix }}/{{ .Release.Namespace }}/` prefix. Express it in whole
+weeks and longer than the longest chain: deleting a full orphans every
+incremental that was based on it, so a rule of "older than 7 days" would strip
+the base out from under backups it leaves in place.
+
+## Failure is visible in the cluster, not here
+
+Managed clusters have no Prometheus Operator, so there is no PrometheusRule.
+Alert on `kube_job_status_failed` for these jobs in Grafana Cloud. Failed jobs
+are kept so their logs can be read: a job pod that lives seconds is missed by
+the log collector entirely, so the object itself is the record.
+*/}}
+{{- $jobs := list
+  (dict "suffix" "full" "schedule" $m.backup.fullSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'full/$WEEK')" $m.database)
+        "describe" "full backup for ISO week $WEEK")
+  (dict "suffix" "incremental" "schedule" $m.backup.incrementalSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'incremental/$WEEK/$DAY') SETTINGS base_backup = Disk('backups', 'full/$WEEK')" $m.database)
+        "describe" "incremental backup for $DAY against the full for ISO week $WEEK")
+}}
+{{- range $job := $jobs }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $ "component" (printf "clickhouse-backup-%s" $job.suffix)) }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-backup
+spec:
+  schedule: {{ $job.schedule | quote }}
+  timeZone: Etc/UTC
+  # One at a time. A full that is still running when the next tick arrives
+  # should delay the next one, not race it into the same object-storage prefix.
+  concurrencyPolicy: Forbid
+  # A backup that missed its window by more than an hour is better skipped than
+  # run late alongside the next one.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # One retry. These are long and idempotent only in the sense that a
+      # re-run overwrites the same path, so a retry is worth having once and
+      # not worth having in a loop.
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ $m.backup.timeoutSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-backup") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            # The `clickhouse` user in the server image, which is what
+            # `clickhouse-client` expects to find a home directory for.
+            runAsUser: 101
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+              imagePullPolicy: {{ $m.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              env:
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $chSecretName }}
+                      key: password
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  WEEK=$(date -u +%G-W%V)
+                  DAY=$(date -u +%F)
+                  echo "Taking a {{ $job.describe }}"
+                  clickhouse-client \
+                    --host {{ $chName }} \
+                    --port 9000 \
+                    --user default \
+                    --password "$CLICKHOUSE_PASSWORD" \
+                    --receive_timeout {{ $m.backup.timeoutSeconds }} \
+                    --query "{{ $job.query }}"
+              resources:
+                {{- toYaml $m.backup.resources | nindent 16 }}
+{{- end }}
+{{- end }}

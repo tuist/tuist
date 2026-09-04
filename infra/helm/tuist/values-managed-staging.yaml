@@ -361,6 +361,10 @@ clickhouse:
     # click on the ops flags page, with no deploy, and it takes actors so a
     # single account can be moved first. This runs it from a deploy because
     # nothing else can reach that page in this environment.
+    # On here so the backup path itself is exercised before production depends
+    # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
+    backup:
+      enabled: true
     # Off now that the sequence has run. Each step is a post-upgrade hook, so
     # leaving one enabled re-runs it on every deploy, and the last of them sets
     # a flag: turning reads back off from the ops page would be silently undone

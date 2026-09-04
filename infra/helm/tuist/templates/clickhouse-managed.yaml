@@ -39,6 +39,33 @@ data:
   # `database_replicated_allow_replicated_engine_arguments` below). The
   # replica macro is the pod's own name so a second replica added later
   # cannot collide with this one's Keeper path.
+{{- if $m.backup.enabled }}
+  # The backup destination, declared as a disk so that `BACKUP` names the disk
+  # rather than the bucket and its credentials. A statement carrying those
+  # would reach `system.query_log`, the server log, and every error message
+  # that echoes the query back.
+  #
+  # The credentials are not in this file either: `from_env` reads them at
+  # startup from the same Secret the application uses, so there is one copy of
+  # them rather than a second that has to be kept in step.
+  backups.xml: |
+    <clickhouse>
+      <storage_configuration>
+        <disks>
+          <backups>
+            <type>s3_plain</type>
+            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) (include "tuist.objectStorageBucketDefault" .) $m.backup.prefix .Release.Namespace }}</endpoint>
+            <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
+            <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
+            <region>{{ include "tuist.objectStorageRegion" . }}</region>
+          </backups>
+        </disks>
+      </storage_configuration>
+      <backups>
+        <allowed_disk>backups</allowed_disk>
+      </backups>
+    </clickhouse>
+{{- end }}
   macros.xml: |
     <clickhouse>
       <macros>
@@ -560,6 +587,22 @@ spec:
               containerPort: 9000
             - name: metrics
               containerPort: {{ $m.metricsPort }}
+{{- if $m.backup.enabled }}
+          # Read by `backups.xml` through `from_env`, so the backup disk's
+          # credentials live in one Secret rather than being copied into the
+          # server's configuration.
+          env:
+            - name: BACKUP_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: BACKUP_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+{{- end }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
@@ -575,6 +618,11 @@ spec:
             - name: credentials
               mountPath: /etc/clickhouse-server/users.d/tuist-users.xml
               subPath: users.xml
+{{- if $m.backup.enabled }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-backups.xml
+              subPath: backups.xml
+{{- end }}
           readinessProbe:
             httpGet:
               path: /ping

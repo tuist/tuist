@@ -2907,6 +2907,34 @@ clickhouse:
     # mirror is counted and ignored, never surfaced to a request.
     shadowWrites:
       enabled: false
+    # Backups of the in-cluster server to object storage, as a weekly full and
+    # a daily incremental based on that week's full. See
+    # `templates/clickhouse-backup.yaml` for why the chain is two long, why the
+    # full runs on a Monday, and how to restore.
+    #
+    # Pruning is a bucket lifecycle rule on the prefix below, not something
+    # ClickHouse can do: express it in whole weeks and longer than a chain, or
+    # it will delete a full that later incrementals still need.
+    backup:
+      enabled: false
+      # Monday, so every incremental in an ISO week pairs with the full taken
+      # at the start of that same week.
+      fullSchedule: "0 1 * * 1"
+      # Every other day. Sunday is the last day of its ISO week, so it still
+      # pairs with Monday's full.
+      incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
+      # Under the default object-storage bucket, then the namespace, so
+      # environments sharing a bucket cannot restore over each other.
+      prefix: clickhouse-backups
+      # Six hours. Long enough for a full of a dataset this size, short enough
+      # that a wedged backup does not block the next one indefinitely.
+      timeoutSeconds: 21600
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
     # One step of the migration off ClickHouse Cloud, run as a post-upgrade
     # hook. An operator advances the migration by changing `task` and
     # deploying, so each step is recorded in the release history.
