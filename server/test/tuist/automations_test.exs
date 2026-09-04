@@ -317,6 +317,22 @@ defmodule Tuist.AutomationsTest do
       events = Automations.list_active_alert_events(alert.id)
       refute Enum.any?(events, &(&1.test_case_id == test_case_id))
     end
+
+    test "scopes a large active event read within ClickHouse request limits" do
+      alert = AutomationsFixtures.automation_alert_fixture()
+      test_case_ids = Enum.map(1..4001, fn _ -> Ecto.UUID.generate() end)
+      test_case_id = List.last(test_case_ids)
+
+      assert :ok =
+               Automations.create_alert_event(%{
+                 alert_id: alert.id,
+                 test_case_id: test_case_id,
+                 status: "triggered",
+                 triggered_at: NaiveDateTime.utc_now()
+               })
+
+      assert [%{test_case_id: ^test_case_id}] = Automations.list_active_alert_events(alert, test_case_ids)
+    end
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
