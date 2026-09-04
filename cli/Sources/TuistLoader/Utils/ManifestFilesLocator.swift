@@ -216,7 +216,12 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locatePackageManifest(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
-        guard let rootDirectory = try await rootDirectoryLocator.locate(from: locatingPath) else { return nil }
+        let localPackageSwiftPath = locatingPath
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: locatingPath) else {
+            return try await fileSystem.exists(localPackageSwiftPath) ? localPackageSwiftPath : nil
+        }
         let defaultPackageSwiftPath = rootDirectory.appending(
             components: [
                 Constants.tuistDirectoryName,
@@ -229,6 +234,12 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             return defaultPackageSwiftPath
         } else if try await fileSystem.exists(rootPackageSwiftPath) {
             return rootPackageSwiftPath
+        } else if rootDirectory != locatingPath, try await fileSystem.exists(localPackageSwiftPath) {
+            // The located root (e.g. anchored by an ancestor `.git`/`Tuist/` directory) doesn't have
+            // its own `Package.swift`, but the directory tuist was invoked from does — this is the
+            // common case of a bare-`Package.swift` project living inside a monorepo without its own
+            // `Tuist.swift`/`Tuist/` marker.
+            return localPackageSwiftPath
         } else {
             return nil
         }
