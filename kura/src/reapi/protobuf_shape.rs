@@ -15,6 +15,7 @@ pub(super) const GRPC_MESSAGE_HEADER_BYTES: usize = 5;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum GrpcWriteShapePolicy {
     ByteStream,
+    BuildEventStream,
     BatchUpdate,
     ActionUpdate,
 }
@@ -23,13 +24,14 @@ impl GrpcWriteShapePolicy {
     pub(super) fn decode_copy_multiplier(self) -> u64 {
         match self {
             Self::ByteStream => BYTESTREAM_WRITE_DECODE_COPIES,
+            Self::BuildEventStream => BYTESTREAM_WRITE_DECODE_COPIES,
             Self::BatchUpdate => CAS_BATCH_UPDATE_DECODE_COPIES,
             Self::ActionUpdate => ACTION_CACHE_UPDATE_DECODE_COPIES,
         }
     }
 
     pub(super) fn is_unary(self) -> bool {
-        self != Self::ByteStream
+        !matches!(self, Self::ByteStream | Self::BuildEventStream)
     }
 }
 

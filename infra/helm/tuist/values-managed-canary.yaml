@@ -123,6 +123,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
+  bazelEvents:
+    enabled: true
+    host: build-canary.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
   # alongside the live pod on the 2-worker canary nodepool. Steady-state
   # working set is ~700 MiB; the 2 GiB limit absorbs that under load.

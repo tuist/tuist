@@ -103,12 +103,12 @@ jobs:
         run: |
           # Single mix do so compile + all ecto tasks + seeds share one BEAM
           # (and peak memory only once) before we ever start the web server.
-          # +S 1 caps the parallel compiler exactly like Start main server
-          # below: on a cold _build cache this does a full compile, and at 4
-          # workers the in-flight module copies OOM the runner from inside the
-          # guest ("lost communication").
+          # ERL_AFLAGS caps the parallel compiler through
+          # System.schedulers_online/0. ELIXIR_ERL_OPTIONS alone does not,
+          # so a cold compile can still create several in-flight module
+          # copies and exhaust the runner's memory.
           log_file=/tmp/setup-main-server.log
-          ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix do \
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT=1 ERL_AFLAGS="+S 1:1" MIX_ENV=dev mix do \
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \
@@ -135,13 +135,9 @@ jobs:
         run: |
           # nohup + disown so the backgrounded BEAM survives the bash
           # shell exiting when this step finishes — otherwise the e2e
-          # step hits nothing-listening. ELIXIR_ERL_OPTIONS="+S 1" forces
-          # serial compile if the manifest is stale, so the recompile
-          # peak doesn't overshoot the runner's memory ceiling (the
-          # parallel compiler holds a copy of every in-flight module per
-          # worker, and this project plus deps is enough to OOM at 4
-          # workers).
-          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
+          # step hits nothing-listening. Keep the same compiler throttle in
+          # case a stale manifest triggers a compile during server startup.
+          nohup bash -c 'MIX_OS_DEPS_COMPILE_PARTITION_COUNT=1 ERL_AFLAGS="+S 1:1" MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
           disown
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           port="${server_url##*:}"
@@ -161,7 +157,7 @@ jobs:
       - name: Start cache server
         working-directory: cache
         run: |
-          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/cache-server.log 2>&1 &
+          nohup bash -c 'MIX_OS_DEPS_COMPILE_PARTITION_COUNT=1 ERL_AFLAGS="+S 1:1" MIX_ENV=dev mix phx.server' >/tmp/cache-server.log 2>&1 &
           disown
           cache_port="${TUIST_CACHE_PORT:-8087}"
           for i in {1..180}; do
