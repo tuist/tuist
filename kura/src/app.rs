@@ -239,6 +239,7 @@ async fn run_with_config(
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        outbox_gate_targets: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),

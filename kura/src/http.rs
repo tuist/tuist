@@ -1228,7 +1228,7 @@ async fn reject_overloaded_public_writes(
         }
         if state
             .store
-            .outbox_saturated(&state.replication_targets().await)
+            .outbox_saturated(&state.outbox_gate_targets.load())
         {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use arc_swap::ArcSwapOption;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
@@ -176,8 +176,11 @@ pub struct Store {
     outbox_bulk_depth: AtomicUsize,
     // Queued messages per replication target. `reserve_outbox_slots` refuses
     // a write once any of its targets holds `outbox_max_depth_per_peer`, so
-    // one backed-off peer can fill its own share but not the others'.
-    outbox_target_depth: StdMutex<HashMap<String, usize>>,
+    // one backed-off peer can fill its own share but not the others'. The
+    // map is rewritten only when a target is first seen or when membership
+    // retires one (`retain_outbox_targets`); the write path loads it and
+    // touches atomics, taking no lock.
+    outbox_target_depth: ArcSwap<HashMap<String, Arc<AtomicUsize>>>,
     // The node-wide total `reserve_outbox_slots` also refuses at: the share
     // times the replication target count under `OUTBOX_MAX_DEPTH_CEILING`,
     // re-derived by `set_replication_peer_count` on every membership pass, or
@@ -745,7 +748,7 @@ struct PersistArtifactSpec<'a> {
 
 struct OutboxReservation<'a> {
     store: &'a Store,
-    targets: Vec<String>,
+    targets: &'a [String],
     committed: bool,
 }
 
@@ -807,7 +810,7 @@ impl OutboxReservation<'_> {
 impl Drop for OutboxReservation<'_> {
     fn drop(&mut self) {
         if !self.committed && !self.targets.is_empty() {
-            self.store.release_outbox_slots(&self.targets);
+            self.store.release_outbox_slots(self.targets);
         }
     }
 }
@@ -1198,7 +1201,7 @@ impl Store {
             rocksdb_write_buffer_manager,
             outbox_depth: AtomicUsize::new(0),
             outbox_bulk_depth: AtomicUsize::new(0),
-            outbox_target_depth: StdMutex::new(HashMap::new()),
+            outbox_target_depth: ArcSwap::from_pointee(HashMap::new()),
             outbox_max_depth: AtomicUsize::new(outbox_max_depth_for(
                 config.outbox_max_depth,
                 config.outbox_max_depth_per_peer,
@@ -1270,10 +1273,12 @@ impl Store {
         let (outbox_depth, outbox_bulk_depth, outbox_target_depth) =
             store.count_outbox_entries_exact()?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
-        *store
-            .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock") = outbox_target_depth;
+        store.outbox_target_depth.store(Arc::new(
+            outbox_target_depth
+                .into_iter()
+                .map(|(target, depth)| (target, Arc::new(AtomicUsize::new(depth))))
+                .collect(),
+        ));
         store
             .io
             .metrics()
@@ -1354,13 +1359,10 @@ impl Store {
 
     /// Messages queued per replication target.
     pub fn outbox_target_depths(&self) -> Vec<(String, usize)> {
-        let depths = self
-            .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock");
-        depths
+        self.outbox_target_depth
+            .load()
             .iter()
-            .map(|(target, depth)| (target.clone(), *depth))
+            .map(|(target, depth)| (target.clone(), depth.load(Ordering::Relaxed)))
             .collect()
     }
 
@@ -1387,89 +1389,138 @@ impl Store {
             return false;
         }
         let per_peer = self.outbox_max_depth_per_peer;
-        let depths = self
+        let depths = self.outbox_target_depth.load();
+        targets.iter().any(|target| {
+            depths
+                .get(target)
+                .is_some_and(|depth| depth.load(Ordering::Relaxed) >= per_peer)
+        })
+    }
+
+    /// The counter for a target, created on first sight. Creation rewrites
+    /// the map, which only happens when a peer is new to this process.
+    fn outbox_target_counter(&self, target: &str) -> Arc<AtomicUsize> {
+        if let Some(counter) = self.outbox_target_depth.load().get(target) {
+            return counter.clone();
+        }
+        let counter = Arc::new(AtomicUsize::new(0));
+        self.outbox_target_depth.rcu(|depths| {
+            let mut depths = HashMap::clone(depths);
+            depths
+                .entry(target.to_owned())
+                .or_insert_with(|| counter.clone());
+            depths
+        });
+        self.outbox_target_depth
+            .load()
+            .get(target)
+            .cloned()
+            .unwrap_or(counter)
+    }
+
+    /// Drops the counters of targets that are neither replication targets
+    /// nor holding queued messages. Called from the membership pass, so a
+    /// departed peer's counter lives exactly as long as its backlog.
+    pub fn retain_outbox_targets(&self, live: &BTreeSet<String>) {
+        let stale = self
             .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock");
-        targets
+            .load()
             .iter()
-            .any(|target| depths.get(target).is_some_and(|depth| *depth >= per_peer))
+            .any(|(target, depth)| !live.contains(target) && depth.load(Ordering::Relaxed) == 0);
+        if !stale {
+            return;
+        }
+        self.outbox_target_depth.rcu(|depths| {
+            depths
+                .iter()
+                .filter(|(target, depth)| {
+                    live.contains(*target) || depth.load(Ordering::Relaxed) > 0
+                })
+                .map(|(target, depth)| (target.clone(), depth.clone()))
+                .collect::<HashMap<_, _>>()
+        });
     }
 
     /// Reserves one outbox slot per target, all or nothing: the node-wide
     /// total first, then each target's share (unless a fixed total replaces
     /// it). A write refused for a share names the saturated target, so one
     /// peer's backlog is refused at its own share and the room meant for the
-    /// other peers stays theirs.
-    fn reserve_outbox_slots(&self, targets: &[String]) -> Result<OutboxReservation<'_>, String> {
+    /// other peers stays theirs. Lock-free: the total is a CAS, each share a
+    /// bounded fetch-update, and a refusal rolls back what it took.
+    fn reserve_outbox_slots<'a>(
+        &'a self,
+        targets: &'a [String],
+    ) -> Result<OutboxReservation<'a>, String> {
         if targets.is_empty() {
             return Ok(OutboxReservation {
                 store: self,
-                targets: Vec::new(),
+                targets,
                 committed: false,
             });
         }
 
-        let mut depths = self
-            .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock");
+        let slots = targets.len();
         let max_depth = self.outbox_max_depth();
-        let current = self.outbox_depth.load(Ordering::Acquire);
-        if current.saturating_add(targets.len()) > max_depth {
-            let slots = targets.len();
-            drop(depths);
-            return Err(format!(
-                "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
-            ));
-        }
-        if self.outbox_max_depth_fixed.is_none() {
-            let per_peer = self.outbox_max_depth_per_peer;
-            if let Some((target, depth)) = targets
-                .iter()
-                .filter_map(|target| depths.get(target).map(|depth| (target, *depth)))
-                .find(|(_, depth)| *depth >= per_peer)
-            {
-                let target = target.clone();
-                drop(depths);
+        let mut current = self.outbox_depth.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(slots);
+            if requested > max_depth {
                 return Err(format!(
-                    "{OUTBOX_FULL_ERROR}: {depth} messages queued for {target}, {per_peer} allowed per peer"
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
                 ));
             }
+            match self.outbox_depth.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
         }
-        for target in targets {
-            match depths.get_mut(target) {
-                Some(depth) => *depth += 1,
-                None => {
-                    depths.insert(target.clone(), 1);
+
+        if self.outbox_max_depth_fixed.is_none() {
+            let per_peer = self.outbox_max_depth_per_peer;
+            for (taken, target) in targets.iter().enumerate() {
+                let counter = self.outbox_target_counter(target);
+                let claimed = counter.fetch_update(Ordering::AcqRel, Ordering::Acquire, |depth| {
+                    (depth < per_peer).then_some(depth + 1)
+                });
+                if let Err(depth) = claimed {
+                    self.release_outbox_slots(&targets[..taken]);
+                    release_atomic_slots(&self.outbox_depth, slots - taken);
+                    return Err(format!(
+                        "{OUTBOX_FULL_ERROR}: {depth} messages queued for {target}, {per_peer} allowed per peer"
+                    ));
                 }
             }
         }
-        self.outbox_depth.fetch_add(targets.len(), Ordering::AcqRel);
         Ok(OutboxReservation {
             store: self,
-            targets: targets.to_vec(),
+            targets,
             committed: false,
         })
     }
 
     fn release_outbox_slots(&self, targets: &[String]) {
-        let mut depths = self
-            .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock");
-        for target in targets {
-            release_target_slot(&mut depths, target);
+        if self.outbox_max_depth_fixed.is_none() {
+            let depths = self.outbox_target_depth.load();
+            for target in targets {
+                if let Some(depth) = depths.get(target) {
+                    release_atomic_slots(depth, 1);
+                }
+            }
         }
         release_atomic_slots(&self.outbox_depth, targets.len());
     }
 
     fn release_outbox_slot(&self, target: &str) {
-        let mut depths = self
-            .outbox_target_depth
-            .lock()
-            .expect("outbox target depth lock");
-        release_target_slot(&mut depths, target);
+        if self.outbox_max_depth_fixed.is_none()
+            && let Some(depth) = self.outbox_target_depth.load().get(target)
+        {
+            release_atomic_slots(depth, 1);
+        }
         release_atomic_slots(&self.outbox_depth, 1);
     }
 
@@ -8864,15 +8915,6 @@ fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> 
             .saturating_mul(peers.max(1))
             .min(OUTBOX_MAX_DEPTH_CEILING)
     })
-}
-
-fn release_target_slot(depths: &mut HashMap<String, usize>, target: &str) {
-    if let Some(depth) = depths.get_mut(target) {
-        *depth = depth.saturating_sub(1);
-        if *depth == 0 {
-            depths.remove(target);
-        }
-    }
 }
 
 /// The target half of a persisted `OutboxMessage`, for counting rows the

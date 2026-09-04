@@ -385,7 +385,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
     }
     if state
         .store
-        .outbox_saturated(&state.replication_targets().await)
+        .outbox_saturated(&state.outbox_gate_targets.load())
     {
         state
             .metrics

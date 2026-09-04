@@ -199,6 +199,7 @@ where
         peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        outbox_gate_targets: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),

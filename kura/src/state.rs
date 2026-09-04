@@ -64,6 +64,11 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into discovery/replication
     // targets on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// The replication target list as of the last membership pass, for the
+    /// pre-body write gates: they run on every write and must not re-derive
+    /// it under the readiness lock. Staleness is bounded by the pass
+    /// interval, and the reservation behind the gate is exact.
+    pub outbox_gate_targets: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
@@ -420,12 +425,15 @@ impl AppState {
     /// backlog that is not going anywhere. An observed empty set is a mesh
     /// that really has no peers, and the total returns to one share.
     pub async fn refresh_outbox_capacity(&self, observed: bool) {
-        let mut peers: BTreeSet<String> = self.replication_targets().await.into_iter().collect();
+        let targets = self.replication_targets().await;
+        let mut peers: BTreeSet<String> = targets.iter().cloned().collect();
         peers.extend(self.discovered_only_peer_history().await);
+        self.outbox_gate_targets.store(Arc::new(targets));
         if peers.is_empty() && !observed {
             return;
         }
         self.store.set_replication_peer_count(peers.len());
+        self.store.retain_outbox_targets(&peers);
     }
 
     pub async fn initial_discovery_completed(&self) -> bool {
