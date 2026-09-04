@@ -147,11 +147,15 @@ defmodule TuistWeb.UserRegistrationLiveTest do
 
       assert pending_html =~ "Verifying, one moment"
 
-      # Widget produces the token, hook re-fires with `cf-turnstile-response` set.
+      # Widget produces the token, hook re-fires with `cf-turnstile-response`
+      # set. Emitted directly as a live_view event because Phoenix.LiveViewTest
+      # `form/3` refuses to override a rendered hidden input's value, and
+      # `cf-turnstile-response` is empty in the initial HTML — the hook fills
+      # it in-browser before `requestSubmit()`, which the test simulates by
+      # sending the save event with the token in the payload.
       render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
 
-      lv
-      |> form("#login_form", %{
+      render_submit(lv, "save", %{
         "cf-turnstile-response" => "token",
         "user" => %{
           "email" => "verify-pending@example.com",
@@ -159,7 +163,6 @@ defmodule TuistWeb.UserRegistrationLiveTest do
           "username" => "verifypending"
         }
       })
-      |> render_submit()
 
       assert {:ok, user} = Tuist.Accounts.get_user_by_email("verify-pending@example.com")
       assert user.account.name == "verifypending"
