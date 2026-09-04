@@ -413,6 +413,14 @@ impl AppState {
     pub async fn refresh_outbox_capacity(&self) {
         let mut peers: BTreeSet<String> = self.replication_targets().await.into_iter().collect();
         peers.extend(self.discovered_only_peer_history().await);
+        // An empty set means the node has no peer view (control plane or
+        // discovery unreachable), not that every peer left — the same reading
+        // `process_outbox` gives it when it declines to prune. Hold the last
+        // derived value rather than collapse to one share under a backlog
+        // that is not going anywhere.
+        if peers.is_empty() {
+            return;
+        }
         self.store.set_replication_peer_count(peers.len());
     }
 
@@ -820,6 +828,40 @@ mod tests {
             context.state.store.outbox_max_depth(),
             20,
             "an empty view keeps the discovered-only share and the dynamic peer"
+        );
+    }
+
+    /// An empty derived set is "no peer view", the reading the prune path
+    /// gives it, so the capacity holds instead of collapsing to one share.
+    #[tokio::test]
+    async fn an_empty_peer_view_holds_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 20);
+
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost view keeps the last derived capacity"
         );
     }
 

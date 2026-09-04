@@ -36,9 +36,9 @@ use crate::{
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -174,10 +174,14 @@ pub struct Store {
     // attributed to the lane that is actually deep, which decides whether the
     // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`.
     outbox_bulk_depth: AtomicUsize,
-    // The depth at which `reserve_outbox_slots` refuses. Either the fixed
-    // `outbox_max_depth_fixed`, or `outbox_max_depth_per_peer` times the
-    // replication target count, re-derived by `set_replication_peer_count`
-    // on every membership pass.
+    // Queued messages per replication target. `reserve_outbox_slots` refuses
+    // a write once any of its targets holds `outbox_max_depth_per_peer`, so
+    // one backed-off peer can fill its own share but not the others'.
+    outbox_target_depth: StdMutex<HashMap<String, usize>>,
+    // The node-wide room, `outbox_max_depth_per_peer` times the replication
+    // target count re-derived by `set_replication_peer_count` on every
+    // membership pass (or the fixed `outbox_max_depth_fixed`). Exported as
+    // capacity; the fixed value is also enforced as a total.
     outbox_max_depth: AtomicUsize,
     outbox_max_depth_fixed: Option<usize>,
     outbox_max_depth_per_peer: usize,
@@ -400,6 +404,9 @@ pub struct StoreSnapshot {
     /// How many of `outbox_messages` sit in the bulk lane. The rest are the
     /// metadata lane, which `drain_metadata_batches` amortizes separately.
     pub outbox_bulk_messages: usize,
+    /// `outbox_messages` split by target peer; the per-peer share is
+    /// enforced against these.
+    pub outbox_target_messages: Vec<(String, usize)>,
     pub multipart_uploads: usize,
     pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
@@ -737,9 +744,8 @@ struct PersistArtifactSpec<'a> {
 }
 
 struct OutboxReservation<'a> {
-    depth: &'a AtomicUsize,
-    bulk_depth: &'a AtomicUsize,
-    slots: usize,
+    store: &'a Store,
+    targets: Vec<String>,
     committed: bool,
 }
 
@@ -791,15 +797,17 @@ impl OutboxReservation<'_> {
     fn commit(mut self, bulk_slots: usize) {
         self.committed = true;
         if bulk_slots > 0 {
-            self.bulk_depth.fetch_add(bulk_slots, Ordering::AcqRel);
+            self.store
+                .outbox_bulk_depth
+                .fetch_add(bulk_slots, Ordering::AcqRel);
         }
     }
 }
 
 impl Drop for OutboxReservation<'_> {
     fn drop(&mut self) {
-        if !self.committed && self.slots > 0 {
-            release_atomic_slots(self.depth, self.slots);
+        if !self.committed && !self.targets.is_empty() {
+            self.store.release_outbox_slots(&self.targets);
         }
     }
 }
@@ -1190,6 +1198,7 @@ impl Store {
             rocksdb_write_buffer_manager,
             outbox_depth: AtomicUsize::new(0),
             outbox_bulk_depth: AtomicUsize::new(0),
+            outbox_target_depth: StdMutex::new(HashMap::new()),
             outbox_max_depth: AtomicUsize::new(outbox_max_depth_for(
                 config.outbox_max_depth,
                 config.outbox_max_depth_per_peer,
@@ -1258,12 +1267,21 @@ impl Store {
         store.replace_segment_state_snapshot(segment_state);
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
-        let (outbox_depth, outbox_bulk_depth) = store.count_outbox_entries_exact()?;
+        let (outbox_depth, outbox_bulk_depth, outbox_target_depth) =
+            store.count_outbox_entries_exact()?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
+        *store
+            .outbox_target_depth
+            .lock()
+            .expect("outbox target depth lock") = outbox_target_depth;
         store
             .io
             .metrics()
             .update_outbox_capacity(store.outbox_max_depth());
+        store
+            .io
+            .metrics()
+            .update_outbox_peer_capacity(store.outbox_max_depth_per_peer);
         store
             .outbox_bulk_depth
             .store(outbox_bulk_depth, Ordering::Release);
@@ -1333,42 +1351,96 @@ impl Store {
         }
     }
 
-    fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
-        if slots == 0 {
+    /// Messages queued per replication target.
+    pub fn outbox_target_depths(&self) -> Vec<(String, usize)> {
+        let depths = self
+            .outbox_target_depth
+            .lock()
+            .expect("outbox target depth lock");
+        depths
+            .iter()
+            .map(|(target, depth)| (target.clone(), *depth))
+            .collect()
+    }
+
+    /// Whether a public write would be refused for outbox room: any target
+    /// at its per-peer share, or the node at its fixed total. The write gates
+    /// read this ahead of the body so a saturated pod spends nothing on bytes
+    /// it will not keep; `reserve_outbox_slots` is the admission decision.
+    pub fn outbox_saturated(&self) -> bool {
+        if self
+            .outbox_max_depth_fixed
+            .is_some_and(|fixed| self.outbox_depth() >= fixed)
+        {
+            return true;
+        }
+        let per_peer = self.outbox_max_depth_per_peer;
+        self.outbox_target_depth
+            .lock()
+            .expect("outbox target depth lock")
+            .values()
+            .any(|depth| *depth >= per_peer)
+    }
+
+    /// Reserves one outbox slot per target, all or nothing. A write refused
+    /// here names the saturated target: one peer's backlog is refused at its
+    /// own share, and the room meant for the other peers stays theirs.
+    fn reserve_outbox_slots(&self, targets: &[String]) -> Result<OutboxReservation<'_>, String> {
+        if targets.is_empty() {
             return Ok(OutboxReservation {
-                depth: &self.outbox_depth,
-                bulk_depth: &self.outbox_bulk_depth,
-                slots,
+                store: self,
+                targets: Vec::new(),
                 committed: false,
             });
         }
 
-        let max_depth = self.outbox_max_depth();
-        let mut current = self.outbox_depth.load(Ordering::Acquire);
-        loop {
-            let requested = current.saturating_add(slots);
-            if requested > max_depth {
+        let mut depths = self
+            .outbox_target_depth
+            .lock()
+            .expect("outbox target depth lock");
+        if let Some(fixed) = self.outbox_max_depth_fixed {
+            let current = self.outbox_depth.load(Ordering::Acquire);
+            if current.saturating_add(targets.len()) > fixed {
                 return Err(format!(
-                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {} slots requested, {fixed} allowed",
+                    targets.len()
                 ));
             }
-            match self.outbox_depth.compare_exchange_weak(
-                current,
-                requested,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => {
-                    return Ok(OutboxReservation {
-                        depth: &self.outbox_depth,
-                        bulk_depth: &self.outbox_bulk_depth,
-                        slots,
-                        committed: false,
-                    });
-                }
-                Err(observed) => current = observed,
+        }
+        let per_peer = self.outbox_max_depth_per_peer;
+        for target in targets {
+            let depth = depths.get(target).copied().unwrap_or(0);
+            if depth >= per_peer {
+                return Err(format!(
+                    "{OUTBOX_FULL_ERROR}: {depth} messages queued for {target}, {per_peer} allowed per peer"
+                ));
             }
         }
+        for target in targets {
+            *depths.entry(target.clone()).or_insert(0) += 1;
+        }
+        self.outbox_depth.fetch_add(targets.len(), Ordering::AcqRel);
+        Ok(OutboxReservation {
+            store: self,
+            targets: targets.to_vec(),
+            committed: false,
+        })
+    }
+
+    fn release_outbox_slots(&self, targets: &[String]) {
+        let mut depths = self
+            .outbox_target_depth
+            .lock()
+            .expect("outbox target depth lock");
+        for target in targets {
+            if let Some(depth) = depths.get_mut(target) {
+                *depth = depth.saturating_sub(1);
+                if *depth == 0 {
+                    depths.remove(target);
+                }
+            }
+        }
+        release_atomic_slots(&self.outbox_depth, targets.len());
     }
 
     fn reserve_multipart_upload(&self) -> Result<MultipartUploadReservation<'_>, String> {
@@ -1719,7 +1791,7 @@ impl Store {
                     already_present,
                 } => (existing, already_present),
             };
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
 
         let (location, evicted_segments, _durability_seq) = match source {
             SegmentArtifactSource::Path(staged) => {
@@ -2668,7 +2740,7 @@ impl Store {
         // the tag decision and the write it feeds cannot be split by a racing
         // peer.
         let branch = sticky_branch(existing.as_ref(), spec.branch, spec.trunk);
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
 
         let mut batch = WriteBatch::default();
         let mut bulk_outbox = 0;
@@ -5053,9 +5125,9 @@ impl Store {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
         }
         let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
-            0
+            &[]
         } else {
-            replication_targets.len()
+            replication_targets
         })?;
         if !delete_everything {
             batch.put_cf(
@@ -5643,7 +5715,8 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
-        let outbox_reservation = self.reserve_outbox_slots(1)?;
+        let outbox_reservation =
+            self.reserve_outbox_slots(std::slice::from_ref(&message.target))?;
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
@@ -5753,6 +5826,7 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let outbox_bulk_messages = self.outbox_bulk_depth();
+        let outbox_target_messages = self.outbox_target_depths();
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
         let promotion_queue_depth = self
             .promotion_queue
@@ -5768,6 +5842,7 @@ impl Store {
         Ok(StoreSnapshot {
             outbox_messages,
             outbox_bulk_messages,
+            outbox_target_messages,
             multipart_uploads,
             promotion_queue_depth,
             segment_counts,
@@ -7156,11 +7231,11 @@ impl Store {
         self.stamp_backfill_maintained_seq()
     }
 
-    pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
+    pub fn delete_outbox_message(&self, key: &[u8], target: &str) -> Result<(), String> {
         self.db
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
             .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
-        release_atomic_slots(&self.outbox_depth, 1);
+        self.release_outbox_slots(std::slice::from_ref(&target.to_owned()));
         if is_bulk_outbox_key(key) {
             release_atomic_slots(&self.outbox_bulk_depth, 1);
         }
@@ -7626,21 +7701,25 @@ impl Store {
     /// Total and bulk-lane outbox depth in one pass, for seeding both counters
     /// at open. Runs once per process, so it iterates rather than keeping a
     /// second persisted tally that could disagree with the entries on disk.
-    fn count_outbox_entries_exact(&self) -> Result<(usize, usize), String> {
+    fn count_outbox_entries_exact(&self) -> Result<(usize, usize, HashMap<String, usize>), String> {
         let iter = self
             .db
             .iterator_cf(self.cf(ROCKSDB_CF_OUTBOX), IteratorMode::Start);
         let mut total = 0_usize;
         let mut bulk = 0_usize;
+        let mut per_target: HashMap<String, usize> = HashMap::new();
         for item in iter {
-            let (key, _) =
+            let (key, value) =
                 item.map_err(|error| format!("failed to iterate {ROCKSDB_CF_OUTBOX}: {error}"))?;
             total = total.saturating_add(1);
             if is_bulk_outbox_key(&key) {
                 bulk = bulk.saturating_add(1);
             }
+            let message: OutboxMessage = serde_json::from_slice(&value)
+                .map_err(|error| format!("failed to decode outbox message: {error}"))?;
+            *per_target.entry(message.target).or_insert(0) += 1;
         }
-        Ok((total, bulk))
+        Ok((total, bulk, per_target))
     }
 
     #[cfg(test)]
@@ -8742,11 +8821,7 @@ fn persisted_version_ms(version_ms: u64) -> u64 {
 pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
 
 fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> usize {
-    fixed.unwrap_or_else(|| {
-        per_peer
-            .saturating_mul(peers.max(1))
-            .min(OUTBOX_MAX_DEPTH_CEILING)
-    })
+    fixed.unwrap_or_else(|| per_peer.saturating_mul(peers.max(1)))
 }
 
 /// Whether an outbox key belongs to the bulk lane. The lane is the key's first
@@ -16987,7 +17062,7 @@ mod tests {
         );
 
         store
-            .delete_outbox_message(key)
+            .delete_outbox_message(key, &message.target)
             .expect("failed to delete outbox message");
         assert!(
             store
@@ -17061,7 +17136,9 @@ mod tests {
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
-        store.delete_outbox_message(&key).expect("outbox deletion");
+        store
+            .delete_outbox_message(&key, &message.target)
+            .expect("outbox deletion");
         store.enqueue(message).expect("capacity should be reusable");
         assert_eq!(store.outbox_depth(), 1);
     }
@@ -17096,6 +17173,11 @@ mod tests {
         let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
 
         assert_eq!(reopened.outbox_depth(), 1);
+        assert_eq!(
+            reopened.outbox_target_depths(),
+            vec![("http://peer".to_string(), 1)],
+            "per-target depth is rebuilt from the persisted messages"
+        );
         assert!(is_outbox_full_error(
             &reopened
                 .enqueue(message)
@@ -17113,12 +17195,13 @@ mod tests {
         }
     }
 
-    /// Every write enqueues one message per peer, so the cap is a per-peer
-    /// share times the target count: it grows when a peer joins and shrinks
-    /// when one leaves, and a shrink below the queued depth only refuses new
-    /// reservations rather than dropping anything.
+    /// Every write enqueues one message per peer, and each peer's queue is
+    /// bounded on its own: a write is refused once any of its targets is at
+    /// the share, while a peer whose queue is short keeps accepting. The
+    /// node-wide capacity is the share times the peer count and only follows
+    /// membership; nothing is dropped when it shrinks.
     #[test]
-    fn outbox_capacity_follows_the_replication_peer_count() {
+    fn outbox_share_is_enforced_per_target() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
             config.outbox_max_depth = None;
             config.outbox_max_depth_per_peer = 2;
@@ -17127,37 +17210,75 @@ mod tests {
             config.peers = vec![config.node_url.clone()];
         });
         assert_eq!(store.outbox_max_depth(), 2);
-
         store.set_replication_peer_count(3);
         assert_eq!(store.outbox_max_depth(), 6);
-        for _ in 0..6 {
-            store
-                .enqueue(outbox_delete("http://peer"))
-                .expect("within capacity");
-        }
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(outbox_delete("http://peer"))
-                .expect_err("the seventh message must exceed three shares")
-        ));
-
         store.set_replication_peer_count(1);
         assert_eq!(store.outbox_max_depth(), 2);
-        assert_eq!(store.outbox_depth(), 6, "shrinking the cap drops nothing");
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(outbox_delete("http://peer"))
-                .expect_err("a queue above the shrunk cap refuses new work")
-        ));
-
         store.set_replication_peer_count(0);
         assert_eq!(store.outbox_max_depth(), 2, "zero peers keeps one share");
 
-        store.set_replication_peer_count(usize::MAX);
+        for _ in 0..2 {
+            store
+                .enqueue(outbox_delete("http://slow"))
+                .expect("within the slow peer's share");
+        }
+        assert!(
+            store.outbox_saturated(),
+            "a peer at its share saturates the gate"
+        );
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://slow"))
+                .expect_err("the third message exceeds the slow peer's share")
+        ));
+        store
+            .enqueue(outbox_delete("http://fast"))
+            .expect("another peer's share is untouched by the slow one");
+        assert_eq!(store.outbox_depth(), 3);
+        let mut depths = store.outbox_target_depths();
+        depths.sort();
         assert_eq!(
-            store.outbox_max_depth(),
-            OUTBOX_MAX_DEPTH_CEILING,
-            "the derived cap never outgrows the ceiling"
+            depths,
+            vec![
+                ("http://fast".to_string(), 1),
+                ("http://slow".to_string(), 2)
+            ]
+        );
+
+        // A write fans out to every target, so one saturated target refuses
+        // the whole write and leaves the other target's count untouched.
+        let store = Arc::new(store);
+        let outcome = tokio::runtime::Runtime::new().expect("runtime").block_on(
+            store.persist_inline_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/shared",
+                "application/x-protobuf",
+                b"value",
+                &["http://fast".into(), "http://slow".into()],
+                None,
+                None,
+            ),
+        );
+        assert!(is_outbox_full_error(&outcome.expect_err(
+            "a fan-out that cannot seat every target is refused"
+        )));
+        assert_eq!(
+            store.outbox_depth(),
+            3,
+            "a refused fan-out reserves nothing"
+        );
+
+        let (key, message) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        store
+            .delete_outbox_message(&key, &message.target)
+            .expect("outbox deletion");
+        assert!(
+            !store.outbox_saturated(),
+            "draining one message frees the share"
         );
     }
 
@@ -17283,24 +17404,24 @@ mod tests {
         assert_eq!(store.outbox_bulk_depth(), 2);
 
         // The metadata lane sorts first, so the head is the inline entry.
-        let (metadata_key, _) = store
+        let (metadata_key, metadata_message) = store
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
         assert!(!is_bulk_outbox_key(&metadata_key));
         store
-            .delete_outbox_message(&metadata_key)
+            .delete_outbox_message(&metadata_key, &metadata_message.target)
             .expect("outbox deletion");
         assert_eq!(store.outbox_depth(), 2);
         assert_eq!(store.outbox_bulk_depth(), 2);
 
-        let (bulk_key, _) = store
+        let (bulk_key, bulk_message) = store
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
         assert!(is_bulk_outbox_key(&bulk_key));
         store
-            .delete_outbox_message(&bulk_key)
+            .delete_outbox_message(&bulk_key, &bulk_message.target)
             .expect("outbox deletion");
         assert_eq!(store.outbox_depth(), 1);
         assert_eq!(store.outbox_bulk_depth(), 1);

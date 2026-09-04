@@ -625,6 +625,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.outbox_messages,
                             snapshot.outbox_bulk_messages,
                         );
+                        state
+                            .metrics
+                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics

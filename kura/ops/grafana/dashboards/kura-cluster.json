@@ -258,6 +258,18 @@
           "expr": "kura_outbox_capacity",
           "legendFormat": "{{region}} capacity",
           "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "max by (region) (kura_outbox_target_messages)",
+          "legendFormat": "{{region}} deepest peer",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_outbox_peer_capacity",
+          "legendFormat": "{{region}} per-peer share",
+          "refId": "D"
         }
       ],
       "title": "Outbox Depth",

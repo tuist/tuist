@@ -110,7 +110,9 @@ pub struct MetricsInner {
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
     outbox_capacity: Gauge,
+    outbox_peer_capacity: Gauge,
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
+    outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
@@ -663,6 +665,8 @@ impl Metrics {
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
         let outbox_capacity = Gauge::default();
+        let outbox_peer_capacity = Gauge::default();
+        let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
@@ -1195,6 +1199,16 @@ impl Metrics {
             "kura_outbox_lane_messages",
             "Replication outbox messages waiting to be processed, split by drain lane",
             outbox_lane_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_target_messages",
+            "Replication outbox messages waiting to be processed, split by target peer",
+            outbox_target_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_peer_capacity",
+            "Replication outbox messages one target peer may hold before cache writes are shed",
+            outbox_peer_capacity.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
@@ -1772,7 +1786,9 @@ impl Metrics {
                 manifest_index_rebuild_duration,
                 outbox_messages,
                 outbox_capacity,
+                outbox_peer_capacity,
                 outbox_lane_messages,
+                outbox_target_messages,
                 multipart_uploads,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
@@ -2461,6 +2477,24 @@ impl Metrics {
         self.outbox_capacity.set(max_depth as i64);
     }
 
+    pub fn update_outbox_peer_capacity(&self, per_peer: usize) {
+        self.outbox_peer_capacity.set(per_peer as i64);
+    }
+
+    /// Replaces the per-target series wholesale so a peer whose queue drained
+    /// (or that left) stops being reported rather than sticking at its last
+    /// value.
+    pub fn update_outbox_target_messages(&self, depths: &[(String, usize)]) {
+        self.outbox_target_messages.clear();
+        for (target, depth) in depths {
+            self.outbox_target_messages
+                .get_or_create(&OutboxTargetLabels {
+                    target: target.clone(),
+                })
+                .set(*depth as i64);
+        }
+    }
+
     pub fn update_segment_fsyncs(&self, total: u64) {
         // The store tracks the cumulative fsync count as a process-local atomic
         // that resets to 0 on restart, exactly like this Counter. Advance the
@@ -3084,6 +3118,11 @@ fn records_public_http_metrics(route: &str) -> bool {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct OutboxLaneLabels {
     lane: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct OutboxTargetLabels {
+    target: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

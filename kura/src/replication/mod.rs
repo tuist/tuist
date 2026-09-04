@@ -734,9 +734,11 @@ async fn drain_metadata_batches(
                     state
                         .metrics
                         .record_replication(&target, "upsert_artifact", "ok", elapsed);
-                    for ((message_key, _message), done) in items.iter().zip(resolved) {
+                    for ((message_key, message), done) in items.iter().zip(resolved) {
                         if done {
-                            state.store.delete_outbox_message(message_key)?;
+                            state
+                                .store
+                                .delete_outbox_message(message_key, &message.target)?;
                             progressed = true;
                         }
                     }
@@ -902,7 +904,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 && !current_targets.contains(&message.target)
                 && !discovered_history.contains(&message.target)
             {
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 state.metrics.record_replication(
                     &message.target,
                     message.operation.name(),
@@ -947,7 +951,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                     "dropped_oversized",
                     elapsed,
                 );
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 rewind_to_priority_head(state, &mut after).await?;
             }
             Ok(ReplicationOutcome::Delivered) => {
@@ -965,7 +971,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             "ok",
                             elapsed,
                         );
-                        state.store.delete_outbox_message(&message_key)?;
+                        state
+                            .store
+                            .delete_outbox_message(&message_key, &message.target)?;
                         rewind_to_priority_head(state, &mut after).await?;
                     }
                     Err(error) => {

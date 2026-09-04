@@ -2478,9 +2478,9 @@ max by (cluster, region, pod, kind) (
   GET, so a refused upload becomes a future cache miss and no build fails. On
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  outbox: the replication outbox is at its cap, read kura_outbox_messages
-  against kura_outbox_capacity (50000 per replication peer, ceiling 500000,
-  unless KURA_OUTBOX_MAX_DEPTH pins it); peers being unreachable is NOT the usual cause,
+  outbox: one replication peer's outbox share is full, read
+  kura_outbox_target_messages against kura_outbox_peer_capacity (100000 per
+  peer unless KURA_OUTBOX_MAX_DEPTH_PER_PEER changes it); peers being unreachable is NOT the usual cause,
   check kura_peer_connection_failures_total and
   kura_replication_bandwidth_effective_limit_bytes_per_second first.
   upload_memory, memory_pressure_write, reapi_write_decode,
@@ -2644,23 +2644,32 @@ Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
 than the old threshold on each of the three pods that ever reach the cap, so
 the form is net quieter as well as earlier.
 
-#### Caveat: the cap is hardcoded, and it now scales with the mesh
+#### Caveat: the cap is now per peer, and the total is no longer what sheds
 
 Both 100000 and 90000 were `DEFAULT_OUTBOX_MAX_DEPTH`, which no longer exists.
-The cap is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (50000) times the pod's
-replication target count, re-derived on every membership pass, so a two-peer
-mesh still caps at 100000 while a five-peer mesh caps at 250000 and a single
-peer at 50000. `KURA_OUTBOX_MAX_DEPTH` pins a fixed cap instead. Kura exports
-the effective value as `kura_outbox_capacity` (and as `outbox_capacity` on the
-rollout status endpoint); the rule should divide by it rather than carry the
-literals:
+The share is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (100000) enforced **per
+replication target**: a write is shed once any one of its peers holds that
+many queued messages, whatever the node-wide total. The total
+(`kura_outbox_messages`) can therefore sit far below the share times the peer
+count while the pod is already shedding, and a five-peer pod can hold 500000
+without shedding as long as no single peer is full. The number to alert on is
+the deepest per-peer queue against the share, both exported by Kura:
 
 ```promql
-max by (pod) (kura_outbox_messages / kura_outbox_capacity) > 0.9
+max by (pod) (kura_outbox_target_messages) / max by (pod) (kura_outbox_peer_capacity) > 0.9
 ```
 
-Until the live rule is updated, its static terms are only right for pods with
-exactly two peers.
+`kura_outbox_capacity` (share times peer count) and `outbox_capacity` on the
+rollout status endpoint describe the room, not the shed point. Until the live
+rule is moved to the per-target form, its `> 90000` backstop on the total
+still fires for a one- or two-peer pod at the old point but under-reads
+larger meshes.
+
+This per-peer share is an interim measure: the drain is throughput-bound
+(`OUTBOX_MAX_INFLIGHT` is a node-wide pipeline depth, not per target), so a
+larger buffer changes how much a saturated pod holds, not whether it saturates.
+The replication log redesign (`kura/docs/replication-redesign.md`) is the
+scalable replacement.
 
 #### Why the drain falls behind
 

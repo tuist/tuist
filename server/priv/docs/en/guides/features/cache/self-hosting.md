@@ -235,8 +235,8 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | No | Auto-derived | `extraEnv` |
-| `KURA_OUTBOX_MAX_DEPTH_PER_PEER` | Replication outbox capacity per peer. The effective cap is this times the number of replication peers, so it follows the mesh as nodes join and leave. | No | `50000` | `extraEnv` |
-| `KURA_OUTBOX_MAX_DEPTH` | A fixed replication outbox cap that replaces the per-peer scaling when set. | No | Unset | `extraEnv` |
+| `KURA_OUTBOX_MAX_DEPTH_PER_PEER` | Replication outbox messages one peer may hold. A cache write is refused with retryable backpressure once any of its replication peers is at this depth; the node-wide room is this times the peer count (at least one share, no upper ceiling) and follows the mesh as nodes join and leave. A node with no peers enqueues nothing. | No | `100000` | `extraEnv` |
+| `KURA_OUTBOX_MAX_DEPTH` | A fixed node-wide outbox total enforced on top of the per-peer share when set. | No | Unset | `extraEnv` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before expiring. | No | `86400000` | `extraEnv` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often Kura scans for stale multipart uploads. | No | `600000` | `extraEnv` |
 | `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring, counted from the newest, that bounds how far back a backfill pass reaches. | No | `40` | `config.backfill.marginPercent` |

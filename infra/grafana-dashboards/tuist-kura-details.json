@@ -20990,10 +20990,123 @@
               "transformations": []
             }
           },
-          "description": "Replication outbox depth at which cache writes are shed. KURA_OUTBOX_MAX_DEPTH_PER_PEER (50000) times the pod's replication target count, re-derived on every membership pass, so it steps up when a peer joins and down when one leaves; KURA_OUTBOX_MAX_DEPTH pins a fixed value instead. Read outbox_messages against this rather than against a literal: a pod is shedding when the two meet, and the alert threshold is a fraction of this series, not of 100000.\n\nPrometheus name: `kura_outbox_capacity`",
+          "description": "Replication outbox room: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000) times the pod's replication target count, re-derived on every membership pass; KURA_OUTBOX_MAX_DEPTH pins a fixed total instead. This is the room, not the shed point: the share is enforced per target, so read outbox_target_messages against outbox_peer_capacity to see whether a pod is shedding.\n\nPrometheus name: `kura_outbox_capacity`",
           "id": 209,
           "links": [],
           "title": "outbox_capacity",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-210": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod, target) (kura_outbox_target_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} → {{target}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} share",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox messages queued per target peer. The per-peer share (KURA_OUTBOX_MAX_DEPTH_PER_PEER, exported as kura_outbox_peer_capacity) is enforced against these: a cache write is shed once any one of its targets is at the share, whatever the node-wide total. The deepest series here against the capacity line is what decides whether the pod is shedding, and which peer's drain is behind.\n\nPrometheus name: `kura_outbox_target_messages` · labels: target",
+          "id": 210,
+          "links": [],
+          "title": "outbox_target_messages",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -23074,11 +23187,24 @@
                         "x": 0,
                         "y": 21
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-210"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Peer replication \u0026 outbox (10)"
+              "title": "Peer replication \u0026 outbox (11)"
             }
           },
           {
