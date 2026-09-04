@@ -537,8 +537,26 @@ defmodule Tuist.Runners.Buildkite do
       job_name: job.step_key,
       head_branch: job.build_branch,
       head_sha: "",
-      enqueued_at: job.scheduled_at || DateTime.utc_now()
+      enqueued_at: usec(job.scheduled_at) || DateTime.utc_now()
     }
+  end
+
+  # `runner_workflow_jobs.enqueued_at` is `:utc_datetime_usec`, and the
+  # lifecycle row is written with `insert_all`, which dumps without
+  # casting and raises on anything coarser than microseconds. Buildkite
+  # stamps milliseconds.
+  #
+  # Normalised here, at the write, rather than only where the API
+  # response is parsed: this is the boundary the database requirement
+  # actually lives at, and a parser-only fix leaves any other caller that
+  # builds this map free to reintroduce the crash. That crash was
+  # expensive — it fired *after* the pass had reserved the job on
+  # Buildkite, so the job sat reserved and invisible to every stack until
+  # its reservation lapsed, with Oban discarding the error.
+  defp usec(nil), do: nil
+
+  defp usec(%DateTime{microsecond: {value, _precision}} = datetime) do
+    %{datetime | microsecond: {value, 6}}
   end
 
   defp repository_handle(%{pipeline_slug: ""}), do: ""

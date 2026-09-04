@@ -333,6 +333,35 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid)).workflow_job_id == first
     end
 
+    test "enqueues a job whose timestamp carries only millisecond precision", %{
+      installation: installation,
+      queue_key: queue_key
+    } do
+      # Buildkite stamps milliseconds. `runner_workflow_jobs.enqueued_at`
+      # is `:utc_datetime_usec`, and `insert_all` dumps without casting,
+      # so a 3-digit timestamp raised ArgumentError *after* the pass had
+      # already reserved the job on Buildkite. Oban discarded the crash
+      # and the job sat reserved and invisible to every stack until its
+      # reservation lapsed an hour later. This is that exact shape.
+      {:ok, millisecond_precision, _} = DateTime.from_iso8601("2026-09-04T18:20:36.542Z")
+      assert millisecond_precision.microsecond == {542_000, 3}
+
+      job = scheduled_job(%{queue_key: queue_key, scheduled_at: millisecond_precision})
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 1} = Buildkite.poll(installation)
+
+      mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
+      lifecycle = Repo.get(WorkflowJob, mapping.workflow_job_id)
+      assert lifecycle.status == "queued"
+      assert DateTime.compare(lifecycle.enqueued_at, millisecond_precision) == :eq
+    end
+
     test "stops the pass when the agent token is rejected", %{installation: installation} do
       stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:error, :unauthorized}

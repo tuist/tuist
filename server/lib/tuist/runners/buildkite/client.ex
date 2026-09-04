@@ -168,9 +168,22 @@ defmodule Tuist.Runners.Buildkite.Client do
 
   defp parse_datetime(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> datetime
+      {:ok, datetime, _offset} -> with_usec_precision(datetime)
       {:error, _reason} -> nil
     end
+  end
+
+  # Buildkite stamps milliseconds, and `DateTime.from_iso8601/1` reports
+  # the precision it was given, so the parsed value advertises 3 digits.
+  # `runner_workflow_jobs.enqueued_at` is `:utc_datetime_usec` and Ecto
+  # raises on anything coarser, which crashed the poll pass *after* it had
+  # already reserved the job on Buildkite: the job then sat reserved and
+  # invisible to every stack until its reservation lapsed.
+  #
+  # Same normalisation `FetchLogsWorker` applies to GitHub's timestamps,
+  # which advertise 7 digits for the opposite reason.
+  defp with_usec_precision(%DateTime{microsecond: {value, _precision}} = datetime) do
+    %{datetime | microsecond: {value, 6}}
   end
 
   defp request(%Installation{agent_token: token}, method, path, opts \\ []) do
