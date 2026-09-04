@@ -2741,6 +2741,56 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  @doc """
+  How many distinct modules missed on each day of the window.
+
+  ## Returns
+    `%{dates: [iso8601], counts: [integer]}`, one entry per day in the range.
+  """
+  def modules_with_misses_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      uniqExactIf(xt.name, xt.binary_cache_hit = 'miss') AS modules
+    FROM xcode_targets AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    by_day =
+      case ClickHouseRepo.query(query, params) do
+        {:ok, %{rows: rows}} -> Map.new(rows, fn [day, modules] -> {normalize_date(day), modules} end)
+        _ -> %{}
+      end
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      counts: Enum.map(dates, &Map.get(by_day, &1, 0))
+    }
+  end
+
   defp module_invalidation_filters(opts) do
     {sql, params} =
       case Keyword.get(opts, :is_ci) do
@@ -2772,10 +2822,12 @@ defmodule Tuist.Builds.Analytics do
   Returns a daily time series for a single module of how often it was a cache
   miss ("invalidations") versus a hit ("reuses"), for the invalidations vs reuse
   chart on the module detail page. Requires the `:name` option.
+
+  Without `:name` it covers every module in the project.
   """
   def module_invalidation_timeseries(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
-    name = Keyword.fetch!(opts, :name)
+    {name_sql, name_params} = module_name_filter(opts)
 
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -2784,10 +2836,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(
-        %{project_id: project_id, start: start_datetime, end: end_datetime, name: name},
-        filter_params
-      )
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(name_params)
 
     query = """
     SELECT
@@ -2800,7 +2851,7 @@ defmodule Tuist.Builds.Analytics do
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
       AND xt.binary_cache_hash IS NOT NULL
-      AND xt.name = {name:String}#{filter_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
     GROUP BY day
     ORDER BY day
     """
@@ -2836,10 +2887,12 @@ defmodule Tuist.Builds.Analytics do
 
   Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
   day instead of by module. Requires `:name`.
+
+  Without `:name` it covers every module in the project.
   """
   def module_miss_reasons_timeseries(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
-    name = Keyword.fetch!(opts, :name)
+    {name_sql, name_params} = module_name_filter(opts)
 
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -2848,10 +2901,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(
-        %{project_id: project_id, start: start_datetime, end: end_datetime, name: name},
-        filter_params
-      )
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(name_params)
 
     query = """
     SELECT
@@ -2888,7 +2940,7 @@ defmodule Tuist.Builds.Analytics do
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
           AND xt.binary_cache_hash IS NOT NULL
-          AND xt.name = {name:String}#{filter_sql}
+          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
       )
       WINDOW w AS (
         PARTITION BY branch

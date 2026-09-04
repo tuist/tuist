@@ -62,6 +62,63 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert html =~ "0.0%"
   end
 
+  test "renders the analytics widgets and swaps the chart with the selection", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: ~N[2024-01-31 09:00:00]
+      )
+
+    XcodeFixtures.xcode_target_fixture(
+      command_event_id: event.id,
+      name: "Core",
+      product: "framework",
+      binary_cache_hash: "h-core",
+      binary_cache_hit: :miss,
+      sources_hash: "s1"
+    )
+
+    XcodeFixtures.xcode_target_fixture(
+      command_event_id: event.id,
+      name: "Networking",
+      product: "framework",
+      binary_cache_hash: "h-net",
+      binary_cache_hit: :remote,
+      sources_hash: "n1"
+    )
+
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules"
+
+    {:ok, lv, _html} = live(conn, base)
+    render_async(lv, 2000)
+
+    for id <- ~w(widget-modules widget-misses widget-hit-rate widget-upstream-share) do
+      assert has_element?(lv, "##{id}")
+    end
+
+    # Misses is the default selection, so its chart is the one rendered.
+    assert has_element?(lv, "#modules-misses-chart")
+    refute has_element?(lv, "#modules-hit-rate-chart")
+
+    # Only Core missed, out of two module builds.
+    assert has_element?(lv, "#widget-modules", "1")
+    assert has_element?(lv, "#widget-hit-rate", "50.0%")
+
+    # Picking another widget swaps in its chart.
+    {:ok, lv, _html} = live(conn, base <> "?analytics-selected-widget=hit_rate")
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#modules-hit-rate-chart")
+    refute has_element?(lv, "#modules-misses-chart")
+  end
+
   test "pages through the modules table", %{
     conn: conn,
     organization: organization,

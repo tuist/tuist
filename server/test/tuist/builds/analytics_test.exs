@@ -1888,6 +1888,107 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "project-wide module timeseries" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      target = fn event_id, name, hit, sources ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      event = fn created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: created_at
+        ).id
+      end
+
+      %{project: project, target: target, event: event}
+    end
+
+    test "without a name the series covers every module", %{
+      project: project,
+      target: target,
+      event: event
+    } do
+      day_one = event.(~N[2024-04-01 10:00:00])
+      target.(day_one, "Core", :miss, "s1")
+      target.(day_one, "Networking", :remote, "n1")
+
+      day_two = event.(~N[2024-04-02 10:00:00])
+      target.(day_two, "Core", :miss, "s2")
+      target.(day_two, "Networking", :miss, "n2")
+
+      series =
+        Analytics.module_invalidation_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      # Both modules on both days: one miss and one hit, then two misses.
+      assert series.invalidations == [1, 2]
+      assert series.reuses == [1, 0]
+    end
+
+    test "counts the distinct modules that missed each day", %{
+      project: project,
+      target: target,
+      event: event
+    } do
+      day_one = event.(~N[2024-04-01 10:00:00])
+      target.(day_one, "Core", :miss, "s1")
+      target.(day_one, "Networking", :remote, "n1")
+
+      day_two = event.(~N[2024-04-02 10:00:00])
+      target.(day_two, "Core", :miss, "s2")
+      target.(day_two, "Networking", :miss, "n2")
+
+      series =
+        Analytics.modules_with_misses_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      # A module that only hit does not count as missing.
+      assert series.counts == [1, 2]
+      assert length(series.dates) == 2
+    end
+
+    test "the reason split also covers every module without a name", %{
+      project: project,
+      target: target,
+      event: event
+    } do
+      first = event.(~N[2024-04-01 10:00:00])
+      target.(first, "Core", :miss, "s1")
+
+      second = event.(~N[2024-04-02 10:00:00])
+      target.(second, "Core", :miss, "s2")
+
+      series =
+        Analytics.module_miss_reasons_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      # First build has nothing to compare against, the second changed.
+      assert series.cold == [1, 0]
+      assert series.changed == [0, 1]
+    end
+  end
+
   describe "module_build_history/1" do
     setup do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)

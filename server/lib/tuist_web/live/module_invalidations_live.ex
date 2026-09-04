@@ -43,6 +43,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
               "analytics-end-date",
               "sort-by",
               "sort-order",
+              "analytics-selected-widget",
               "q",
               "after",
               "before"
@@ -72,6 +73,11 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       end
 
     {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
+  end
+
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    {:noreply, push_patch(socket, to: "?#{query}")}
   end
 
   def handle_event(
@@ -113,6 +119,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:search, params["q"] || "")
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
+      |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
 
     opts = analytics_opts(socket.assigns)
 
@@ -126,8 +133,58 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign_async([:modules], fn ->
         {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
       end)
+      |> assign_async([:timeseries, :miss_reasons_series, :modules_series], fn ->
+        {:ok,
+         %{
+           timeseries: opts |> Analytics.module_invalidation_timeseries() |> with_hit_rates(),
+           miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts),
+           modules_series: Analytics.modules_with_misses_timeseries(opts)
+         }}
+      end)
     end
   end
+
+  defp with_hit_rates(timeseries) do
+    hit_rates =
+      timeseries.invalidations
+      |> Enum.zip(timeseries.reuses)
+      |> Enum.map(fn {misses, hits} ->
+        case misses + hits do
+          0 -> 0.0
+          total -> Float.round(hits / total * 100, 1)
+        end
+      end)
+
+    Map.put(timeseries, :hit_rates, hit_rates)
+  end
+
+  @doc """
+  Totals for the analytics widgets.
+
+  Everything but the module count comes from the series rather than the table,
+  because the table lists only modules that missed at least once. Counting hits
+  from it would leave out every module that was always served from cache and
+  understate the hit rate.
+  """
+  def analytics_totals(modules, timeseries, miss_reasons) do
+    misses = Enum.sum(timeseries.invalidations)
+    hits = Enum.sum(timeseries.reuses)
+    changed = Enum.sum(miss_reasons.changed)
+    upstream = Enum.sum(miss_reasons.upstream)
+
+    %{
+      modules: length(modules),
+      misses: misses,
+      hits: hits,
+      hit_rate: percentage(hits, hits + misses),
+      # Of the misses we could attribute, the share an upstream dependency
+      # caused. This is the fraction better module boundaries can remove.
+      upstream_share: percentage(upstream, changed + upstream)
+    }
+  end
+
+  defp percentage(_count, 0), do: 0.0
+  defp percentage(count, total), do: Float.round(count / total * 100, 1)
 
   defp analytics_opts(%{
          selected_project: project,
