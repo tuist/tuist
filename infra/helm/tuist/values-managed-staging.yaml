@@ -361,8 +361,13 @@ clickhouse:
     # click on the ops flags page, with no deploy, and it takes actors so a
     # single account can be moved first. This runs it from a deploy because
     # nothing else can reach that page in this environment.
+    # Off now that the sequence has run. Each step is a post-upgrade hook, so
+    # leaving one enabled re-runs it on every deploy, and the last of them sets
+    # a flag: turning reads back off from the ops page would be silently undone
+    # by the next deploy. The `name` and `task` are left as a record of where
+    # the sequence got to.
     migration:
-      enabled: true
+      enabled: false
       name: read-cutover
       task: Tuist.Release.enable_clickhouse_bare_metal_reads
       cutoff: "2026-09-04T01:30:00Z"
