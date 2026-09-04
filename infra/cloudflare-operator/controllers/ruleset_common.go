@@ -5,9 +5,190 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
+
+	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
 )
+
+const (
+	defaultResyncInterval = 5 * time.Minute
+
+	// finalizer runs the Cloudflare-side delete when a CR is removed
+	// so the live rule follows the CR through git deletions. Applied
+	// only by the Ruleset-shaped reconcilers; settings-shaped CRDs
+	// deliberately leave settings in place on delete.
+	finalizer = "cloudflare.tuist.dev/finalizer"
+)
+
+// RulesetStatusWriter is what every ruleset-shaped CRD's status
+// implements so the shared reconciler can write into it without
+// caring which concrete type it is.
+type RulesetStatusWriter interface {
+	SetRulesetStatus(ref, rulesetID, ruleID, message string, observedGeneration int64, now *metav1.Time)
+}
+
+// resyncOrDefault returns d if positive, else the shared default.
+func resyncOrDefault(d time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return defaultResyncInterval
+}
+
+// ensureFinalizer adds the shared finalizer to cr if missing and
+// persists the update. Returns (added, error). Add=true means the
+// caller should return a fresh reconcile — the Update triggered one.
+func ensureFinalizer(ctx context.Context, c client.Client, cr client.Object) (bool, error) {
+	if controllerutil.ContainsFinalizer(cr, finalizer) {
+		return false, nil
+	}
+	controllerutil.AddFinalizer(cr, finalizer)
+	if err := c.Update(ctx, cr); err != nil {
+		return false, fmt.Errorf("add finalizer: %w", err)
+	}
+	return true, nil
+}
+
+// removeFinalizerAndPersist drops the shared finalizer from cr and
+// persists the update. Used at the tail of a delete reconcile.
+func removeFinalizerAndPersist(ctx context.Context, c client.Client, cr client.Object) error {
+	controllerutil.RemoveFinalizer(cr, finalizer)
+	if err := c.Update(ctx, cr); err != nil {
+		return fmt.Errorf("remove finalizer: %w", err)
+	}
+	return nil
+}
+
+// writeRulesetStatus is a small wrapper that stamps the shared
+// (ref/rulesetID/ruleID/message/generation/timestamp) fields via the
+// writer and PATCHes the CR's status subresource. Not-found on the CR
+// itself is treated as gone rather than an error.
+func writeRulesetStatus(
+	ctx context.Context,
+	c client.Client,
+	cr client.Object,
+	writer RulesetStatusWriter,
+	ref, rulesetID, ruleID, message string,
+	generation int64,
+) error {
+	now := metav1.NewTime(time.Now().UTC())
+	patch := client.MergeFrom(cr.DeepCopyObject().(client.Object))
+	writer.SetRulesetStatus(ref, rulesetID, ruleID, message, generation, &now)
+	if err := c.Status().Patch(ctx, cr, patch); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("patch status: %w", err)
+	}
+	return nil
+}
+
+// finishRulesetReconcile writes the status and returns a Result that
+// requeues after the shared resync interval. Kept so per-reconciler
+// call sites read as a single line.
+func finishRulesetReconcile(
+	ctx context.Context,
+	c client.Client,
+	cr client.Object,
+	writer RulesetStatusWriter,
+	ref, rulesetID, ruleID, message string,
+	generation int64,
+	resync time.Duration,
+) (ctrl.Result, error) {
+	if err := writeRulesetStatus(ctx, c, cr, writer, ref, rulesetID, ruleID, message, generation); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: resyncOrDefault(resync)}, nil
+}
+
+// RulesetReconcileOutcome is what a shared ruleset reconcile pass
+// hands back to a per-CRD reconciler so it can write the CR status.
+type RulesetReconcileOutcome struct {
+	RulesetID string
+	RuleID    string
+	Message   string
+}
+
+// driveRulesetReconcile runs the ensure-ruleset + create/update/no-op
+// pass shared by every Ruleset-shaped CRD (rate limit, cache rule,
+// WAF custom rule). Concrete reconcilers own the CR fetch, finalizer
+// handling, and status write; the phase-specific rule rendering; and
+// the resync interval. Everything in between lives here.
+func driveRulesetReconcile(
+	ctx context.Context,
+	api RulesetAPI,
+	log logr.Logger,
+	zoneID, phase, kindLabel string,
+	desired cloudflare.Rule,
+) (RulesetReconcileOutcome, error) {
+	rs, err := ensurePhaseRuleset(ctx, api, zoneID, phase)
+	if err != nil {
+		return RulesetReconcileOutcome{}, err
+	}
+	out := RulesetReconcileOutcome{RulesetID: rs.ID}
+	existing := cloudflare.FindRuleByRef(rs, desired.Ref)
+	switch {
+	case existing == nil:
+		updated, err := api.AddRule(ctx, zoneID, rs.ID, desired)
+		if err != nil {
+			return out, fmt.Errorf("add %s: %w", kindLabel, err)
+		}
+		if created := cloudflare.FindRuleByRef(updated, desired.Ref); created != nil {
+			out.RuleID = created.ID
+		}
+		out.Message = "created"
+		log.Info("created "+kindLabel, "rulesetId", rs.ID, "ruleId", out.RuleID, "ref", desired.Ref)
+	case rulesetRuleDiffers(existing, &desired):
+		updated, err := api.UpdateRule(ctx, zoneID, rs.ID, existing.ID, desired)
+		if err != nil {
+			out.RuleID = existing.ID
+			return out, fmt.Errorf("update %s: %w", kindLabel, err)
+		}
+		if patched := cloudflare.FindRuleByRef(updated, desired.Ref); patched != nil {
+			out.RuleID = patched.ID
+		}
+		out.Message = "updated"
+		log.Info("updated "+kindLabel, "rulesetId", rs.ID, "ruleId", out.RuleID, "ref", desired.Ref)
+	default:
+		out.RuleID = existing.ID
+		out.Message = "in sync"
+	}
+	return out, nil
+}
+
+// driveRulesetDelete removes a rule by ref. Missing ruleset or
+// missing rule is treated as already-gone. Caller drops the CR
+// finalizer.
+func driveRulesetDelete(
+	ctx context.Context,
+	api RulesetAPI,
+	log logr.Logger,
+	zoneID, phase, kindLabel, ref string,
+) error {
+	rs, err := api.GetPhaseRuleset(ctx, zoneID, phase)
+	if err != nil {
+		return fmt.Errorf("get %s ruleset for delete: %w", phase, err)
+	}
+	if rs == nil {
+		return nil
+	}
+	existing := cloudflare.FindRuleByRef(rs, ref)
+	if existing == nil {
+		return nil
+	}
+	if err := api.DeleteRule(ctx, zoneID, rs.ID, existing.ID); err != nil {
+		return fmt.Errorf("delete %s: %w", kindLabel, err)
+	}
+	log.Info("deleted "+kindLabel, "rulesetId", rs.ID, "ruleId", existing.ID, "ref", ref)
+	return nil
+}
 
 // RulesetAPI is the subset of the Cloudflare client the rate-limit,
 // cache-rule, and WAF-custom-rule reconcilers all use. Every method is

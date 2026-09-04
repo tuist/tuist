@@ -137,6 +137,19 @@ func (s *CloudflareRateLimitSpec) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
 }
 
+// SetRulesetStatus stamps the shared ruleset status fields onto the
+// CR's Status subresource. Implements controllers.RulesetStatusWriter
+// so the operator's shared reconciler can write status without caring
+// which concrete CRD it is looking at.
+func (s *CloudflareRateLimitStatus) SetRulesetStatus(ref, rulesetID, ruleID, message string, generation int64, now *metav1.Time) {
+	s.Ref = ref
+	s.RulesetID = rulesetID
+	s.RuleID = ruleID
+	s.Message = message
+	s.ObservedGeneration = generation
+	s.LastReconciledAt = now
+}
+
 // DeepCopyInto copies the receiver into out.
 func (in *CloudflareRateLimitSpec) DeepCopyInto(out *CloudflareRateLimitSpec) {
 	*out = *in

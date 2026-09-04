@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -64,6 +66,14 @@ type CloudflareAICrawlControlList struct {
 
 func init() {
 	SchemeBuilder.Register(&CloudflareAICrawlControl{}, &CloudflareAICrawlControlList{})
+}
+
+// SetSettingsStatus implements controllers.SettingsStatusWriter.
+func (s *CloudflareAICrawlControlStatus) SetSettingsStatus(observed json.RawMessage, message string, generation int64, now *metav1.Time) {
+	s.ObservedConfig = NewRawJSON(observed)
+	s.Message = message
+	s.ObservedGeneration = generation
+	s.LastReconciledAt = now
 }
 
 func (in *CloudflareAICrawlControlSpec) DeepCopyInto(out *CloudflareAICrawlControlSpec) {

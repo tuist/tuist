@@ -73,6 +73,16 @@ func (s *CloudflareWAFCustomRuleSpec) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
 }
 
+// SetRulesetStatus implements controllers.RulesetStatusWriter.
+func (s *CloudflareWAFCustomRuleStatus) SetRulesetStatus(ref, rulesetID, ruleID, message string, generation int64, now *metav1.Time) {
+	s.Ref = ref
+	s.RulesetID = rulesetID
+	s.RuleID = ruleID
+	s.Message = message
+	s.ObservedGeneration = generation
+	s.LastReconciledAt = now
+}
+
 func (in *CloudflareWAFCustomRuleSpec) DeepCopyInto(out *CloudflareWAFCustomRuleSpec) {
 	*out = *in
 	if in.Enabled != nil {

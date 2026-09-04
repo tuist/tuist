@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -117,6 +119,14 @@ type CloudflareZoneSettingList struct {
 
 func init() {
 	SchemeBuilder.Register(&CloudflareZoneSetting{}, &CloudflareZoneSettingList{})
+}
+
+// SetSettingsStatus implements controllers.SettingsStatusWriter.
+func (s *CloudflareZoneSettingStatus) SetSettingsStatus(observed json.RawMessage, message string, generation int64, now *metav1.Time) {
+	s.ObservedValue = NewRawJSON(observed)
+	s.Message = message
+	s.ObservedGeneration = generation
+	s.LastReconciledAt = now
 }
 
 func (in *CloudflareZoneSettingSpec) DeepCopyInto(out *CloudflareZoneSettingSpec) {

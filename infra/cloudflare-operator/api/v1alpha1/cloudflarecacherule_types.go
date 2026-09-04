@@ -129,6 +129,16 @@ func (s *CloudflareCacheRuleSpec) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
 }
 
+// SetRulesetStatus implements controllers.RulesetStatusWriter.
+func (s *CloudflareCacheRuleStatus) SetRulesetStatus(ref, rulesetID, ruleID, message string, generation int64, now *metav1.Time) {
+	s.Ref = ref
+	s.RulesetID = rulesetID
+	s.RuleID = ruleID
+	s.Message = message
+	s.ObservedGeneration = generation
+	s.LastReconciledAt = now
+}
+
 // DeepCopy machinery ---------------------------------------------------
 
 func (in *EdgeTTL) DeepCopyInto(out *EdgeTTL) {
