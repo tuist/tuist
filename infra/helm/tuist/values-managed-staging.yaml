@@ -344,15 +344,22 @@ clickhouse:
     # deploying, so each step is a reviewed change recorded in the release
     # history.
     #
-    # Done: the schema clone, which brought over 78 tables, 28 views and 235
-    # migration versions; the deploy that turned dual writes on, which finished
-    # rolling out at 23:39:38Z on 2026-09-03; and the backfill up to the cutoff
-    # below, which copied every chunk of all 77 copied tables with none
-    # failing. Current step: check the two servers agree. Next: the read flag.
+    # Done: the schema clone; dual writes, which finished rolling out at
+    # 23:39:38Z on 2026-09-03; the backfill; and a parity run, which found 59
+    # of 60 copied tables identical and one row missing from
+    # kura_storage_snapshots. That row was dropped by the mirror in the twenty
+    # seconds after a pod started, before its connection pool was ready.
+    #
+    # Current step: run the backfill again with a later cutoff. Every chunk
+    # clears the destination's rows for its range before copying them, so
+    # advancing the cutoff repairs that range rather than duplicating it, and
+    # only the chunk whose end moved is redone. Next: parity again, then the
+    # read flag.
     migration:
       enabled: true
-      name: parity
-      task: Tuist.Release.check_clickhouse_parity
+      name: backfill-repair
+      task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-04T01:00:00Z"
       # A round minute past the moment that rollout completed, so every write
       # from here on is mirrored and everything before it is copied. The
       # overlap this leaves is harmless: a chunk clears the destination's rows

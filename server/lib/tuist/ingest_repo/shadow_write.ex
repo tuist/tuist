@@ -47,6 +47,22 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   put the delete before the rows it is meant to remove. They are rare enough
   that their latency does not matter.
 
+  ## Retrying
+
+  A mirrored write is attempted three times before it is given up on. The
+  failures worth retrying are the ones staging produced: for about twenty
+  seconds after a pod starts, its connection pool is not ready and writes are
+  dropped from the queue. One such drop cost `kura_storage_snapshots` a single
+  row, which the parity check then caught, so the alternative to retrying is a
+  permanent divergence for every deploy.
+
+  Retrying an `INSERT` is safe here because every table on the destination is
+  a `Replicated*` engine, which deduplicates identical blocks by checksum for
+  a week by default. A retry that follows a request the server actually
+  applied is therefore discarded rather than doubled. That property is
+  guaranteed rather than assumed: the destination is configured to reject a
+  non-replicated engine outright.
+
   ## Failure
 
   A mirrored write that fails is logged, counted through telemetry, and
@@ -70,6 +86,8 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   # small, so tasks queue on it, and this caps how much is held waiting when it
   # stops draining.
   @max_in_flight 100
+
+  @attempts 3
 
   defmacro __before_compile__(_env) do
     quote do
@@ -162,21 +180,30 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     end
   end
 
-  defp mirror(fun, kind) do
+  defp mirror(fun, kind, attempt \\ 1) do
     fun.()
     :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :ok})
   rescue
-    error ->
-      :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :error})
-
-      Logger.error("Shadow ClickHouse write (#{kind}) failed: #{Exception.message(error)}")
-      :error
+    error -> retry_or_give_up(fun, kind, attempt, "failed: #{Exception.message(error)}")
   catch
-    :exit, reason ->
-      :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :error})
+    :exit, reason -> retry_or_give_up(fun, kind, attempt, "exited: #{inspect(reason)}")
+  end
 
-      Logger.error("Shadow ClickHouse write (#{kind}) exited: #{inspect(reason)}")
-      :error
+  defp retry_or_give_up(fun, kind, attempt, _reason) when attempt < @attempts do
+    # Counted rather than logged: the failure worth retrying is a pool that is
+    # not ready yet, and it produces a burst of them at once, so a log line per
+    # attempt would bury the deploy it happened on.
+    :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :retried})
+
+    Process.sleep(attempt * 1000)
+    mirror(fun, kind, attempt + 1)
+  end
+
+  defp retry_or_give_up(_fun, kind, _attempt, reason) do
+    :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :error})
+
+    Logger.error("Shadow ClickHouse write (#{kind}) #{reason}")
+    :error
   end
 
   # Two conditions, not one. The repository is only in the supervision tree
