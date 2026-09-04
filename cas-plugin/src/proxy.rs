@@ -1007,7 +1007,7 @@ impl PathState {
         let Some(prune) = self.up.llcas_cas_prune_ondisk_data else {
             return Err("upstream plugin exports no ondisk prune".into());
         };
-        let before = directory_size(&self.cas_path);
+        let before = generation_sizes(&self.cas_path);
         let mut cas = self.cas.write().unwrap();
 
         if let Some(live) = *cas {
@@ -1070,7 +1070,7 @@ impl PathState {
         self.publish_cache.lock().unwrap().clear();
 
         outcome?;
-        Ok(before.saturating_sub(directory_size(&self.cas_path)))
+        Ok(reclaimed_bytes(&self.cas_path, &before))
     }
 
     /// Authoritative on-disk presence for `digest`: an actual llcas load, the
@@ -4231,9 +4231,9 @@ unsafe fn set_ondisk_limit(
     Ok(())
 }
 
-/// Bytes a store actually occupies on disk: ALLOCATED blocks, summed over every
-/// regular file under `path`. This is what a prune is judged by, and what the
-/// volume's own `df` gauge counts.
+/// Bytes a directory actually occupies on disk: ALLOCATED blocks, summed over
+/// every regular file under it. This is what the volume's own `df` gauge counts,
+/// and what `generation_sizes` measures each generation by.
 ///
 /// Allocated and not logical length, because a live generation is SPARSE by a
 /// wide margin: llcas preallocates its primary's mmap-backed files, so a store
@@ -4268,6 +4268,41 @@ fn directory_size(path: &str) -> u64 {
     total
 }
 
+/// Allocated bytes of each of the store's generation directories, keyed by name.
+///
+/// A prune is judged by which GENERATIONS it collected, not by the directory's
+/// net size: the rotation that precedes it opens a new primary, whose own
+/// preallocation lands in the same directory and hides what was freed. Measured
+/// on a real store, a prune that deleted a whole generation reported a net
+/// change of zero for exactly that reason. Sizes are captured before the prune
+/// (a collected generation cannot be measured afterwards) and the reclaim is the
+/// sum of the ones that are then gone.
+fn generation_sizes(path: &str) -> HashMap<String, u64> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return HashMap::new();
+    };
+    entries
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("v1."))
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let size = directory_size(&entry.path().to_string_lossy());
+            (name, size)
+        })
+        .collect()
+}
+
+/// Bytes freed by the generations present in `before` that `path` no longer has.
+fn reclaimed_bytes(path: &str, before: &HashMap<String, u64>) -> u64 {
+    let after = generation_sizes(path);
+    before
+        .iter()
+        .filter(|(name, _)| !after.contains_key(*name))
+        .map(|(_, size)| size)
+        .sum()
+}
+
 /// Prunes a store NOTHING holds open, without going through a proxy: the same
 /// set-limit / rotate / reopen / prune sequence `PathState::prune_ondisk`
 /// performs, with handles this call owns end to end.
@@ -4286,7 +4321,7 @@ pub fn prune_store(upstream_plugin: &str, cas_path: &str, limit_bytes: u64) -> R
     let Some(prune) = up.llcas_cas_prune_ondisk_data else {
         return Err("upstream plugin exports no ondisk prune".into());
     };
-    let before = directory_size(cas_path);
+    let before = generation_sizes(cas_path);
     unsafe {
         let live = open_cas(up, cas_path)?;
         set_ondisk_limit(up, set_limit, live, limit_bytes)?;
@@ -4304,7 +4339,7 @@ pub fn prune_store(upstream_plugin: &str, cas_path: &str, limit_bytes: u64) -> R
             return Err(detail.unwrap_or_else(|| "prune failed".into()));
         }
     }
-    Ok(before.saturating_sub(directory_size(cas_path)))
+    Ok(reclaimed_bytes(cas_path, &before))
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
@@ -5887,12 +5922,24 @@ mod tests {
         );
 
         fill_to(state, &dir, directory_size(&dir.path()) + FILL);
+        // Measured now, because a collected generation cannot be measured after.
+        let doomed = directory_size(&dir.0.join(&before[0]).to_string_lossy());
         let reclaimed = state.prune_ondisk(LIMIT).unwrap();
         assert!(
             !generations(&dir).contains(&before[0]),
             "the generation that fell off the chain must be DELETED. Left in \
              place it is exactly the unbounded growth that fills the account's \
              cache volume every ~2 days"
+        );
+        // Exactly the collected generation, not the directory's net change. The
+        // rotation opens a new primary whose own preallocation lands in the same
+        // directory, so a net reading is offset by it -- measured on a real
+        // store, a prune that deleted a whole generation reported 0 bytes freed.
+        // This figure is what teardown logs and what the fleet is judged by, so
+        // it has to mean what it says.
+        assert_eq!(
+            reclaimed, doomed,
+            "reclaim must be the size of the generation collected"
         );
         assert!(
             reclaimed > 0,
