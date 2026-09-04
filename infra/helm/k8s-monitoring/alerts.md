@@ -2962,8 +2962,19 @@ or label_replace(
   the return program failed to attach, shaped pods blackholed until the detach
   threshold. reconcile_errors: the loop is failing. sibling_overflow: an
   account outgrew the 16-entry sibling map, extra replicas run shaped with no
-  log. reattach_churn: links re-attaching after steady state. skipped_pods:
-  annotated pods not attached (unresolvable device or malformed annotation).
+  log. reattach_churn: a tcx link the agent had already installed was stripped
+  or displaced from the head of a pod device's chain. Cilium replaces its own
+  link in place and leaves ours alone, so this means external interference; the
+  matching 'reattached pod program' warning in the agent log names the pod and
+  device. CAVEAT on agent versions older than the metric split (those not
+  exporting kura_egress_tree_link_attach_total): there this counter ALSO counted
+  the first attach on every new pod device, so any kura rollout replaces every
+  pod, each replacement gets a new lxc device, and this signal trips with
+  nothing wrong. Before treating it as real on those versions, check that
+  kura_egress_tree_attached_pods moved (a rollout leaves it flat because deploys
+  are gapless) and that the pods on the node are not all freshly created.
+  skipped_pods: annotated pods not attached (unresolvable device or malformed
+  annotation).
   budget_mismatch: the tree's root ceiling disagrees with the node's advertised
   tuist.dev/egress-mbps. softnet_drops: per-CPU backlog overflow on a shaped
   box, a silent kernel drop no agent counter sees. no_agent: a box with a
@@ -2973,7 +2984,12 @@ or label_replace(
 
 Every arm is one of the alarms the agent's own notes ask for
 (`infra/egress-tree-agent/AGENTS.md`, *Metrics / alerts*), collected into one
-rule with a `signal` label so a single summary names the tripwire. Without
+rule with a `signal` label so a single summary names the tripwire. The one
+counter those notes deliberately exclude is `kura_egress_tree_link_attach_total`:
+it counts first attaches on new pod devices, one per pod creation, so it tracks
+pod churn rather than shaping integrity and climbs by a node's whole pod count
+on any rollout. It exists to keep that traffic out of `reattach_churn`, and
+must not become an arm here. Without
 them **Kura egress budget heavily used** measures a number the tree may not
 be enforcing, and **Kura account at its egress ceiling** reads a ceiling that
 may not be applied.
@@ -2993,10 +3009,22 @@ other boxes' agents still answer).
 Windows and bars: the tc/BPF counters are kernel counters exported as gauges,
 so every counting arm uses `increase()` over 30 minutes (a rebuild of the tree
 resets them, which reads as nothing, not as a spike), with the 15 minute
-pending period on top so a controller rollout, which re-attaches every pod
-once and briefly reports skipped pods, passes. `reattach_churn` is the one arm
-with a bar above zero: a rollout re-attaches each pod once, so more than five
-re-attaches on a box in an hour is churn. `no_agent` and `softnet_drops` are
+pending period on top so a rollout, which replaces every pod and so attaches
+each new device once and briefly reports the replacements as skipped while
+their Cilium endpoints appear, passes. `reattach_churn` is the one arm
+with a bar above zero, and the bar is a workaround being retired, not a
+property of the signal. It was set on the reasoning that "a rollout re-attaches
+each pod once, so more than five on a box in an hour is churn"; that premise is
+wrong twice. A rollout does not *re*-attach — each replaced pod is a new veth
+getting its *first* attach — and the count scales with the node's pod count, so
+no fixed bar is safe: the 2026-09-04 kura 0.33.0 -> 0.34.0 rollout replaced 47
+of 51 production pods and produced 18 on one box, with `attached_pods` flat and
+every other arm at zero. `kura_egress_tree_link_reattach_total` now counts only
+displaced links (`infra/egress-tree-agent/AGENTS.md`, *Metrics / alerts*), so
+this bar drops to `> 0` — but **only once that agent build is deployed
+fleet-wide**, since agents predating the split still emit the conflated counter
+and a tighter bar would fire sooner on rollouts, not less. `no_agent` and
+`softnet_drops` are
 scoped to boxes that advertise a budget, which keeps the deliberately
 unshaped runner-cache box out. The agent's pod name is joined to its node
 through `kube_pod_info`; the agent's series carry no `node` label.
@@ -3004,7 +3032,10 @@ through `kube_pod_info`; the agent's series carry no `node` label.
 Measured on 2026-09-02, every arm is zero across production over the last 7
 days (no unshaped or dropped packets, no attach failures, no softnet drops,
 every governed box has a healthy agent and its budget matches the advertised
-capacity). Quiet on creation.
+capacity). Quiet on creation. That held for every arm except `reattach_churn`,
+which was found on 2026-09-04 to fire on every kura release — roughly six
+windows in the preceding two weeks, all false — for the reason described under
+*Windows and bars* above.
 
 ### Kura response streams waiting or degraded
 

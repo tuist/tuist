@@ -226,20 +226,25 @@ log — the counter is the only signal), and per-class floor violations under
 contention (`kura_egress_tree_class_sent_bytes` rate vs
 `kura_egress_tree_class_rate_bytes_per_second`).
 
-Do not alert on `kura_egress_tree_link_attach_total`. It counts first
-attaches on new pod devices — one per pod creation — so it tracks pod churn,
-not shaping integrity: a fleet-wide kura rollout replaces every pod, each
-replacement gets a new `lxc` device, and the counter climbs by the node's
-whole pod count with nothing wrong. It is there for rollout visibility and to
-keep that traffic out of the reattach signal, which used to carry both and
-tripped its alert on every kura release. `kura_egress_tree_link_reattach_total`
-now moves only when a link we already installed was stripped or displaced, so
-it should sit flat at zero and any growth is worth a look; the matching
-`reattached pod program` warning names the pod and device. The production
-alert still carries the old `> 5` per-hour threshold that was chosen to ride
-over rollout noise; drop it to `> 0` once this split is deployed across the
-fleet, and not before — until then the running agents still emit the
-conflated counter and a tighter threshold only fires sooner on rollouts.
+Do not alert on `kura_egress_tree_link_attach_total`. It counts first attaches
+on new pod devices — one per pod creation — so it tracks pod churn, not shaping
+integrity: a fleet-wide kura rollout replaces every pod, each replacement gets a
+new `lxc` device, and the counter climbs by the node's whole pod count with
+nothing wrong. Its job is to keep that traffic out of the reattach signal, which
+used to carry both and tripped its alert on every kura release. It has
+deliberately no alert arm and no dashboard panel — the kura dashboard's agent
+panel groups integrity signals, and a pod-churn counter sitting among them is
+the same conflation one level up — so it is an ad-hoc query when you want to
+confirm a rollout attached what it should, not something anyone watches.
+
+`kura_egress_tree_link_reattach_total` now moves only when a link we already
+installed was stripped or displaced, so it should sit flat at zero and any
+growth is worth a look; the matching `reattached pod program` warning names the
+pod and device. The production alert still carries the old `> 5` per-hour
+threshold that was chosen to ride over rollout noise; drop it to `> 0` once this
+split is deployed across the fleet, and not before — until then the running
+agents still emit the conflated counter and a tighter threshold only fires
+sooner on rollouts.
 
 A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
