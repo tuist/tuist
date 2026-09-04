@@ -136,8 +136,7 @@ defmodule Tuist.ClickHouse.Backfill do
         clear_destination(target, table, chunk)
         target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
 
-        source_rows = count(source, table, chunk)
-        destination_rows = count(target, table, chunk)
+        {source_rows, destination_rows} = verify(source, target, table, chunk)
         finish_chunk(table, chunk, source_rows, destination_rows)
 
         if source_rows == destination_rows do
@@ -304,14 +303,32 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
-  # Counted through `FINAL` where the engine collapses rows, because the two
-  # servers merge on their own schedules and the raw row count of a table that
-  # has just been written is not comparable with one that has been sitting
-  # there. See `Tuist.ClickHouse.Tables.final_clause/2`.
-  defp count(endpoint, table, chunk) do
+  # Raw counts first, and only if they disagree are both sides counted again
+  # through `FINAL`.
+  #
+  # `FINAL` is what makes the comparison meaningful, because the two servers
+  # merge on their own schedules and a table that has just been written is not
+  # comparable with one that has been sitting there. But it is also what makes
+  # it expensive: on a table the size of production's it merges the chunk's
+  # parts at read time, twice per chunk, for a question that almost always has
+  # the same answer either way.
+  defp verify(source, target, table, chunk) do
+    source_rows = count(source, table, chunk)
+    destination_rows = count(target, table, chunk)
+
+    if source_rows == destination_rows do
+      {source_rows, destination_rows}
+    else
+      {count(source, table, chunk, collapsed: true), count(target, table, chunk, collapsed: true)}
+    end
+  end
+
+  defp count(endpoint, table, chunk, opts \\ []) do
+    final = if Keyword.get(opts, :collapsed, false), do: Tables.final_clause(endpoint, table), else: ""
+
     result =
       endpoint.repo.query!(
-        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)} WHERE #{predicate(chunk)}",
+        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}",
         [],
         log: false
       )
