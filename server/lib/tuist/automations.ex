@@ -352,8 +352,8 @@ defmodule Tuist.Automations do
   end
 
   defp active_alert_events(alert_id, baseline_generation, test_case_ids) do
-    # Send each batch as one array parameter in the request body so large scoped
-    # reads stay within both address-length and multipart-field limits.
+    # Send each batch as one array parameter in the request body so the request
+    # address and each ClickHouse query payload stay bounded.
     test_case_ids
     |> Enum.uniq()
     |> Enum.chunk_every(@active_alert_events_batch_size)
@@ -377,7 +377,6 @@ defmodule Tuist.Automations do
   end
 
   defp filter_alert_events_by_test_case_ids(query, nil), do: query
-  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
 
   defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
     where(query, [event], fragment("? IN (?)", event.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})))
