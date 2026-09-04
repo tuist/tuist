@@ -16,6 +16,8 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestResults do
       timestamps(type: :timestamptz)
     end
 
+    # The table is new and empty, so adding this constraint cannot block existing writes.
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:bazel_test_invocations, :bazel_test_invocations_artifact_bytes_bound,
              check: "artifact_bytes >= 0 AND artifact_bytes <= 67108864"
            )
