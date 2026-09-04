@@ -1,0 +1,58 @@
+# Deployment for the cloudflare-operator controller manager. All fields
+# below have sensible defaults; overrides live in the environment-
+# specific values files.
+
+image:
+  repository: ghcr.io/tuist/cloudflare-operator
+  tag: ""              # empty falls back to Chart.appVersion at render time
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Resync interval passed to the manager. The reconciler requeues each
+# CR after this delay following a successful pass, which is also the
+# window inside which dashboard drift gets corrected back to git.
+resyncInterval: 5m
+
+# Namespace the operator runs in. The chart itself is namespaced but
+# the CRDs it installs are cluster-scoped.
+namespace: cloudflare-operator
+
+# ExternalSecret pulling the Cloudflare API token from 1Password. The
+# item must expose a field named `token` scoped with:
+#   - Zone:Read
+#   - Zone WAF:Edit
+#   - (once cache-rules land) Cache Rules:Edit
+externalSecret:
+  enabled: true
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+  # 1Password item title
+  itemTitle: cloudflare-operator
+
+# Deployment plumbing.
+serviceAccount:
+  name: cloudflare-operator
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Whether to install the CRDs. When Flux takes ownership of applying
+# CRDs directly, this can be turned off to avoid double-management.
+installCRDs: true
+
+# Prometheus scrape via ServiceMonitor. Off by default; enable per
+# environment.
+serviceMonitor:
+  enabled: false
+  interval: 30s

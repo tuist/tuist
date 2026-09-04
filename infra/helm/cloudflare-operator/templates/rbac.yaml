@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudflare-operator-manager
+rules:
+  - apiGroups: ["cloudflare.tuist.dev"]
+    resources: ["cloudflareratelimits"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["cloudflare.tuist.dev"]
+    resources: ["cloudflareratelimits/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["cloudflare.tuist.dev"]
+    resources: ["cloudflareratelimits/finalizers"]
+    verbs: ["update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloudflare-operator-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: cloudflare-operator-manager
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cloudflareratelimits.cloudflare.tuist.dev
+spec:
+  group: cloudflare.tuist.dev
+  scope: Cluster
+  names:
+    plural: cloudflareratelimits
+    singular: cloudflareratelimit
+    kind: CloudflareRateLimit
+    shortNames:
+      - cfrl
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Zone
+          type: string
+          jsonPath: .spec.zoneId
+        - name: Action
+          type: string
+          jsonPath: .spec.action
+        - name: Requests
+          type: integer
+          jsonPath: .spec.ratelimit.requestsPerPeriod
+        - name: Period
+          type: integer
+          jsonPath: .spec.ratelimit.period
+        - name: Message
+          type: string
+          jsonPath: .status.message
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required: [zoneId, description, expression, action, ratelimit]
+              properties:
+                zoneId:
+                  type: string
+                  description: Cloudflare zone id the rule applies to.
+                description:
+                  type: string
+                  description: Human-readable label shown in the Cloudflare dashboard.
+                expression:
+                  type: string
+                  description: Cloudflare match expression (wireshark syntax).
+                action:
+                  type: string
+                  enum: [block, managed_challenge, js_challenge, log]
+                enabled:
+                  type: boolean
+                  default: true
+                ratelimit:
+                  type: object
+                  required: [characteristics, requestsPerPeriod, period, mitigationTimeoutSeconds]
+                  properties:
+                    characteristics:
+                      type: array
+                      items:
+                        type: string
+                    requestsPerPeriod:
+                      type: integer
+                      minimum: 1
+                    period:
+                      type: integer
+                      enum: [10, 60, 600, 3600]
+                    mitigationTimeoutSeconds:
+                      type: integer
+                    countingExpression:
+                      type: string
+                    countsResponse:
+                      type: boolean
+            status:
+              type: object
+              properties:
+                ref:
+                  type: string
+                ruleId:
+                  type: string
+                rulesetId:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  format: int64
+                message:
+                  type: string
+                lastReconciledAt:
+                  type: string
+                  format: date-time

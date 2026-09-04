@@ -1,0 +1,26 @@
+# The rate limit currently live on tuist.dev, codified so future edits
+# happen via PR against this file rather than the Cloudflare dashboard.
+#
+# Counts responses from origin that carry `x-tuist-public: 1` (set by
+# TuistWeb.Plugs.PublicPageHeaderPlug on URLs reachable without sign-in)
+# and applies Managed Challenge to the source IP when the threshold is
+# crossed. See server/lib/tuist_web/plugs/public_page_header_plug.ex.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareRateLimit
+metadata:
+  name: public-pages-anti-bombardment
+spec:
+  # tuist.dev — set the actual zone id at deploy time. Kept as a
+  # placeholder here so the sample can live in a public repo.
+  zoneId: REPLACE_WITH_ZONE_ID
+  description: "Public pages – anti-bombardment"
+  expression: "(http.request.method eq \"GET\")"
+  action: managed_challenge
+  ratelimit:
+    characteristics:
+      - "ip.src"
+    requestsPerPeriod: 60
+    period: 10
+    mitigationTimeoutSeconds: 60
+    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"
+    countsResponse: true
