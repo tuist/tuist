@@ -475,21 +475,38 @@ defmodule Tuist.Runners.Buildkite do
       reserved_until: DateTime.truncate(reserved_until, :second)
     }
 
-    case %Job{} |> Job.changeset(attrs) |> Repo.insert(on_conflict: :nothing, returning: true) do
-      {:ok, %Job{workflow_job_id: workflow_job_id}} when is_integer(workflow_job_id) ->
-        Jobs.enqueue_if_missing(lifecycle_attrs(account, target, job, workflow_job_id))
-        :ok
-
-      {:ok, _job} ->
-        # `on_conflict: :nothing` returns a struct with no surrogate when
-        # the row already existed. Another pass already queued it.
-        :ok
-
+    # The surrogate id comes from a database default, and an insert that
+    # hits `ON CONFLICT DO NOTHING` returns no row to read it from. Rather
+    # than infer the id from what the insert hands back, write the mapping
+    # and then read it, which is authoritative whether this pass created
+    # the row or an earlier one did.
+    #
+    # The previous shape treated "no surrogate returned" as "already
+    # queued" and returned `:ok`. That silently skipped creating the
+    # lifecycle row, and since the mapping row was already written the job
+    # could never be picked up again: it sat scheduled on Buildkite
+    # forever while every later pass filtered it out as known.
+    with {:ok, _inserted} <-
+           %Job{} |> Job.changeset(attrs) |> Repo.insert(on_conflict: :nothing),
+         %Job{workflow_job_id: workflow_job_id} when is_integer(workflow_job_id) <-
+           Repo.get(Job, job.job_uuid) do
+      Jobs.enqueue_if_missing(lifecycle_attrs(account, target, job, workflow_job_id))
+      :ok
+    else
       {:error, changeset} ->
         Logger.warning("runners: buildkite job insert failed",
           account: account.name,
           job_uuid: job.job_uuid,
           errors: inspect(changeset.errors)
+        )
+
+        :error
+
+      other ->
+        Logger.warning("runners: buildkite job mapping unreadable after write",
+          account: account.name,
+          job_uuid: job.job_uuid,
+          errors: inspect(other)
         )
 
         :error
@@ -529,8 +546,21 @@ defmodule Tuist.Runners.Buildkite do
 
   defp known_job_uuids([]), do: MapSet.new()
 
+  # A job counts as known only once it has a LIFECYCLE row, not merely a
+  # mapping row. The mapping is written first and the lifecycle second, so
+  # keying the skip on the mapping alone means any job whose lifecycle
+  # write did not land is skipped on every subsequent pass while it sits
+  # scheduled on Buildkite. Joining the two makes the poller self-healing:
+  # a half-written job is simply picked up again.
   defp known_job_uuids(uuids) do
-    from(j in Job, where: j.job_uuid in ^uuids, select: j.job_uuid) |> Repo.all() |> MapSet.new()
+    from(j in Job,
+      join: w in WorkflowJob,
+      on: w.workflow_job_id == j.workflow_job_id,
+      where: j.job_uuid in ^uuids,
+      select: j.job_uuid
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   defp queue_keys_for(account) do

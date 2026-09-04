@@ -272,6 +272,67 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert absent != queue_key
     end
 
+    test "re-enqueues a job whose mapping row exists without a lifecycle row", %{
+      installation: installation,
+      account: account,
+      queue_key: queue_key
+    } do
+      # Staging blackholed two real jobs this way. The mapping row is
+      # written before the lifecycle row, so a half-written job used to be
+      # filtered out as "known" on every later pass while it sat scheduled
+      # on Buildkite forever. Known must mean "has a lifecycle row".
+      job = scheduled_job(%{queue_key: queue_key})
+
+      {:ok, orphan} =
+        %Job{}
+        |> Job.changeset(%{
+          job_uuid: job.job_uuid,
+          account_id: account.id,
+          organization_slug: "acme",
+          queue_key: queue_key
+        })
+        |> Repo.insert(returning: true)
+
+      assert is_nil(Repo.get(WorkflowJob, orphan.workflow_job_id))
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 1} = Buildkite.poll(installation)
+
+      lifecycle = Repo.get(WorkflowJob, orphan.workflow_job_id)
+      assert lifecycle.status == "queued"
+      assert lifecycle.provider == "buildkite"
+    end
+
+    test "reuses the existing surrogate id rather than minting a second one", %{
+      installation: installation,
+      queue_key: queue_key
+    } do
+      # The id comes from a database default, so an insert that hits
+      # ON CONFLICT DO NOTHING returns no row to read it from. Reading the
+      # mapping back keeps one job on one id across passes.
+      job = scheduled_job(%{queue_key: queue_key})
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 1} = Buildkite.poll(installation)
+      first = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid)).workflow_job_id
+
+      # Second pass: the lifecycle row now exists, so it is correctly skipped.
+      assert {:ok, 0} = Buildkite.poll(installation)
+
+      assert Repo.aggregate(from(j in Job, where: j.job_uuid == ^job.job_uuid), :count) == 1
+      assert Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid)).workflow_job_id == first
+    end
+
     test "stops the pass when the agent token is rejected", %{installation: installation} do
       stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:error, :unauthorized}
