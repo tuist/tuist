@@ -128,6 +128,10 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.turnstile.enabled }}
+            - name: TUIST_TURNSTILE_ENABLED
+              value: "1"
+            {{- end }}
             {{- if .Values.server.kuraCapacityAdmission.enabled }}
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"

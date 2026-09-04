@@ -254,7 +254,10 @@ config :logger, :console,
     :cap,
     :urls,
     :configured,
-    :reconciling
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis

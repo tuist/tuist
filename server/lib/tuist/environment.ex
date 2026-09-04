@@ -267,6 +267,22 @@ defmodule Tuist.Environment do
     tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
   end
 
+  def turnstile_enabled? do
+    truthy?(System.get_env("TUIST_TURNSTILE_ENABLED", "0"))
+  end
+
+  def turnstile_required? do
+    tuist_hosted?() and turnstile_enabled?()
+  end
+
+  def turnstile_site_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SITE_KEY") || get([:turnstile, :site_key], secrets)
+  end
+
+  def turnstile_secret_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
@@ -1611,6 +1627,10 @@ defmodule Tuist.Environment do
 
   def sentry_dsn(secrets \\ secrets()) do
     get([:sentry, :dsn], secrets)
+  end
+
+  def sentry_hive_dsn(secrets \\ secrets()) do
+    get([:sentry, :hive_dsn], secrets)
   end
 
   def secret_key_base(secrets \\ secrets()) do

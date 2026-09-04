@@ -168,12 +168,27 @@ public class CachedManifestLoader: ManifestLoading {
 
         let loadedManifest = try await loader()
 
-        try await cacheManifest(
-            manifest: manifest,
-            loadedManifest: loadedManifest,
-            hashes: hashes,
-            to: cachedManifestPath
-        )
+        // Writing the cache entry is an optimization, and failing to write one must never fail the
+        // command: the manifest has already been loaded successfully at this point, and everything
+        // downstream needs the value, not the cache.
+        //
+        // It used to throw, and the blast radius was the whole CLI rather than this one manifest.
+        // `TuistCommand` loads the config manifest before it parses the subcommand, so on a runner
+        // whose cache volume had filled up, every command for that account died on
+        // `Failed to create temp file in '…/Manifests': No space left on device (errno=28)` — a
+        // `tuist auth login` that never got as far as authenticating. A full cache should cost a
+        // cold build, not the build.
+        do {
+            try await cacheManifest(
+                manifest: manifest,
+                loadedManifest: loadedManifest,
+                hashes: hashes,
+                to: cachedManifestPath
+            )
+        } catch {
+            Logger.current
+                .warning("Unable to cache the \(manifest.fileName(path)) manifest at path: \(cachedManifestPath). \(error)")
+        }
 
         return loadedManifest
     }

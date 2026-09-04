@@ -60,6 +60,10 @@ packer {
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
+#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
+#                                                  the last-resort one for jobs that never
+#                                                  run Tuist and so install no proxy of
+#                                                  their own; see cas_proxy_client
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
 # The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
@@ -392,6 +396,14 @@ build {
     destination = "/tmp/runner-shell-agent-supervisor.sh"
   }
 
+  # Built by the workflow from cas-plugin/ (see "Build CAS prune client"), the
+  # same way runner-shell-agent is. It is only ever invoked as
+  # `--prune`/`--drain`; it never serves, so the image carries no daemon.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-cas-proxy"
+    destination = "/tmp/tuist-cas-proxy"
+  }
+
   provisioner "file" {
     source      = "${path.root}/runner-shell-agent.plist"
     destination = "/tmp/dev.tuist.runner-shell-agent.plist"
@@ -404,6 +416,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
       # Global agent hooks: `buildkite-agent --hooks-path` points here, so
       # these run for every job the agent takes regardless of what the
@@ -411,7 +424,7 @@ build {
       "echo 'admin' | sudo -S mkdir -p /opt/tuist/buildkite-hooks",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 
