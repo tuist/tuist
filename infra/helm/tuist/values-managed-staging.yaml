@@ -351,16 +351,17 @@ clickhouse:
     # seconds after a pod started, before its connection pool was ready.
     #
     # That row was repaired by running the backfill again with a later cutoff,
-    # which cleared and recopied only the range whose end had moved.
+    # which recopied only the range whose end had moved.
     #
     # That comparison then ran again over the read path, through the connection
     # the dashboards use, and all 60 copied tables agreed there too.
     #
     # Current step: serve staging's reads from the in-cluster server. The task
     # only sets the flag, which is the real switch: turning it back off is one
-    # click on the ops flags page, with no deploy, and it takes actors so a
-    # single account can be moved first. This runs it from a deploy because
-    # nothing else can reach that page in this environment.
+    # click on the ops flags page, with no deploy. It is global rather than per
+    # account, because routing is decided at the repository boundary where
+    # there is no request to read an account from. This runs it from a deploy
+    # because nothing else can reach that page in this environment.
     # On here so the backup path itself is exercised before production depends
     # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
     backup:

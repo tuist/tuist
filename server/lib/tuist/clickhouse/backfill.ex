@@ -34,13 +34,26 @@ defmodule Tuist.ClickHouse.Backfill do
   source nor the destination of the copy and so survives the failures that
   make resuming necessary.
 
-  ## Why a chunk is cleared before it is copied
+  ## Why a re-copy fills gaps rather than replacing a range
 
-  The copy is authoritative for its range rather than additive to it: each
-  chunk deletes the destination's rows for that range before inserting the
-  source's. This is what makes the boundary with the dual write exact even
-  though the deploy that switches dual writes on has both old and new pods
-  writing for a moment. See `clear_destination/3`.
+  A chunk the destination holds nothing for is copied straight in. A chunk it
+  already holds rows for is copied by inserting only the rows it lacks.
+
+  Replacing the range would be simpler, and was what this did first: delete
+  the destination's rows for the chunk, then re-copy. That is wrong in a way
+  row counts cannot see. A materialized view is an insert trigger, so
+  re-inserting a row contributes to its aggregate targets a second time, while
+  the delete does not unwind the first, because ClickHouse mutations do not
+  propagate to a view's target. The base tables would agree while the
+  aggregates behind them inflated, and the parity gate would not catch it,
+  since derived tables are reported rather than gated.
+
+  Filling gaps means the views fire exactly once per row, on the copy that
+  first delivers it, which is what they would have done had nothing gone
+  wrong. It also removes the need to reason about the dual write's boundary
+  separately: a row the mirror already delivered is one the copy skips.
+
+  See `identity_columns/2` for what the destination "lacking" a row means.
 
   ## Where the copy stops
 
@@ -164,11 +177,7 @@ defmodule Tuist.ClickHouse.Backfill do
       # The credentials are query parameters rather than interpolated text, so
       # the statement carries no secret even if something logs it. `log: false`
       # as well, because a driver-level error can echo the parameters too.
-      statement = """
-      INSERT INTO #{quote_ident(target.database)}.#{quote_ident(table)}
-      SELECT * FROM remoteSecure({address:String}, {database:String}, {table:String}, {user:String}, {password:String})
-      WHERE #{predicate(chunk)}
-      """
+      statement = copy_statement(target, table, chunk)
 
       params = %{
         "address" => source_address(source),
@@ -179,7 +188,6 @@ defmodule Tuist.ClickHouse.Backfill do
       }
 
       try do
-        clear_destination(target, table, chunk)
         target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
 
         {source_rows, destination_rows} = verify(source, target, table, chunk)
@@ -319,34 +327,85 @@ defmodule Tuist.ClickHouse.Backfill do
     "cityHash64(#{key}) % #{buckets} = #{bucket}"
   end
 
-  # Makes the copy authoritative for its range rather than additive to it.
+  # Straight in when the destination holds nothing for this range, which is
+  # every chunk of a first backfill, and gap-filling when it holds something,
+  # which is a repair or the overlap the dual write leaves behind.
   #
-  # A rolling deploy is what switches dual writes on, and during it the old
-  # pods and the new ones write at the same time, so there is a window whose
-  # rows reached the destination only if the pod that wrote them had already
-  # restarted. No single cutoff can describe that window: put it before and
-  # the rows the old pods wrote are lost, put it after and the rows the new
-  # ones mirrored are copied twice. Deleting the destination's rows for a
-  # chunk before copying it settles the question, because the system of record
-  # holds every row in that range either way.
-  #
-  # The count is what keeps this cheap. The destination is empty for all but
-  # the last chunk or two of each table, and a mutation is only worth issuing
-  # where there is something to remove. It also makes re-running a chunk safe
-  # on any engine, so the ledger is an optimisation rather than the thing
-  # standing between a retry and duplicated rows.
-  defp clear_destination(target, table, chunk) do
-    if count(target, table, chunk) > 0 do
-      Logger.info("#{table} #{inspect(chunk)}: clearing the destination's rows before copying")
+  # `GLOBAL NOT IN` rather than `NOT IN`: the subquery reads the destination,
+  # and without `GLOBAL` it is sent to the source to run, where that table
+  # does not exist.
+  defp copy_statement(target, table, chunk) do
+    into = "INSERT INTO #{quote_ident(target.database)}.#{quote_ident(table)}"
+    from = "remoteSecure({address:String}, {database:String}, {table:String}, {user:String}, {password:String})"
 
-      target.repo.query!(
-        "ALTER TABLE #{quote_ident(target.database)}.#{quote_ident(table)} DELETE WHERE #{predicate(chunk)}",
-        [],
-        settings: [mutations_sync: 2],
-        timeout: to_timeout(minute: 30),
+    if count(target, table, chunk) == 0 do
+      "#{into} SELECT * FROM #{from} WHERE #{predicate(chunk)}"
+    else
+      Logger.info("#{table} #{inspect(chunk)}: destination already holds rows here, copying only what it lacks")
+      identity = target |> identity_columns(table) |> Enum.map_join(", ", &quote_ident/1)
+
+      """
+      #{into}
+      SELECT * FROM #{from}
+      WHERE #{predicate(chunk)}
+        AND cityHash64(#{identity}) GLOBAL NOT IN (
+          SELECT cityHash64(#{identity})
+          FROM #{quote_ident(target.database)}.#{quote_ident(table)}
+          WHERE #{predicate(chunk)}
+        )
+      """
+    end
+  end
+
+  @doc """
+  What makes a row the same row, for deciding which ones the destination is
+  missing.
+
+  On an engine that collapses by its sorting key, that key is the identity the
+  engine itself uses: two rows sharing it are already one row as far as the
+  table is concerned.
+
+  On a plain `MergeTree` nothing is unique, because duplicate rows are legal
+  and meaningful, so identity has to be every column. The cost is that two
+  genuinely identical rows are treated as one and only one is copied. That is
+  a narrower failure than the alternative: `build_files` sorts by project, so
+  a sorting-key identity would make most missing rows look present and they
+  would never be copied at all.
+  """
+  def identity_columns(endpoint, table) do
+    case Tables.final_clause(endpoint, table) do
+      " FINAL" -> sorting_key_columns(endpoint, table)
+      _ -> all_columns(endpoint, table)
+    end
+  end
+
+  defp sorting_key_columns(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        "SELECT sorting_key FROM system.tables WHERE database = {database:String} AND name = {table:String}",
+        %{"database" => endpoint.database, "table" => table},
         log: false
       )
+
+    case rows do
+      [[key]] when is_binary(key) and key != "" -> key |> String.split(",") |> Enum.map(&String.trim/1)
+      _ -> all_columns(endpoint, table)
     end
+  end
+
+  defp all_columns(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        """
+        SELECT name FROM system.columns
+        WHERE database = {database:String} AND table = {table:String}
+        ORDER BY position
+        """,
+        %{"database" => endpoint.database, "table" => table},
+        log: false
+      )
+
+    List.flatten(rows)
   end
 
   # Raw counts first, and only if they disagree are both sides counted again
