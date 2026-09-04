@@ -381,6 +381,16 @@ defmodule Tuist.Runners.Buildkite do
     fresh = Enum.reject(jobs, &MapSet.member?(known, &1.job_uuid))
 
     if fresh == [] do
+      # Every job on the queue already has a mapping row. Ordinarily that
+      # means we queued them on an earlier pass and they are working
+      # through the fleet, but it is also what a job stuck outside the
+      # lifecycle looks like, so say so rather than returning a bare zero.
+      Logger.info("runners: buildkite jobs already mapped",
+        account: account.name,
+        queue: queue_key,
+        count: length(jobs)
+      )
+
       {:ok, 0}
     else
       case Dispatch.resolve_dispatch_target(account, [queue_key]) do
@@ -390,10 +400,14 @@ defmodule Tuist.Runners.Buildkite do
         {:error, reason} ->
           # The queue exists on Buildkite but names no Tuist profile. That
           # is the customer's own queue for their own agents, so it is not
-          # ours to reserve from.
-          Logger.debug("runners: buildkite queue matches no profile",
+          # ours to reserve from. Logged at info, not debug: it is
+          # indistinguishable from a working queue in the logs otherwise,
+          # and a customer whose profile and queue names have drifted apart
+          # sees jobs sit forever with nothing explaining why.
+          Logger.info("runners: buildkite queue matches no profile",
             account: account.name,
             queue: queue_key,
+            count: length(fresh),
             reason: inspect(reason)
           )
 
@@ -427,6 +441,15 @@ defmodule Tuist.Runners.Buildkite do
           queue: queue_key,
           fleet: target.pool_name,
           count: count
+        )
+      else
+        # Buildkite granted none of what we asked for. Another stack on the
+        # same queue holding them is the benign reading; anything else here
+        # is a reservation we should be getting and are not.
+        Logger.info("runners: buildkite reserved none",
+          account: account.name,
+          queue: queue_key,
+          requested: length(uuids)
         )
       end
 
