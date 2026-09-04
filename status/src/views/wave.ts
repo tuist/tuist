@@ -13,10 +13,16 @@
 // viewer, so the cloud keeps a stepped, dithered grain; particles drift along the band and slowly roll around the
 // tube.
 //
-// Colors come from CSS at draw time: each particle is assigned one of the
-// canvas's four --wave-ink-N custom properties (the state's Noora color ramp,
-// set in styles.ts), so the wave follows the theme without any token
-// knowledge here. Under prefers-reduced-motion a single frame is drawn
+// Colors come from CSS at draw time: each particle is assigned one of four
+// tones, read from the canvas's --wave-ink-<state>-N custom properties (each
+// state's Noora color ramp, set in styles.ts), so the wave follows the theme
+// without any token knowledge here.
+//
+// The state is the canvas's data-wave attribute. When it changes (the live
+// poller in page.ts flips it as the overall status moves) the field does
+// not cut: the curve blends from the old profile to the new one and the ink
+// ramp cross-fades over MORPH_MS, so the same wave settles or roughens and
+// changes color while the particles keep their rhythm. Under prefers-reduced-motion a single frame is drawn
 // and only redrawn on resize or theme change.
 export const WAVE_SCRIPT = `
 (function () {
@@ -35,6 +41,8 @@ export const WAVE_SCRIPT = `
   // instead of gliding.
   var FRAME_MS = 1000 / 24;
   var ALPHA_STEPS = 6;
+  var MORPH_MS = 1800;
+  var STATES = ["operational", "degraded", "outage", "maintenance"];
   // The base sinusoid's phase speed in css px per frame at 60fps (wavelength
   // 240px, angular speed 1.2 rad per wave-second). Particles drift at least
   // this fast so they ride the crests forward instead of sliding back along
@@ -69,6 +77,81 @@ export const WAVE_SCRIPT = `
     return { y: base * 0.35 + burst, sigma: torn ? 1.2 : 4 + noise(x / 20 - t * 4) * 9 };
   }
 
+  function easeInOut(u) {
+    return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+  }
+
+  // Profile blended between the canvas's previous and current state.
+  function blendedProfile(canvas, x, t) {
+    var to = profile(canvas._state, x, t);
+    if (canvas._mix >= 1) return to;
+    var from = profile(canvas._fromState, x, t);
+    var m = easeInOut(canvas._mix);
+    return { y: from.y + (to.y - from.y) * m, sigma: from.sigma + (to.sigma - from.sigma) * m };
+  }
+
+  // Resolve a CSS color string to RGBA through a scratch canvas, so oklch()
+  // and light-dark() results can be interpolated numerically.
+  var scratch = document.createElement("canvas");
+  scratch.width = scratch.height = 1;
+  var scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
+  var rgbaCache = {};
+  function toRgba(color) {
+    if (rgbaCache[color]) return rgbaCache[color];
+    scratchCtx.clearRect(0, 0, 1, 1);
+    scratchCtx.fillStyle = color;
+    scratchCtx.fillRect(0, 0, 1, 1);
+    var d = scratchCtx.getImageData(0, 0, 1, 1).data;
+    return (rgbaCache[color] = [d[0], d[1], d[2], d[3] / 255]);
+  }
+
+  function palette(style, state) {
+    var colors = [];
+    for (var n = 1; n <= TONES; n++) {
+      colors.push(toRgba(style.getPropertyValue("--wave-ink-" + state + "-" + n).trim() || style.color));
+    }
+    return colors;
+  }
+
+  // Current ink strings for the canvas: the target palette, cross-faded from
+  // the previous one while a morph is running.
+  function inks(canvas, style) {
+    var to = palette(style, canvas._state);
+    var m = canvas._mix >= 1 ? 1 : easeInOut(canvas._mix);
+    var out = [];
+    for (var n = 0; n < TONES; n++) {
+      var c = to[n];
+      if (m < 1) {
+        var f = palette(style, canvas._fromState)[n];
+        c = [f[0] + (c[0] - f[0]) * m, f[1] + (c[1] - f[1]) * m, f[2] + (c[2] - f[2]) * m, f[3] + (c[3] - f[3]) * m];
+      }
+      out.push("rgba(" + Math.round(c[0]) + ", " + Math.round(c[1]) + ", " + Math.round(c[2]) + ", " + c[3].toFixed(3) + ")");
+    }
+    return out;
+  }
+
+  function stateOf(canvas) {
+    var state = canvas.getAttribute("data-wave");
+    return STATES.indexOf(state) === -1 ? "operational" : state;
+  }
+
+  function trackState(canvas) {
+    canvas._state = stateOf(canvas);
+    canvas._fromState = canvas._state;
+    canvas._mix = 1;
+    new MutationObserver(function () {
+      var next = stateOf(canvas);
+      if (next === canvas._state) return;
+      // Start the morph from wherever the current blend is, so a change
+      // mid-morph doesn't snap.
+      canvas._fromState = canvas._mix >= 1 ? canvas._state : canvas._fromState;
+      canvas._state = next;
+      canvas._mix = 0;
+      canvas._morphStart = performance.now();
+      sync();
+    }).observe(canvas, { attributes: true, attributeFilter: ["data-wave"] });
+  }
+
   function seedParticles(canvas, width) {
     var count = Math.round(width * DENSITY);
     var particles = new Array(count);
@@ -90,14 +173,6 @@ export const WAVE_SCRIPT = `
     canvas._seedWidth = width;
   }
 
-  function inks(style) {
-    var colors = [];
-    for (var n = 1; n <= TONES; n++) {
-      colors.push(style.getPropertyValue("--wave-ink-" + n).trim() || style.color);
-    }
-    return colors;
-  }
-
   function draw(canvas, t, dt) {
     var width = canvas.clientWidth;
     var height = canvas.clientHeight;
@@ -116,8 +191,10 @@ export const WAVE_SCRIPT = `
     ctx.clearRect(0, 0, width, height);
 
     var style = getComputedStyle(canvas);
-    var colors = inks(style);
-    var state = canvas.getAttribute("data-wave");
+    if (canvas._mix < 1) {
+      canvas._mix = Math.min(1, (performance.now() - canvas._morphStart) / MORPH_MS);
+    }
+    var colors = inks(canvas, style);
     var mid = height / 2;
     var particles = canvas._particles;
     var step = dt * 60;
@@ -131,7 +208,7 @@ export const WAVE_SCRIPT = `
       if (p.x >= width) p.x -= width;
       p.theta += p.roll * dt;
 
-      var curve = profile(state, p.x, t);
+      var curve = blendedProfile(canvas, p.x, t);
       var tube = curve.sigma * TUBE_SCALE;
       var ny = Math.sin(p.theta);
       var nz = Math.cos(p.theta);
@@ -200,10 +277,13 @@ export const WAVE_SCRIPT = `
       requestAnimationFrame(frame);
     } else if (!shouldRun) {
       running = false;
+      // Static mode: skip the morph and paint the new state directly.
+      for (var i = 0; i < canvases.length; i++) canvases[i]._mix = 1;
       redraw();
     }
   }
 
+  for (var c = 0; c < canvases.length; c++) trackState(canvases[c]);
   sync();
   reduceMotion.addEventListener("change", sync);
   document.addEventListener("visibilitychange", sync);

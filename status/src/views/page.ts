@@ -260,7 +260,12 @@ function section({ id, title, empty, items, action }: SectionOptions): Renderabl
       : html`<ol data-part="list">
           ${items}
         </ol>`;
-  return html`<section class="status-frame status-section" data-section="${id}" aria-labelledby="${id}-title">
+  return html`<section
+    class="status-frame status-section"
+    data-section="${id}"
+    data-live="${id}"
+    aria-labelledby="${id}-title"
+  >
     <header data-part="header">
       <h2 data-part="title" id="${id}-title">${title}</h2>
       ${action ?? ""}
@@ -309,6 +314,63 @@ const THEME_SCRIPT = `
 })();
 `;
 
+// Live refresh: poll the JSON snapshot while the tab is visible and, when the
+// overall status changes, fetch the page again and swap the hero and the
+// sections in place, then flip the wave's state so it morphs rather than
+// reloading (a reload would re-seed the particles and cut the animation).
+const LIVE_POLL_MS = 60_000;
+
+function liveScript(): string {
+  return `
+(function () {
+  var POLL_MS = ${LIVE_POLL_MS};
+  var WAVE_STATE = ${JSON.stringify(WAVE_STATE)};
+  var stage = document.querySelector(".status-stage");
+  var canvas = stage && stage.querySelector("canvas[data-wave]");
+  if (!stage || !canvas || typeof fetch !== "function") return;
+
+  function refresh(overall) {
+    return fetch("/", { cache: "no-store" })
+      .then(function (response) {
+        return response.ok ? response.text() : null;
+      })
+      .then(function (markup) {
+        if (!markup) return;
+        var next = new DOMParser().parseFromString(markup, "text/html");
+        var fresh = next.querySelectorAll("[data-live]");
+        for (var i = 0; i < fresh.length; i++) {
+          var current = document.querySelector('[data-live="' + fresh[i].getAttribute("data-live") + '"]');
+          if (current) current.replaceWith(fresh[i]);
+        }
+        stage.setAttribute("data-overall", overall);
+        canvas.setAttribute("data-wave", WAVE_STATE[overall] || "operational");
+      });
+  }
+  var busy = false;
+  function check() {
+    if (busy || document.visibilityState !== "visible") return;
+    busy = true;
+    fetch("/api/status.json", { cache: "no-store", headers: { Accept: "application/json" } })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (snapshot) {
+        if (!snapshot || snapshot.overall === stage.getAttribute("data-overall")) return;
+        return refresh(snapshot.overall);
+      })
+      .catch(function () {})
+      .then(function () {
+        busy = false;
+      });
+  }
+  setInterval(check, POLL_MS);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") check();
+  });
+})();
+`;
+}
+
 interface PageOptions {
   title: string;
   snapshot: StatusSnapshot;
@@ -324,7 +386,10 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${title}</title>
         <meta name="description" content="${title} — current status of Tuist services." />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="alternate" type="application/rss+xml" title="${title} — RSS" href="/feed.rss" />
         <link rel="alternate" type="application/atom+xml" title="${title} — Atom" href="/feed.atom" />
         <link rel="preconnect" href="https://rsms.me/" />
@@ -371,10 +436,10 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         <main>
           <!-- Status wave (Figma: 1200x96): the particle field's shape and
                ink ramp follow the overall status. -->
-          <div class="status-frame status-stage" aria-hidden="true">
+          <div class="status-frame status-stage" aria-hidden="true" data-overall="${overall}">
             <canvas data-wave="${WAVE_STATE[overall]}"></canvas>
           </div>
-          <section class="status-frame status-hero" aria-labelledby="status-overall">
+          <section class="status-frame status-hero" data-live="hero" aria-labelledby="status-overall">
             <span data-part="eyebrow">Current status</span>
             <h1 data-part="title" id="status-overall">${OVERALL_HEADLINES[overall]}</h1>
             ${overallAlert(overall)}
@@ -464,6 +529,9 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         </main>
         <script>
           ${raw(WAVE_SCRIPT)};
+        </script>
+        <script>
+          ${raw(liveScript())};
         </script>
       </body>
     </html>`;

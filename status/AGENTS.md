@@ -16,6 +16,7 @@ status/
 │       ├── page.ts        # HTML rendering with hono/html; incident update bodies are rendered as safe Markdown
 │       ├── feed.ts        # RSS 2.0 + Atom 1.0 renderers
 │       ├── logo.ts        # Inlined five-petal Tuist mark + wordmark (from server/priv/static/marketing/images/brand)
+│       ├── favicon.ts     # The marketing site's favicon set (svg + base64 ico/png) served under tuist.dev's paths
 │       ├── icons.ts       # Inlined Tabler/Noora status icons used by noora-status-badge, plus RSS / external-link
 │       ├── noora-css.ts   # Verbatim concat of Noora tokens.css + alert.css + badge.css + button.css + button_group.css + line_divider.css
 │       ├── marketing-tokens.ts # Verbatim copy of server/assets/marketing/css/shared/tokens.css (page frame, strokes)
@@ -41,7 +42,7 @@ status/
 - `GET /api/debug/fields.json` — raw `FieldsService.GetFields` response plus the configured label key. Same gate. Use this when the components list is empty to discover what your label field is actually named in Grafana.
 - `GET /feed.rss` — RSS 2.0, one item per incident update (active + last 14 days)
 - `GET /feed.atom` — Atom 1.0, same content as RSS
-- `GET /favicon.svg` — Tuist mark with brand purple baked in
+- `GET /favicon.svg`, `/favicon.ico`, `/favicon-32x32.png`, `/favicon-16x16.png` — the marketing site's favicon set
 - `GET /healthz` — liveness probe
 
 Feeds are cached for 60 seconds via `Cache-Control`.

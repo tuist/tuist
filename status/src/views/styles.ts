@@ -9,23 +9,83 @@ import { NOORA_CSS } from "./noora-css.js";
 const PAGE_CSS = `
 /* Registered as colors so the wave script reads computed colors (with
    light-dark() already resolved) from getComputedStyle instead of the raw
-   declaration text. */
-@property --wave-ink-1 {
+   declaration text. One ramp of four per wave state. */
+@property --wave-ink-operational-1 {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
 }
-@property --wave-ink-2 {
+@property --wave-ink-operational-2 {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
 }
-@property --wave-ink-3 {
+@property --wave-ink-operational-3 {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
 }
-@property --wave-ink-4 {
+@property --wave-ink-operational-4 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-degraded-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-degraded-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-degraded-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-degraded-4 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-outage-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-outage-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-outage-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-outage-4 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-maintenance-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-maintenance-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-maintenance-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --wave-ink-maintenance-4 {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
@@ -158,46 +218,37 @@ main {
 }
 
 /* Wave stage between the navbar and the hero (Figma: 1200 x 96): one canvas
-   the wave script paints with the overall status's shape and ink ramp. The
-   inks are four steps of the state's Noora ramp, deeper on the light surface
-   and lighter on the dark one so both keep contrast. */
+   the wave script paints with the overall status's shape and ink ramp. Every
+   state's ramp is declared here (not per data-wave) so the script can
+   cross-fade between two of them while the status changes. Four steps of
+   the Noora ramp each, deeper on the light surface and lighter on the dark
+   one so both keep contrast. */
 .status-stage {
   height: 96px;
   overflow: hidden;
 
   & > canvas {
+    --wave-ink-operational-1: light-dark(var(--noora-green-700), var(--noora-green-200));
+    --wave-ink-operational-2: light-dark(var(--noora-green-600), var(--noora-green-300));
+    --wave-ink-operational-3: light-dark(var(--noora-green-500), var(--noora-green-400));
+    --wave-ink-operational-4: light-dark(var(--noora-green-400), var(--noora-green-500));
+    --wave-ink-degraded-1: light-dark(var(--noora-orange-700), var(--noora-orange-200));
+    --wave-ink-degraded-2: light-dark(var(--noora-orange-600), var(--noora-orange-300));
+    --wave-ink-degraded-3: light-dark(var(--noora-orange-500), var(--noora-orange-400));
+    --wave-ink-degraded-4: light-dark(var(--noora-orange-400), var(--noora-orange-500));
+    --wave-ink-outage-1: light-dark(var(--noora-red-700), var(--noora-red-200));
+    --wave-ink-outage-2: light-dark(var(--noora-red-600), var(--noora-red-300));
+    --wave-ink-outage-3: light-dark(var(--noora-red-500), var(--noora-red-400));
+    --wave-ink-outage-4: light-dark(var(--noora-red-400), var(--noora-red-500));
+    --wave-ink-maintenance-1: light-dark(var(--noora-blue-700), var(--noora-blue-200));
+    --wave-ink-maintenance-2: light-dark(var(--noora-blue-600), var(--noora-blue-300));
+    --wave-ink-maintenance-3: light-dark(var(--noora-blue-500), var(--noora-blue-400));
+    --wave-ink-maintenance-4: light-dark(var(--noora-blue-400), var(--noora-blue-500));
+
     display: block;
     width: 100%;
     height: 100%;
     color: var(--noora-surface-label-primary);
-
-    &[data-wave="operational"] {
-      --wave-ink-1: light-dark(var(--noora-green-700), var(--noora-green-200));
-      --wave-ink-2: light-dark(var(--noora-green-600), var(--noora-green-300));
-      --wave-ink-3: light-dark(var(--noora-green-500), var(--noora-green-400));
-      --wave-ink-4: light-dark(var(--noora-green-400), var(--noora-green-500));
-    }
-
-    &[data-wave="degraded"] {
-      --wave-ink-1: light-dark(var(--noora-orange-700), var(--noora-orange-200));
-      --wave-ink-2: light-dark(var(--noora-orange-600), var(--noora-orange-300));
-      --wave-ink-3: light-dark(var(--noora-orange-500), var(--noora-orange-400));
-      --wave-ink-4: light-dark(var(--noora-orange-400), var(--noora-orange-500));
-    }
-
-    &[data-wave="outage"] {
-      --wave-ink-1: light-dark(var(--noora-red-700), var(--noora-red-200));
-      --wave-ink-2: light-dark(var(--noora-red-600), var(--noora-red-300));
-      --wave-ink-3: light-dark(var(--noora-red-500), var(--noora-red-400));
-      --wave-ink-4: light-dark(var(--noora-red-400), var(--noora-red-500));
-    }
-
-    &[data-wave="maintenance"] {
-      --wave-ink-1: light-dark(var(--noora-blue-700), var(--noora-blue-200));
-      --wave-ink-2: light-dark(var(--noora-blue-600), var(--noora-blue-300));
-      --wave-ink-3: light-dark(var(--noora-blue-500), var(--noora-blue-400));
-      --wave-ink-4: light-dark(var(--noora-blue-400), var(--noora-blue-500));
-    }
   }
 }
 
@@ -476,6 +527,7 @@ main {
     }
   }
 }
+
 `;
 
 export const STYLES = NOORA_CSS + MARKETING_TOKENS_CSS + PAGE_CSS;
