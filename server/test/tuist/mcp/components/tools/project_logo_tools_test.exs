@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ProjectLogoToolsTest do
         end
       end)
 
-      stub(Tuist.Authorization, :authorize_request, fn _assigns, :update, ^project, :project -> true end)
+      stub(Tuist.Authorization, :authorize, fn :project_update, :subject, ^project -> :ok end)
 
       %{project: project}
     end
@@ -74,7 +74,7 @@ defmodule Tuist.MCP.Components.Tools.ProjectLogoToolsTest do
         end
       end)
 
-      stub(Tuist.Authorization, :authorize_request, fn _assigns, :update, ^project, :project -> true end)
+      stub(Tuist.Authorization, :authorize, fn :project_update, :subject, ^project -> :ok end)
 
       %{project: project}
     end
@@ -146,7 +146,7 @@ defmodule Tuist.MCP.Components.Tools.ProjectLogoToolsTest do
         end
       end)
 
-      stub(Tuist.Authorization, :authorize_request, fn _assigns, :update, _project, :project -> true end)
+      stub(Tuist.Authorization, :authorize, fn :project_update, :subject, _project -> :ok end)
 
       stub(Tuist.Storage, :generate_upload_url, fn _key, :project_logos, _opts ->
         "https://storage.example.com/upload"
