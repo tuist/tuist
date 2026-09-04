@@ -868,7 +868,7 @@ buildersFleet:
 sandboxes:
   enabled: true
   image:
-    tag: "sha-20692971293f"
+    tag: "sha-d45232211453"
   templateImage:
     tag: "sha-56965cb61732"
   # The ghcr packages were created from a branch build and are private until
