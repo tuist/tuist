@@ -191,12 +191,18 @@ defmodule TuistWeb.UserRegistrationLive do
                 <input data-turnstile-response name="cf-turnstile-response" type="hidden" />
               </div>
               <span :if={@turnstile_error} data-part="turnstile-error">{@turnstile_error}</span>
+              <span
+                :if={@submit_pending?}
+                data-part="turnstile-pending"
+                aria-live="polite"
+              >
+                {dgettext("dashboard_auth", "Verifying, one moment...")}
+              </span>
               <.button
                 variant="primary"
                 size="large"
                 label={dgettext("dashboard_auth", "Sign up")}
                 tabindex={4}
-                disabled={@turnstile_required? and not @turnstile_ready?}
               />
             </.form>
           </div>
@@ -291,6 +297,7 @@ defmodule TuistWeb.UserRegistrationLive do
         |> assign(:turnstile_site_key, Turnstile.site_key())
         |> assign(:turnstile_error, nil)
         |> assign(:turnstile_ready?, false)
+        |> assign(:submit_pending?, false)
         |> assign(:load_turnstile_script?, Turnstile.required?())
         |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
         |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
@@ -308,39 +315,59 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   def handle_event("save", params, socket) do
-    if Environment.email_auth_enabled?() do
-      case SignupProtection.verify(socket.assigns.registration_session_token, params, "email_signup") do
-        :ok ->
-          save_user(Map.get(params, "user", %{}), assign(socket, :turnstile_error, nil))
+    cond do
+      not Environment.email_auth_enabled?() ->
+        {:noreply, redirect(socket, to: ~p"/users/log_in")}
 
-        {:error, :rate_limited} ->
-          {:noreply,
-           socket
-           |> assign(:turnstile_error, dgettext("dashboard_auth", "Too many sign-up attempts. Please try again later."))
-           |> reset_turnstile()}
+      socket.assigns.turnstile_required? and not socket.assigns.turnstile_ready? ->
+        # Optimistic-submit gate: the user clicked Sign up before the widget
+        # produced a token. Show a "Verifying, one moment" message and tell
+        # the hook to re-fire the form's submit as soon as the token lands,
+        # so the click is never dropped and the user does not have to click
+        # again. The server-side token check still runs on the re-fire.
+        {:noreply,
+         socket
+         |> assign(:submit_pending?, true)
+         |> assign(:turnstile_error, nil)
+         |> push_event("turnstile:submit-when-ready", %{id: "email-signup-turnstile"})}
 
-        {:error, :missing_session} ->
-          {:noreply,
-           socket
-           |> assign(
-             :turnstile_error,
-             dgettext("dashboard_auth", "Your session has expired. Please reload the page and try again.")
-           )
-           |> reset_turnstile()}
-
-        {:error, :turnstile_failed} ->
-          {:noreply,
-           socket
-           |> assign(:turnstile_error, dgettext("dashboard_auth", "Please complete the security check and try again."))
-           |> reset_turnstile()}
-      end
-    else
-      {:noreply, redirect(socket, to: ~p"/users/log_in")}
+      true ->
+        handle_save(params, socket)
     end
   end
 
   def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
     {:noreply, apply_turnstile_state(socket, state)}
+  end
+
+  defp handle_save(params, socket) do
+    socket = assign(socket, :submit_pending?, false)
+
+    case SignupProtection.verify(socket.assigns.registration_session_token, params, "email_signup") do
+      :ok ->
+        save_user(Map.get(params, "user", %{}), assign(socket, :turnstile_error, nil))
+
+      {:error, :rate_limited} ->
+        {:noreply,
+         socket
+         |> assign(:turnstile_error, dgettext("dashboard_auth", "Too many sign-up attempts. Please try again later."))
+         |> reset_turnstile()}
+
+      {:error, :missing_session} ->
+        {:noreply,
+         socket
+         |> assign(
+           :turnstile_error,
+           dgettext("dashboard_auth", "Your session has expired. Please reload the page and try again.")
+         )
+         |> reset_turnstile()}
+
+      {:error, :turnstile_failed} ->
+        {:noreply,
+         socket
+         |> assign(:turnstile_error, dgettext("dashboard_auth", "Please complete the security check and try again."))
+         |> reset_turnstile()}
+    end
   end
 
   defp apply_turnstile_state(socket, "ready"),
@@ -422,6 +449,8 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   defp reset_turnstile(socket) do
+    socket = assign(socket, :submit_pending?, false)
+
     if socket.assigns.turnstile_required? do
       socket
       |> assign(:turnstile_ready?, false)

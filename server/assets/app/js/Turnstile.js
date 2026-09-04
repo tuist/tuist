@@ -9,10 +9,20 @@ const Turnstile = {
     this.widgetId = null;
     this.timeoutHandle = null;
     this.apiListener = null;
+    this.pendingSubmit = false;
     this.responseField = this.el.querySelector("[data-turnstile-response]");
 
     this.handleEvent("turnstile:reset", ({ id }) => {
       if (id === this.el.id) this.reset();
+    });
+
+    // Optimistic-submit gate. When the LiveView receives a `save` before the
+    // widget has produced a token, it pushes this event and shows a
+    // "Verifying, one moment" message. The hook remembers that intent and
+    // re-fires the form's submit as soon as the token is filled in, so the
+    // user never has to click again.
+    this.handleEvent("turnstile:submit-when-ready", ({ id }) => {
+      if (id === this.el.id) this.pendingSubmit = true;
     });
 
     this.notifyState("pending");
@@ -81,6 +91,15 @@ const Turnstile = {
         callback: (token) => {
           this.responseField.value = token;
           this.notifyState("ready");
+          if (this.pendingSubmit) {
+            this.pendingSubmit = false;
+            const form = this.el.closest("form");
+            if (form && typeof form.requestSubmit === "function") {
+              form.requestSubmit();
+            } else if (form) {
+              form.submit();
+            }
+          }
         },
         "expired-callback": () => {
           this.responseField.value = "";
@@ -114,6 +133,11 @@ const Turnstile = {
 
   reset() {
     if (this.responseField) this.responseField.value = "";
+    // A reset always clears an outstanding auto-submit intent: the previous
+    // attempt was rejected (rate limit, invalid input, expired token), so
+    // re-firing the same submit as soon as a fresh token arrives would just
+    // replay the same failure.
+    this.pendingSubmit = false;
     this.notifyState("pending");
     if (this.widgetId !== null && window.turnstile) {
       try {

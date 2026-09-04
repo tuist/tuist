@@ -33,6 +33,7 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:turnstile_site_key, Turnstile.site_key())
           |> assign(:turnstile_error, nil)
           |> assign(:turnstile_ready?, false)
+          |> assign(:submit_pending?, false)
           |> assign(:load_turnstile_script?, Turnstile.required?())
 
         {:ok, socket}
@@ -89,12 +90,18 @@ defmodule TuistWeb.ChooseUsernameLive do
                 <input data-turnstile-response name="cf-turnstile-response" type="hidden" />
               </div>
               <span :if={@turnstile_error} data-part="turnstile-error">{@turnstile_error}</span>
+              <span
+                :if={@submit_pending?}
+                data-part="turnstile-pending"
+                aria-live="polite"
+              >
+                {dgettext("dashboard_auth", "Verifying, one moment...")}
+              </span>
               <div data-part="actions">
                 <.button
                   type="submit"
                   variant="primary"
                   label={dgettext("dashboard_auth", "Continue")}
-                  disabled={@turnstile_required? and not @turnstile_ready?}
                 />
               </div>
             </.form>
@@ -112,7 +119,28 @@ defmodule TuistWeb.ChooseUsernameLive do
   end
 
   @impl true
-  def handle_event("choose_username", %{"account" => %{"name" => username}} = params, socket) do
+  def handle_event("choose_username", %{"account" => %{"name" => _}} = params, socket) do
+    if socket.assigns.turnstile_required? and not socket.assigns.turnstile_ready? do
+      # Optimistic-submit gate. Mirrors user_registration_live: park the
+      # submit intent, show a verifying message, and let the hook re-fire
+      # the form's submit as soon as the token lands.
+      {:noreply,
+       socket
+       |> assign(:submit_pending?, true)
+       |> assign(:turnstile_error, nil)
+       |> push_event("turnstile:submit-when-ready", %{id: "oauth-signup-turnstile"})}
+    else
+      handle_choose_username(params, socket)
+    end
+  end
+
+  def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
+    {:noreply, apply_turnstile_state(socket, state)}
+  end
+
+  defp handle_choose_username(%{"account" => %{"name" => username}} = params, socket) do
+    socket = assign(socket, :submit_pending?, false)
+
     case SignupProtection.verify(socket.assigns.registration_session_token, params, "oauth_signup") do
       :ok ->
         choose_username(username, assign(socket, :turnstile_error, nil))
@@ -138,11 +166,6 @@ defmodule TuistWeb.ChooseUsernameLive do
          |> assign(:turnstile_error, dgettext("dashboard_auth", "Please complete the security check and try again."))
          |> reset_turnstile()}
     end
-  end
-
-  @impl true
-  def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
-    {:noreply, apply_turnstile_state(socket, state)}
   end
 
   defp apply_turnstile_state(socket, "ready"),
@@ -253,6 +276,8 @@ defmodule TuistWeb.ChooseUsernameLive do
   end
 
   defp reset_turnstile(socket) do
+    socket = assign(socket, :submit_pending?, false)
+
     if socket.assigns.turnstile_required? do
       socket
       |> assign(:turnstile_ready?, false)

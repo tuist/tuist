@@ -72,6 +72,8 @@ defmodule TuistWeb.UserRegistrationLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+
       html =
         lv
         |> form("#login_form", %{
@@ -88,18 +90,79 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       refute html =~ "Too many sign-up attempts"
     end
 
-    test "disables the submit button until the Turnstile widget reports ready", %{conn: conn} do
+    test "parks the submit and shows a verifying message when the user clicks before the widget is ready",
+         %{conn: conn} do
       stub(Turnstile, :required?, fn -> true end)
       stub(Turnstile, :site_key, fn -> "site-key" end)
+      reject(&Registration.hit/1)
+      reject(&Turnstile.verify/2)
 
       {:ok, lv, html} = live(conn, ~p"/users/register")
+      # Button is not pre-disabled; the optimistic-submit gate handles the wait.
+      refute html =~ ~s(<button[^>]*disabled)
 
-      assert html =~ ~s(disabled)
+      after_submit =
+        lv
+        |> form("#login_form", %{
+          "user" => %{
+            "email" => "optimistic@example.com",
+            "password" => "StrongP@ssword!2028",
+            "username" => "optimistic"
+          }
+        })
+        |> render_submit()
 
-      after_ready =
-        render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+      # No Turnstile.verify was called (that would fail with a missing token);
+      # the LiveView parked the intent and told the hook to re-fire the form
+      # once the token arrives.
+      assert after_submit =~ "Verifying, one moment"
+      refute after_submit =~ "Please complete the security check"
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email("optimistic@example.com")
+    end
 
-      refute after_ready =~ ~s(name="user[email]"[^>]*disabled)
+    test "clears the verifying message once the Turnstile-driven re-fire completes",
+         %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
+
+      stub(Turnstile, :verify, fn "token", [expected_action: "email_signup"] -> :ok end)
+
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      # 1st click before ready parks the intent and renders the verifying banner.
+      pending_html =
+        lv
+        |> form("#login_form", %{
+          "user" => %{
+            "email" => "verify-pending@example.com",
+            "password" => "StrongP@ssword!2028",
+            "username" => "verifypending"
+          }
+        })
+        |> render_submit()
+
+      assert pending_html =~ "Verifying, one moment"
+
+      # Widget produces the token, hook re-fires with `cf-turnstile-response` set.
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+
+      lv
+      |> form("#login_form", %{
+        "cf-turnstile-response" => "token",
+        "user" => %{
+          "email" => "verify-pending@example.com",
+          "password" => "StrongP@ssword!2028",
+          "username" => "verifypending"
+        }
+      })
+      |> render_submit()
+
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("verify-pending@example.com")
+      assert user.account.name == "verifypending"
     end
 
     test "surfaces a distinct error when the Turnstile bundle cannot load", %{conn: conn} do
@@ -135,6 +198,8 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       stub(Turnstile, :verify, fn _token, [expected_action: "email_signup"] -> {:error, :rejected} end)
 
       {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
 
       html =
         lv
