@@ -2328,6 +2328,7 @@ defmodule Tuist.Tests do
             name: Map.get(rep_attrs, :name),
             status: Map.get(rep_attrs, :status),
             duration: Map.get(rep_attrs, :duration, 0),
+            source: Map.get(rep_attrs, :source) || "run",
             inserted_at: now
           }
         end)
@@ -2381,6 +2382,7 @@ defmodule Tuist.Tests do
         name: Map.get(rep_attrs, :name),
         status: Map.get(rep_attrs, :status),
         duration: Map.get(rep_attrs, :duration, 0),
+        source: Map.get(rep_attrs, :source) || "run",
         inserted_at: NaiveDateTime.utc_now()
       }
     end)
@@ -4327,7 +4329,8 @@ defmodule Tuist.Tests do
           repetition_number: r.repetition_number,
           name: r.name,
           status: r.status,
-          duration: r.duration
+          duration: r.duration,
+          source: r.source
         }
       )
 
