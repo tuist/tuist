@@ -220,4 +220,67 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     |> Floki.find("#module-build-history-table tbody tr")
     |> length()
   end
+
+  test "the analytics widgets read the same way as the modules page", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    build = fn created_at, hit, sources ->
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: created_at
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-#{sources}",
+        binary_cache_hit: hit,
+        sources_hash: sources
+      )
+    end
+
+    # A cold miss, a hit, then a miss because the sources changed.
+    build.(~N[2024-01-29 10:00:00], :miss, "s1")
+    build.(~N[2024-01-30 10:00:00], :remote, "s1")
+    build.(~N[2024-01-31 09:00:00], :miss, "s2")
+
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+
+    {:ok, lv, _html} = live(conn, base)
+    render_async(lv, 2000)
+
+    # Hits is plain, and Misses opens on the total rather than on one reason,
+    # matching the modules page.
+    assert has_element?(lv, "#widget-cache-activity", "Hits")
+    assert has_element?(lv, "#widget-cache-activity", "1")
+    assert has_element?(lv, "#widget-why-it-misses", "Misses")
+    assert has_element?(lv, "#widget-why-it-misses", "2")
+
+    # The hits and misses split is no longer reachable from the Hits widget.
+    refute render(lv) =~ ~s(phx-click="select_cache_count")
+
+    # Every reason, including the total, is wired to the event.
+    html = render(lv)
+
+    for reason <- ~w(all changed upstream cold) do
+      assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
+    end
+
+    render_click(lv, "select_miss_reason", %{"type" => "changed"})
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#widget-why-it-misses", "Changed misses")
+    assert has_element?(lv, "#widget-why-it-misses", "1")
+
+    # The other two widgets are the ones the modules page keeps in its table.
+    assert has_element?(lv, "#widget-hit-rate")
+    assert has_element?(lv, "#widget-blast-radius")
+  end
 end

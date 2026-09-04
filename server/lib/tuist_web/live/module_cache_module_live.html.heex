@@ -114,68 +114,16 @@
       <.widget
         loading={!@module.ok?}
         id="widget-cache-activity"
-        title={
-          if @selected_cache_count == "misses",
-            do: dgettext("dashboard_cache", "Misses"),
-            else: dgettext("dashboard_cache", "Hits")
-        }
-        legend_color={if @selected_cache_count == "misses", do: "destructive", else: "primary"}
+        title={dgettext("dashboard_cache", "Hits")}
+        legend_color="primary"
         description={
-          dgettext(
-            "dashboard_cache",
-            "Builds where this module was served from cache, versus those where it was a cache miss and had to be rebuilt."
-          )
+          dgettext("dashboard_cache", "Builds where this module was served from the cache.")
         }
-        value={
-          if @module.ok? do
-            format_number(
-              if @selected_cache_count == "misses",
-                do: @module.result.invalidations,
-                else: @module.result.reuses
-            )
-          end
-        }
+        value={if @module.ok?, do: format_number(@module.result.reuses)}
         phx_click="select_widget"
         phx_value_widget="cache_activity"
         selected={@analytics_selected_widget == "cache_activity"}
-      >
-        <:select>
-          <.dropdown_item
-            value="hits"
-            phx-click="select_cache_count"
-            phx-value-type="hits"
-            data-selected={@selected_cache_count == "hits"}
-          >
-            <div data-part="breakdown-item">
-              <div data-part="dot" data-color="primary"></div>
-              <span data-part="label">{dgettext("dashboard_cache", "Hits")}</span>
-              <span data-part="separator">-</span>
-              <span data-part="value">
-                {if @module.ok?,
-                  do: format_number(@module.result.reuses),
-                  else: dgettext("dashboard_cache", "N/A")}
-              </span>
-            </div>
-          </.dropdown_item>
-          <.dropdown_item
-            value="misses"
-            phx-click="select_cache_count"
-            phx-value-type="misses"
-            data-selected={@selected_cache_count == "misses"}
-          >
-            <div data-part="breakdown-item">
-              <div data-part="dot" data-color="destructive"></div>
-              <span data-part="label">{dgettext("dashboard_cache", "Misses")}</span>
-              <span data-part="separator">-</span>
-              <span data-part="value">
-                {if @module.ok?,
-                  do: format_number(@module.result.invalidations),
-                  else: dgettext("dashboard_cache", "N/A")}
-              </span>
-            </div>
-          </.dropdown_item>
-        </:select>
-      </.widget>
+      />
       <.widget
         loading={!@module.ok?}
         id="widget-hit-rate"
@@ -214,36 +162,17 @@
       <.widget
         loading={!@module.ok?}
         id="widget-why-it-misses"
-        title={
-          case @selected_miss_reason do
-            "upstream" -> dgettext("dashboard_cache", "Upstream misses")
-            "cold" -> dgettext("dashboard_cache", "Cold misses")
-            _ -> dgettext("dashboard_cache", "Own-change misses")
-          end
-        }
-        legend_color={
-          case @selected_miss_reason do
-            "upstream" -> "secondary"
-            "cold" -> "tertiary"
-            _ -> "primary"
-          end
-        }
+        title={miss_reason_title(@selected_miss_reason)}
+        legend_color={miss_reason_legend(@selected_miss_reason)}
         description={
           dgettext(
             "dashboard_cache",
-            "Why this module missed: its own content changed, only an upstream dependency changed, or it was never cached (cold or first-seen)."
+            "Builds where this module was a cache miss: its own content changed, only an upstream dependency changed, or it had never been cached."
           )
         }
         value={
-          if @module.ok? do
-            format_number(
-              case @selected_miss_reason do
-                "upstream" -> @module.result.dependency_induced
-                "cold" -> @module.result.unclassified
-                _ -> @module.result.self_changes
-              end
-            )
-          end
+          if @module.ok?,
+            do: format_number(miss_reason_value(@module.result, @selected_miss_reason))
         }
         phx_click="select_widget"
         phx_value_widget="miss_reasons"
@@ -252,13 +181,11 @@
         <:select>
           <.dropdown_item
             :for={
-              {value, label, color, count} <- [
-                {"changed", dgettext("dashboard_cache", "Changed"), "primary",
-                 @module.ok? && @module.result.self_changes},
-                {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary",
-                 @module.ok? && @module.result.dependency_induced},
-                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary",
-                 @module.ok? && @module.result.unclassified}
+              {value, label, color} <- [
+                {"all", dgettext("dashboard_cache", "All"), "destructive"},
+                {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
+                {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
+                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
               ]
             }
             value={value}
@@ -271,7 +198,9 @@
               <span data-part="label">{label}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if count, do: format_number(count), else: dgettext("dashboard_cache", "N/A")}
+                {if @module.ok?,
+                  do: format_number(miss_reason_value(@module.result, value)),
+                  else: dgettext("dashboard_cache", "N/A")}
               </span>
             </div>
           </.dropdown_item>
@@ -318,16 +247,7 @@
             name: dgettext("dashboard_cache", "Hits"),
             data: @timeseries.result.reuses,
             type: "bar",
-            stack: "total",
             color: "var:noora-chart-primary",
-            barMaxWidth: 18
-          },
-          %{
-            name: dgettext("dashboard_cache", "Misses"),
-            data: @timeseries.result.invalidations,
-            type: "bar",
-            stack: "total",
-            color: "var:noora-chart-destructive",
             barMaxWidth: 18
           }
         ]}

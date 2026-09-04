@@ -37,7 +37,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
           URI.encode_query(
             Map.take(params, [
               "analytics-selected-widget",
-              "cache-count",
               "miss-reason",
               "analytics-environment",
               "after",
@@ -90,17 +89,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_event("select_cache_count", %{"type" => type}, socket) when type in ["hits", "misses"] do
-    query = Query.put(socket.assigns.uri.query, "cache-count", type)
-
-    {:noreply,
-     socket
-     |> assign(:selected_cache_count, type)
-     |> assign(:uri, URI.new!("?" <> query))
-     |> push_event("replace-url", %{url: "?" <> query})}
-  end
-
-  def handle_event("select_miss_reason", %{"type" => type}, socket) when type in ["changed", "upstream", "cold"] do
+  def handle_event("select_miss_reason", %{"type" => type}, socket) when type in ~w(all changed upstream cold) do
     query = Query.put(socket.assigns.uri.query, "miss-reason", type)
 
     {:noreply,
@@ -141,8 +130,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
-    selected_cache_count = params["cache-count"] || "hits"
-    selected_miss_reason = params["miss-reason"] || "changed"
+    selected_miss_reason = params["miss-reason"] || "all"
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -152,7 +140,6 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
-      |> assign(:selected_cache_count, selected_cache_count)
       |> assign(:selected_miss_reason, selected_miss_reason)
 
     opts = analytics_opts(socket.assigns)
@@ -306,6 +293,21 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def builds_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def builds_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
   def builds_reason_label(_), do: dgettext("dashboard_cache", "Any")
+
+  def miss_reason_value(module, "changed"), do: module.self_changes
+  def miss_reason_value(module, "upstream"), do: module.dependency_induced
+  def miss_reason_value(module, "cold"), do: module.unclassified
+  def miss_reason_value(module, _all), do: module.invalidations
+
+  def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
+  def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
+  def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
+  def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
+
+  def miss_reason_legend("changed"), do: "primary"
+  def miss_reason_legend("upstream"), do: "secondary"
+  def miss_reason_legend("cold"), do: "tertiary"
+  def miss_reason_legend(_all), do: "destructive"
 
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
