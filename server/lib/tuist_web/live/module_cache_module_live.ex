@@ -10,6 +10,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
+  alias TuistWeb.Utilities.SHA
 
   def mount(
         %{"module" => module_name},
@@ -231,18 +232,17 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     end
   end
 
-  def build_result_label("miss"), do: dgettext("dashboard_cache", "Miss")
-  def build_result_label("local"), do: dgettext("dashboard_cache", "Local hit")
-  def build_result_label("remote"), do: dgettext("dashboard_cache", "Remote hit")
-  def build_result_label(_), do: dgettext("dashboard_cache", "Hit")
-
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def build_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
-  def build_reason_label(_), do: nil
+  def build_reason_label(_), do: dgettext("dashboard_cache", "Cached")
 
-  def short_commit_sha(""), do: nil
-  def short_commit_sha(sha), do: String.slice(sha, 0, 7)
+  # The colours the miss-reason widget and its chart already use, so a row reads
+  # the same way as the breakdown above it.
+  def build_reason_color("changed"), do: "primary"
+  def build_reason_color("upstream"), do: "secondary"
+  def build_reason_color("cold"), do: "attention"
+  def build_reason_color(_), do: "neutral"
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")

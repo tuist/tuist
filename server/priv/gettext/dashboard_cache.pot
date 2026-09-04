@@ -145,7 +145,7 @@ msgstr ""
 #: lib/tuist_web/live/bundles_live.html.heex:362
 #: lib/tuist_web/live/cache_runs_live.ex:60
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
-#: lib/tuist_web/live/module_cache_module_live.html.heex:530
+#: lib/tuist_web/live/module_cache_module_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -270,6 +270,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:160
 #: lib/tuist_web/live/bundles_live.html.heex:392
+#: lib/tuist_web/live/module_cache_module_live.html.heex:552
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -471,7 +472,7 @@ msgid "Module Breakdown"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.ex:28
-#: lib/tuist_web/live/module_cache_module_live.ex:24
+#: lib/tuist_web/live/module_cache_module_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr ""
@@ -563,7 +564,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
 #: lib/tuist_web/live/cache_runs_live.html.heex:117
 #: lib/tuist_web/live/module_cache_live.html.heex:745
-#: lib/tuist_web/live/module_cache_module_live.html.heex:527
+#: lib/tuist_web/live/module_cache_module_live.html.heex:562
 #: lib/tuist_web/live/xcode_cache_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Ran at"
@@ -1033,14 +1034,14 @@ msgstr ""
 msgid "Builds where this module was served from cache, versus those where it was a cache miss and had to be rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:239
+#: lib/tuist_web/live/module_cache_module_live.ex:235
 #: lib/tuist_web/live/module_cache_module_live.html.heex:256
 #: lib/tuist_web/live/module_cache_module_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Changed"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:241
+#: lib/tuist_web/live/module_cache_module_live.ex:237
 #: lib/tuist_web/live/module_cache_module_live.html.heex:260
 #: lib/tuist_web/live/module_cache_module_live.html.heex:479
 #, elixir-autogen, elixir-format
@@ -1142,7 +1143,7 @@ msgstr ""
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:240
+#: lib/tuist_web/live/module_cache_module_live.ex:236
 #: lib/tuist_web/live/module_cache_module_live.html.heex:258
 #: lib/tuist_web/live/module_cache_module_live.html.heex:471
 #, elixir-autogen, elixir-format
@@ -1179,22 +1180,12 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:538
-#, elixir-autogen, elixir-format
-msgid "Commit"
-msgstr ""
-
-#: lib/tuist_web/live/module_cache_module_live.ex:237
-#, elixir-autogen, elixir-format
-msgid "Hit"
-msgstr ""
-
-#: lib/tuist_web/live/module_cache_module_live.ex:235
+#: lib/tuist_web/live/module_cache_module_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Local hit"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:234
+#: lib/tuist_web/live/module_cache_module_live.html.heex:530
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr ""
@@ -1204,23 +1195,27 @@ msgstr ""
 msgid "No builds in this range"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:534
-#: lib/tuist_web/live/module_cache_module_live.html.heex:540
+#: lib/tuist_web/live/module_cache_module_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:236
+#: lib/tuist_web/live/module_cache_module_live.html.heex:540
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:543
+#: lib/tuist_web/live/module_cache_module_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Result"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:549
+#: lib/tuist_web/live/module_cache_module_live.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Why"
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Cached"
 msgstr ""

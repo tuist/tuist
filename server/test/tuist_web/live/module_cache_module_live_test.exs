@@ -108,7 +108,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       |> Floki.find("#module-build-history-table thead th")
       |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
 
-    assert headers == ["Ran at", "Branch", "Commit", "Result", "Why"]
+    assert headers == ["Result", "Branch", "Commit SHA", "Why", "Ran at"]
 
     # Three builds, newest first: its sources changed, then a remote hit, then
     # the first build on the branch with nothing to compare against.
@@ -116,10 +116,19 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       document
       |> Floki.find("#module-build-history-table tbody tr")
       |> Enum.map(fn row ->
-        row |> Floki.find("td") |> List.last() |> Floki.text() |> String.trim()
+        row |> Floki.find("td") |> Enum.at(3) |> Floki.text() |> String.trim()
       end)
 
-    assert reasons == ["Changed", "-", "Cold"]
+    assert reasons == ["Changed", "Cached", "Cold"]
+
+    results =
+      document
+      |> Floki.find("#module-build-history-table tbody tr")
+      |> Enum.map(fn row ->
+        row |> Floki.find("td") |> List.first() |> Floki.text() |> String.trim()
+      end)
+
+    assert results == ["Miss", "Remote hit", "Miss"]
 
     # The short commit sha is what identifies the build to a reader.
     assert html =~ "abcdef1"

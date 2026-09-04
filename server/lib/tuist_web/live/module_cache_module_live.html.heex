@@ -524,8 +524,22 @@
             end
           }
         >
-          <:col :let={build} label={dgettext("dashboard_cache", "Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.ran_at)} />
+          <:col :let={build} label={dgettext("dashboard_cache", "Result")}>
+            <.status_badge_cell
+              :if={build.hit == "miss"}
+              label={dgettext("dashboard_cache", "Miss")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={build.hit == "local"}
+              label={dgettext("dashboard_cache", "Local hit")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={build.hit == "remote"}
+              label={dgettext("dashboard_cache", "Remote hit")}
+              status="success"
+            />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell
@@ -535,19 +549,18 @@
               }
             />
           </:col>
-          <:col :let={build} label={dgettext("dashboard_cache", "Commit")}>
-            <.text_cell label={
-              short_commit_sha(build.commit_sha) || dgettext("dashboard_cache", "None")
-            } />
-          </:col>
-          <:col :let={build} label={dgettext("dashboard_cache", "Result")}>
-            <.status_badge_cell
-              label={build_result_label(build.hit)}
-              status={if build.hit == "miss", do: "error", else: "success"}
-            />
+          <:col :let={build} label={dgettext("dashboard_cache", "Commit SHA")}>
+            <.text_cell label={SHA.format_commit_sha(build.commit_sha)} />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Why")}>
-            <.text_cell label={build_reason_label(build.reason) || "-"} />
+            <.badge_cell
+              label={build_reason_label(build.reason)}
+              color={build_reason_color(build.reason)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_cache", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.ran_at)} />
           </:col>
         </.table>
         <.pagination
