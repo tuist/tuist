@@ -2631,3 +2631,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
 msgstr ""
+
+#: lib/tuist_web/authentication.ex:477
+#, elixir-autogen, elixir-format
+msgid "The project you are looking for doesn't exist or has been moved."
+msgstr ""

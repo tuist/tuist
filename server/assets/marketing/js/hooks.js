@@ -44,6 +44,7 @@ import { DitherBlocks } from "./hooks/dither-blocks.js";
 import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 import { BlogViewPreference } from "./hooks/blog-view-preference.js";
 import { PricingPlanSelect } from "./hooks/pricing-plan-select.js";
+import { NotFoundOutline } from "./hooks/not-found-outline.js";
 
 const Hooks = {
   PlatformBackground,
@@ -92,6 +93,7 @@ const Hooks = {
   KaTeX,
   BlogViewPreference,
   PricingPlanSelect,
+  NotFoundOutline,
 };
 
 export { Hooks };

@@ -2,6 +2,10 @@ defmodule TuistWeb.ErrorHTML do
   use TuistWeb, :html
   use Noora
 
+  alias TuistWeb.Marketing.Design
+  alias TuistWeb.Marketing.Layouts
+  alias TuistWeb.Marketing.MarketingHTML
+
   # If you want to customize your error pages,
   # uncomment the embed_templates/1 call below
   # and add pages to the error directory:
@@ -50,26 +54,20 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
-  def render("404.html", assigns) do
-    reason = assigns.reason
-
-    reason_message =
-      if is_nil(reason) do
-        dgettext("dashboard", "Sorry, the page you are looking for doesn't exist or has been moved.")
-      else
-        reason.message
-      end
-
-    assigns
-    |> Map.put(:head_title, dgettext("dashboard", "Not found"))
-    |> Map.put(:title, dgettext("dashboard", "Oops, we couldn't find that page"))
-    |> Map.put(
-      :message,
-      reason_message
-    )
-    |> Map.put(:error_name, dgettext("dashboard", "404"))
-    |> render_error_page()
+  # Every 404 renders the redesigned marketing page once its page flag is on
+  # (tuist.dev shares one host between the marketing site and the dashboard:
+  # an unknown single-segment URL like /r is the dashboard's account route
+  # missing, and it should read as the public not-found page). Other statuses
+  # keep the dashboard error page.
+  def render("404.html", %{conn: %Plug.Conn{} = conn} = assigns) do
+    if Design.new?(conn, :not_found) do
+      render_marketing_not_found(assigns)
+    else
+      render_dashboard_not_found(assigns)
+    end
   end
+
+  def render("404.html", assigns), do: render_dashboard_not_found(assigns)
 
   def render("429.html", assigns) do
     reason = assigns.reason
@@ -112,6 +110,47 @@ defmodule TuistWeb.ErrorHTML do
   # "Not Found".
   def render(template, _assigns) do
     Phoenix.Controller.status_message_from_template(template)
+  end
+
+  defp render_dashboard_not_found(assigns) do
+    reason = Map.get(assigns, :reason)
+
+    reason_message =
+      if is_nil(reason) do
+        dgettext("dashboard", "Sorry, the page you are looking for doesn't exist or has been moved.")
+      else
+        reason.message
+      end
+
+    assigns
+    |> Map.put(:head_title, dgettext("dashboard", "Not found"))
+    |> Map.put(:title, dgettext("dashboard", "Oops, we couldn't find that page"))
+    |> Map.put(
+      :message,
+      reason_message
+    )
+    |> Map.put(:error_name, dgettext("dashboard", "404"))
+    |> render_error_page()
+  end
+
+  defp render_marketing_not_found(assigns) do
+    conn = assigns.conn
+
+    assigns =
+      assigns
+      |> Map.put(:new_design, true)
+      |> Map.put(:current_path, conn.request_path)
+      |> Map.put(:head_title, dgettext("marketing", "Page not found") <> " · Tuist")
+      |> Map.put(
+        :head_description,
+        dgettext("marketing", "The page you are looking for doesn't exist or has been moved.")
+      )
+      |> Map.put(:head_image, Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg"))
+      |> Map.put(:head_twitter_card, "summary_large_image")
+
+    assigns
+    |> Map.put(:inner_content, MarketingHTML.not_found_new(assigns))
+    |> Layouts.root()
   end
 
   def render_error_page(assigns) do

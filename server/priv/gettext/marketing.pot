@@ -3124,6 +3124,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:533
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:552
@@ -3139,6 +3140,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist · Build infrastructure for productive teams"
+msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:193
 #: lib/tuist_web/marketing/controllers/marketing_html/new/download.html.heex:108
@@ -3406,6 +3408,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "same thing twice."
+msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/download.html.heex:9
 #, elixir-autogen, elixir-format
@@ -3558,4 +3561,30 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Group previews by branch, release, or team so stakeholders always find the build meant for them."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:141
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Page not found"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Show the page's outlines"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Error 404"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "The page you were looking for doesn't exist or may have moved"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Back to home"
 msgstr ""

@@ -14,6 +14,13 @@ deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
 build_path = Mix.Project.build_path()
 code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
+# Plug.Debugger replaces the real error pages (TuistWeb.ErrorHTML) with its
+# stack-trace page on every raised exception. Disable it to preview the 404 and
+# other error pages the way production renders them. Phoenix bakes this option
+# into TuistWeb.Endpoint at compile time, so flipping it needs that module
+# recompiled: `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam`
+# before starting (or `mix compile --force`).
+debug_errors_enabled = System.get_env("TUIST_DEV_DISABLE_DEBUG_ERRORS") not in ["1", "true"]
 
 # Base watchers for esbuild
 base_watchers = [
@@ -186,7 +193,7 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
   code_reloader: code_reloader_enabled,
-  debug_errors: true,
+  debug_errors: debug_errors_enabled,
   reloadable_apps: [:tuist, :noora],
   watchers: if(code_reloader_enabled, do: base_watchers, else: []),
   live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])

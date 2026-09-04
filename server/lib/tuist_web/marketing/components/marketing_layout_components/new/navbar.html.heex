@@ -154,6 +154,9 @@ resources_items = [
           src={~p"/marketing/images/components/navbar/logo-dark.svg"}
           alt="Tuist"
         />
+        <svg data-part="logo-outline" viewBox="0 0 84 32" aria-hidden="true" hidden>
+          <use href="#footer-wordmark-shape" width="84" height="32" />
+        </svg>
       </.link>
       <%!-- Right-click (context) menu on the logo: brand asset shortcuts,
       built from Noora dropdown items inside a statically-open Noora content
@@ -372,8 +375,7 @@ resources_items = [
             else: dgettext("marketing", "Dashboard")
           )
         }
-      >
-      </.button>
+      ></.button>
 
       <.neutral_button
         size="large"
@@ -461,8 +463,7 @@ resources_items = [
             data-dither="on"
             data-opacity="0.3"
             aria-hidden="true"
-          >
-          </canvas>
+          ></canvas>
           <header data-part="header">
             <h3 data-part="title">{dgettext("marketing", "Changelog")}</h3>
             <.link_button

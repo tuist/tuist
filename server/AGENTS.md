@@ -56,6 +56,7 @@ mise run dev
 - `mise run dev`
 - `mix phx.server`
 - `iex -S mix phx.server`
+- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` - Render the real error pages (`TuistWeb.ErrorHTML`, e.g. the marketing 404) instead of Plug.Debugger's stack-trace page. `debug_errors` is compiled into `TuistWeb.Endpoint`, so when flipping it run `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` first (or `mix compile --force`)
 
 **Testing**
 - `mix test`
