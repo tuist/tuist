@@ -14320,9 +14320,13 @@ mod tests {
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         let mut eviction = Box::pin(store.evict_segment(&segment_id));
 
-        // Step until the chunk carrying the entry's deletion has landed.
+        // Step until the chunk carrying the entry's deletion has landed. Each
+        // chunk commits on the blocking pool, so the wait is wall time, not a
+        // poll count: a fixed number of yields runs out on a slow runner
+        // before the chunk lands and asserts nothing (a flake seen on CI).
         let mut entry_removed = false;
-        for _ in 0..10_000 {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+        while tokio::time::Instant::now() < deadline {
             if std::pin::Pin::new(&mut eviction)
                 .poll(&mut context)
                 .is_ready()
@@ -14337,7 +14341,7 @@ mod tests {
                 entry_removed = true;
                 break;
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
         assert!(
             entry_removed,
