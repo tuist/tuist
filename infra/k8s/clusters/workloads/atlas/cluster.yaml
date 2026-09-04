@@ -49,6 +49,13 @@ spec:
       # (Pillar 2) and is rebuilt under break-glass.
       replicas: 1
     variables:
+      # Mirrors the live Cluster's variables exactly, including the
+      # ClusterClass-defaulted ones. CAPI materializes every defaulted
+      # variable onto the live object, so a manifest declaring only a subset
+      # makes Flux rewrite and re-order the list on every reconcile. Declaring
+      # the full set keeps the first reconcile a true no-op, and matches the
+      # rule that a defaulted ClusterClass variable must be declared in every
+      # Cluster CR (otherwise the drift check never settles).
       - name: region
         value: fsn1
       - name: hcloudControlPlaneMachineType
@@ -58,6 +65,38 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      - name: clusterEndpointHost
+        value: ""
+      - name: clusterEndpointPort
+        value: 443
+      - name: clusterLoadBalancerExtraServices
+        value: []
+      - name: clusterLoadBalancerType
+        value: lb11
+      - name: hcloudControlPlaneMachineImageName
+        value: ubuntu-24.04
+      - name: hcloudControlPlanePlacementGroupName
+        value: ""
+      - name: hcloudPlacementGroups
+        value: []
+      - name: hcloudWorkerMachineImageName
+        value: ubuntu-24.04
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: ""
+      - name: bareMetalCluster
+        value: ""
+      - name: workerNodeLabels
+        value: ""
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,Hostname,InternalDNS,ExternalDNS
+      - name: disableControlPlaneKubeletLocalMode
+        value: false
+      - name: workerNodeTaints
+        value: ""
+      - name: workerResolvConf
+        value: ""
+      - name: statefulRaidLevel
+        value: 1
     workers:
       machineDeployments:
         - class: hcloud-worker
@@ -67,6 +106,3 @@ spec:
           # resource pressure appears.
           replicas: 1
           failureDomain: fsn1
-          metadata:
-            labels:
-              node.cluster.x-k8s.io/pool: general
