@@ -1669,6 +1669,23 @@ impl Proxy {
         let _ = std::fs::write(path, body);
     }
 
+    /// Returns the path's state, registering it on first sight.
+    ///
+    /// Registration is ATOMIC: the store is opened outside the lock, but the
+    /// decision about who owns the path is made under it, and a thread that
+    /// loses the race disposes the handle it just opened.
+    ///
+    /// It has to be. An llcas store rotates its generation chain only as its
+    /// LAST handle closes, which is what `PathState::prune_ondisk` relies on to
+    /// bound the store — so a single orphaned handle keeps the chain live and
+    /// silently turns every later prune into a no-op that reports success.
+    /// Checking the map, opening, and inserting without holding the lock across
+    /// the decision let concurrent first requests each open one and leave all
+    /// but the last permanently open (16 concurrent registrations produced 16
+    /// handles, after which a 24 MiB store would not rotate against a 1 MiB
+    /// limit). The open stays outside the lock deliberately: `open_cas` touches
+    /// the filesystem, and holding the map's mutex across it would let one slow
+    /// or stuck store wedge every path on the machine.
     fn path_state(&self, cas_path: &str) -> Result<&'static PathState, String> {
         if let Some(state) = self.paths.lock().unwrap().get(cas_path) {
             return Ok(state);
@@ -1676,6 +1693,14 @@ impl Proxy {
         let up = unsafe { Upstream::load(&self.upstream_plugin)? };
         let up: &'static Upstream = Box::leak(Box::new(up));
         let cas = unsafe { open_cas(up, cas_path)? };
+        // Claim the path BEFORE building the state, so a loser has nothing to
+        // leak but the dlopen handle above -- which addresses the plugin, not
+        // the store, and so cannot hold the generation chain open.
+        let mut paths = self.paths.lock().unwrap();
+        if let Some(winner) = paths.get(cas_path).copied() {
+            unsafe { (up.llcas_cas_dispose)(cas) };
+            return Ok(winner);
+        }
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
             cas: RwLock::new(Some(cas)),
@@ -1710,10 +1735,7 @@ impl Proxy {
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
         }));
-        self.paths
-            .lock()
-            .unwrap()
-            .insert(cas_path.to_string(), state);
+        paths.insert(cas_path.to_string(), state);
         Ok(state)
     }
 
@@ -5944,6 +5966,52 @@ mod tests {
         assert!(
             reclaimed > 0,
             "a collection that frees no bytes is not a collection"
+        );
+    }
+
+    /// Concurrent first requests for one path must produce ONE registered state,
+    /// because every extra handle they open is never closed again — and an
+    /// orphaned handle keeps the generation chain live, so the prune that is
+    /// supposed to bound the store rotates nothing and reports success anyway.
+    ///
+    /// Reproduced before the fix with exactly this shape: 16 threads produced 16
+    /// states, after which pruning a 24 MiB store against a 1 MiB limit returned
+    /// `Ok(0)` with `v1.1` still in place.
+    #[test]
+    fn concurrent_registrations_leave_exactly_one_handle_on_the_store() {
+        const LIMIT: u64 = 1024 * 1024;
+        let dir = TempCasDir::new("register-race");
+        let proxy = test_proxy();
+        let path = dir.path();
+
+        let states: Vec<&'static PathState> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..16)
+                .map(|_| {
+                    let path = path.clone();
+                    scope.spawn(move || proxy.path_state(&path).expect("register"))
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
+        let first = states[0] as *const PathState;
+        assert!(
+            states.iter().all(|s| *s as *const PathState == first),
+            "every racing registration must resolve to the same state: the \
+             losers' handles are never closed, and one of them is enough to \
+             keep the chain live forever"
+        );
+
+        // The invariant that matters is not the pointer but what it implies: the
+        // state's handle is the only one, so disposing it is the last close and
+        // the rotation can happen.
+        fill_to(states[0], &dir, 24 * 1024 * 1024);
+        let before = generations(&dir);
+        states[0].prune_ondisk(LIMIT).unwrap();
+        assert_ne!(
+            generations(&dir),
+            before,
+            "an over-limit store must still rotate after concurrent registration"
         );
     }
 

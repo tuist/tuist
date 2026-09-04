@@ -637,14 +637,22 @@ cas_spool_records() {
   find "$1" -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# cas_proxy_client finds the binary that can ask the running proxy to drain,
-# so the gate waits on the publisher itself instead of sampling a directory.
+# cas_proxy_client finds the binary that can ask the running proxy to drain (so
+# the gate waits on the publisher itself instead of sampling a directory) and to
+# prune (so the compilation cache is bounded at all).
 #
 # The launch agent `tuist setup cache` installed is the reliable pointer: its
-# `Program` IS the tuist whose bundle serves this machine's socket, and the
-# proxy binary ships beside it. Nothing found (a job that never ran `tuist setup
-# cache`, or a tuist this shell cannot see) is not a failure — the gate falls
-# back to watching the spool, which proves the same thing more slowly.
+# `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
+# binary ships beside it. It is preferred over the image's own copy because it
+# matches the proxy actually running, which is what a drain has to talk to.
+#
+# The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
+# that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
+# installs no launch agent and puts no tuist on PATH. Those jobs still write a
+# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
+# without a binary in the image they were exactly the jobs whose store nothing
+# could ever prune, which is the unbounded growth this path exists to stop. (The
+# drain is a legitimate no-op for them: no plugin means no spool.)
 cas_proxy_client() {
   local candidate program plist
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
@@ -656,7 +664,8 @@ cas_proxy_client() {
     "${TUIST_CAS_PROXY_PATH:-}" \
     "$(command -v tuist-cas-proxy 2>/dev/null)" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
-    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}"; do
+    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
+    /opt/tuist/tuist-cas-proxy; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
       return 0
@@ -819,12 +828,33 @@ prune_cas_stores() {
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
     return 0
   }
-  # The same per-generation budget setup_cas_store gave the compiler, from the
-  # same marker, so the prune enforces the bound the build was told to keep. An
-  # absent or non-numeric marker leaves it at 0, which prunes against whatever
-  # limit the store already carries rather than inventing one.
+  # The per-generation budget the host staged, from the same marker
+  # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
+  # prunes against whatever limit the store already carries rather than
+  # inventing one.
   budget=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
   case "${budget}" in ''|*[!0-9]*) budget=0 ;; esac
+
+  # SPLIT across the stores actually present, because the marker is the CAS's
+  # allowance as a whole and llcas only takes a per-generation bound per STORE.
+  # A job that used both lanes would otherwise get the full allowance twice --
+  # 2 x 5.5 GiB per generation under production's settings, so ~22 GiB of CAS
+  # inside a 20 GiB image before the binary cache gets a byte, which is the
+  # over-commit this budget exists to prevent.
+  #
+  # This is the enforcement point rather than the build-time setting because it
+  # is the only one that can count: COMPILATION_CACHE_LIMIT_SIZE is written
+  # before a single lane exists, so it cannot know how many there will be, while
+  # what the promoted image carries is settled here.
+  #
+  # An even split is deliberately crude. A tiny second lane (a `generic` store of
+  # a few KB beside a multi-GB `plugin` one is the usual shape) costs the primary
+  # half its budget, which spends warmth to keep the image's arithmetic true --
+  # the conservative direction, and the fill ceiling is not a bound to lean on.
+  local stores_count
+  stores_count=$(printf '%s\n' "${stores}" | grep -c . || true)
+  case "${stores_count}" in ''|*[!0-9]*|0) stores_count=1 ;; esac
+  budget=$((budget / stores_count))
 
   while IFS= read -r store; do
     [ -n "${store}" ] || continue
@@ -835,7 +865,7 @@ prune_cas_stores() {
     # Without that variable it exits before reaching the bind, every time.
     if env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
       --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned: ${store}"
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned: ${store} (limit ${budget}B/generation)"
     else
       echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store ${store}"
     fi

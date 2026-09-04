@@ -201,7 +201,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   because the per-machine proxy holds a handle per path for its lifetime and a
   prune alongside it collects nothing while reporting success. Both lanes are
   swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
-  generation dirs. A pruned store settles at ~2x its per-generation limit
+  generation dirs, and the staged allowance is SPLIT between them: the marker
+  budgets the CAS as a whole while llcas only takes a per-generation bound per
+  store, so handing each the full figure would let a two-lane job occupy twice
+  the CAS the image was sized for. Teardown is the only place that can count the
+  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist. A pruned store settles at ~2x its per-generation limit
   (primary + the demoted upstream, which is the warm cache), which is why
   `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
   `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports
@@ -255,6 +259,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
+  client, built from `cas-plugin/` by the image workflow the same way
+  `runner-shell-agent` is. `cas_proxy_client` prefers the binary beside the tuist
+  that `tuist setup cache` installed (it matches the proxy actually running,
+  which is what a drain must talk to) and falls back to this one. It exists
+  because a plain `xcodebuild` workflow never runs Tuist, so it installs no
+  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
+  lane into the volume, so without a binary here nothing on the machine could
+  ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
+  no CAS daemon of its own.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
