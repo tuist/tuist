@@ -75,9 +75,14 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
-  def handle_event("select_widget", %{"widget" => widget}, socket) do
-    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
-    {:noreply, push_patch(socket, to: "?#{query}")}
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: account, selected_project: project}} = socket
+      ) do
+    query_params = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+
+    {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
   def handle_event(

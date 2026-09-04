@@ -111,12 +111,26 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert has_element?(lv, "#widget-modules", "1")
     assert has_element?(lv, "#widget-hit-rate", "50.0%")
 
-    # Picking another widget swaps in its chart.
-    {:ok, lv, _html} = live(conn, base <> "?analytics-selected-widget=hit_rate")
+    # Clicking a widget swaps in its chart. Driving the click rather than
+    # loading the URL is what catches a patch target the client rejects.
+    click_widget(lv, "hit_rate")
     render_async(lv, 2000)
 
     assert has_element?(lv, "#modules-hit-rate-chart")
     refute has_element?(lv, "#modules-misses-chart")
+
+    click_widget(lv, "upstream_share")
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#modules-miss-reasons-chart")
+
+    click_widget(lv, "modules")
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#modules-with-misses-chart")
+
+    # The selection survives in the URL, so a chart can be linked to.
+    assert_patched(lv, base <> "?analytics-selected-widget=modules")
   end
 
   test "pages through the modules table", %{
@@ -239,6 +253,14 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "hit_rate") =~ "sort-order=asc"
     assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "invalidations") =~ "sort-order=desc"
     assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "blast_radius") =~ "sort-order=desc"
+  end
+
+  # phx-click sits on the wrapper the widget component renders, not on the
+  # element carrying the widget id.
+  defp click_widget(lv, widget) do
+    lv
+    |> element(~s([phx-click="select_widget"][phx-value-widget="#{widget}"]))
+    |> render_click()
   end
 
   defp table_rows(html) do
