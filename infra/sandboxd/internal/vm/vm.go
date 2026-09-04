@@ -85,8 +85,8 @@ func JailDir(base, id string) string {
 
 // Prepare creates the jail root for a spawn and removes what a previous
 // Firecracker left behind: the API and vsock sockets (Firecracker will not
-// bind over an existing file) and the device nodes (the jailer's mknod
-// fails on EEXIST).
+// bind over an existing file) and the whole /dev tree, because the jailer
+// mknods kvm, net/tun, urandom and userfaultfd itself and fails on EEXIST.
 func Prepare(root string, uid, gid int) error {
 	for _, dir := range []string{root, filepath.Join(root, "run")} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -99,12 +99,13 @@ func Prepare(root string, uid, gid int) error {
 	for _, stale := range []string{
 		filepath.Join(root, firecracker.APISocketPath),
 		filepath.Join(root, firecracker.VsockPath),
-		filepath.Join(root, "dev", "kvm"),
-		filepath.Join(root, "dev", "net", "tun"),
 	} {
 		if err := os.Remove(stale); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("removing %s: %w", stale, err)
 		}
+	}
+	if err := os.RemoveAll(filepath.Join(root, "dev")); err != nil {
+		return fmt.Errorf("removing stale /dev: %w", err)
 	}
 	return nil
 }
