@@ -303,55 +303,76 @@ defmodule Tuist.Runners.Buildkite do
   # A stack key answers nothing until it is registered, so the first list
   # against a new queue 404s by design. Registering on that signal keeps
   # the steady state at one request and self-heals a stack deleted out
-  # from under us; a second 404 after a successful registration is a real
-  # error and is returned as one.
+  # from under us.
+  #
+  # A 404 that survives registration means the queue itself is not there.
+  # That is an ordinary state, not a failure: a profile is ours and a
+  # queue is the customer's, so any profile they have not made a matching
+  # queue for lands here every pass. It is reported as `:queue_absent` so
+  # the caller can skip that queue and keep polling the rest.
   defp list_scheduled_jobs(installation, account, queue_key) do
     stack_key = stack_key_for(installation, queue_key)
 
     case Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit) do
-      {:error, :not_found} ->
-        with {:ok, _stack} <- register_stack(installation, account, stack_key, queue_key) do
-          Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit)
-        end
-
-      result ->
-        result
+      {:error, :not_found} -> register_then_list(installation, account, stack_key, queue_key)
+      result -> result
     end
   end
 
-  defp register_stack(installation, account, stack_key, queue_key) do
-    Logger.info("runners: registering buildkite stack",
-      account: account.name,
-      queue: queue_key
-    )
-
-    Client.register_stack(installation, stack_key, queue_key, %{
+  defp register_then_list(installation, account, stack_key, queue_key) do
+    metadata = %{
       "tuist_account" => account.name,
       "tuist_environment" => to_string(Environment.env())
-    })
+    }
+
+    with {:ok, _stack} <- Client.register_stack(installation, stack_key, queue_key, metadata),
+         {:ok, listing} <-
+           Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit) do
+      Logger.info("runners: registered buildkite stack",
+        account: account.name,
+        queue: queue_key
+      )
+
+      {:ok, listing}
+    else
+      {:error, :not_found} -> {:error, :queue_absent}
+      {:error, _reason} = error -> error
+    end
   end
 
   defp poll_queue(installation, account, queue_key) do
-    with {:ok, %{jobs: jobs, dispatch_paused: paused}} <-
-           list_scheduled_jobs(installation, account, queue_key) do
-      cond do
-        paused ->
-          # Buildkite is telling every stack on this queue to stand down,
-          # usually mid-incident. Reserving here would take jobs out of
-          # circulation that the operator has deliberately held.
-          Logger.info("runners: buildkite queue dispatch paused",
-            account: account.name,
-            queue: queue_key
-          )
+    case list_scheduled_jobs(installation, account, queue_key) do
+      # The customer has no Buildkite queue for this profile. Profiles and
+      # queues are named independently, so this is the normal state for
+      # any profile they have not wired up, and it must not stop the
+      # queues they have.
+      {:error, :queue_absent} ->
+        Logger.debug("runners: buildkite queue does not exist",
+          account: account.name,
+          queue: queue_key
+        )
 
-          {:ok, 0}
+        {:ok, 0}
 
-        jobs == [] ->
-          {:ok, 0}
+      # Buildkite is telling every stack on this queue to stand down,
+      # usually mid-incident. Reserving here would take jobs out of
+      # circulation that the operator has deliberately held.
+      {:ok, %{dispatch_paused: true}} ->
+        Logger.info("runners: buildkite queue dispatch paused",
+          account: account.name,
+          queue: queue_key
+        )
 
-        true ->
-          reserve_and_enqueue(installation, account, queue_key, jobs)
-      end
+        {:ok, 0}
+
+      {:ok, %{jobs: []}} ->
+        {:ok, 0}
+
+      {:ok, %{jobs: jobs}} ->
+        reserve_and_enqueue(installation, account, queue_key, jobs)
+
+      {:error, _reason} = error ->
+        error
     end
   end
 

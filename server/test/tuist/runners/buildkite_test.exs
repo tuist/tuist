@@ -199,9 +199,14 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert metadata["tuist_account"]
     end
 
-    test "does not retry forever when the stack 404s after registering", %{
-      installation: installation
-    } do
+    test "skips a profile whose Buildkite queue does not exist", %{installation: installation} do
+      # A 404 that survives registration means the queue is not there.
+      # Profiles are ours and queues are the customer's, so any profile
+      # they have not made a matching queue for lands here on every pass.
+      # It must not fail the installation or stop the queues that do
+      # exist: staging had exactly this shape, and treating it as fatal
+      # stamped an error on the account and could starve the working
+      # queues depending on profile ordering.
       stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
         {:error, :not_found}
       end)
@@ -210,9 +215,61 @@ defmodule Tuist.Runners.BuildkiteTest do
         {:ok, %{"key" => stack}}
       end)
 
-      # `:not_found` halts the pass rather than looping: a key that still
-      # 404s after a successful registration is a real error.
-      assert {:error, :not_found} = Buildkite.poll(installation)
+      assert {:ok, 0} = Buildkite.poll(installation)
+    end
+
+    test "keeps polling the other queues when one is absent", %{
+      installation: installation,
+      queue_key: queue_key
+    } do
+      absent = "tuist-staging-nonexistent"
+      job = scheduled_job(%{queue_key: queue_key})
+
+      stub(Profiles, :list_for_account, fn _account ->
+        [
+          %Profile{name: "nonexistent", platform: :macos, vcpus: 4, memory_gb: 16},
+          %Profile{
+            name: String.replace_prefix(queue_key, Profile.prefix(), ""),
+            platform: :macos,
+            vcpus: 4,
+            memory_gb: 16
+          }
+        ]
+      end)
+
+      stub(Dispatch, :resolve_dispatch_target, fn _account, [key] ->
+        if key == queue_key do
+          {:ok,
+           %{
+             pool_name: "pool-macos",
+             requested_dispatch_label: queue_key,
+             platform: :macos,
+             vcpus: 4,
+             memory_gb: 16
+           }}
+        else
+          {:error, :no_matching_profile}
+        end
+      end)
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, key, _limit ->
+        if key == queue_key do
+          {:ok, %{jobs: [job], dispatch_paused: false}}
+        else
+          {:error, :not_found}
+        end
+      end)
+
+      stub(Client, :register_stack, fn _installation, stack, _queue, _metadata ->
+        {:ok, %{"key" => stack}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      # The absent queue is listed first, so a fatal reading of its 404
+      # would starve the working queue behind it.
+      assert {:ok, 1} = Buildkite.poll(installation)
+      assert absent != queue_key
     end
 
     test "stops the pass when the agent token is rejected", %{installation: installation} do
