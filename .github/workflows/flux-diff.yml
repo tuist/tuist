@@ -24,6 +24,12 @@ name: Flux Diff
 #     on push to main, where no PR can supply modified workflow content.);
 #   - GitHub-hosted runner, because the mgmt apiserver is on :6443 and the
 #     self-hosted runners are behind a NetworkPolicy allowing only 80/443.
+#
+# Deliberately NO environment protection rules. Required reviewers would gate
+# every run behind a manual approval, which defeats the point of an automatic
+# live-vs-desired diff on each PR, and a branch policy cannot help because this
+# job runs on arbitrary PR branch names. Containment here is the vault scoping
+# above plus the same-repo restriction below — not an approval gate.
 
 on:
   pull_request:
