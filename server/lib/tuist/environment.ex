@@ -1740,6 +1740,38 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Kubernetes namespace the sandboxd DaemonSet runs in. The node
+  WebSocket endpoint only accepts ServiceAccount tokens reviewed
+  into this namespace. Defaults to `tuist-sandboxes` (matches the
+  chart's `sandboxes.namespace`).
+  """
+  def sandboxes_namespace do
+    System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
+  end
+
+  @doc """
+  Override for the Anthropic API base URL used by the sandbox work
+  poller, or `nil` to use the public API. Set `TUIST_ANTHROPIC_API_URL`
+  to point the poller and the in-guest worker at a stub.
+  """
+  def anthropic_api_url_override do
+    case System.get_env("TUIST_ANTHROPIC_API_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def anthropic_api_url do
+    anthropic_api_url_override() || "https://api.anthropic.com"
+  end
+
+  @doc """
   Prefix the dispatch path prepends to a shape key when addressing a
   Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
 

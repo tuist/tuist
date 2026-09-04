@@ -45,6 +45,7 @@ This directory contains the core business logic and domain modules for the serve
 - Repo: `server/lib/tuist/repo/AGENTS.md`
 - Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
 - Runs: `server/lib/tuist/runs/AGENTS.md`
+- Sandboxes: `server/lib/tuist/sandboxes/AGENTS.md`
 - Slack: `server/lib/tuist/slack/AGENTS.md`
 - Storage: `server/lib/tuist/storage/AGENTS.md`
 - Telemetry: `server/lib/tuist/telemetry/AGENTS.md`

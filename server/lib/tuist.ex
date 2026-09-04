@@ -201,6 +201,14 @@ defmodule Tuist do
       SCIM,
       SCIM.Filter,
       SCIM.Resource,
+      # Firecracker sandboxes for coding-agent sessions (control plane
+      # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
+      Sandboxes,
+      Sandboxes.AgentEnvironment,
+      Sandboxes.Anthropic.Client,
+      Sandboxes.Nodes,
+      Sandboxes.Router,
+      Sandboxes.Sandbox,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the

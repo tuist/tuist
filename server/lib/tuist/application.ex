@@ -334,6 +334,7 @@ defmodule Tuist.Application do
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
         Tuist.Kura.Origins,
+        Tuist.Sandboxes.Nodes,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
@@ -388,6 +389,7 @@ defmodule Tuist.Application do
         else: []
     )
     |> Kernel.++(kura_children())
+    |> Kernel.++(sandboxes_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
     # mode — see `RuntimeChildren.marketing_stats/1`.
@@ -475,6 +477,17 @@ defmodule Tuist.Application do
           id: Kura.Reconciler
         )
       ]
+    else
+      []
+    end
+  end
+
+  # The Anthropic work pollers run on every web pod (each polls with its
+  # own worker id; the queue hands an item to one of them). Tests drive
+  # the poller and manager directly.
+  defp sandboxes_children do
+    if Environment.web?() and not Environment.test?() do
+      [Tuist.Sandboxes.Anthropic.Supervisor]
     else
       []
     end

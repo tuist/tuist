@@ -571,6 +571,20 @@ defmodule TuistWeb.Router do
             WebhooksController,
             :show_delivery_attempt
       end
+
+      # The literal agent-environments routes must precede `/:sandbox_id`.
+      scope "/sandboxes" do
+        post "/agent-environments", SandboxesController, :create_agent_environment
+        get "/agent-environments", SandboxesController, :index_agent_environments
+        delete "/agent-environments/:agent_environment_id", SandboxesController, :delete_agent_environment
+        get "/", SandboxesController, :index
+        post "/", SandboxesController, :create
+        get "/:sandbox_id", SandboxesController, :show
+        post "/:sandbox_id/exec", SandboxesController, :exec
+        post "/:sandbox_id/pause", SandboxesController, :pause
+        post "/:sandbox_id/resume", SandboxesController, :resume
+        delete "/:sandbox_id", SandboxesController, :delete
+      end
     end
 
     post "/analytics", AnalyticsController, :create
@@ -817,6 +831,7 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    get "/sandboxes/nodes/connect", SandboxNodesController, :connect
   end
 
   scope "/api/internal", TuistWeb.Internal do

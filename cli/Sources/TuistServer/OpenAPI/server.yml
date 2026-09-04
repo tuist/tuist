@@ -2830,6 +2830,29 @@ components:
       type: object
       x-struct:
       x-validate:
+    SandboxExecResult:
+      properties:
+        exit_code:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        stderr:
+          type: string
+          x-struct:
+          x-validate:
+        stdout:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - exit_code
+        - stdout
+        - stderr
+      title: SandboxExecResult
+      type: object
+      x-struct:
+      x-validate:
     TestRun:
       properties:
         build_run_id:
@@ -3126,6 +3149,27 @@ components:
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.CacheCategory
       x-validate:
+    ExecSandboxCommand:
+      properties:
+        command:
+          description: The shell command to run.
+          minLength: 1
+          type: string
+          x-struct:
+          x-validate:
+        timeout_ms:
+          description: Kill the command after this many milliseconds (default 60000).
+          maximum: 600000
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - command
+      title: ExecSandboxCommand
+      type: object
+      x-struct:
+      x-validate:
     PaginationMetadata:
       description: Pagination metadata.
       properties:
@@ -3187,6 +3231,76 @@ components:
       minimum: 1
       title: TestModuleRunsPageSize
       type: integer
+      x-struct:
+      x-validate:
+    SandboxAgentEnvironment:
+      description: An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.
+      properties:
+        anthropic_environment_id:
+          type: string
+          x-struct:
+          x-validate:
+        enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          type: integer
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        max_idle_seconds:
+          type: integer
+          x-struct:
+          x-validate:
+        memory_mb:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        pause_grace_seconds:
+          type: integer
+          x-struct:
+          x-validate:
+        template:
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+        workspace_gb:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - anthropic_environment_id
+        - template
+        - vcpus
+        - memory_mb
+        - workspace_gb
+        - max_idle_seconds
+        - pause_grace_seconds
+        - enabled
+        - inserted_at
+        - updated_at
+      title: SandboxAgentEnvironment
+      type: object
       x-struct:
       x-validate:
     BuildTargetsIndexPage:
@@ -3480,6 +3594,67 @@ components:
       title: RunsTest
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
+      x-validate:
+    CreateSandboxAgentEnvironment:
+      properties:
+        anthropic_environment_id:
+          description: The Anthropic environment identifier.
+          type: string
+          x-struct:
+          x-validate:
+        environment_key:
+          description: The Anthropic environment key. Never returned.
+          type: string
+          x-struct:
+          x-validate:
+        max_idle_seconds:
+          maximum: 3600
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+        memory_mb:
+          maximum: 262144
+          minimum: 256
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          maxLength: 100
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        pause_grace_seconds:
+          maximum: 3600
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        template:
+          description: Sandbox template name.
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          maximum: 64
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+        workspace_gb:
+          maximum: 1024
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - anthropic_environment_id
+        - environment_key
+      title: CreateSandboxAgentEnvironment
+      type: object
+      x-struct:
       x-validate:
     BuildTargetsIndexPageSize:
       default: 20
@@ -4811,6 +4986,36 @@ components:
       type: string
       x-struct:
       x-validate:
+    CreateSandbox:
+      properties:
+        memory_mb:
+          maximum: 262144
+          minimum: 256
+          type: integer
+          x-struct:
+          x-validate:
+        template:
+          description: Sandbox template name.
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          maximum: 64
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+        workspace_gb:
+          maximum: 1024
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+      title: CreateSandbox
+      type: object
+      x-struct:
+      x-validate:
     GenerationsIndexAfter:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: GenerationsIndexAfter
@@ -5299,6 +5504,110 @@ components:
         - remote
       title: SelectiveTestingHitStatus
       type: string
+      x-struct:
+      x-validate:
+    Sandbox:
+      description: A Firecracker sandbox VM.
+      properties:
+        agent_environment_id:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        anthropic_session_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        error_message:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        hostname:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        last_active_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        memory_mb:
+          type: integer
+          x-struct:
+          x-validate:
+        node_name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        paused_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        residency_work_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          enum:
+            - creating
+            - running
+            - paused
+            - error
+            - deleted
+          type: string
+          x-struct:
+          x-validate:
+        template:
+          type: string
+          x-struct:
+          x-validate:
+        template_tag:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+        workspace_gb:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - state
+        - template
+        - vcpus
+        - memory_mb
+        - workspace_gb
+        - inserted_at
+        - updated_at
+      title: Sandbox
+      type: object
       x-struct:
       x-validate:
     GenerateShardUploadURLParams:
@@ -7541,6 +7850,386 @@ paths:
       summary: Get a generation by ID.
       tags:
         - Generations
+  /api/accounts/{account_handle}/sandboxes:
+    get:
+      callbacks: {}
+      operationId: listSandboxes
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  sandboxes:
+                    items:
+                      description: A Firecracker sandbox VM.
+                      properties:
+                        agent_environment_id:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        anthropic_session_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        error_message:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        hostname:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        last_active_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        memory_mb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        node_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        paused_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        residency_work_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        state:
+                          enum:
+                            - creating
+                            - running
+                            - paused
+                            - error
+                            - deleted
+                          type: string
+                          x-struct:
+                          x-validate:
+                        template:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        template_tag:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workspace_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - state
+                        - template
+                        - vcpus
+                        - memory_mb
+                        - workspace_gb
+                        - inserted_at
+                        - updated_at
+                      title: Sandbox
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - sandboxes
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandboxes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the account's sandboxes.
+      tags:
+        - Sandboxes
+    post:
+      callbacks: {}
+      description: Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+      operationId: createSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                memory_mb:
+                  maximum: 262144
+                  minimum: 256
+                  type: integer
+                  x-struct:
+                  x-validate:
+                template:
+                  description: Sandbox template name.
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  maximum: 64
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+                workspace_gb:
+                  maximum: 1024
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+              title: CreateSandbox
+              type: object
+              x-struct:
+              x-validate:
+        description: Sandbox params
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                description: A Firecracker sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - paused
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid params
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Create a sandbox.
+      tags:
+        - Sandboxes
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -10175,6 +10864,255 @@ paths:
       summary: List previews.
       tags:
         - Previews
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The sandbox was deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Delete a sandbox.
+      tags:
+        - Sandboxes
+    get:
+      callbacks: {}
+      operationId: getSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A Firecracker sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - paused
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a sandbox.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}:
     delete:
       callbacks: {}
@@ -13507,6 +14445,196 @@ paths:
       summary: It checks if an artifact exists in the cache.
       tags:
         - Cache
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume:
+    post:
+      callbacks: {}
+      operationId: resumeSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A Firecracker sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - paused
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Resume a paused sandbox.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs:
     get:
       callbacks: {}
@@ -17835,6 +18963,325 @@ paths:
       summary: Time-bucketed test run duration percentiles for a project.
       tags:
         - Metrics
+  /api/accounts/{account_handle}/sandboxes/agent-environments:
+    get:
+      callbacks: {}
+      operationId: listSandboxAgentEnvironments
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  agent_environments:
+                    items:
+                      description: An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.
+                      properties:
+                        anthropic_environment_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        enabled:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        max_idle_seconds:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        memory_mb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        pause_grace_seconds:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        template:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workspace_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - anthropic_environment_id
+                        - template
+                        - vcpus
+                        - memory_mb
+                        - workspace_gb
+                        - max_idle_seconds
+                        - pause_grace_seconds
+                        - enabled
+                        - inserted_at
+                        - updated_at
+                      title: SandboxAgentEnvironment
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - agent_environments
+                type: object
+                x-struct:
+                x-validate:
+          description: Agent environments
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the Anthropic environments connected to the account.
+      tags:
+        - Sandboxes
+    post:
+      callbacks: {}
+      description: Stores the environment key encrypted and starts serving the environment's work queue with sandboxes shaped by the given template and resources.
+      operationId: createSandboxAgentEnvironment
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                anthropic_environment_id:
+                  description: The Anthropic environment identifier.
+                  type: string
+                  x-struct:
+                  x-validate:
+                environment_key:
+                  description: The Anthropic environment key. Never returned.
+                  type: string
+                  x-struct:
+                  x-validate:
+                max_idle_seconds:
+                  maximum: 3600
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+                memory_mb:
+                  maximum: 262144
+                  minimum: 256
+                  type: integer
+                  x-struct:
+                  x-validate:
+                name:
+                  maxLength: 100
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                pause_grace_seconds:
+                  maximum: 3600
+                  minimum: 0
+                  type: integer
+                  x-struct:
+                  x-validate:
+                template:
+                  description: Sandbox template name.
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  maximum: 64
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+                workspace_gb:
+                  maximum: 1024
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - anthropic_environment_id
+                - environment_key
+              title: CreateSandboxAgentEnvironment
+              type: object
+              x-struct:
+              x-validate:
+        description: Agent environment params
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                description: An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.
+                properties:
+                  anthropic_environment_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  enabled:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  max_idle_seconds:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pause_grace_seconds:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - anthropic_environment_id
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - max_idle_seconds
+                  - pause_grace_seconds
+                  - enabled
+                  - inserted_at
+                  - updated_at
+                title: SandboxAgentEnvironment
+                type: object
+                x-struct:
+                x-validate:
+          description: Agent environment
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid params
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Connect an Anthropic self-hosted environment to the account.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/previews/latest:
     get:
       callbacks: {}
@@ -19736,6 +21183,257 @@ paths:
       summary: Generate a signed URL for uploading a part of the test bundle.
       tags:
         - Shards
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause:
+    post:
+      callbacks: {}
+      description: Snapshots the VM to the node's disk. Refused while a worker or command is running.
+      operationId: pauseSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A Firecracker sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - paused
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Pause a sandbox.
+      tags:
+        - Sandboxes
+  /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteSandboxAgentEnvironment
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The agent environment id.
+          in: path
+          name: agent_environment_id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The agent environment was deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The agent environment was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Disconnect an Anthropic environment and delete its sandboxes.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/events:
     get:
       callbacks: {}
@@ -21744,6 +23442,142 @@ paths:
       summary: Complete the multipart upload and trigger per-shard xctestrun creation.
       tags:
         - Shards
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec:
+    post:
+      callbacks: {}
+      description: Runs the command with `/bin/bash -lc` inside the sandbox, resuming it first when paused, and returns the exit code with the captured output (capped at 1 MiB per stream).
+      operationId: execSandboxCommand
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command:
+                  description: The shell command to run.
+                  minLength: 1
+                  type: string
+                  x-struct:
+                  x-validate:
+                timeout_ms:
+                  description: Kill the command after this many milliseconds (default 60000).
+                  maximum: 600000
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - command
+              title: ExecSandboxCommand
+              type: object
+              x-struct:
+              x-validate:
+        description: Command params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  exit_code:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  stderr:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  stdout:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - exit_code
+                  - stdout
+                  - stderr
+                title: SandboxExecResult
+                type: object
+                x-struct:
+                x-validate:
+          description: Command result
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Run a shell command in a sandbox.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs:
     get:
       callbacks: {}
