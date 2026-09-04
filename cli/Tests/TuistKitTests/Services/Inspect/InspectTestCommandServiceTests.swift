@@ -7,6 +7,8 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistLoader
+import TuistLoggerTesting
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -368,6 +370,28 @@ struct InspectTestCommandServiceTests {
                 skipTestIdentifiers: .any
             )
             .called(1)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedLogger())
+    func does_not_fail_the_test_action_when_running_as_a_post_action() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables = [:]
+        mockedEnvironment.workspacePath = "/tmp/path"
+        mockedEnvironment.currentExecutablePathStub = "/usr/bin/tuist"
+
+        given(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .willThrow(TestError("Failed spawning the background process"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(
+            Logger.testingLogHandler.collected[.warning, default: []]
+                .contains { $0.contains("test insights were not uploaded") }
+        )
     }
 
     @Test(.withMockedEnvironment())

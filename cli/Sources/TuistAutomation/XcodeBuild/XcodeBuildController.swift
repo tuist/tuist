@@ -319,23 +319,37 @@ public struct XcodeBuildController: XcodeBuildControlling {
 
     public func run(arguments: [String]) async throws {
         let logger = Logger.current
-        
-        func format(_ bytes: [UInt8]) -> String {
-            let string = String(decoding: bytes, as: Unicode.UTF8.self)
-            if Environment.current.isVerbose == true {
-                return string
+
+        func emit(_ line: String, isError: Bool) {
+            if isError {
+                logger.error("\(line)")
             } else {
-                return self.format(string)
+                logger.info("\(line)")
             }
         }
-        
+
         func log(_ bytes: [UInt8], isError: Bool = false) {
-            let lines = format(bytes).split(separator: "\n")
-            for line in lines where !line.isEmpty {
-                if isError {
-                    logger.error("\(line)")
-                } else {
-                    logger.info("\(line)")
+            let string = String(decoding: bytes, as: Unicode.UTF8.self)
+
+            for line in string.split(separator: "\n") {
+                let line = String(line)
+                guard !line.isEmpty else { continue }
+
+                if Environment.current.isVerbose == true {
+                    emit(line, isError: isError)
+                    continue
+                }
+
+                // The formatter discards lines it doesn't recognize, and that includes everything
+                // script phases and scheme actions write. They go to the session log so that a
+                // failing script can be diagnosed from it.
+                guard let formattedLine = formatter.format(line) else {
+                    logger.debug("\(line)")
+                    continue
+                }
+
+                for formattedLine in formattedLine.split(separator: "\n") where !formattedLine.isEmpty {
+                    emit(String(formattedLine), isError: isError)
                 }
             }
         }
@@ -393,17 +407,5 @@ public struct XcodeBuildController: XcodeBuildControlling {
             timeoutTask.cancel()
             return result
         }.value
-    }
-
-    // MARK: - Helpers
-
-    fileprivate func format(_ multiLineText: String) -> String {
-        multiLineText.split(separator: "\n").map {
-            let line = String($0)
-            let formattedLine = formatter.format(line)
-
-            return formattedLine ?? ""
-        }
-        .joined(separator: "\n")
     }
 }

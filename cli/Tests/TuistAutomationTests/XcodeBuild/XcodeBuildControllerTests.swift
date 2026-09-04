@@ -7,14 +7,21 @@ import Testing
 import TSCBasic
 import TuistCore
 import TuistEnvironment
+import TuistLoggerTesting
+import TuistLogging
 import TuistSupport
 
 @testable import TuistAutomation
 @testable import TuistTesting
 
 final class MockFormatter: Formatting {
+    var formatStub: ((String) -> String?)?
+
     func format(_ line: String) -> String? {
-        line
+        if let formatStub {
+            return formatStub(line)
+        }
+        return line
     }
 }
 
@@ -27,6 +34,31 @@ struct XcodeBuildControllerTests {
         subject = XcodeBuildController(
             formatter: formatter,
             commandRunner: commandRunner
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func run_logs_unformattable_output_at_debug() async throws {
+        // Given
+        formatter.formatStub = { line in
+            line.hasPrefix("note:") ? line : nil
+        }
+        commandRunner.defaultCaptureStubs = (
+            stderror: nil,
+            stdout: "note: recognized line\nwarning: could not send build insights to Tuist\n",
+            exitstatus: 0
+        )
+
+        Logger.testingLogHandler.logLevel = .debug
+
+        // When
+        try await subject.run(arguments: ["build"])
+
+        // Then
+        let logs = Logger.testingLogHandler.collected
+        #expect(logs[.info, default: []] == ["note: recognized line"])
+        #expect(
+            logs[.debug, default: []].contains("warning: could not send build insights to Tuist")
         )
     }
 
