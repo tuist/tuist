@@ -67,7 +67,7 @@ msgstr ""
 msgid "App:"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:243
+#: lib/tuist_web/live/project_settings_live.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr ""
@@ -149,8 +149,8 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:495
 #: lib/tuist_web/live/project_notifications_live.html.heex:840
 #: lib/tuist_web/live/project_settings_live.html.heex:141
-#: lib/tuist_web/live/project_settings_live.html.heex:207
-#: lib/tuist_web/live/project_settings_live.html.heex:279
+#: lib/tuist_web/live/project_settings_live.html.heex:292
+#: lib/tuist_web/live/project_settings_live.html.heex:364
 #: lib/tuist_web/live/xcode_overview_live.html.heex:71
 #: lib/tuist_web/live/xcode_overview_live.html.heex:669
 #: lib/tuist_web/live/xcode_overview_live.html.heex:851
@@ -185,23 +185,23 @@ msgstr ""
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:287
+#: lib/tuist_web/live/project_settings_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:228
-#: lib/tuist_web/live/project_settings_live.html.heex:249
+#: lib/tuist_web/live/project_settings_live.html.heex:313
+#: lib/tuist_web/live/project_settings_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Delete project"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:261
+#: lib/tuist_web/live/project_settings_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:268
+#: lib/tuist_web/live/project_settings_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
 msgstr ""
@@ -340,8 +340,8 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:199
-#: lib/tuist_web/live/project_settings_live.html.heex:271
+#: lib/tuist_web/live/project_settings_live.html.heex:284
+#: lib/tuist_web/live/project_settings_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Project name"
 msgstr ""
@@ -357,28 +357,28 @@ msgstr ""
 msgid "Recent projects"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:215
+#: lib/tuist_web/live/project_settings_live.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:162
-#: lib/tuist_web/live/project_settings_live.html.heex:183
+#: lib/tuist_web/live/project_settings_live.html.heex:247
+#: lib/tuist_web/live/project_settings_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Rename project"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:177
+#: lib/tuist_web/live/project_settings_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Rename your project?"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:194
+#: lib/tuist_web/live/project_settings_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:165
+#: lib/tuist_web/live/project_settings_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
 msgstr ""
@@ -415,7 +415,7 @@ msgstr ""
 msgid "Set your previews to be public or private by default."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:27
+#: lib/tuist_web/live/project_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -435,7 +435,7 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:231
+#: lib/tuist_web/live/project_settings_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr ""
@@ -456,7 +456,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:24
 #: lib/tuist_web/live/project_bundle_settings_live.ex:17
 #: lib/tuist_web/live/project_notifications_live.ex:26
-#: lib/tuist_web/live/project_settings_live.ex:15
+#: lib/tuist_web/live/project_settings_live.ex:17
 #: lib/tuist_web/live/projects_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
@@ -1477,7 +1477,7 @@ msgstr ""
 msgid "Default branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:121
+#: lib/tuist_web/live/project_settings_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Default branch updated."
 msgstr ""
@@ -1492,7 +1492,7 @@ msgstr ""
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:108
+#: lib/tuist_web/live/project_settings_live.ex:115
 #, elixir-autogen, elixir-format
 msgid "can't be blank"
 msgstr ""
@@ -1935,4 +1935,95 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "These are remote-cache observations from Kura. Open Invocations for completed Bazel commands and their attributable cache totals."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Cancel selected file"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "Choose file"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "Current project logo"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Logo must be 2 MB or smaller."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:196
+#: lib/tuist_web/live/project_settings_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Logo must be a PNG, JPEG, or WebP image."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Logo removed."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:187
+#, elixir-autogen, elixir-format
+msgid "Logo updated."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "No file chosen"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "Only one logo can be uploaded at a time."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Project logo"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "Remove the current project logo?"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Select a logo before uploading."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:249
+#, elixir-autogen, elixir-format
+msgid "The selected file couldn't be uploaded."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Upload"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "We couldn't remove the logo. Please try again."
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "We couldn't save the logo. Please try again."
 msgstr ""
