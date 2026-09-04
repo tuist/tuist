@@ -81,7 +81,8 @@ spec:
         # at first install, so it is the step worth doing without a deadline.
         #
         # `statefulRaidLevel` stays 1: canary's AX42-1 has two disks, where
-        # levels 1 and 10 describe the same array.        #
+        # levels 1 and 10 describe the same array.
+        #
         # The Robot servers are named `tuist-bm-canary-ch-1` and `-2`, which
         # is what `hetzner-robot-controller` matches to reflect them as
         # HetznerBareMetalHosts stamped for this cluster. caph rewrites those

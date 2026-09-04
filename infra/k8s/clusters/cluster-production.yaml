@@ -95,7 +95,8 @@ spec:
         # before this host's first rescue boot: installimage applies the level
         # across the whole disk set, the layout is fixed at install, and level
         # 1 on a four-disk box is a four-way mirror rather than a pair of
-        # mirrors striped.        #
+        # mirrors striped.
+        #
         # PREREQ: the Robot server must be named `tuist-bm-production-ch-1` so
         # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
         # stamped for this cluster.

@@ -355,23 +355,27 @@ clickhouse:
     # — turning reads back off from the ops page would be silently undone by
     # the next deploy.
     #
-    # `name` and `task` stay as a record of where the sequence got to. `name`
-    # is part of the Job's name, so moving to another step creates a new Job
-    # rather than colliding with the immutable pod template of the last one.
-    # There is no `cutoff`: it belongs to the backfill, and the one that was
-    # here described a copy finished days ago.
+    # `name` and `task` name the step this would run if it were enabled, which
+    # is why they are the *next* step rather than the last one that ran. On
+    # 2026-09-04 a deploy from an unrelated branch removed this workload,
+    # because that branch's chart renders none of these resources. The data
+    # survived — the volume is Retain plus helm.sh/resource-policy: keep — but
+    # every row written since is missing from the in-cluster server, so what
+    # this environment needs next is a backfill.
     #
-    # NOTE this describes a workload that is not currently running. On
-    # 2026-09-04 a deploy from an unrelated branch removed it, because that
-    # branch's chart renders none of these resources. The data survived — the
-    # volume is Retain plus helm.sh/resource-policy: keep — but every row
-    # written since is missing from the in-cluster server. Bringing it back
-    # therefore means a backfill with a fresh cutoff before parity means
-    # anything again, so the next step here is a backfill, not a read cutover.
+    # Leaving them pointed at the read cutover would have been worse than
+    # useless: `FunWithFlags.enable/1` is idempotent, so enabling this would
+    # have quietly re-pointed staging's reads at a server missing days of rows,
+    # and succeeded while doing it.
+    #
+    # `cutoff` is deliberately absent. The backfill refuses to run without one,
+    # so enabling this without choosing a boundary fails loudly and says so,
+    # rather than copying up to a stale timestamp. Set it to a moment after the
+    # deploy that turns dual writes back on has finished rolling out.
     migration:
       enabled: false
-      name: read-cutover
-      task: Tuist.Release.enable_clickhouse_bare_metal_reads
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
 
 cache:
   extraEnv:
