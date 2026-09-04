@@ -552,6 +552,10 @@ end
 seed_self_hosted_cache.(Repo.preload(user, :account).account)
 seed_self_hosted_cache.(organization.account)
 
+# Kept local because the shared `branches` list is defined further down, after
+# this generator runs.
+build_branches = ["main", "develop", "feature/new-ui", "feature/caching", "release/v2.0"]
+
 build_generator = fn _i ->
   status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
   is_ci = Enum.random([true, false])
@@ -606,6 +610,8 @@ build_generator = fn _i ->
     account_id: if(is_ci, do: org_account_id, else: user_account_id),
     scheme: Enum.random(["App", "AppTests"]),
     configuration: if(is_pending, do: "", else: Enum.random(["Debug", "Release"])),
+    git_branch: Enum.random(build_branches),
+    git_commit_sha: SeedHelpers.random_hex(40),
     inserted_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
@@ -2143,9 +2149,7 @@ invalidation_targets = Enum.flat_map(invalidation_rows, & &1.targets)
 IngestRepo.insert_all(Event, invalidation_events, timeout: 120_000)
 IngestRepo.insert_all(XcodeTarget, invalidation_targets, timeout: 120_000)
 
-IO.puts(
-  "  - Module invalidation: #{length(invalidation_events)} runs, #{length(invalidation_targets)} targets"
-)
+IO.puts("  - Module invalidation: #{length(invalidation_events)} runs, #{length(invalidation_targets)} targets")
 
 # Create command events with build_run_id and xcode data for build runs so
 # the build detail page surfaces the Module Cache tab.
@@ -2657,15 +2661,21 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
         created_at: created_at,
         updated_at: created_at,
         ran_at: created_at,
-        build_run_id: nil
+        # `tuist test` produces an activity log and so carries the build run it
+        # belongs to; `generate` and `cache` produce none. That link is where
+        # the module cache's Builds table reads the scheme from.
+        build_run_id: if(name == "test", do: Enum.random(completed_builds).id)
       }
     end)
 
   IngestRepo.insert_all(Event, events, timeout: 120_000)
   :counters.add(event_counter, 1, length(events))
 
-  # Collect generate and cache events for xcode data creation
-  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache"]))
+  # Collect the events that report cacheable targets. `test` belongs here too:
+  # in production it reports them as often as `generate` does, and it is the
+  # only one of the three that carries a build run, which is where the module
+  # cache's Builds table reads the scheme from.
+  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache", "test"]))
   Enum.each(generate_cache_events, fn event -> :ets.insert(all_generate_cache_events, {:event, event}) end)
   :counters.add(generate_cache_event_counter, 1, length(generate_cache_events))
 
