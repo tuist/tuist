@@ -59,6 +59,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
+    enabled: true
+
   replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver

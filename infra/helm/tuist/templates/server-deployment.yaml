@@ -128,6 +128,19 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.turnstile.enabled }}
+            - name: TUIST_TURNSTILE_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if and .Values.server.turnstile.enabled .Values.server.turnstile.useTestKeys }}
+            # Cloudflare's public always-passing test key pair, safe to embed
+            # in the chart because they only unlock the demo widget.
+            # https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+            - name: TUIST_TURNSTILE_SITE_KEY
+              value: "1x00000000000000000000AA"
+            - name: TUIST_TURNSTILE_SECRET_KEY
+              value: "1x0000000000000000000000000000000AA"
+            {{- end }}
             {{- if .Values.server.kuraCapacityAdmission.enabled }}
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"

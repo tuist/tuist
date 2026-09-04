@@ -446,6 +446,18 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  # Cloudflare Turnstile protects self-service browser registration on hosted
+  # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
+  # deployment and the site/secret keys are wired up. `useTestKeys` uses
+  # Cloudflare's public always-passing test key pair, so pre-production
+  # environments can exercise the widget without needing the real secret
+  # (this is the coverage that would have caught the 2026-09-03 outage).
+  # `secretsFrom: eso` pulls the real keys from the TURNSTILE 1Password item
+  # via external-secrets in production.
+  turnstile:
+    enabled: false
+    useTestKeys: false
+    secretsFrom: eso
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and
