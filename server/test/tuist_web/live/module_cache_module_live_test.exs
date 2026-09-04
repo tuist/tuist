@@ -133,4 +133,91 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     # The short commit sha is what identifies the build to a reader.
     assert html =~ "abcdef1"
   end
+
+  test "filters the builds table and flips the ran at order", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    build = fn branch, sha, created_at, hit, sources ->
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: branch,
+          git_commit_sha: sha,
+          created_at: created_at
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-#{sources}",
+        binary_cache_hit: hit,
+        sources_hash: sources
+      )
+    end
+
+    build.("main", "aaa111", ~N[2024-01-29 10:00:00], :miss, "s1")
+    build.("main", "aaa222", ~N[2024-01-30 10:00:00], :remote, "s1")
+    build.("feature/x", "bbb333", ~N[2024-01-31 09:00:00], :miss, "s9")
+
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+
+    {:ok, lv, _html} = live(conn, base)
+    render_async(lv, 2000)
+    assert build_rows(lv) == 3
+
+    # Branch narrows to the two builds on main.
+    {:ok, lv, _html} = live(conn, base <> "?builds-branch=main")
+    render_async(lv, 2000)
+    assert build_rows(lv) == 2
+
+    # A commit sha prefix narrows further.
+    {:ok, lv, _html} = live(conn, base <> "?builds-commit=aaa2")
+    render_async(lv, 2000)
+    assert build_rows(lv) == 1
+
+    # Why keeps only the cache hits.
+    {:ok, lv, _html} = live(conn, base <> "?builds-reason=hit")
+    html = render_async(lv, 2000)
+    assert build_rows(lv) == 1
+    assert html =~ "Remote hit"
+
+    # Ran at is sortable, and its header offers the opposite direction.
+    href =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find(~s(#module-build-history-table thead [data-part="sort-link"]))
+      |> Floki.attribute("href")
+      |> List.first()
+
+    assert href =~ "builds-order=asc"
+
+    {:ok, lv, _html} = live(conn, base <> "?builds-order=asc")
+    html = render_async(lv, 2000)
+
+    # Oldest first now, so the first row is the earliest build.
+    first_sha =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("#module-build-history-table tbody tr")
+      |> List.first()
+      |> Floki.find("td")
+      |> Enum.at(2)
+      |> Floki.text()
+      |> String.trim()
+
+    assert first_sha =~ "aaa111"
+  end
+
+  defp build_rows(lv) do
+    lv
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find("#module-build-history-table tbody tr")
+    |> length()
+  end
 end

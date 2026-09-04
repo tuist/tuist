@@ -1860,10 +1860,27 @@ create_xcode_data_for_events = fn events, label ->
         xcode_target_names
         |> Enum.with_index()
         |> Enum.map(fn {target_name, idx} ->
-          hit_value = rem(idx, 3)
           is_external = rem(idx, 7) == 0
           hash_idx = rem(idx, 100)
           is_test_target = String.ends_with?(target_name, "Tests")
+
+          # Vary the outcome per build rather than per target, so a module's
+          # history reads like a real one: mostly cache hits, the occasional
+          # miss because its own sources changed, and the occasional cold miss.
+          build_seed = :erlang.phash2({project.command_event_id, target_name})
+          sources_changed = rem(build_seed, 7) == 0
+
+          hit_value =
+            cond do
+              sources_changed -> 0
+              rem(build_seed, 11) == 0 -> 0
+              rem(build_seed, 2) == 0 -> 1
+              true -> 2
+            end
+
+          # A changed target hashes differently from the build before it, which
+          # is what makes the miss classify as "changed" rather than "cold".
+          sources_idx = rem(hash_idx + 1 + if(sources_changed, do: div(build_seed, 7), else: 0), 100)
 
           product =
             if is_test_target,
@@ -1873,7 +1890,7 @@ create_xcode_data_for_events = fn events, label ->
           %{
             id: UUIDv7.generate(),
             name: "#{project.name}_#{target_name}",
-            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, hash_idx)),
+            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, sources_idx)),
             binary_cache_hit: if(is_test_target, do: 0, else: hit_value),
             binary_build_duration: 5000 + rem(idx * 17, 25_000),
             selective_testing_hash: if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100))),
@@ -1886,7 +1903,7 @@ create_xcode_data_for_events = fn events, label ->
             product_name: target_name,
             destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
             external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
-            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
+            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, sources_idx)),
             resources_hash:
               if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
             copy_files_hash: "",
@@ -2604,6 +2621,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 
       day_offset = Enum.random(0..400)
       created_at = base_date |> Date.add(-day_offset) |> DateTime.new!(~T[12:00:00.000000]) |> DateTime.to_naive()
+      event_branch = Enum.random(branches)
 
       %{
         id: UUIDv7.generate(),
@@ -2627,9 +2645,9 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
         status: status,
         error_message: nil,
         preview_id: nil,
-        git_ref: nil,
-        git_commit_sha: nil,
-        git_branch: nil,
+        git_ref: "refs/heads/#{event_branch}",
+        git_commit_sha: SeedHelpers.random_hex(40),
+        git_branch: event_branch,
         created_at: created_at,
         updated_at: created_at,
         ran_at: created_at,

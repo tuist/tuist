@@ -42,6 +42,10 @@ defmodule TuistWeb.ModuleCacheModuleLive do
               "analytics-environment",
               "after",
               "before",
+              "builds-branch",
+              "builds-commit",
+              "builds-reason",
+              "builds-order",
               "analytics-date-range",
               "analytics-start-date",
               "analytics-end-date"
@@ -106,6 +110,18 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
+  def handle_event(
+        "search_builds",
+        %{"commit" => commit},
+        %{assigns: %{selected_account: account, selected_project: project, module_name: name}} = socket
+      ) do
+    {:noreply,
+     push_patch(socket,
+       to:
+         "/#{account.name}/#{project.name}/module-cache/modules/#{name}#{builds_filter_patch(socket.assigns.uri, "builds-commit", commit)}"
+     )}
+  end
+
   def handle_info(_event, socket), do: {:noreply, socket}
 
   # The hit rate chart is derived from the same daily counts rather than a
@@ -141,14 +157,23 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
     opts = analytics_opts(socket.assigns)
 
+    socket = assign(socket, builds_filters(params))
+    history_opts = build_history_opts(opts, name, params, socket.assigns)
+
+    project_id = socket.assigns.selected_project.id
+    {start_datetime, end_datetime} = period
+
     socket =
-      assign_async(socket, [:build_history], fn ->
+      assign_async(socket, [:build_history, :cache_branches], fn ->
         {:ok,
          %{
-           build_history:
-             opts
-             |> Keyword.merge(name: name, after: params["after"], before: params["before"])
-             |> Analytics.module_build_history()
+           build_history: Analytics.module_build_history(history_opts),
+           cache_branches:
+             Analytics.cache_branches(
+               project_id: project_id,
+               start_datetime: start_datetime,
+               end_datetime: end_datetime
+             )
          }}
       end)
 
@@ -231,6 +256,56 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       _ -> opts
     end
   end
+
+  defp builds_filters(params) do
+    %{
+      builds_branch: params["builds-branch"] || "any",
+      builds_commit: params["builds-commit"] || "",
+      builds_reason: params["builds-reason"] || "any",
+      builds_order: if(params["builds-order"] == "asc", do: "asc", else: "desc")
+    }
+  end
+
+  defp build_history_opts(opts, name, params, assigns) do
+    Keyword.merge(opts,
+      name: name,
+      after: params["after"],
+      before: params["before"],
+      commit_sha: assigns.builds_commit,
+      order: assigns.builds_order,
+      git_branch: unless_any(assigns.builds_branch),
+      reason: unless_any(assigns.builds_reason)
+    )
+  end
+
+  defp unless_any("any"), do: nil
+  defp unless_any(value), do: value
+
+  def builds_filter_patch(uri, key, value) do
+    query =
+      uri.query
+      |> Query.put(key, value)
+      |> Query.drop("after")
+      |> Query.drop("before")
+
+    "?#{query}"
+  end
+
+  @doc """
+  Patch for the Ran at header, which is the only thing the builds table sorts by.
+  """
+  def builds_order_patch(%{uri: uri, builds_order: order}) do
+    builds_filter_patch(uri, "builds-order", if(order == "asc", do: "desc", else: "asc"))
+  end
+
+  def builds_branch_label("any"), do: dgettext("dashboard_cache", "Any")
+  def builds_branch_label(branch), do: branch
+
+  def builds_reason_label("hit"), do: dgettext("dashboard_cache", "Cached")
+  def builds_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
+  def builds_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
+  def builds_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
+  def builds_reason_label(_), do: dgettext("dashboard_cache", "Any")
 
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")

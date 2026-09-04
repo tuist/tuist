@@ -2011,6 +2011,88 @@ defmodule Tuist.Builds.AnalyticsTest do
       refute page.has_previous_page
     end
 
+    test "filters by branch, commit sha prefix and reason", %{project: project} do
+      on_branch = fn branch, sha, created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            git_commit_sha: sha,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      on_branch.("main", "aaa111", ~N[2024-04-01 10:00:00], :miss, "s1")
+      on_branch.("main", "aaa222", ~N[2024-04-02 10:00:00], :remote, "s1")
+      on_branch.("feature/x", "bbb111", ~N[2024-04-03 10:00:00], :miss, "s9")
+
+      by_branch = Analytics.module_build_history(project_id: project.id, name: "Core", git_branch: "main")
+      assert length(by_branch.rows) == 2
+      assert Enum.all?(by_branch.rows, &(&1.branch == "main"))
+
+      by_sha = Analytics.module_build_history(project_id: project.id, name: "Core", commit_sha: "aaa")
+      assert length(by_sha.rows) == 2
+
+      by_exact_sha = Analytics.module_build_history(project_id: project.id, name: "Core", commit_sha: "aaa222")
+      assert length(by_exact_sha.rows) == 1
+
+      hits = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "hit")
+      assert Enum.map(hits.rows, & &1.hit) == ["remote"]
+
+      cold = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "cold")
+      assert Enum.all?(cold.rows, &(&1.reason == "cold"))
+      refute Enum.empty?(cold.rows)
+    end
+
+    test "orders oldest first and pages through it", %{project: project, build: build} do
+      for day <- 1..6 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first =
+        Analytics.module_build_history(project_id: project.id, name: "Core", order: "asc", limit: 4)
+
+      assert length(first.rows) == 4
+      # Oldest first, so each row is later than the one before it.
+      assert first.rows |> Enum.map(& &1.ran_at) |> Enum.sort() == Enum.map(first.rows, & &1.ran_at)
+      refute first.has_previous_page
+      assert first.has_next_page
+
+      second =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          order: "asc",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(second.rows) == 2
+      assert second.has_previous_page
+      refute second.has_next_page
+      assert List.first(second.rows).ran_at > List.last(first.rows).ran_at
+
+      back =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          order: "asc",
+          limit: 4,
+          before: second.start_cursor
+        )
+
+      assert Enum.map(back.rows, & &1.id) == Enum.map(first.rows, & &1.id)
+    end
+
     test "restricts to CI runs when asked", %{project: project} do
       for {is_ci, sources} <- [{true, "ci"}, {false, "local"}] do
         event =

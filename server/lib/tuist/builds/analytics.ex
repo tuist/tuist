@@ -2506,6 +2506,10 @@ defmodule Tuist.Builds.Analytics do
     * `:name` - Required, the module
     * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
     * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+    * `:git_branch` - When set, restricts to a single branch
+    * `:commit_sha` - When set, matches commit shas starting with it
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"` or `"cold"`
+    * `:order` - `"desc"` (default, newest first) or `"asc"`
     * `:limit` - Rows per page (default 25)
 
   ## Returns
@@ -2527,19 +2531,14 @@ defmodule Tuist.Builds.Analytics do
 
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
+    {reason_sql, reason_params} = build_history_reason_filter(opts)
+    {commit_sql, commit_params} = build_history_commit_filter(opts)
+
+    order = if Keyword.get(opts, :order) == "asc", do: :asc, else: :desc
     {direction, cursor, cursor_params} = build_history_cursor(opts)
+    {cursor_sql, order_sql} = build_history_window(order, direction, cursor)
 
-    {cursor_sql, order_sql} =
-      case {direction, cursor} do
-        {_, nil} ->
-          {"", "ran_at DESC, id DESC"}
-
-        {:after, _} ->
-          {" WHERE (ran_at, id) < ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", "ran_at DESC, id DESC"}
-
-        {:before, _} ->
-          {" WHERE (ran_at, id) > ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", "ran_at ASC, id ASC"}
-      end
+    where_sql = build_history_where([reason_sql, commit_sql, cursor_sql])
 
     params =
       %{
@@ -2551,6 +2550,8 @@ defmodule Tuist.Builds.Analytics do
         limit: limit + 1
       }
       |> Map.merge(filter_params)
+      |> Map.merge(reason_params)
+      |> Map.merge(commit_params)
       |> Map.merge(cursor_params)
 
     query = """
@@ -2602,7 +2603,7 @@ defmodule Tuist.Builds.Analytics do
           ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
         )
       )
-    )#{cursor_sql}
+    )#{where_sql}
     ORDER BY #{order_sql}
     LIMIT {limit:UInt32}
     """
@@ -2610,6 +2611,48 @@ defmodule Tuist.Builds.Analytics do
     case ClickHouseRepo.query(query, params) do
       {:ok, %{rows: rows}} -> build_history_page(rows, direction, cursor, limit)
       _ -> empty_build_history_page()
+    end
+  end
+
+  # Reading a page forwards and reading it backwards are the same query with the
+  # comparison and the order flipped, so the combinations collapse to whichever
+  # direction the cursor walks in.
+  defp build_history_window(order, _direction, nil), do: {"", order_sql(order)}
+
+  defp build_history_window(order, direction, _cursor) do
+    walking = if direction == :after, do: order, else: flip(order)
+    comparison = if walking == :desc, do: "<", else: ">"
+
+    {"(ran_at, id) #{comparison} ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", order_sql(walking)}
+  end
+
+  defp build_history_where(clauses) do
+    case Enum.reject(clauses, &(&1 == "")) do
+      [] -> ""
+      kept -> " WHERE " <> Enum.join(kept, " AND ")
+    end
+  end
+
+  defp order_sql(:asc), do: "ran_at ASC, id ASC"
+  defp order_sql(:desc), do: "ran_at DESC, id DESC"
+
+  defp flip(:asc), do: :desc
+  defp flip(:desc), do: :asc
+
+  defp build_history_reason_filter(opts) do
+    case Keyword.get(opts, :reason) do
+      reason when reason in ~w(hit changed upstream cold) -> {"reason = {reason:String}", %{reason: reason}}
+      _ -> {"", %{}}
+    end
+  end
+
+  defp build_history_commit_filter(opts) do
+    case Keyword.get(opts, :commit_sha) do
+      sha when is_binary(sha) and sha != "" ->
+        {"startsWith(commit_sha, {commit_sha:String})", %{commit_sha: String.downcase(sha)}}
+
+      _ ->
+        {"", %{}}
     end
   end
 
@@ -2640,8 +2683,9 @@ defmodule Tuist.Builds.Analytics do
         }
       end)
 
-    # Walking backwards reads oldest-first, so flip it to render newest-first.
-    rows = if direction == :before, do: Enum.reverse(rows), else: rows
+    # Walking backwards reads the page in reverse, so flip it back into the
+    # order the table is sorted in.
+    rows = if not is_nil(cursor) and direction == :before, do: Enum.reverse(rows), else: rows
 
     {has_previous, has_next} =
       case {direction, cursor} do

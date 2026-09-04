@@ -206,6 +206,27 @@
       flex-direction: column;
       gap: var(--noora-spacing-6);
 
+      & > [data-part="filters"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-6);
+
+        & > form {
+          min-width: 220px;
+          max-width: 320px;
+          flex: 1;
+
+          & .noora-text-input {
+            width: 100%;
+          }
+        }
+      }
+
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
+      }
+
       & > [data-part="skeleton"] {
         display: flex;
         flex-direction: column;
