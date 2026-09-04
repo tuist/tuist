@@ -10,7 +10,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, Uri, Version},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -1074,6 +1074,7 @@ async fn track_http_metrics(
     };
     let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
+    let is_head_request = req.method() == Method::HEAD;
     let request_id = request_id(
         req.headers()
             .get(REQUEST_ID_HEADER)
@@ -1139,12 +1140,19 @@ async fn track_http_metrics(
         .get::<ObservedStreamingResponse>()
         .is_none()
     {
-        let response_bytes = response
-            .headers()
-            .get(axum::http::header::CONTENT_LENGTH)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(0);
+        // A HEAD advertises the length it would have sent and sends none of
+        // it, so reading `Content-Length` here would log bytes that never
+        // reached the client.
+        let response_bytes = if is_head_request {
+            0
+        } else {
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(0)
+        };
         let result = if response.status().is_server_error() {
             "server_error"
         } else {
@@ -1782,6 +1790,7 @@ async fn get_keyvalue(
 async fn get_nx(
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
@@ -1798,6 +1807,7 @@ async fn get_nx(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -1833,6 +1843,7 @@ async fn put_nx(
 async fn get_metro(
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
@@ -1849,6 +1860,7 @@ async fn get_metro(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -1983,6 +1995,7 @@ async fn get_xcode(
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
@@ -2002,6 +2015,7 @@ async fn get_xcode(
         analytics,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -2042,6 +2056,7 @@ async fn get_gradle(
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
@@ -2061,6 +2076,7 @@ async fn get_gradle(
         analytics,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -2134,6 +2150,7 @@ async fn head_module(
 async fn get_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let query = match ModuleQuery::from_params(&params) {
@@ -2151,6 +2168,7 @@ async fn get_module(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -3321,6 +3339,7 @@ async fn get_artifact(
     analytics: Option<ProjectAnalyticsContext<'_>>,
     usage: Option<UsageContext>,
     range_request: RangeRequest<'_>,
+    read: ArtifactRead,
 ) -> Response {
     let lookup_span = if trace_export_active() {
         tracing::info_span!(
@@ -3353,6 +3372,14 @@ async fn get_artifact(
                     return range_not_satisfiable_response(manifest.size);
                 }
             };
+            // A HEAD lands here because axum answers it with the GET route.
+            // Building a body for it would hand Hyper a stream it never polls,
+            // and the drop would book the probe as a transfer that delivered
+            // none of its bytes. The metadata is the whole answer: no stream,
+            // no stream-memory admission, no egress sample.
+            if matches!(read, ArtifactRead::MetadataOnly) {
+                return artifact_metadata_response(&manifest, range);
+            }
             // A streaming response's status is decided when the stream is
             // built, long before a byte reaches the client, so metering here
             // would book an artifact the client may never receive and book it
@@ -4010,6 +4037,19 @@ impl<S> InstrumentedArtifactStream<S> {
         self.yielded_bytes >= self.expected_bytes
     }
 
+    /// How a body that ended without an error should be labelled.
+    ///
+    /// Completion is measured in bytes, not in how the body ended: a source
+    /// that runs out early still promised `Content-Length`, and a client that
+    /// got less than that did not receive the response.
+    fn completion_result(&self) -> &'static str {
+        if self.delivered_in_full() {
+            "ok"
+        } else {
+            "aborted"
+        }
+    }
+
     fn record_once(&mut self, result: &str, error: Option<&str>) {
         if self.recorded {
             return;
@@ -4110,7 +4150,12 @@ where
                 Poll::Ready(Some(Err(error)))
             }
             Poll::Ready(None) => {
-                this.record_once("ok", None);
+                // Reached when the source ends on its own. That is usually a
+                // complete body, but a source shorter than the manifest says
+                // also ends here, and the client is left with a truncated
+                // response rather than a served one.
+                let result = this.completion_result();
+                this.record_once(result, None);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
@@ -4125,11 +4170,7 @@ impl<S> Drop for InstrumentedArtifactStream<S> {
         // the peer went away mid-transfer. Only the second is waste, and
         // conflating them made `result="aborted"` a label for "served by the
         // streaming path" rather than for a transfer nobody received.
-        let result = if self.delivered_in_full() {
-            "ok"
-        } else {
-            "aborted"
-        };
+        let result = self.completion_result();
         self.record_once(result, None);
     }
 }
@@ -4170,6 +4211,37 @@ fn request_range(headers: &HeaderMap) -> RangeRequest<'_> {
 
 fn header_str(headers: &HeaderMap, name: axum::http::header::HeaderName) -> Option<&str> {
     headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+/// Whether a read wants the artifact bytes or only the metadata describing them.
+///
+/// axum answers a HEAD on a GET-only route with the GET handler, so the read
+/// path has to tell the two apart itself.
+#[derive(Clone, Copy)]
+enum ArtifactRead {
+    Bytes,
+    MetadataOnly,
+}
+
+impl ArtifactRead {
+    fn from_method(method: &Method) -> Self {
+        if method == Method::HEAD {
+            Self::MetadataOnly
+        } else {
+            Self::Bytes
+        }
+    }
+}
+
+/// The headers a read would have answered with, and no body.
+///
+/// Same status, validator, length and range headers as the streamed response,
+/// so a client can size a download or test a resume without one being served.
+fn artifact_metadata_response(manifest: &ArtifactManifest, range: ServedRange) -> Response {
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = artifact_response_status(range);
+    apply_artifact_response_headers(&mut response, manifest, range);
+    response
 }
 
 fn artifact_response_status(range: ServedRange) -> StatusCode {
@@ -8462,6 +8534,106 @@ mod tests {
         );
     }
 
+    /// A source that ends early still promised `Content-Length` bytes. Ending
+    /// on `None` rather than on a drop does not make that a served response.
+    #[tokio::test]
+    async fn a_body_whose_source_ends_early_is_not_recorded_as_ok() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![Ok(Bytes::from_static(b"0123"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        // Polled all the way to the terminal `None`, four bytes short.
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="aborted""#),
+            "a truncated body must not count as delivered, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="ok""#),
+            "a truncated body must not record ok, got:\n{rendered}"
+        );
+    }
+
+    /// The terminal `None` and the drop must not both book a completion.
+    #[tokio::test]
+    async fn a_body_polled_to_completion_records_one_sample() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![Ok(Bytes::from_static(b"0123456789"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(
+                r#"kura_artifact_egress_completions_total_total{producer="module",result="ok"} 1"#
+            ),
+            "completion must be booked exactly once, got:\n{rendered}"
+        );
+    }
+
+    /// A failed read stays a failed read: the drop must not relabel it.
+    #[tokio::test]
+    async fn a_failed_body_is_not_relabelled_on_drop() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Err(std::io::Error::other("read failed")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        assert!(stream.next().await.expect("first chunk").is_ok());
+        assert!(stream.next().await.expect("second chunk").is_err());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="error""#),
+            "a failed read must record error, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="aborted""#),
+            "the drop must not relabel a failed read, got:\n{rendered}"
+        );
+    }
+
     fn download_attribution(context: &crate::test_support::TestContext) -> DownloadAttribution {
         DownloadAttribution {
             state: context.state.clone(),
@@ -8662,6 +8834,118 @@ mod tests {
         // A full response must not claim to be partial.
         assert!(response.headers().get("content-range").is_none());
         assert_eq!(response_bytes(response).await, body);
+    }
+
+    /// axum answers a HEAD on a GET-only route with the GET handler. Serving a
+    /// body there would hand Hyper a stream it never polls, and the drop would
+    /// book an existence check as a transfer that delivered nothing — putting
+    /// a floor of probes under `result="aborted"`.
+    #[tokio::test]
+    async fn a_head_read_answers_with_metadata_and_meters_no_egress() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::empty())
+                    .expect("failed to build head request"),
+            )
+            .await
+            .expect("head request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("4096"),
+            "a HEAD must describe the artifact it would have served"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        assert!(response.headers().get("etag").is_some());
+        assert!(response_bytes(response).await.is_empty());
+
+        // Scoped to the egress family: the PUT that seeded the artifact
+        // records a write under the same producer and result labels.
+        let rendered = context.state.metrics.render();
+        assert!(
+            !rendered.contains(r#"kura_artifact_egress_completions_total_total{producer="nx""#),
+            "a HEAD serves no body and must not meter an egress completion, got:\n{rendered}"
+        );
+    }
+
+    /// A HEAD is how a client tests whether a resume is worth starting, so it
+    /// has to answer the range question the same way the GET would.
+    #[tokio::test]
+    async fn a_ranged_head_read_describes_the_window_without_serving_it() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/ranged-key")
+                    .header("range", "bytes=4000-")
+                    .body(Body::empty())
+                    .expect("failed to build ranged head request"),
+            )
+            .await
+            .expect("ranged head request failed");
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 4000-4095/4096")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("96")
+        );
+        assert!(response_bytes(response).await.is_empty());
+    }
+
+    /// A HEAD for something that is not stored is still a miss.
+    #[tokio::test]
+    async fn a_head_read_for_a_missing_artifact_is_not_found() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/absent-key")
+                    .body(Body::empty())
+                    .expect("failed to build head request"),
+            )
+            .await
+            .expect("head request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
