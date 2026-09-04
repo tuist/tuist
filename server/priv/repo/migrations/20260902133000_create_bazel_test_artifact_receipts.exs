@@ -1,6 +1,9 @@
 defmodule Tuist.Repo.Migrations.CreateBazelTestArtifactReceipts do
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
   def change do
     create table(:bazel_test_artifact_receipts, primary_key: false) do
       add :id, :uuid, primary_key: true
@@ -24,7 +27,8 @@ defmodule Tuist.Repo.Migrations.CreateBazelTestArtifactReceipts do
                :artifact_kind,
                :artifact_digest
              ],
-             name: :bazel_test_artifact_receipts_identity_index
+             name: :bazel_test_artifact_receipts_identity_index,
+             concurrently: true
            )
   end
 end

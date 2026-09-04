@@ -20,7 +20,9 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsController do
         receipt = receipt_attributes(project, artifact)
 
         case Bazel.claim_test_artifact_receipt(receipt) do
-          :already_claimed -> accepted(conn, project, artifact)
+          :already_claimed ->
+            accepted(conn, project, artifact)
+
           :claimed ->
             try do
               persist_artifact(conn, project, invocation, artifact, receipt)
