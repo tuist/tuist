@@ -353,10 +353,27 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_slowest_test_cases(%{assigns: %{selected_project: project}} = socket) do
     assign_async(socket, :slowest_test_cases, fn ->
-      # Test cases with too few runs to rank are excluded rather than sorted to
-      # the back, so a project with fewer than five ranked cases gets a short
-      # card instead of one padded with rows rendering as "None".
-      {:ok, %{slowest_test_cases: Tests.list_slowest_test_cases(project.id, 5)}}
+      # `:id` tiebreaker keeps the top-5 order deterministic when several
+      # test cases share the same duration. `:desc_nulls_last` sorts test cases
+      # with too few runs to rank behind the ranked ones, but sorting is not
+      # exclusion: a project with fewer than five ranked cases still fills the
+      # page with unranked ones, and the card would render each as "None". Drop
+      # them, and let the card be short or absent instead.
+      {slowest_test_cases, _meta} =
+        Tests.list_test_cases(
+          project.id,
+          %{
+            page: 1,
+            page_size: 5,
+            order_by: [:duration_p50, :id],
+            order_directions: [:desc_nulls_last, :asc]
+          },
+          preload: [:duration_p50_ms]
+        )
+
+      slowest_test_cases = Enum.reject(slowest_test_cases, &is_nil(&1.duration_p50_ms))
+
+      {:ok, %{slowest_test_cases: slowest_test_cases}}
     end)
   end
 
