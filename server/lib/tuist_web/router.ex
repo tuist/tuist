@@ -7,6 +7,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.OperatorGrant
+  import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
   alias TuistWeb.Marketing.Localization
@@ -1076,6 +1077,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user_for_previews,
+      :mark_public_preview_page,
       :analytics
     ]
 
@@ -1105,6 +1107,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,
+      :mark_public_account_page,
       :require_sso_authentication,
       :analytics
     ]
@@ -1185,6 +1188,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
+      :mark_public_project_page,
       :require_sso_authentication,
       :analytics,
       :require_user_can_read_project

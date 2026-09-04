@@ -471,7 +471,7 @@ defmodule TuistWeb.Authentication do
 
     if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
       do: require_authenticated_user(conn, opts),
-      else: put_public_page_header(conn)
+      else: conn
   end
 
   def require_authenticated_user_for_private_accounts(%{path_params: %{"account_handle" => account_handle}} = conn, opts) do
@@ -479,7 +479,7 @@ defmodule TuistWeb.Authentication do
 
     if is_nil(account) or Authorization.authorize(:account_dashboard_read, nil, account) != :ok,
       do: require_authenticated_user(conn, opts),
-      else: put_public_page_header(conn)
+      else: conn
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
@@ -494,18 +494,12 @@ defmodule TuistWeb.Authentication do
                nil,
                preview.project
              ) == :ok do
-          put_public_page_header(conn)
+          conn
         else
           require_authenticated_user(conn, opts)
         end
     end
   end
-
-  # Marks the response as belonging to a page reachable without sign-in, so
-  # Cloudflare's Advanced Rate Limiting can key its counter on it (rule counts
-  # responses where http.response.headers["x-tuist-public"][0] == "1"). Set
-  # from the auth plugs that gate anonymous access.
-  defp put_public_page_header(conn), do: put_resp_header(conn, "x-tuist-public", "1")
 
   defp put_token_in_session(conn, token) do
     conn
