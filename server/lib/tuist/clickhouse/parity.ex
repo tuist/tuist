@@ -146,7 +146,10 @@ defmodule Tuist.ClickHouse.Parity do
         left = fingerprint(source, table, since, as_of)
         right = fingerprint(target, table, since, as_of)
 
-        %{table: table, source: left, destination: right, matches: left == right}
+        # Two fingerprints that failed identically are not a match. Without
+        # this, a comparison where both sides timed out reports `differing:
+        # []`, and a check that verified nothing would clear a cutover.
+        %{table: table, source: left, destination: right, matches: verified?(left) and verified?(right) and left == right}
       end)
       |> Enum.split_with(& &1.matches)
 
@@ -189,6 +192,9 @@ defmodule Tuist.ClickHouse.Parity do
   rescue
     error -> %{error: Exception.message(error)}
   end
+
+  defp verified?(%{error: _}), do: false
+  defp verified?(_fingerprint), do: true
 
   defp window_clause(nil, _since, _as_of), do: ""
 

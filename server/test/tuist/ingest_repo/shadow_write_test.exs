@@ -1,6 +1,8 @@
 defmodule Tuist.IngestRepo.ShadowWriteTest do
   use ExUnit.Case, async: true
 
+  use Mimic
+
   alias Tuist.IngestRepo.ShadowWrite
 
   describe "write?/1" do
@@ -59,6 +61,45 @@ defmodule Tuist.IngestRepo.ShadowWriteTest do
       assert :ok = ShadowWrite.mirror_statement("INSERT INTO command_events FORMAT RowBinary", [], [])
       assert :ok = ShadowWrite.mirror_insert_all("command_events", [], [])
       assert :ok = ShadowWrite.mirror_insert(%{}, [])
+    end
+  end
+
+  describe "mirroring a raw write" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+      :ok
+    end
+
+    test "does not let a missing task supervisor reach the caller" do
+      # The supervisor is absent under `bin/tuist eval`, where a migration's
+      # own INSERT takes this path, and during shutdown before the ingest
+      # buffers make their final flush. Starting a child is a call into it, so
+      # its absence is an exit, and an exit here would surface in a request
+      # whose primary write already succeeded.
+      refute Process.whereis(Tuist.IngestRepo.ShadowWrite.TaskSupervisor)
+
+      expect(Tuist.ShadowIngestRepo, :query, fn _sql, _params, _opts -> {:ok, %{rows: []}} end)
+
+      assert :ok = ShadowWrite.mirror_statement("INSERT INTO t VALUES (1)", [], [])
+    end
+
+    test "treats a returned error tuple as a failure rather than a success" do
+      # `query/3` answers `{:error, exception}` instead of raising, so an
+      # unmatched result would count a rejected write as mirrored and never
+      # retry it, which is the silent loss the counter exists to surface.
+      test_process = self()
+
+      stub(Tuist.ShadowIngestRepo, :query, fn _sql, _params, _opts ->
+        send(test_process, :attempted)
+        {:error, %Ch.Error{code: 60, message: "UNKNOWN_TABLE"}}
+      end)
+
+      ShadowWrite.mirror_statement("ALTER TABLE t DELETE WHERE 1", [], [])
+
+      # Retried rather than accepted: three attempts, not one.
+      assert_received :attempted
+      assert_received :attempted
+      assert_received :attempted
     end
   end
 end

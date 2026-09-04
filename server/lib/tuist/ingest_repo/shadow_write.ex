@@ -85,6 +85,10 @@ defmodule Tuist.IngestRepo.ShadowWrite do
 
   @attempts 3
 
+  # How long a mutation waits for the inserts before it, in the request that
+  # issued it.
+  @drain_timeout_ms 5_000
+
   defmacro __before_compile__(_env) do
     quote do
       alias Tuist.IngestRepo.ShadowWrite
@@ -114,6 +118,12 @@ defmodule Tuist.IngestRepo.ShadowWrite do
       if kind == "insert" do
         detach(run, kind)
       else
+        # Mutations are ordered against the inserts that came before them, not
+        # merely run synchronously. Making the delete itself synchronous is not
+        # enough: the inserts it is meant to erase are detached tasks that may
+        # still be queued, so the delete can overtake them and the row it
+        # removed is written back immediately afterwards.
+        await_inflight_mirrors()
         mirror(run, kind)
       end
     end
@@ -169,11 +179,59 @@ defmodule Tuist.IngestRepo.ShadowWrite do
         Logger.error("Shadow ClickHouse write (#{kind}) could not start: #{inspect(reason)}")
         :error
     end
+  catch
+    # Starting a child is a call into the supervisor, so its absence is an
+    # exit rather than an error tuple, and an exit here would reach the
+    # caller: a request whose primary write has already succeeded, or a
+    # release task that never started the supervision tree at all. Both are
+    # cases where the mirror must not be the thing that fails.
+    #
+    # It runs inline instead of being dropped. The supervisor is missing
+    # exactly where latency does not matter: under `bin/tuist eval`, and
+    # during shutdown once it has stopped but the ingest buffers have not yet
+    # made their final flush.
+    :exit, _reason -> mirror(fun, kind)
+  end
+
+  # Bounded, because this runs in the request that issued the mutation, and a
+  # mirror that is wedged must not hold that request open indefinitely. Timing
+  # out means the delete goes ahead unordered, which is the same risk as
+  # before and strictly rarer.
+  defp await_inflight_mirrors do
+    deadline = System.monotonic_time(:millisecond) + @drain_timeout_ms
+
+    @supervisor
+    |> Task.Supervisor.children()
+    |> Enum.each(fn pid ->
+      remaining = deadline - System.monotonic_time(:millisecond)
+
+      if remaining > 0 do
+        reference = Process.monitor(pid)
+
+        receive do
+          {:DOWN, ^reference, :process, ^pid, _reason} -> :ok
+        after
+          remaining -> Process.demonitor(reference, [:flush])
+        end
+      end
+    end)
+  catch
+    :exit, _reason -> :ok
   end
 
   defp mirror(fun, kind, attempt \\ 1) do
-    fun.()
-    :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :ok})
+    # Matched rather than ignored. The raw mirrors call `query/3`, which
+    # answers `{:error, exception}` instead of raising, so a rejected write
+    # would otherwise be counted as a success and never retried: exactly the
+    # silent loss the counter exists to make visible. This covers the buffer
+    # flushes and the mutation-based deletes.
+    case fun.() do
+      {:error, error} ->
+        retry_or_give_up(fun, kind, attempt, "was rejected: #{inspect(error)}")
+
+      _ ->
+        :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :ok})
+    end
   rescue
     error -> retry_or_give_up(fun, kind, attempt, "failed: #{Exception.message(error)}")
   catch
