@@ -1,0 +1,36 @@
+{{- if and .Values.server.enabled .Values.server.bazelEvents.enabled }}
+{{- $serviceName := include "tuist.componentName" (dict "root" . "component" "server") }}
+{{- $ingress := .Values.server.bazelEvents }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-bazel-events") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if $ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ required "server.bazelEvents.host is required when its ingress is enabled" $ingress.host | quote }}
+      secretName: {{ $ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ required "server.bazelEvents.host is required when its ingress is enabled" $ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $serviceName }}
+                port:
+                  name: http
+{{- end }}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
@@ -82,14 +83,21 @@ func (s *creationReservationStore) reconcile(
 }
 
 type provisioningAdmission struct {
-	available       int
-	pendingForPool  int
-	pendingForFleet int
-	cap             int
-	fleetCap        int
-	poolCap         int
-	healthyNodes    int
-	blockedReason   string
+	available         int
+	pendingForPool    int
+	pendingForFleet   int
+	awaitingPlacement int
+	perNode           int
+	cap               int
+	fleetCap          int
+	poolCap           int
+	healthyNodes      int
+	blockedReason     string
+	// limitedBy names the term that capped a non-zero `available`. The
+	// admission metric reports a reason whenever a replica gap survives the
+	// tick, and a gap larger than the slots on offer is the ordinary way to
+	// ramp, so without this it would attribute every ramp to the ceiling.
+	limitedBy string
 }
 
 func isLinuxKataPool(pool *tuistv1.RunnerPool) bool {
@@ -124,6 +132,21 @@ func unschedulableSince(pod *corev1.Pod) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// awaitingPlacement is a provisioning Pod the scheduler is about to bind: it
+// has no node yet and has not been rejected. These are the only Pods that can
+// arrive on one kubelet together, so they are what the burst gate counts. A
+// Pod the scheduler has already refused is not in this set — it binds one at a
+// time as capacity frees up, and counting it would let a shape no node can
+// seat block creation fleet-wide for a whole start timeout, which is the
+// starvation the per-pool share exists to prevent.
+func awaitingPlacement(pod *corev1.Pod) bool {
+	if pod.Spec.NodeName != "" {
+		return false
+	}
+	_, rejected := unschedulableSince(pod)
+	return !rejected
+}
+
 func (r *RunnerPoolReconciler) provisioningAdmission(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -134,15 +157,15 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	}
 
 	poolNames := map[string]struct{}{pool.Name: {}}
-	capN := int(pool.Spec.Provisioning.MaxConcurrentPerFleetSelectorOrDefault())
+	perNode := int(pool.Spec.Provisioning.MaxConcurrentPerNodeOrDefault())
 	for i := range pools.Items {
 		sibling := &pools.Items[i]
 		if !isLinuxKataPool(sibling) || sibling.Spec.FleetSelector != pool.Spec.FleetSelector {
 			continue
 		}
 		poolNames[sibling.Name] = struct{}{}
-		if siblingCap := int(sibling.Spec.Provisioning.MaxConcurrentPerFleetSelectorOrDefault()); siblingCap < capN {
-			capN = siblingCap
+		if siblingPerNode := int(sibling.Spec.Provisioning.MaxConcurrentPerNodeOrDefault()); siblingPerNode < perNode {
+			perNode = siblingPerNode
 		}
 	}
 
@@ -154,15 +177,16 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		return provisioningAdmission{}, fmt.Errorf("list fleet runner pods: %w", err)
 	}
 
-	// Every provisioning Pod counts, bound or not. An unbound Pod is one
-	// the scheduler may bind at any moment, with no further admission
-	// check in between, so excluding it would let a backlog accumulate and
-	// then start together the instant capacity returns — exactly the
-	// simultaneous-sandbox-start burst this ceiling exists to prevent.
-	// Pods that can never bind are released by unschedulableTimedOut
-	// rather than by being discounted here.
+	// Every provisioning Pod counts against the ceiling, bound or not. An
+	// unbound Pod is one the scheduler may bind at any moment, with no
+	// further admission check in between, so excluding it would let a
+	// backlog accumulate and then start together the instant capacity
+	// returns — exactly the simultaneous-sandbox-start burst this ceiling
+	// exists to prevent. Pods that can never bind are released by
+	// unschedulableTimedOut rather than by being discounted here.
 	observed := make(map[string]struct{}, len(pods.Items))
 	pendingForFleet := 0
+	placing := 0
 	pendingByPool := make(map[string]int, len(poolNames))
 	aliveByPool := make(map[string]int, len(poolNames))
 	for i := range pods.Items {
@@ -180,6 +204,9 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		}
 		pendingForFleet++
 		pendingByPool[owner]++
+		if awaitingPlacement(pod) {
+			placing++
+		}
 	}
 
 	reserved, reservedByPool := r.creationReservations.reconcile(
@@ -189,6 +216,11 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		r.now(),
 	)
 	pendingForFleet += reserved
+	// A reservation is a Pod created moments ago, so it has no node yet and
+	// the scheduler has not refused it: it is awaiting placement by
+	// definition, and counting it is what makes the burst gate hold across
+	// sibling pools inside the informer-cache window.
+	placing += reserved
 	for name, count := range reservedByPool {
 		pendingByPool[name] += count
 	}
@@ -234,23 +266,6 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 			siblingsNeedingSlot++
 		}
 	}
-	poolCap := capN - siblingsNeedingSlot
-	if poolCap < 1 {
-		poolCap = 1
-	}
-
-	// A starved pool is owed a slot, so it measures itself against the whole
-	// ceiling; every other pool measures itself against the ceiling minus the
-	// slots its starved siblings are owed. The floor of 1 keeps the fleet
-	// making progress when more pools are starved than there are slots: the
-	// first Pod to start frees the count for the next one.
-	fleetCap := capN
-	if !needsSlot[pool.Name] {
-		fleetCap = capN - siblingsNeedingSlot
-		if fleetCap < 1 {
-			fleetCap = 1
-		}
-	}
 
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
@@ -262,13 +277,49 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	metrics.RecordFleetNodes(pool.Spec.FleetSelector, pool.Spec.OS, healthyNodes, filtered)
 	metrics.RecordPendingProvisioningPods(pool.Name, pendingForPool)
 
+	// The ceiling is per-node arithmetic, not a constant. What it protects is
+	// one kubelet and one Kata runtime being asked to bring up too many
+	// microVMs at once; that risk is per host, so the budget has to be too,
+	// and a fleet-wide constant makes added hardware raise capacity without
+	// raising start throughput. Measured on 2026-09-03: 62 jobs queued across
+	// the Linux pools with one node at 0% CPU and 0% memory and two more near
+	// half, every pool refused with `fleet_cap`.
+	//
+	// summarizeFleetNodes already excludes cordoned, NotReady and pressured
+	// nodes, so a node taken out of service takes its share of the start
+	// budget with it — the remedy for a host that accepts sandboxes it cannot
+	// start stays a cordon, and now it also stops that host inflating the
+	// ceiling.
+	ceiling := perNode * healthyNodes
+	metrics.RecordFleetProvisioningCeiling(pool.Spec.FleetSelector, pool.Spec.OS, ceiling)
+
+	poolCap := ceiling - siblingsNeedingSlot
+	if poolCap < 1 {
+		poolCap = 1
+	}
+
+	// A starved pool is owed a slot, so it measures itself against the whole
+	// ceiling; every other pool measures itself against the ceiling minus the
+	// slots its starved siblings are owed. The floor of 1 keeps the fleet
+	// making progress when more pools are starved than there are slots: the
+	// first Pod to start frees the count for the next one.
+	fleetCap := ceiling
+	if !needsSlot[pool.Name] {
+		fleetCap = ceiling - siblingsNeedingSlot
+		if fleetCap < 1 {
+			fleetCap = 1
+		}
+	}
+
 	admission := provisioningAdmission{
-		pendingForPool:  pendingForPool,
-		pendingForFleet: pendingForFleet,
-		cap:             capN,
-		fleetCap:        fleetCap,
-		poolCap:         poolCap,
-		healthyNodes:    healthyNodes,
+		pendingForPool:    pendingForPool,
+		pendingForFleet:   pendingForFleet,
+		awaitingPlacement: placing,
+		perNode:           perNode,
+		cap:               ceiling,
+		fleetCap:          fleetCap,
+		poolCap:           poolCap,
+		healthyNodes:      healthyNodes,
 	}
 	if healthyNodes == 0 {
 		admission.blockedReason = "no_healthy_node"
@@ -282,9 +333,30 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		admission.blockedReason = "pool_share"
 		return admission, nil
 	}
+	// The ceiling bounds how many sandboxes are coming up across the fleet;
+	// it does not bound how many land on one host, because the controller
+	// does not place Pods and steering them was tried and dropped (see the
+	// per-node circuit breaker in AGENTS.md). What it can bound is how many
+	// are handed to the scheduler at once, and a batch with no nodes yet is
+	// exactly the batch that can arrive on one kubelet together — the
+	// scheduler prefers the least-allocated node, which on a fleet with an
+	// idle host means all of them. Capping the in-flight unplaced set at one
+	// node's budget makes the worst case one node's worth, and costs nothing
+	// in steady state: those Pods bind within a second or two, so the gate
+	// clears long before the next five-second tick.
+	if placing >= perNode {
+		admission.blockedReason = "placement_burst"
+		return admission, nil
+	}
 	admission.available = fleetCap - pendingForFleet
+	admission.limitedBy = "fleet_cap"
 	if share := poolCap - pendingForPool; share < admission.available {
 		admission.available = share
+		admission.limitedBy = "pool_share"
+	}
+	if burst := perNode - placing; burst < admission.available {
+		admission.available = burst
+		admission.limitedBy = "placement_burst"
 	}
 	return admission, nil
 }
@@ -367,6 +439,17 @@ func linuxProvisioningStartedAt(pod *corev1.Pod) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+// nodeMissing reports whether the Pod's node is gone from the API. A Pod that
+// never scheduled has no node to have owned anything on it. Only a definitive
+// NotFound counts: a transient API error proves nothing, and treating it as
+// "gone" would strip a finalizer whose owner is alive and mid-cleanup.
+func (r *RunnerPoolReconciler) nodeMissing(ctx context.Context, nodeName string) bool {
+	if nodeName == "" {
+		return true
+	}
+	return apierrors.IsNotFound(r.Get(ctx, client.ObjectKey{Name: nodeName}, &corev1.Node{}))
 }
 
 func (r *RunnerPoolReconciler) nodeConditionSummary(ctx context.Context, nodeName string) string {

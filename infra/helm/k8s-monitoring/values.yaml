@@ -636,6 +636,13 @@ k8s-monitoring:
   telemetryServices:
     kube-state-metrics:
       deploy: true
+      # kube_node_labels carries only the kubernetes.io/* labels by default.
+      # The Kura region recording rules in alerts.md read a node's CAPI pool
+      # from it, which is what a KuraInstance's nodeSelector pins
+      # (Tuist.Kura.Regions node_pool, one pool per region), so that a node
+      # counts towards its region's capacity before a cache pod lands on it.
+      metricLabelsAllowlist:
+        - nodes=[node.cluster.x-k8s.io/pool]
     node-exporter:
       deploy: true
       # Setting tolerations overrides the subchart's broad default
@@ -1635,8 +1642,9 @@ k8s-monitoring:
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
         // bundled into the server's JavaScript posts here through the tuist.dev
-        // Ingress (server.faro in the tuist chart routes /-/faro at this port
-        // via an ExternalName Service), so the request stays same-origin.
+        // Ingress (server.faro in the tuist chart routes /-/faro/collect at
+        // this port via an ExternalName Service), so the request stays
+        // same-origin.
         //
         // Web vitals arrive as `kind=measurement` entries whose logfmt line
         // carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert

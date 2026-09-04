@@ -250,6 +250,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
+  bazelEvents:
+    enabled: true
+    host: build-staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
   autoscaling:
     enabled: false
 

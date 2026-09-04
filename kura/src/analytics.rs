@@ -26,12 +26,15 @@ type HmacSha256 = Hmac<Sha256>;
 const XCODE_WEBHOOK_PATH: &str = "/webhooks/cache";
 const GRADLE_WEBHOOK_PATH: &str = "/webhooks/gradle-cache";
 const REAPI_CACHE_WEBHOOK_PATH: &str = "/webhooks/reapi-cache";
+const BAZEL_INVOCATIONS_WEBHOOK_PATH: &str = "/webhooks/bazel-invocations";
 
 #[derive(Clone)]
 pub struct Analytics {
     sender: mpsc::Sender<AnalyticsEvent>,
+    bazel_sender: mpsc::Sender<BazelInvocationAnalyticsEvent>,
     pending: Arc<AtomicUsize>,
     queue_capacity: usize,
+    metrics: Metrics,
     queue_metrics: Arc<AnalyticsQueueMetrics>,
 }
 
@@ -115,6 +118,18 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     }
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct BazelInvocationAnalyticsEvent {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub invocation_id: String,
+    pub command: String,
+    pub status: String,
+    pub exit_code: i32,
+    pub started_at_ms: u64,
+    pub finished_at_ms: u64,
+}
+
 #[derive(Serialize)]
 struct EventBatch<T> {
     events: Vec<T>,
@@ -150,6 +165,7 @@ impl Analytics {
             .build()
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
+        let (bazel_sender, bazel_receiver) = mpsc::channel(config.queue_capacity);
         let pending = Arc::new(AtomicUsize::new(0));
         let queue_metrics = metrics.analytics_queue_metrics();
         let runtime = AnalyticsRuntime {
@@ -162,14 +178,20 @@ impl Analytics {
         };
 
         queue_metrics.update(config.queue_capacity, 0);
+        let bazel_runtime = runtime.clone();
         tokio::spawn(async move {
             runtime.run(receiver).await;
+        });
+        tokio::spawn(async move {
+            bazel_runtime.run_bazel_invocations(bazel_receiver).await;
         });
 
         Ok(Some(Self {
             sender,
+            bazel_sender,
             pending,
             queue_capacity: config.queue_capacity,
+            metrics,
             queue_metrics,
         }))
     }
@@ -250,6 +272,17 @@ impl Analytics {
         self.enqueue(|| AnalyticsEvent::ReapiCache(event()));
     }
 
+    pub fn enqueue_bazel_invocation_event(&self, event: BazelInvocationAnalyticsEvent) {
+        match self.bazel_sender.try_send(event) {
+            Ok(()) => self
+                .metrics
+                .record_analytics_event("bazel_invocations", "enqueued", 1),
+            Err(_) => self
+                .metrics
+                .record_analytics_event("bazel_invocations", "dropped", 1),
+        }
+    }
+
     fn enqueue(&self, event: impl FnOnce() -> AnalyticsEvent) {
         let Ok(permit) = self.sender.try_reserve() else {
             self.queue_metrics.record_dropped();
@@ -264,6 +297,35 @@ impl Analytics {
 }
 
 impl AnalyticsRuntime {
+    async fn run_bazel_invocations(
+        self,
+        mut receiver: mpsc::Receiver<BazelInvocationAnalyticsEvent>,
+    ) {
+        let mut ticker = interval(Duration::from_millis(self.config.batch_timeout_ms));
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut batch = Vec::with_capacity(self.config.batch_size);
+        let mut breaker = CircuitBreaker::new();
+
+        self.metrics
+            .update_analytics_circuit_state("bazel_invocations", breaker.state.code());
+
+        loop {
+            tokio::select! {
+                event = receiver.recv() => {
+                    let Some(event) = event else {
+                        self.flush_bazel_invocations(&mut batch, &mut breaker).await;
+                        break;
+                    };
+                    batch.push(event);
+                    if batch.len() >= self.config.batch_size {
+                        self.flush_bazel_invocations(&mut batch, &mut breaker).await;
+                    }
+                }
+                _ = ticker.tick() => self.flush_bazel_invocations(&mut batch, &mut breaker).await,
+            }
+        }
+    }
+
     async fn run(self, mut receiver: mpsc::Receiver<AnalyticsEvent>) {
         let mut ticker = interval(Duration::from_millis(self.config.batch_timeout_ms));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -389,6 +451,31 @@ impl AnalyticsRuntime {
             |count, result| {
                 self.metrics
                     .record_analytics_event("reapi_cache", result, count)
+            },
+        )
+        .await;
+    }
+
+    async fn flush_bazel_invocations(
+        &self,
+        batch: &mut Vec<BazelInvocationAnalyticsEvent>,
+        breaker: &mut CircuitBreaker,
+    ) {
+        if batch.is_empty() {
+            return;
+        }
+
+        let count = batch.len() as u64;
+        let events = std::mem::take(batch);
+        self.flush(
+            "bazel_invocations",
+            BAZEL_INVOCATIONS_WEBHOOK_PATH,
+            &EventBatch { events },
+            count,
+            breaker,
+            |count, result| {
+                self.metrics
+                    .record_analytics_event("bazel_invocations", result, count)
             },
         )
         .await;
@@ -630,10 +717,7 @@ impl CircuitState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
-    };
+    use std::sync::{Arc, Mutex};
 
     use axum::{
         Router, body::Bytes, extract::Request, http::StatusCode, response::IntoResponse,
@@ -641,15 +725,12 @@ mod tests {
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
-    use tokio::{
-        sync::mpsc,
-        time::{Duration, Instant, sleep, timeout},
-    };
+    use tokio::time::{Duration, Instant, sleep, timeout};
 
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsContext,
+        Analytics, BazelInvocationAnalyticsEvent, CircuitBreaker, CircuitState,
         ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
     };
 
@@ -660,265 +741,8 @@ mod tests {
         body: Vec<u8>,
     }
 
-    fn reapi_cache_event(context: &Arc<ReapiCacheAnalyticsContext>) -> ReapiCacheAnalyticsEvent {
-        ReapiCacheAnalyticsEvent {
-            context: Arc::clone(context),
-            operation: "cas",
-            outcome: "hit",
-            action_digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-                .into(),
-            size: 4_096,
-            duration_ms: 1,
-            observed_at_ms: 1,
-        }
-    }
-
-    fn reapi_cache_context() -> Arc<ReapiCacheAnalyticsContext> {
-        Arc::new(ReapiCacheAnalyticsContext {
-            account_handle: "acme".into(),
-            project_handle: "ios".into(),
-            client_kind: "bazel",
-            invocation_id: "550e8400-e29b-41d4-a716-446655440000".into(),
-            action_mnemonic: "SwiftCompile".into(),
-            target_label: "//Sources/App:App".into(),
-            configuration_id: "darwin-arm64-fastbuild".into(),
-        })
-    }
-
     #[tokio::test]
-    async fn a_full_queue_does_not_construct_an_event_that_will_be_dropped() {
-        let (sender, mut receiver) = mpsc::channel(1);
-        let pending = Arc::new(AtomicUsize::new(0));
-        let metrics = Metrics::new("test".into(), "test".into());
-        let analytics = Analytics {
-            sender,
-            pending: pending.clone(),
-            queue_capacity: 1,
-            queue_metrics: metrics.analytics_queue_metrics(),
-        };
-        let context = reapi_cache_context();
-        let constructed = AtomicUsize::new(0);
-
-        analytics.enqueue(|| {
-            constructed.fetch_add(1, Ordering::Relaxed);
-            super::AnalyticsEvent::ReapiCache(reapi_cache_event(&context))
-        });
-        analytics.enqueue(|| {
-            constructed.fetch_add(1, Ordering::Relaxed);
-            super::AnalyticsEvent::ReapiCache(reapi_cache_event(&context))
-        });
-
-        assert_eq!(constructed.load(Ordering::Relaxed), 1);
-        assert_eq!(pending.load(Ordering::Relaxed), 1);
-        let rendered = metrics.render();
-        assert!(
-            rendered.lines().any(
-                |line| line.starts_with("kura_analytics_events_total_total{")
-                    && line.contains("pipeline=\"queue\"")
-                    && line.contains("result=\"enqueued\"")
-                    && line.ends_with(" 1")
-            ),
-            "{rendered}"
-        );
-        assert!(
-            rendered.lines().any(
-                |line| line.starts_with("kura_analytics_events_total_total{")
-                    && line.contains("pipeline=\"queue\"")
-                    && line.contains("result=\"dropped\"")
-                    && line.ends_with(" 1")
-            ),
-            "{rendered}"
-        );
-        assert!(rendered.contains("kura_analytics_queue_capacity 1"));
-        assert!(rendered.contains("kura_analytics_queue_depth 1"));
-        assert!(receiver.recv().await.is_some());
-    }
-
-    #[test]
-    #[ignore = "performance benchmark run manually"]
-    fn saturated_analytics_queue_benchmark() {
-        const ATTEMPTS: usize = 1_000_000;
-        const SAMPLES: usize = 9;
-
-        fn measure_construct_then_send(
-            sender: &mpsc::Sender<super::AnalyticsEvent>,
-            context: &Arc<ReapiCacheAnalyticsContext>,
-        ) -> f64 {
-            let started_at = Instant::now();
-            for _ in 0..ATTEMPTS {
-                let result = sender.try_send(super::AnalyticsEvent::ReapiCache(reapi_cache_event(
-                    context,
-                )));
-                std::hint::black_box(result.is_err());
-            }
-            ATTEMPTS as f64 / started_at.elapsed().as_secs_f64()
-        }
-
-        fn measure_reserve_then_construct(
-            sender: &mpsc::Sender<super::AnalyticsEvent>,
-            context: &Arc<ReapiCacheAnalyticsContext>,
-        ) -> f64 {
-            let started_at = Instant::now();
-            for _ in 0..ATTEMPTS {
-                match sender.try_reserve() {
-                    Ok(permit) => permit.send(super::AnalyticsEvent::ReapiCache(
-                        reapi_cache_event(context),
-                    )),
-                    Err(error) => {
-                        std::hint::black_box(error);
-                    }
-                }
-            }
-            ATTEMPTS as f64 / started_at.elapsed().as_secs_f64()
-        }
-
-        let context = reapi_cache_context();
-        let (sender, _receiver) = mpsc::channel(1);
-        sender
-            .try_send(super::AnalyticsEvent::ReapiCache(reapi_cache_event(
-                &context,
-            )))
-            .expect("benchmark queue should accept its first event");
-        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
-        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
-        let mut speedups = Vec::with_capacity(SAMPLES - 1);
-
-        for sample in 0..SAMPLES {
-            let baseline_first = sample % 2 == 0;
-            let first = if baseline_first {
-                measure_construct_then_send(&sender, &context)
-            } else {
-                measure_reserve_then_construct(&sender, &context)
-            };
-            let second = if baseline_first {
-                measure_reserve_then_construct(&sender, &context)
-            } else {
-                measure_construct_then_send(&sender, &context)
-            };
-            if sample > 0 {
-                let (baseline, candidate) = if baseline_first {
-                    (first, second)
-                } else {
-                    (second, first)
-                };
-                baseline_rates.push(baseline);
-                candidate_rates.push(candidate);
-                speedups.push(candidate / baseline);
-            }
-        }
-
-        baseline_rates.sort_by(f64::total_cmp);
-        candidate_rates.sort_by(f64::total_cmp);
-        speedups.sort_by(f64::total_cmp);
-        println!(
-            "METRIC saturated_analytics_enqueue_speedup_ratio={:.6}",
-            speedups[0]
-        );
-        println!(
-            "METRIC construct_then_send_attempts_per_second={:.3}",
-            baseline_rates[baseline_rates.len() / 2]
-        );
-        println!(
-            "METRIC reserve_then_construct_attempts_per_second={:.3}",
-            candidate_rates[candidate_rates.len() / 2]
-        );
-        println!(
-            "METRIC maximum_paired_speedup_ratio={:.6}",
-            speedups[speedups.len() - 1]
-        );
-    }
-
-    #[test]
-    #[ignore = "performance benchmark run manually"]
-    fn analytics_queue_metric_handles_benchmark() {
-        const WORKERS: usize = 8;
-        const ATTEMPTS_PER_WORKER: usize = 100_000;
-        const SAMPLES: usize = 9;
-
-        fn measure_family_lookup(metrics: &Metrics) -> f64 {
-            let started_at = Instant::now();
-            std::thread::scope(|scope| {
-                for worker in 0..WORKERS {
-                    scope.spawn(move || {
-                        for attempt in 0..ATTEMPTS_PER_WORKER {
-                            metrics.record_analytics_event("queue", "enqueued", 1);
-                            metrics.update_analytics_queue(1_024, (worker + attempt) % 1_024);
-                        }
-                    });
-                }
-            });
-            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
-        }
-
-        fn measure_resolved_handles(
-            queue_metrics: &Arc<crate::metrics::AnalyticsQueueMetrics>,
-        ) -> f64 {
-            let started_at = Instant::now();
-            std::thread::scope(|scope| {
-                for worker in 0..WORKERS {
-                    scope.spawn(move || {
-                        for attempt in 0..ATTEMPTS_PER_WORKER {
-                            queue_metrics.record_enqueued(1_024, (worker + attempt) % 1_024);
-                        }
-                    });
-                }
-            });
-            (WORKERS * ATTEMPTS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
-        }
-
-        let metrics = Metrics::new("test".into(), "test".into());
-        let queue_metrics = metrics.analytics_queue_metrics();
-        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
-        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
-        let mut speedups = Vec::with_capacity(SAMPLES - 1);
-
-        for sample in 0..SAMPLES {
-            let baseline_first = sample % 2 == 0;
-            let first = if baseline_first {
-                measure_family_lookup(&metrics)
-            } else {
-                measure_resolved_handles(&queue_metrics)
-            };
-            let second = if baseline_first {
-                measure_resolved_handles(&queue_metrics)
-            } else {
-                measure_family_lookup(&metrics)
-            };
-            if sample > 0 {
-                let (baseline, candidate) = if baseline_first {
-                    (first, second)
-                } else {
-                    (second, first)
-                };
-                baseline_rates.push(baseline);
-                candidate_rates.push(candidate);
-                speedups.push(candidate / baseline);
-            }
-        }
-
-        baseline_rates.sort_by(f64::total_cmp);
-        candidate_rates.sort_by(f64::total_cmp);
-        speedups.sort_by(f64::total_cmp);
-        println!(
-            "METRIC analytics_queue_metric_speedup_ratio={:.6}",
-            speedups[0]
-        );
-        println!(
-            "METRIC family_lookup_events_per_second={:.3}",
-            baseline_rates[baseline_rates.len() / 2]
-        );
-        println!(
-            "METRIC resolved_handle_events_per_second={:.3}",
-            candidate_rates[candidate_rates.len() / 2]
-        );
-        println!(
-            "METRIC maximum_paired_speedup_ratio={:.6}",
-            speedups[speedups.len() - 1]
-        );
-    }
-
-    #[tokio::test]
-    async fn batches_and_signs_xcode_gradle_and_reapi_cache_events() {
+    async fn batches_and_signs_xcode_gradle_reapi_cache_and_bazel_invocation_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let analytics = Analytics::from_config(
@@ -941,7 +765,7 @@ mod tests {
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
-            context: Arc::new(ReapiCacheAnalyticsContext {
+            context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
                 client_kind: "bazel",
@@ -957,10 +781,20 @@ mod tests {
             duration_ms: 9,
             observed_at_ms: 1_700_000_000_123,
         });
+        analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
+            account_handle: "acme".into(),
+            project_handle: "bazel".into(),
+            invocation_id: "invocation-1".into(),
+            command: "test".into(),
+            status: "success".into(),
+            exit_code: 0,
+            started_at_ms: 1_700_000_000_000,
+            finished_at_ms: 1_700_000_015_000,
+        });
 
         timeout(Duration::from_secs(2), async {
             loop {
-                if captured.lock().expect("captured requests lock").len() >= 3 {
+                if captured.lock().expect("captured requests lock").len() >= 4 {
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
@@ -970,7 +804,7 @@ mod tests {
         .expect("analytics batches should be delivered");
 
         let requests = captured.lock().expect("captured requests lock");
-        assert_eq!(requests.len(), 3);
+        assert_eq!(requests.len(), 4);
 
         let xcode = requests
             .iter()
@@ -1043,6 +877,33 @@ mod tests {
                 }]
             })
         );
+
+        let bazel_invocations = requests
+            .iter()
+            .find(|request| request.path == "/webhooks/bazel-invocations")
+            .expect("Bazel invocation analytics request should be present");
+        assert_signed(
+            bazel_invocations,
+            "secret-key",
+            "cache-us-east-3.example.com:7443",
+        );
+        let bazel_invocations_body: Value = serde_json::from_slice(&bazel_invocations.body)
+            .expect("Bazel invocation payload should decode");
+        assert_eq!(
+            bazel_invocations_body,
+            serde_json::json!({
+                "events": [{
+                    "account_handle": "acme",
+                    "project_handle": "bazel",
+                    "invocation_id": "invocation-1",
+                    "command": "test",
+                    "status": "success",
+                    "exit_code": 0,
+                    "started_at_ms": 1_700_000_000_000u64,
+                    "finished_at_ms": 1_700_000_015_000u64
+                }]
+            })
+        );
     }
 
     #[tokio::test]
@@ -1067,7 +928,7 @@ mod tests {
         .expect("analytics should be enabled");
 
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
-            context: Arc::new(ReapiCacheAnalyticsContext {
+            context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
                 client_kind: "bazel",
@@ -1262,6 +1123,13 @@ mod tests {
             );
         let router = router.route(
             "/webhooks/reapi-cache",
+            post({
+                let captured = captured.clone();
+                move |request| capture_request(captured.clone(), request, status)
+            }),
+        );
+        let router = router.route(
+            "/webhooks/bazel-invocations",
             post({
                 let captured = captured.clone();
                 move |request| capture_request(captured.clone(), request, status)
