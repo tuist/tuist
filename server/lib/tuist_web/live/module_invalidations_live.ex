@@ -44,6 +44,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
               "sort-by",
               "sort-order",
               "analytics-selected-widget",
+              "miss-reason",
               "q",
               "after",
               "before"
@@ -73,6 +74,14 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       end
 
     {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
+  end
+
+  def handle_event("select_miss_reason", %{"type" => type}, %{assigns: assigns} = socket)
+      when type in ~w(all changed upstream cold) do
+    query_params = Query.put(assigns.uri.query, "miss-reason", type)
+    path = "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/module-cache/modules"
+
+    {:noreply, push_patch(socket, to: "#{path}?#{query_params}")}
   end
 
   def handle_event(
@@ -125,6 +134,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
+      |> assign(:selected_miss_reason, params["miss-reason"] || "all")
 
     opts = analytics_opts(socket.assigns)
     default_branch = socket.assigns.selected_project.default_branch || "main"
@@ -172,21 +182,33 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   least once. The module count is the project's latest commit on its default
   branch, and the rest come from the series, which cover every module.
   """
-  def analytics_totals(module_count, timeseries, miss_reasons) do
-    changed = Enum.sum(miss_reasons.changed)
-    upstream = Enum.sum(miss_reasons.upstream)
-
+  def analytics_totals(module_count, modules_series, timeseries, miss_reasons) do
     %{
       modules: module_count,
+      # A module counts once however many times it was rebuilt, so this is how
+      # much of the project churned rather than how often.
+      rebuilt: Enum.max(modules_series.rebuilt, fn -> 0 end),
       misses: Enum.sum(timeseries.invalidations),
-      # Of the misses we could attribute, the share an upstream dependency
-      # caused. This is the fraction better module boundaries can remove.
-      upstream_share: percentage(upstream, changed + upstream)
+      changed: Enum.sum(miss_reasons.changed),
+      upstream: Enum.sum(miss_reasons.upstream),
+      cold: Enum.sum(miss_reasons.cold)
     }
   end
 
-  defp percentage(_count, 0), do: 0.0
-  defp percentage(count, total), do: Float.round(count / total * 100, 1)
+  def miss_reason_value(totals, "changed"), do: totals.changed
+  def miss_reason_value(totals, "upstream"), do: totals.upstream
+  def miss_reason_value(totals, "cold"), do: totals.cold
+  def miss_reason_value(totals, _all), do: totals.misses
+
+  def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
+  def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
+  def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
+  def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
+
+  def miss_reason_color("changed"), do: "primary"
+  def miss_reason_color("upstream"), do: "secondary"
+  def miss_reason_color("cold"), do: "tertiary"
+  def miss_reason_color(_all), do: "destructive"
 
   defp analytics_opts(%{
          selected_project: project,

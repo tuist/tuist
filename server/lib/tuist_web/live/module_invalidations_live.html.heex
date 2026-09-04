@@ -77,7 +77,13 @@
   <% analytics_ready = @timeseries.ok? %>
   <% totals =
     if analytics_ready,
-      do: analytics_totals(@module_count.result, @timeseries.result, @miss_reasons_series.result) %>
+      do:
+        analytics_totals(
+          @module_count.result,
+          @modules_series.result,
+          @timeseries.result,
+          @miss_reasons_series.result
+        ) %>
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
@@ -102,36 +108,62 @@
       />
       <.widget
         loading={!analytics_ready}
-        id="widget-misses"
-        title={dgettext("dashboard_cache", "Misses")}
+        id="widget-rebuilt"
+        title={dgettext("dashboard_cache", "Rebuilt modules")}
         legend_color="destructive"
         description={
           dgettext(
             "dashboard_cache",
-            "Builds across every module that were a cache miss and had to be rebuilt."
+            "Modules that were a cache miss on their busiest day, so had to be rebuilt rather than fetched."
           )
         }
-        value={if totals, do: Integer.to_string(totals.misses)}
+        value={if totals, do: Integer.to_string(totals.rebuilt)}
         phx_click="select_widget"
-        phx_value_widget="misses"
-        selected={@analytics_selected_widget == "misses"}
+        phx_value_widget="rebuilt"
+        selected={@analytics_selected_widget == "rebuilt"}
       />
       <.widget
         loading={!analytics_ready}
-        id="widget-upstream-share"
-        title={dgettext("dashboard_cache", "Upstream share")}
-        legend_color="secondary"
+        id="widget-misses"
+        title={miss_reason_title(@selected_miss_reason)}
+        legend_color={miss_reason_color(@selected_miss_reason)}
         description={
           dgettext(
             "dashboard_cache",
-            "Share of attributed misses caused only by a dependency changing rather than the module's own code. This is the fraction better module boundaries can remove."
+            "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, or it had never been cached."
           )
         }
-        value={if totals, do: "#{totals.upstream_share}%"}
+        value={if totals, do: Integer.to_string(miss_reason_value(totals, @selected_miss_reason))}
         phx_click="select_widget"
-        phx_value_widget="upstream_share"
-        selected={@analytics_selected_widget == "upstream_share"}
-      />
+        phx_value_widget="misses"
+        selected={@analytics_selected_widget == "misses"}
+      >
+        <:select>
+          <.dropdown_item
+            :for={
+              {value, label, color} <- [
+                {"all", dgettext("dashboard_cache", "All"), "destructive"},
+                {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
+                {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
+                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
+              ]
+            }
+            value={value}
+            phx-click="select_miss_reason"
+            phx-value-type={value}
+            data-selected={@selected_miss_reason == value}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color={color}></div>
+              <span data-part="label">{label}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if totals, do: miss_reason_value(totals, value)}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
     </div>
 
     <.card_section :if={!@timeseries.ok?} data-part="analytics-chart-section">
@@ -182,25 +214,25 @@
     </.card_section>
 
     <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "misses"}
+      :if={@timeseries.ok? && @analytics_selected_widget == "rebuilt"}
       data-part="analytics-chart-section"
     >
       <.chart
-        id="modules-misses-chart"
-        type="bar"
+        id="modules-rebuilt-chart"
+        type="line"
         extra_options={
           %{
             grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
             tooltip: %{},
             xAxis: %{
               type: "category",
-              data: @timeseries.result.dates,
+              data: @modules_series.result.dates,
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  List.first(@timeseries.result.dates),
-                  List.last(@timeseries.result.dates)
+                  List.first(@modules_series.result.dates),
+                  List.last(@modules_series.result.dates)
                 ]
               }
             },
@@ -213,20 +245,10 @@
         }
         series={[
           %{
-            name: dgettext("dashboard_cache", "Misses"),
-            data: @timeseries.result.invalidations,
-            type: "bar",
-            stack: "total",
-            color: "var:noora-chart-destructive",
-            barMaxWidth: 18
-          },
-          %{
-            name: dgettext("dashboard_cache", "Hits"),
-            data: @timeseries.result.reuses,
-            type: "bar",
-            stack: "total",
-            color: "var:noora-chart-primary",
-            barMaxWidth: 18
+            name: dgettext("dashboard_cache", "Rebuilt modules"),
+            data: @modules_series.result.rebuilt,
+            type: "line",
+            color: "var:noora-chart-destructive"
           }
         ]}
         y_axis_min={0}
@@ -235,7 +257,7 @@
     </.card_section>
 
     <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "upstream_share"}
+      :if={@timeseries.ok? && @analytics_selected_widget == "misses"}
       data-part="analytics-chart-section"
     >
       <.chart

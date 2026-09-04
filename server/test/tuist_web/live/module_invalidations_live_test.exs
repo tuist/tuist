@@ -99,7 +99,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     {:ok, lv, _html} = live(conn, base)
     render_async(lv, 2000)
 
-    for id <- ~w(widget-modules widget-misses widget-upstream-share) do
+    for id <- ~w(widget-modules widget-rebuilt widget-misses) do
       assert has_element?(lv, "##{id}")
     end
 
@@ -107,18 +107,23 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     # deliberately not a widget here.
     refute has_element?(lv, "#widget-hit-rate")
 
-    # Misses is the default selection, so its chart is the one rendered.
-    assert has_element?(lv, "#modules-misses-chart")
+    # Misses is the default selection, so the reason breakdown is the chart.
+    assert has_element?(lv, "#modules-miss-reasons-chart")
 
-    # Both modules are in the project, whether or not they missed.
+    # Both modules are in the project, but only Core had to be rebuilt.
     assert has_element?(lv, "#widget-modules", "2")
+    assert has_element?(lv, "#widget-rebuilt", "1")
+
+    # The misses widget opens on the total rather than on one reason.
+    assert has_element?(lv, "#widget-misses", "Misses")
 
     # Clicking a widget swaps in its chart. Driving the click rather than
     # loading the URL is what catches a patch target the client rejects.
-    click_widget(lv, "upstream_share")
+    click_widget(lv, "rebuilt")
     render_async(lv, 2000)
 
-    assert has_element?(lv, "#modules-miss-reasons-chart")
+    assert has_element?(lv, "#modules-rebuilt-chart")
+    refute has_element?(lv, "#modules-miss-reasons-chart")
 
     click_widget(lv, "modules")
     render_async(lv, 2000)
@@ -127,6 +132,67 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
 
     # The selection survives in the URL, so a chart can be linked to.
     assert_patched(lv, base <> "?analytics-selected-widget=modules")
+  end
+
+  test "the misses widget switches between the individual reasons", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    build = fn created_at, sources ->
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: created_at
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-#{sources}",
+        binary_cache_hit: :miss,
+        sources_hash: sources
+      )
+    end
+
+    # One cold miss with nothing before it, then one where the sources changed.
+    build.(~N[2024-01-30 10:00:00], "s1")
+    build.(~N[2024-01-31 09:00:00], "s2")
+
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules"
+
+    {:ok, lv, _html} = live(conn, base)
+    render_async(lv, 2000)
+
+    # Defaults to the total across every reason.
+    assert has_element?(lv, "#widget-misses", "Misses")
+    assert has_element?(lv, "#widget-misses", "2")
+
+    # Every reason is wired to the event. The items render into a portal
+    # template, which element/2 cannot reach, so the event goes straight to the
+    # view and the markup is checked separately.
+    html = render(lv)
+
+    for reason <- ~w(all changed upstream cold) do
+      assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
+    end
+
+    render_click(lv, "select_miss_reason", %{"type" => "changed"})
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#widget-misses", "Changed misses")
+    assert has_element?(lv, "#widget-misses", "1")
+    assert_patched(lv, base <> "?miss-reason=changed")
+
+    render_click(lv, "select_miss_reason", %{"type" => "cold"})
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#widget-misses", "Cold misses")
+    assert has_element?(lv, "#widget-misses", "1")
   end
 
   test "pages through the modules table", %{
