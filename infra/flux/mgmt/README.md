@@ -16,7 +16,7 @@ mechanism; a degraded control plane pages via Grafana Cloud.
 | Owned by Flux (`infra/k8s/clusters/workloads/`) | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
-| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-preview.yaml` (its replicas are mutated out-of-band by the preview workflows; Flux would fight them every interval) |
+| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-preview.yaml` (replicas mutated out-of-band by the preview workflows; Flux would fight them every interval) and `cluster-pentest.yaml` (isolated security-assessment cluster) |
 | | the mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
@@ -34,6 +34,26 @@ Land [External Secrets Operator on the mgmt cluster](../../k8s/mgmt/) first
 (it syncs Flux's git credential), then bootstrap declaratively. This is the
 one unavoidable break-glass step — afterwards Flux self-manages, upgrades
 included.
+
+### Before you begin
+
+Every command in this section targets the **management** cluster, which is not
+in the usual kubeconfig — those contexts are all workload clusters, and a
+`view` identity there cannot even list Secrets. Load the break-glass
+kubeconfig and confirm you are on mgmt before anything else; only the mgmt
+cluster serves the CAPI CRDs:
+
+```bash
+op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt \
+  --output ./mgmt.kubeconfig && chmod 600 ./mgmt.kubeconfig
+export KUBECONFIG=./mgmt.kubeconfig
+kubectl get clusters.cluster.x-k8s.io -A   # errors on a workload cluster
+```
+
+Keep `./mgmt.kubeconfig` out of git — it is a cluster-admin credential for
+every workload cluster, sitting in a public repo's worktree.
+
+### Bootstrap
 
 ```bash
 # Uses the emergency mgmt kubeconfig (1Password: "kubeconfig: tuist-mgmt",
@@ -69,8 +89,40 @@ spec:
     # exclude everything the mgmt Flux must never reconcile
     /infra/k8s/clusters/clusterclass-tuist.yaml
     /infra/k8s/clusters/bare-metal*.yaml
+    /infra/k8s/clusters/machinedrainrules.yaml
     /infra/k8s/clusters/cluster-preview.yaml
+    /infra/k8s/clusters/cluster-pentest.yaml
 ```
+
+## Pre-enable gate: confirm the first reconcile is a no-op
+
+Before letting Flux reconcile, diff every workload `Cluster` against live. An
+empty diff means the first sync changes nothing; anything else is a live
+mutation you are about to make unattended.
+
+```bash
+for c in staging canary production hive once atlas; do
+  echo "== $c =="
+  kubectl kustomize "infra/k8s/clusters/workloads/$c" | kubectl diff -f - || true
+done
+```
+
+This is not theoretical: the first run of this gate found that the imported
+tenant CRs (hive / once / atlas) were **not** no-ops. They had been checked
+against the `tuist/{hive,once,atlas}` repos, but those drifted from live
+because nothing ever applied them to the mgmt cluster. Two classes of problem
+showed up, both since fixed by syncing the manifests to live:
+
+- **Defaulted ClusterClass variables.** CAPI materializes all of them onto the
+  live object, so a CR declaring only a subset makes Flux delete and re-order
+  the list on every reconcile. Declare the full set.
+- **Genuine topology drift** — atlas carried an `md-0` pool label live did not
+  have.
+
+`production` keeps one intentional diff: `md-processor` has no `replicas` in
+git, so the first reconcile removes that field from the Cluster CR and hands
+the pool's replica count to cluster-autoscaler. It does not change the running
+node count — it changes which controller owns it.
 
 ## Health of Flux itself
 
