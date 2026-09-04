@@ -59,13 +59,27 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
-  replicaCount: 1
-
-  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
   config:
-    posthog:
-      enabled: false
+    # SENTRY_HIVE 1P item exists in `tuist-k8s-staging`; the DSN (same value
+    # as canary and production) is synced in as TUIST_SENTRY_HIVE_DSN.
+    # Whether staging envelopes actually go to Hive is decided at runtime by
+    # the `hive_error_tracking_enabled` FunWithFlags flag.
+    hiveSentry:
+      enabled: true
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
+    enabled: true
+
+  replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
@@ -255,6 +269,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  bazelEvents:
+    enabled: true
+    host: build-staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   autoscaling:
     enabled: false

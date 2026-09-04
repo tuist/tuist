@@ -56,6 +56,11 @@ registry:
 server:
   replicaCount: 2
 
+  # Cloudflare Turnstile signup gate. Real site + secret key are synced from
+  # the TURNSTILE 1Password item via external-secrets (secretsFrom: eso, the
+  # default). Do NOT flip useTestKeys on here — Cloudflare's public test key
+  # pair only unlocks the demo widget and would let scripted signup bypass
+  # verification entirely.
   turnstile:
     enabled: true
 
@@ -66,6 +71,12 @@ server:
 
   config:
     atlasEmail:
+      enabled: true
+    # SENTRY_HIVE 1P item exists in `tuist-k8s-production`; the DSN (same
+    # value as canary and staging) is synced in as TUIST_SENTRY_HIVE_DSN
+    # and the `hive_error_tracking_enabled` flag in `/ops/flags` decides at
+    # runtime whether envelopes go there instead of Sentry.
+    hiveSentry:
       enabled: true
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -245,6 +256,15 @@ server:
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
   # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
   # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
+  # Browser RUM. The collector is a path on tuist.dev rather than its own
+  # hostname so the payload is same-origin: no CORS preflight, no CSP change,
+  # and no separate domain for content blockers to filter, which would skew the
+  # web-vital percentiles the LCP alerts read.
+  faro:
+    collectorUrl: /-/faro/collect
+    receiverHost: k8s-monitoring-alloy-receiver.observability.svc.cluster.local
+    receiverPort: 12347
+
   ingress:
     enabled: true
     className: nginx
@@ -254,6 +274,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  bazelEvents:
+    enabled: true
+    host: build.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
@@ -947,6 +972,18 @@ macosFleet:
     # store it cannot write falls back to a VM-local cold compilation cache, so
     # a bad budget costs warmth, not the job.
     #
+    # casGib is what the store may OCCUPY, not the limit the compiler is given:
+    # that is half of it, because llcas keeps a primary generation plus the
+    # demoted upstream that is still the warm cache. 11 here is 5.5 GiB per
+    # generation, and 11 + 7 + 2 reserve is the 20 GiB cap exactly.
+    #
+    # Before that halving the compiler was handed the whole 11 GiB per
+    # generation, so a correctly pruning store wanted ~22 GiB inside a 20 GiB
+    # image — which is what the measured masters showed (17-18 GB of CAS against
+    # a 2.2 GB binary cache) and why this account's volume filled every ~2 days.
+    # Raising masterCapGib is NOT the alternative fix; see the admission
+    # arithmetic below.
+    #
     # The cap is bounded by admission, not by taste. Admission reserves
     # masterCapGib for the branch it is admitting plus every branch already
     # live, so with B branches already held the resident masters that survive
@@ -1026,12 +1063,12 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet. 9 M2-L hosts at one guest each plus
-# 2 M4-XL hosts at two = 13 concurrent customer runs.
+# Customer-runner Mac mini fleet. 10 M2-L hosts at one guest each plus
+# 2 M4-XL hosts at two = 14 concurrent customer runs.
 #
 # Sized against measured demand, not host count. macOS job concurrency
 # over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
-# 8, so 13 keeps burst headroom above the observed peak. Trimming the
+# 8, so 14 keeps burst headroom above the observed peak. Trimming the
 # M2-L group to match the peak more tightly saves nothing: a host
 # released from this fleet is parked back in `tuist-pool-` and keeps
 # billing under Apple's 24h floor either way, so the only thing a
@@ -1060,7 +1097,7 @@ runnersFleet:
   # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
   # the target hosts hold no owned (job-running) runner Pod, or a
   # customer job dies with the node.
-  hostCount: 9
+  hostCount: 10
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -1276,13 +1313,13 @@ runnersFleet:
       # min(cpu, memory) quotient for a shape and caps every pool sharing
       # it at that sum (2 today, both on M4-XL). It has to be derived
       # there rather than written here because the byte budget cannot see
-      # it: 186368 / 28672 reads as 6, pooling memory from M2-L hosts
+      # it: 200704 / 28672 reads as 7, pooling memory from M2-L hosts
       # that cannot seat one of these Pods at all.
       #
       # Set it to the M4-XL host count regardless, as the per-pool bound
       # it is: no single Xcode version should be able to take the whole
       # shape. It moves with `machineGroups[m4].hostCount`, not with the
-      # 13-slot totals the `xcodeOverrides` below use.
+      # 14-slot totals the `xcodeOverrides` below use.
       #
       # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
       # it would halve the fleet's dual-guest capacity to keep one
@@ -1299,19 +1336,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 13` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 14` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
-  # advertised memory by this shape's 14336 MB, so the 9 M2-L hosts are
-  # 9 slots and the 2 M4-XL hosts are 2 each, for 13. These ceilings must
+  # advertised memory by this shape's 14336 MB, so the 10 M2-L hosts are
+  # 10 slots and the 2 M4-XL hosts are 2 each, for 14. These ceilings must
   # move with that number — the allocator never exceeds a pool's
   # maxReplicas, so leaving them behind would let an M4 boot but keep
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 13-slot budget; the remaining 12 slots are
+  # Floors sum to 1 of the 14-slot budget; the remaining 13 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1331,32 +1368,32 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 14
     "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 13
+        maxReplicas: 14
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 14
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 14
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 14
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 14
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
@@ -1375,7 +1412,7 @@ runnersFleet:
 # comfortably taking jobs.
 #
 # Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (9), so this fleet adds 2 to the pool-demand
+# runnersFleet (10), so this fleet adds 2 to the pool-demand
 # total. The operator's pre-order job for production already
 # tracks the macos + runners side; bump it by 2 ahead of the
 # `helm upgrade` that applies this replica count.
@@ -1438,19 +1475,31 @@ runnersFleetLinux:
     # Default shape: all `tuist-default` + `linux` default-profile
     # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
     # floor. Sized against RAM, not slots: request == limit == the
-    # advertised shape, so the floor reserves `floor * 8 GiB` on a
-    # ~504 GiB fleet whether or not those Pods ever touch it. At 30 it
-    # reserved 240 GiB and left no 16 GiB hole, so `4vcpu-16gb` could
-    # not place a single Pod while running well under a third of the
-    # fleet's real memory. 12 sits above observed concurrent demand and
-    # leaves the heavier shapes room to schedule. Revisit alongside
-    # decoupling the scheduler request from the shape limit, which is
-    # what would let the floor be a slot count again.
+    # advertised shape, so the floor reserves `floor * 10.5 GiB` (8 GiB
+    # + the kata RuntimeClass's 2.5 GiB podFixed) on the fleet whether or
+    # not those Pods ever touch it. At 30 it reserved 315 GiB and left no
+    # 16 GiB hole, so `4vcpu-16gb` could not place a single Pod while
+    # running well under a third of the fleet's real memory.
+    #
+    # 12 was set against "observed concurrent demand" but measured well
+    # above it. Over the 7 days to 2026-09-04 this pool averaged 2.2
+    # occupied runners against 13.2 idle — 86% idle, with the floor
+    # itself as the reason. On the 4-node OVH RISE-L fleet that is
+    # ~138 GiB of a ~467 GiB fleet held by Pods doing nothing, against a
+    # `16vcpu-32gb` Pod that needs a contiguous 34.5 GiB and spent
+    # 2026-09-04 07:23-08:36 unable to find one.
+    #
+    # 4 still covers the p50 of occupied runners with headroom, and the
+    # jobs behind it are short — this shape's median runtime is under
+    # three minutes, so a cold start on the marginal Pod is a small share
+    # of a small job. Revisit alongside decoupling the scheduler request
+    # from the shape limit, which is what would let the floor be a slot
+    # count again.
     - vcpus: 2
       memoryGb: 8
       default: true
       autoscaling:
-        minWarmPoolFloor: 12
+        minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }

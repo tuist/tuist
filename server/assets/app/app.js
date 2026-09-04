@@ -49,6 +49,7 @@ import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -138,13 +139,7 @@ liveSocket.connect();
 
 setupQueryMemory();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.

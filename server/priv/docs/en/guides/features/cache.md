@@ -2,7 +2,7 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, and Bazel cache."
 }
 ---
 # Cache {#cache}
@@ -30,6 +30,12 @@ Learn the cache workflow that matches your project or deployment model:
         details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
         linkText="Set up Gradle cache"
         link="/guides/features/cache/gradle-cache"/>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Bazel' width='32' height='32' />"
+        title="Bazel cache and invocations"
+        details="Share Bazel remote-cache entries and inspect completed command duration, outcome, and attributable cache totals."
+        linkText="Set up Bazel cache"
+        link="/guides/features/cache/bazel-cache"/>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
         title="Self-hosting"

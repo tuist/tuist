@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use arc_swap::ArcSwapOption;
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
@@ -18,7 +19,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
-    sync::{Mutex, Notify, RwLock},
+    sync::{Mutex, Notify, RwLock, Semaphore},
 };
 use uuid::Uuid;
 
@@ -49,7 +50,7 @@ use crate::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
     },
     io::{IoController, PersistentFile},
-    memory::MemoryController,
+    memory::{MemoryController, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
@@ -63,8 +64,8 @@ use crate::{
         IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
         action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
         action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
-        backfill_index_key, backfill_index_prefix_upper_bound, backfill_index_value,
-        backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
+        artifact_storage_id_in, backfill_index_key, backfill_index_prefix_upper_bound,
+        backfill_index_value, backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
         decode_backfill_index_row, decode_backfill_watermark_value, drop_staging_cache_range,
         encode_backfill_watermark_value, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
@@ -97,7 +98,8 @@ const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
-const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+pub(crate) const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
 const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // The production backfill averaged thousands of reverse rows per action-cache
@@ -177,7 +179,18 @@ pub struct Store {
     multipart_stored_bytes: AtomicU64,
     multipart_max_active_uploads: usize,
     multipart_max_stored_bytes: u64,
-    segment_write_lock: Mutex<()>,
+    // Positioned small writes hold the read side while writing disjoint ranges.
+    // Rotation, serial streaming appends, and durability barriers take the
+    // write side, which waits for every preceding positioned write and prevents
+    // a segment from rotating or syncing through an in-progress range.
+    segment_write_barrier: RwLock<()>,
+    segment_write_lock: Mutex<ActiveSegmentWriter>,
+    segment_positioned_write_slots: Semaphore,
+    #[cfg(test)]
+    positioned_segment_writes_enabled: AtomicBool,
+    #[cfg(test)]
+    direct_small_uploads_enabled: AtomicBool,
+    segment_writers_ahead_of_durability: AtomicU64,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
     /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
@@ -228,6 +241,7 @@ pub struct Store {
     // boot so a restart mid-segment does not under-report the eventual seal.
     active_segment_max_versions: StdMutex<HashMap<String, u64>>,
     segment_handles: Mutex<SegmentHandleCache>,
+    segment_handle_hot: ArcSwapOption<SegmentHandleFastPath>,
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
@@ -262,10 +276,15 @@ pub struct Store {
     // rollback-window staleness check at open). Write-path maintenance runs
     // regardless; this only gates what the listing endpoint may serve.
     backfill_index_built: AtomicBool,
-    // WAL write accounting so tests can pin durability semantics: live apply
-    // paths must keep producing sync WriteBatch commits, and only the backfill
-    // batch-apply path may produce deferred (non-sync) commits plus WAL
-    // flushes (see [`ApplyDurability`]).
+    // WAL durability sequencing. Request-path writes enter the WAL without an
+    // individual sync, then one flush covers every completed write through the
+    // captured sequence. Each caller still returns only after its sequence is
+    // durable. Backfill retains its explicit batch-end barrier.
+    wal_writers_ahead_of_durability: AtomicU64,
+    wal_pending_seq: AtomicU64,
+    wal_durable_seq: AtomicU64,
+    wal_fsync_lock: Mutex<()>,
+    // Logical write accounting used by the durability tests.
     wal_sync_write_count: AtomicU64,
     wal_deferred_write_count: AtomicU64,
     wal_flush_count: AtomicU64,
@@ -391,6 +410,64 @@ pub enum ArtifactReader {
     FileRange(SegmentReader),
 }
 
+impl ArtifactReader {
+    pub async fn read_chunk_owned(&mut self, max_bytes: usize) -> std::io::Result<Vec<u8>> {
+        if max_bytes == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "artifact read chunk size must be non-zero",
+            ));
+        }
+        match self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Ok(Vec::new());
+                }
+                let end = offset.saturating_add(max_bytes).min(bytes.len());
+                let chunk = bytes[*offset..end].to_vec();
+                *offset = end;
+                Ok(chunk)
+            }
+            Self::FileRange(reader) => reader.read_chunk_owned(max_bytes).await,
+        }
+    }
+
+    pub async fn read_bytes_chunk(&mut self, max_bytes: usize) -> std::io::Result<Bytes> {
+        if max_bytes == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "artifact read chunk size must be non-zero",
+            ));
+        }
+        match self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Ok(Bytes::new());
+                }
+                let end = offset.saturating_add(max_bytes).min(bytes.len());
+                let chunk = bytes.slice(*offset..end);
+                *offset = end;
+                Ok(chunk)
+            }
+            Self::FileRange(reader) => reader.read_chunk_owned(max_bytes).await.map(Bytes::from),
+        }
+    }
+
+    pub fn into_bytes_stream(
+        self,
+        chunk_bytes: usize,
+    ) -> impl futures_util::Stream<Item = std::io::Result<Bytes>> + Send + 'static {
+        futures_util::stream::try_unfold(self, move |mut reader| async move {
+            let bytes = reader.read_bytes_chunk(chunk_bytes).await?;
+            if bytes.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some((bytes, reader)))
+            }
+        })
+    }
+}
+
 #[derive(Clone)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct AcceleratedArtifactFile {
@@ -473,6 +550,33 @@ pub struct BackfillIndexPage {
 pub(crate) enum ApplyDurability {
     Sync,
     DeferredBatch,
+}
+
+const SEGMENT_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
+const WAL_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
+
+struct PendingDurabilityWriter<'a> {
+    count: &'a AtomicU64,
+}
+
+impl<'a> PendingDurabilityWriter<'a> {
+    fn new(count: &'a AtomicU64) -> Self {
+        count.fetch_add(1, Ordering::AcqRel);
+        Self { count }
+    }
+}
+
+impl Drop for PendingDurabilityWriter<'_> {
+    fn drop(&mut self) {
+        self.count.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::current().runtime_flavor() {
+        tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(operation),
+        _ => operation(),
+    }
 }
 
 /// Phase accumulator for one backfill bodies batch applied under
@@ -793,6 +897,15 @@ pub struct StagedArtifactPath<'a> {
     file_cache_policy: FileCachePolicy,
 }
 
+#[derive(Clone, Copy)]
+enum SegmentArtifactSource<'a> {
+    Path(StagedArtifactPath<'a>),
+    Memory {
+        bytes: &'a [u8],
+        file_cache_policy: FileCachePolicy,
+    },
+}
+
 impl<'a> StagedArtifactPath<'a> {
     pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
         Self {
@@ -1076,7 +1189,14 @@ impl Store {
             multipart_stored_bytes: AtomicU64::new(0),
             multipart_max_active_uploads: config.multipart_max_active_uploads,
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
-            segment_write_lock: Mutex::new(()),
+            segment_write_barrier: RwLock::new(()),
+            segment_write_lock: Mutex::new(ActiveSegmentWriter::default()),
+            segment_positioned_write_slots: Semaphore::new(SEGMENT_POSITIONED_WRITE_SLOTS),
+            #[cfg(test)]
+            positioned_segment_writes_enabled: AtomicBool::new(true),
+            #[cfg(test)]
+            direct_small_uploads_enabled: AtomicBool::new(true),
+            segment_writers_ahead_of_durability: AtomicU64::new(0),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
@@ -1093,6 +1213,7 @@ impl Store {
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             active_segment_max_versions: StdMutex::new(HashMap::new()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
+            segment_handle_hot: ArcSwapOption::const_empty(),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
@@ -1106,6 +1227,10 @@ impl Store {
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
             action_cache_blob_refs_ready: AtomicBool::new(false),
             backfill_index_built: AtomicBool::new(false),
+            wal_writers_ahead_of_durability: AtomicU64::new(0),
+            wal_pending_seq: AtomicU64::new(0),
+            wal_durable_seq: AtomicU64::new(0),
+            wal_fsync_lock: Mutex::new(()),
             wal_sync_write_count: AtomicU64::new(0),
             wal_deferred_write_count: AtomicU64::new(0),
             wal_flush_count: AtomicU64::new(0),
@@ -1337,15 +1462,24 @@ impl Store {
     }
 
     pub fn manifest(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
-        if let Some(manifest) = self.manifest_cache_get(artifact_id) {
+        Ok(self
+            .manifest_retained(artifact_id)?
+            .map(|manifest| (*manifest).clone()))
+    }
+
+    fn manifest_retained(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<Arc<ArtifactManifest>>, String> {
+        if let Some(manifest) = self.manifest_cache_get_retained(artifact_id) {
             self.io.metrics().record_manifest_cache_lookup("hit");
             return Ok(Some(manifest));
         }
 
         self.io.metrics().record_manifest_cache_lookup("miss");
-        let manifest = self.manifest_from_db(artifact_id)?;
+        let manifest = self.manifest_from_db(artifact_id)?.map(Arc::new);
         if let Some(manifest) = &manifest {
-            self.maybe_cache_manifest(manifest.clone());
+            self.maybe_cache_manifest_retained(manifest.clone());
         }
         Ok(manifest)
     }
@@ -1378,6 +1512,31 @@ impl Store {
             Some(manifest) => self.prepare_artifact_for_serving(manifest).await,
             None => Ok(None),
         }
+    }
+
+    pub async fn fetch_artifact_for_serving_retained(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<Option<Arc<ArtifactManifest>>, String> {
+        let mut artifact_id = [0_u8; 64];
+        let artifact_id = artifact_storage_id_in(
+            &mut artifact_id,
+            producer,
+            &self.tenant_id,
+            namespace_id,
+            key,
+        );
+        let Some(manifest) = self.manifest_retained(artifact_id)? else {
+            return Ok(None);
+        };
+        if let Some(segment_id) = manifest.segment_id.as_deref()
+            && self.segment_generation(segment_id)? == Some(SegmentGeneration::Old)
+        {
+            self.enqueue_promotion(&manifest.artifact_id, RefreshTrigger::Serve);
+        }
+        Ok(Some(manifest))
     }
 
     pub async fn fetch_artifact_by_id_for_serving(
@@ -1464,6 +1623,18 @@ impl Store {
         source_path: &Path,
         file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        self.persist_segment_artifact_with_version(
+            spec,
+            SegmentArtifactSource::Path(StagedArtifactPath::new(source_path, file_cache_policy)),
+        )
+        .await
+    }
+
+    async fn persist_segment_artifact_with_version(
+        &self,
+        spec: PersistArtifactSpec<'_>,
+        source: SegmentArtifactSource<'_>,
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -1479,7 +1650,10 @@ impl Store {
         // Whoever wins the lock commits the manifest; the rest re-read it here and
         // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
-        let size = self.io.metadata_len(source_path).await?;
+        let size = match source {
+            SegmentArtifactSource::Path(staged) => self.io.metadata_len(staged.path).await?,
+            SegmentArtifactSource::Memory { bytes, .. } => bytes.len() as u64,
+        };
 
         let (existing, already_present) =
             match self.segment_apply_precheck(&artifact_id, &spec).await? {
@@ -1487,7 +1661,9 @@ impl Store {
                     outcome,
                     already_present,
                 } => {
-                    self.io.remove_file_if_exists(source_path).await;
+                    if let SegmentArtifactSource::Path(staged) = source {
+                        self.io.remove_file_if_exists(staged.path).await;
+                    }
                     return Ok((outcome, already_present));
                 }
                 SegmentApplyPrecheck::Proceed {
@@ -1497,9 +1673,29 @@ impl Store {
             };
         let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
-        let (location, evicted_segments, _durability_seq) = self
-            .append_to_segment(source_path, size, file_cache_policy, ApplyDurability::Sync)
-            .await?;
+        let (location, evicted_segments, _durability_seq) = match source {
+            SegmentArtifactSource::Path(staged) => {
+                self.append_to_segment(
+                    staged.path,
+                    size,
+                    staged.file_cache_policy,
+                    ApplyDurability::Sync,
+                )
+                .await?
+            }
+            SegmentArtifactSource::Memory {
+                bytes,
+                file_cache_policy,
+            } => {
+                self.append_preloaded_to_segment(
+                    bytes,
+                    None,
+                    file_cache_policy,
+                    ApplyDurability::Sync,
+                )
+                .await?
+            }
+        };
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
@@ -1801,7 +1997,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(segment_id.as_str()),
+                offset,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.segment_handle(segment_id).await?;
@@ -1820,7 +2024,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(blob_path.as_str()),
+                offset: 0,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.blob_handle(blob_path).await?;
@@ -1943,6 +2155,31 @@ impl Store {
         }
     }
 
+    /// Opens a served artifact reader without cloning the manifest when the
+    /// caller needs only the byte stream. The relocation retry is identical to
+    /// [`Store::open_artifact_reader_range_tolerating_promotion`].
+    pub async fn open_artifact_reader_range_tolerating_promotion_reader_only(
+        &self,
+        manifest: &ArtifactManifest,
+        read_offset: u64,
+        read_limit: Option<u64>,
+    ) -> Result<Option<ArtifactReader>, String> {
+        match self
+            .open_manifest_reader_with_range(manifest, read_offset, read_limit)
+            .await
+        {
+            Ok(reader) => Ok(Some(reader)),
+            Err(first_error) => match self.manifest_from_db(&manifest.artifact_id)? {
+                Some(fresh) if fresh.segment_id != manifest.segment_id => self
+                    .open_manifest_reader_with_range(&fresh, read_offset, read_limit)
+                    .await
+                    .map(Some),
+                Some(_) => Err(first_error),
+                None => Ok(None),
+            },
+        }
+    }
+
     async fn open_manifest_reader(
         &self,
         manifest: &ArtifactManifest,
@@ -1971,7 +2208,11 @@ impl Store {
         {
             let start = read_offset as usize;
             let end = start.saturating_add(limit as usize).min(bytes.len());
-            let chunk = Bytes::from(bytes).slice(start..end);
+            let chunk = if start == 0 && end == bytes.len() {
+                Bytes::from(bytes)
+            } else {
+                Bytes::copy_from_slice(&bytes[start..end])
+            };
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::Inline {
                 bytes: chunk,
@@ -1993,15 +2234,13 @@ impl Store {
             // absent (`classify_backfill_response`) and moves on, and the lost
             // entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
-            let have = handle
-                .as_std()
-                .metadata()
+            if !handle
+                .has_len(needed)
                 .map_err(|error| format!("failed to stat segment {segment_id}: {error}"))?
-                .len();
-            if have < needed {
+            {
                 return Err(format!(
-                    "segment {segment_id} truncated: holds {have} bytes but artifact {} needs {needed}",
-                    manifest.artifact_id
+                    "segment {segment_id} is shorter than artifact {} which needs {needed} bytes",
+                    manifest.artifact_id,
                 ));
             }
             self.note_artifact_exists(&manifest.artifact_id);
@@ -2015,15 +2254,13 @@ impl Store {
         if let Some(blob_path) = &manifest.blob_path {
             let handle = self.blob_handle(blob_path).await?;
             let needed = read_offset.saturating_add(limit);
-            let have = handle
-                .as_std()
-                .metadata()
+            if !handle
+                .has_len(needed)
                 .map_err(|error| format!("failed to stat blob {blob_path}: {error}"))?
-                .len();
-            if have < needed {
+            {
                 return Err(format!(
-                    "blob {blob_path} truncated: holds {have} bytes but artifact {} needs {needed}",
-                    manifest.artifact_id
+                    "blob {blob_path} is shorter than artifact {} which needs {needed} bytes",
+                    manifest.artifact_id,
                 ));
             }
             self.note_artifact_exists(&manifest.artifact_id);
@@ -2597,6 +2834,39 @@ impl Store {
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        let preload_reservation = if size <= SEGMENT_COPY_BUFFER_BYTES as u64 {
+            self.memory.try_reserve_foreground_memory(size).ok()
+        } else {
+            None
+        };
+        if let Some(reservation) = preload_reservation {
+            let preload_size =
+                usize::try_from(size).expect("bounded segment preload size always fits into usize");
+            if let Some(bytes) = try_allocate_exact_vec(preload_size) {
+                let mut source = self.io.open_file(source_path).await?;
+                let bytes = read_exact_to_vec(&mut source, bytes, preload_size)
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to preload segment source {}: {error}",
+                            source_path.display()
+                        )
+                    })?;
+                drop(source);
+                let result = self
+                    .append_preloaded_to_segment(
+                        &bytes,
+                        Some(source_path),
+                        file_cache_policy,
+                        durability,
+                    )
+                    .await;
+                self.io.remove_file_if_exists(source_path).await;
+                return result;
+            }
+            drop(reservation);
+        }
+
         let mut source = self.io.open_file(source_path).await?;
         let result = self
             .append_reader_to_segment(
@@ -2609,6 +2879,236 @@ impl Store {
             .await;
         self.io.remove_file_if_exists(source_path).await;
         result
+    }
+
+    async fn append_preloaded_to_segment(
+        &self,
+        bytes: &[u8],
+        source_cache_path: Option<&Path>,
+        file_cache_policy: FileCachePolicy,
+        durability: ApplyDurability,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        let drop_cached_pages = file_cache_policy.should_drop(
+            self.memory.should_reclaim_file_cache(),
+            self.memory.transient_reserved_bytes(),
+        );
+        if self.positioned_segment_writes_enabled()
+            && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
+            && (!drop_cached_pages || durability == ApplyDurability::Sync)
+        {
+            return self
+                .append_preloaded_to_reserved_segment(
+                    bytes,
+                    durability,
+                    drop_cached_pages.then_some(file_cache_policy),
+                )
+                .await;
+        }
+
+        let mut empty = tokio::io::empty();
+        self.append_reader_to_segment_inner(
+            &mut empty,
+            bytes.len() as u64,
+            Some(bytes),
+            source_cache_path,
+            file_cache_policy,
+            durability,
+        )
+        .await
+    }
+
+    fn positioned_segment_writes_enabled(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.positioned_segment_writes_enabled
+                .load(Ordering::Acquire)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    pub(crate) fn direct_small_uploads_enabled(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.direct_small_uploads_enabled.load(Ordering::Acquire)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_direct_small_uploads_enabled(&self, enabled: bool) {
+        self.direct_small_uploads_enabled
+            .store(enabled, Ordering::Release);
+    }
+
+    async fn append_preloaded_to_reserved_segment(
+        &self,
+        bytes: &[u8],
+        durability: ApplyDurability,
+        drop_cached_pages: Option<FileCachePolicy>,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+        let pending_writer =
+            PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
+        let write_slot = self
+            .segment_positioned_write_slots
+            .acquire()
+            .await
+            .map_err(|_| "positioned segment write slots closed".to_owned())?;
+        let size = bytes.len() as u64;
+
+        let fast_write = {
+            let range_guard = self.segment_write_barrier.read().await;
+            let mut writer = self.segment_write_lock.lock().await;
+            let active = self.segment_state_snapshot().state.active().cloned();
+            let reservation = active.and_then(|segment| {
+                let fits = writer.segment_id.as_deref() == Some(segment.segment_id.as_str())
+                    && writer.file.is_some()
+                    && !writer.directory_sync_pending
+                    && !writer.len_unknown
+                    && writer.len.saturating_add(size) <= MAX_SEGMENT_BYTES;
+                fits.then(|| {
+                    let offset = writer.len;
+                    writer.len = writer.len.saturating_add(size);
+                    (
+                        SegmentLocation {
+                            segment_id: segment.segment_id,
+                            offset,
+                        },
+                        writer
+                            .file
+                            .as_ref()
+                            .expect("ready segment writer should hold a file")
+                            .clone(),
+                    )
+                })
+            });
+            drop(writer);
+
+            reservation.map(|(location, file)| {
+                let path = self.segment_path(&location.segment_id);
+                run_segment_file_operation(|| file.write_all_at(bytes, location.offset)).map_err(
+                    |error| {
+                        format!(
+                            "failed to write reserved segment range {} at {}: {error}",
+                            path.display(),
+                            location.offset
+                        )
+                    },
+                )?;
+                let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+                drop(range_guard);
+                Ok::<_, String>((location, Vec::new(), durability_seq, file))
+            })
+        };
+
+        let (location, evicted_segments, durability_seq, file) = match fast_write {
+            Some(result) => result?,
+            None => {
+                let _exclusive = self.segment_write_barrier.write().await;
+                let mut writer = self.segment_write_lock.lock().await;
+                let (segment, evicted_segments) = self
+                    .prepare_active_segment_writer(size, &mut writer)
+                    .await?;
+                let offset = writer.len;
+                writer.len = writer.len.saturating_add(size);
+                let file = writer
+                    .file
+                    .as_ref()
+                    .expect("prepared segment writer should hold a file")
+                    .clone();
+                drop(writer);
+                let location = SegmentLocation {
+                    segment_id: segment.segment_id,
+                    offset,
+                };
+                let path = self.segment_path(&location.segment_id);
+                run_segment_file_operation(|| file.write_all_at(bytes, location.offset)).map_err(
+                    |error| {
+                        format!(
+                            "failed to write reserved segment range {} at {}: {error}",
+                            path.display(),
+                            location.offset
+                        )
+                    },
+                )?;
+                let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+                (location, evicted_segments, durability_seq, file)
+            }
+        };
+        drop(pending_writer);
+        drop(write_slot);
+
+        if durability == ApplyDurability::Sync {
+            self.ensure_segment_durable(durability_seq).await?;
+        }
+
+        if let Some(file_cache_policy) = drop_cached_pages {
+            let path = self.segment_path(&location.segment_id);
+            if let Err(error) =
+                run_segment_file_operation(|| file.drop_cached_pages(location.offset, size))
+            {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop_failed");
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to release positioned segment file cache: {error}"
+                );
+                if file_cache_policy.drop_failure_is_fatal() {
+                    return Err(format!(
+                        "failed to bound positioned segment file cache for {}: {error}",
+                        path.display()
+                    ));
+                }
+            } else {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop");
+            }
+        }
+
+        Ok((location, evicted_segments, durability_seq))
+    }
+
+    async fn prepare_active_segment_writer(
+        &self,
+        size: u64,
+        writer: &mut ActiveSegmentWriter,
+    ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
+        let (segment, evicted_segments) = self.active_segment(size, writer).await?;
+        let segment_path = self.segment_path(&segment.segment_id);
+        let segment_dir = segment_path
+            .parent()
+            .ok_or_else(|| "missing segment parent directory".to_string())?;
+        if writer.segment_id.as_deref() != Some(segment.segment_id.as_str())
+            || writer.file.is_none()
+        {
+            self.io.create_dir_all(segment_dir).await?;
+            let segment_already_exists = self.io.path_exists(&segment_path).await?;
+            let len = if segment_already_exists {
+                self.io.metadata_len(&segment_path).await?
+            } else {
+                0
+            };
+            let file = Arc::new(self.io.open_persistent_append_file(&segment_path).await?);
+            *writer = ActiveSegmentWriter {
+                segment_id: Some(segment.segment_id.clone()),
+                file: Some(file),
+                len,
+                len_unknown: false,
+                directory_sync_pending: !segment_already_exists,
+            };
+        }
+        if writer.directory_sync_pending {
+            self.io.sync_directory(segment_dir).await?;
+            writer.directory_sync_pending = false;
+        }
+        Ok((segment, evicted_segments))
     }
 
     /// The returned `u64` is the append's group-commit durability sequence.
@@ -2627,54 +3127,102 @@ impl Store {
     where
         R: AsyncRead + Unpin,
     {
+        self.append_reader_to_segment_inner(
+            source,
+            size,
+            None,
+            source_cache_path,
+            file_cache_policy,
+            durability,
+        )
+        .await
+    }
+
+    async fn append_reader_to_segment_inner<R>(
+        &self,
+        source: &mut R,
+        size: u64,
+        preloaded: Option<&[u8]>,
+        source_cache_path: Option<&Path>,
+        file_cache_policy: FileCachePolicy,
+        durability: ApplyDurability,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String>
+    where
+        R: AsyncRead + Unpin,
+    {
+        if preloaded.is_some_and(|bytes| bytes.len() as u64 != size) {
+            return Err("preloaded segment source length does not match declared size".into());
+        }
         // Append the bytes under the write lock (which also fsyncs the outgoing
         // segment on rotation), then reserve a durability sequence. The fsync
         // itself happens after the lock so concurrent writers coalesce into a
         // single group-commit fsync rather than serializing one fsync each.
+        let pending_writer =
+            PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
         let (location, evicted_segments, durability_seq) = {
-            let _guard = self.segment_write_lock.lock().await;
-            let (segment, evicted_segments) = self.active_segment(size).await?;
+            let _exclusive = self.segment_write_barrier.write().await;
+            let mut writer = self.segment_write_lock.lock().await;
+            let (segment, evicted_segments) = self
+                .prepare_active_segment_writer(size, &mut writer)
+                .await?;
             let segment_path = self.segment_path(&segment.segment_id);
-            let segment_dir = segment_path
-                .parent()
-                .ok_or_else(|| "missing segment parent directory".to_string())?;
-            self.io.create_dir_all(segment_dir).await?;
 
-            let segment_already_exists = self.io.path_exists(&segment_path).await?;
-            let offset = if segment_already_exists {
-                self.io.metadata_len(&segment_path).await?
+            let offset = writer.len;
+            // If this future is cancelled at any following await, the retained
+            // writer records that its cached length needs to be reconciled from
+            // the file before another offset is assigned.
+            writer.len_unknown = true;
+            let buffer_bytes = usize::try_from(size.min(SEGMENT_COPY_BUFFER_BYTES as u64))
+                .expect("segment copy buffer length fits usize");
+            let mut buffer = if preloaded.is_some() {
+                Vec::new()
             } else {
-                0
+                try_allocate_exact_vec(buffer_bytes).ok_or_else(|| {
+                    format!("failed to allocate {buffer_bytes}-byte segment copy buffer")
+                })?
             };
-
-            let mut destination = self.io.open_append_file(&segment_path).await?;
-            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
             let mut copied = 0_u64;
             let mut advised_through = 0_u64;
             while copied < size {
-                let remaining = usize::try_from((size - copied).min(buffer.len() as u64))
-                    .expect("copy chunk fits usize");
-                let read = source
-                    .read(&mut buffer[..remaining])
-                    .await
-                    .map_err(|error| {
-                        format!(
-                            "failed to read source while appending into segment {}: {error}",
-                            segment_path.display()
-                        )
-                    })?;
+                let (chunk, read) = if let Some(bytes) = preloaded {
+                    let start = copied as usize;
+                    let end = start
+                        .saturating_add(SEGMENT_COPY_BUFFER_BYTES)
+                        .min(bytes.len());
+                    (&bytes[start..end], end - start)
+                } else {
+                    let remaining = usize::try_from((size - copied).min(buffer_bytes as u64))
+                        .expect("copy chunk fits usize");
+                    buffer.clear();
+                    let mut limited_source = (&mut *source).take(remaining as u64);
+                    limited_source
+                        .read_buf(&mut buffer)
+                        .await
+                        .map_err(|error| {
+                            format!(
+                                "failed to read source while appending into segment {}: {error}",
+                                segment_path.display()
+                            )
+                        })?;
+                    let read = buffer.len();
+                    (&buffer[..], read)
+                };
                 if read == 0 {
                     break;
                 }
-                destination
-                    .write_all(&buffer[..read])
-                    .await
-                    .map_err(|error| {
-                        format!(
-                            "failed to append into segment {}: {error}",
-                            segment_path.display()
-                        )
-                    })?;
+                run_segment_file_operation(|| {
+                    writer
+                        .file
+                        .as_ref()
+                        .expect("active segment writer should hold a file")
+                        .write_all_at(chunk, offset.saturating_add(copied))
+                })
+                .map_err(|error| {
+                    format!(
+                        "failed to append into segment {}: {error}",
+                        segment_path.display()
+                    )
+                })?;
                 copied = copied.saturating_add(read as u64);
 
                 if copied.saturating_sub(advised_through)
@@ -2684,27 +3232,31 @@ impl Store {
                         self.memory.transient_reserved_bytes(),
                     )
                 {
-                    destination = match self
+                    let destination = writer
+                        .file
+                        .take()
+                        .expect("active segment writer should hold a file");
+                    run_segment_file_operation(|| destination.sync_data()).map_err(|error| {
+                        format!("failed to sync segment {}: {error}", segment_path.display())
+                    })?;
+                    drop(destination);
+                    if let Err(error) = self
                         .io
-                        .sync_drop_cache_and_reopen_append(
-                            destination,
+                        .drop_cached_pages(
                             &segment_path,
                             offset.saturating_add(advised_through),
                             copied - advised_through,
                         )
                         .await
                     {
-                        Ok(destination) => destination,
-                        Err(error) => {
-                            self.io
-                                .metrics()
-                                .record_memory_action("segment_file_cache_drop_failed");
-                            return Err(format!(
-                                "failed to bound segment file cache for {}: {error}",
-                                segment_path.display()
-                            ));
-                        }
-                    };
+                        self.io
+                            .metrics()
+                            .record_memory_action("segment_file_cache_drop_failed");
+                        return Err(format!(
+                            "failed to bound segment file cache for {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
                     if let Some(source_path) = source_cache_path
                         && let Err(error) = self
                             .io
@@ -2726,6 +3278,9 @@ impl Store {
                             ));
                         }
                     }
+                    writer.file = Some(Arc::new(
+                        self.io.open_persistent_append_file(&segment_path).await?,
+                    ));
                     advised_through = copied;
                     self.io
                         .metrics()
@@ -2738,19 +3293,17 @@ impl Store {
                     segment_path.display()
                 ));
             }
-            destination.flush().await.map_err(|error| {
-                format!(
-                    "failed to flush segment {}: {error}",
-                    segment_path.display()
-                )
-            })?;
             let drop_final_range = copied > advised_through
                 && file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
                     self.memory.transient_reserved_bytes(),
                 );
             if drop_final_range {
-                destination.sync_data().await.map_err(|error| {
+                let destination = writer
+                    .file
+                    .take()
+                    .expect("active segment writer should hold a file");
+                run_segment_file_operation(|| destination.sync_data()).map_err(|error| {
                     format!("failed to sync segment {}: {error}", segment_path.display())
                 })?;
                 drop(destination);
@@ -2794,12 +3347,12 @@ impl Store {
                         ));
                     }
                 }
-            } else {
-                drop(destination);
+                writer.file = Some(Arc::new(
+                    self.io.open_persistent_append_file(&segment_path).await?,
+                ));
             }
-            if !segment_already_exists {
-                self.io.sync_directory(segment_dir).await?;
-            }
+            writer.len = offset.saturating_add(copied);
+            writer.len_unknown = false;
 
             let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
             (
@@ -2811,6 +3364,7 @@ impl Store {
                 durability_seq,
             )
         };
+        drop(pending_writer);
 
         if durability == ApplyDurability::Sync {
             self.ensure_segment_durable(durability_seq).await?;
@@ -2821,15 +3375,15 @@ impl Store {
 
     /// Group-commit fsync: makes every append with sequence `<= seq` durable.
     ///
-    /// Writers reserve `pending_seq` in append order while holding the write
-    /// lock, then call this. The first writer to win `fsync_lock` performs one
-    /// fsync of the active segment and advances `durable_seq` to the latest
-    /// reserved sequence. That is correct because a segment is fsynced when it
-    /// rotates out (see `active_segment`), so only the active segment can hold
-    /// un-synced bytes — and if the active segment rotated between a writer's
-    /// append and this fsync, that writer's bytes were already made durable by
-    /// the rotation. Writers already covered by a prior fsync return without
-    /// syncing.
+    /// Each writer publishes `pending_seq` only after its reserved range is
+    /// complete and before releasing the segment barrier. The first writer to
+    /// win `fsync_lock` performs one fsync of the active segment and advances
+    /// `durable_seq` to the latest published sequence. The exclusive side of
+    /// the segment barrier waits for every in-progress positioned write before
+    /// capturing that sequence, so every published range in the prefix is in
+    /// the file being synchronized. This is also correct across rotation
+    /// because the outgoing segment is synchronized before it stops being the
+    /// active target. Writers covered by a prior fsync return without syncing.
     async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
         if self.durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
@@ -2838,44 +3392,71 @@ impl Store {
         if self.durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
         }
+        let writers_ahead = self
+            .segment_writers_ahead_of_durability
+            .load(Ordering::Acquire);
+        if writers_ahead > 0 {
+            tokio::time::sleep(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY).await;
+        }
         self.hit_failpoint(FailpointName::BeforeSegmentFsync)
             .await?;
-        // Capture after winning the commit lock so the fsync covers writers that
-        // appended while we queued.
-        let target = self.pending_seq.load(Ordering::Acquire);
-        self.fsync_active_segment().await?;
+        // Taking the exclusive segment barrier inside the fsync lock lets
+        // already-started writes finish first, then captures exactly the prefix
+        // covered by the retained file handle's sync.
+        let target = self.fsync_active_segment().await?;
         self.durable_seq.store(target, Ordering::Release);
         Ok(())
     }
 
-    /// Fsyncs the current active segment file. A fresh handle is fine: `sync_data`
-    /// flushes the inode's dirty pages regardless of which descriptor wrote them.
-    async fn fsync_active_segment(&self) -> Result<(), String> {
+    /// Fsyncs the current active segment file and returns the append sequence
+    /// covered by that barrier.
+    async fn fsync_active_segment(&self) -> Result<u64, String> {
+        let _exclusive = self.segment_write_barrier.write().await;
+        let writer = self.segment_write_lock.lock().await;
+        let target = self.pending_seq.load(Ordering::Acquire);
         let snapshot = self.segment_state_snapshot();
         let Some(active) = snapshot.state.active() else {
-            return Ok(());
+            return Ok(target);
         };
         let path = self.segment_path(&active.segment_id);
+        if writer.segment_id.as_deref() == Some(active.segment_id.as_str())
+            && let Some(file) = writer.file.as_ref()
+        {
+            self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+            run_segment_file_operation(|| file.sync_data())
+                .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
+            return Ok(target);
+        }
         if !self.io.path_exists(&path).await? {
-            return Ok(());
+            return Ok(target);
         }
         let file = self.io.open_append_file(&path).await?;
         self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
         file.sync_data()
             .await
             .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
-        Ok(())
+        Ok(target)
     }
 
     async fn active_segment(
         &self,
         incoming_size: u64,
+        writer: &mut ActiveSegmentWriter,
     ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
         let snapshot = self.segment_state_snapshot();
         let needs_new_segment = match snapshot.state.active() {
             Some(segment) => {
                 let path = self.segment_path(&segment.segment_id);
-                let current_size = if self.io.path_exists(&path).await? {
+                let current_size = if writer.segment_id.as_deref()
+                    == Some(segment.segment_id.as_str())
+                    && writer.file.is_some()
+                {
+                    if writer.len_unknown {
+                        writer.len = self.io.metadata_len(&path).await?;
+                        writer.len_unknown = false;
+                    }
+                    writer.len
+                } else if self.io.path_exists(&path).await? {
                     self.io.metadata_len(&path).await?
                 } else {
                     0
@@ -2900,7 +3481,17 @@ impl Store {
             // stops being the fsync target.
             if let Some(active) = snapshot.state.active() {
                 let path = self.segment_path(&active.segment_id);
-                if self.io.path_exists(&path).await? {
+                if writer.segment_id.as_deref() == Some(active.segment_id.as_str())
+                    && let Some(file) = writer.file.as_ref()
+                {
+                    self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+                    run_segment_file_operation(|| file.sync_data()).map_err(|error| {
+                        format!(
+                            "failed to sync rotating segment {}: {error}",
+                            path.display()
+                        )
+                    })?;
+                } else if self.io.path_exists(&path).await? {
                     let file = self.io.open_append_file(&path).await?;
                     self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
                     file.sync_data().await.map_err(|error| {
@@ -2911,6 +3502,7 @@ impl Store {
                     })?;
                 }
             }
+            *writer = ActiveSegmentWriter::default();
             let outgoing_segment_id = snapshot
                 .state
                 .active()
@@ -3328,11 +3920,9 @@ impl Store {
     /// keeps scheduling — probes answer, the metrics snapshot task keeps
     /// publishing, and inbound request bodies keep draining. See #12556.
     ///
-    /// `WriteBatch` is not `Send` (it is a raw `rocksdb_writebatch_t` pointer),
-    /// so the batch crosses the thread boundary as its own serialized
-    /// representation, which is the same encoding RocksDB puts in the WAL and
-    /// preserves column-family targeting. That costs one copy, bounded by
-    /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`.
+    /// The current RocksDB binding marks `WriteBatch` as `Send`, so ownership
+    /// moves to the blocking worker directly. This avoids serializing and
+    /// reconstructing the bounded batch merely to cross the thread boundary.
     async fn commit_eviction_chunk(
         &self,
         batch: WriteBatch,
@@ -3347,7 +3937,6 @@ impl Store {
             return Ok(());
         }
 
-        let payload = batch.data().to_vec();
         // Invalidate before the commit as well as after. `spawn_blocking` work
         // is never cancelled, but the future awaiting it can be dropped — and
         // eviction runs on the request path, under an axum handler whose client
@@ -3362,7 +3951,7 @@ impl Store {
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
-        let chunk_bytes = payload.len();
+        let chunk_bytes = batch.size_in_bytes();
         tokio::task::spawn_blocking(move || {
             #[cfg(test)]
             {
@@ -3372,7 +3961,7 @@ impl Store {
                 commits.threads.push(std::thread::current().id());
                 commits.chunk_bytes.push(chunk_bytes);
             }
-            db.write(WriteBatch::from_data(&payload))
+            db.write(batch)
         })
         .await
         .map_err(|error| format!("segment eviction commit task failed: {error}"))?
@@ -3627,10 +4216,20 @@ impl Store {
                 })?,
         );
         let mut cache = self.segment_handles.lock().await;
-        if let Some(existing) = cache.touch(&cache_key) {
+        if let Some((retained_key, existing)) = cache.touch(&cache_key) {
+            if cache.record_fast_path_miss(retained_key.clone()) {
+                self.set_segment_handle_fast_path(retained_key, existing.clone());
+            }
             return Ok(existing);
         }
-        let evicted = cache.insert(cache_key, handle.clone());
+        let (retained_key, evicted) = cache.insert(cache_key, handle.clone());
+        if let Some(retained_key) = retained_key {
+            cache.reset_fast_path_candidate();
+            self.set_segment_handle_fast_path(retained_key, handle.clone());
+        } else {
+            cache.reset_fast_path_candidate();
+            self.segment_handle_hot.store(None);
+        }
         let cached = cache.len();
         drop(cache);
         self.io.metrics().update_segment_handles_cached(cached);
@@ -3652,6 +4251,8 @@ impl Store {
 
     async fn remove_cached_file_handle(&self, cache_key: &str, reason: &str) {
         let mut cache = self.segment_handles.lock().await;
+        cache.reset_fast_path_candidate();
+        self.segment_handle_hot.store(None);
         let removed = cache.remove(cache_key);
         let cached = cache.len();
         drop(cache);
@@ -3662,12 +4263,26 @@ impl Store {
     }
 
     async fn segment_handle_cache_get(&self, cache_key: &str) -> Option<Arc<PersistentFile>> {
+        let hot = self.segment_handle_hot.load();
+        if let Some(hot) = hot.as_ref()
+            && hot.cache_key.as_ref() == cache_key
+        {
+            return Some(hot.handle.clone());
+        }
+        drop(hot);
+
         let mut cache = self.segment_handles.lock().await;
-        cache.touch(cache_key)
+        let (retained_key, handle) = cache.touch(cache_key)?;
+        if cache.record_fast_path_miss(retained_key.clone()) {
+            self.set_segment_handle_fast_path(retained_key, handle.clone());
+        }
+        Some(handle)
     }
 
     pub async fn trim_segment_handle_cache_to(&self, target_entries: usize, reason: &str) -> usize {
         let mut cache = self.segment_handles.lock().await;
+        cache.reset_fast_path_candidate();
+        self.segment_handle_hot.store(None);
         let evicted = cache.trim_to(target_entries);
         let cached = cache.len();
         drop(cache);
@@ -3678,6 +4293,11 @@ impl Store {
                 .record_segment_handle_evictions(reason, evicted as u64);
         }
         evicted
+    }
+
+    fn set_segment_handle_fast_path(&self, cache_key: Arc<str>, handle: Arc<PersistentFile>) {
+        self.segment_handle_hot
+            .store(Some(Arc::new(SegmentHandleFastPath { cache_key, handle })));
     }
 
     #[cfg(test)]
@@ -3716,6 +4336,29 @@ impl Store {
         bytes: &[u8],
         replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
+        self.persist_admitted_artifact_from_bytes_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            FileCachePolicy::Adaptive,
+            replication_targets,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn persist_admitted_artifact_from_bytes_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        file_cache_policy: FileCachePolicy,
+        replication_targets: &[String],
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -3727,7 +4370,13 @@ impl Store {
             trunk: None,
         };
         let (outcome, already_present) = self
-            .persist_artifact_from_bytes_with_version(spec, bytes)
+            .persist_segment_artifact_with_version(
+                spec,
+                SegmentArtifactSource::Memory {
+                    bytes,
+                    file_cache_policy,
+                },
+            )
             .await?;
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
@@ -4263,7 +4912,24 @@ impl Store {
         Ok(true)
     }
 
+    #[cfg(test)]
     async fn persist_artifact_from_bytes_with_version(
+        &self,
+        spec: PersistArtifactSpec<'_>,
+        bytes: &[u8],
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
+        self.persist_segment_artifact_with_version(
+            spec,
+            SegmentArtifactSource::Memory {
+                bytes,
+                file_cache_policy: FileCachePolicy::Adaptive,
+            },
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    async fn persist_artifact_from_bytes_via_temp_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
@@ -6639,16 +7305,16 @@ impl Store {
         label: &'static str,
         durability: ApplyDurability,
     ) -> Result<(), String> {
-        // `WriteBatch` is not `Send`, so the batch crosses as its serialized
-        // representation — the same encoding RocksDB writes to the WAL, with
-        // column-family targeting preserved. See `commit_eviction_chunk`.
-        let payload = batch.data().to_vec();
+        // The current RocksDB binding marks `WriteBatch` as `Send`, so move its
+        // existing allocation to the blocking worker without a serialized copy
+        // and reconstruction. See `commit_eviction_chunk`.
+        let pending_writer = (durability == ApplyDurability::Sync)
+            .then(|| PendingDurabilityWriter::new(&self.wal_writers_ahead_of_durability));
         let db = Arc::clone(&self.db);
         let mut write_options = WriteOptions::default();
         match durability {
             ApplyDurability::Sync => {
-                write_options.set_sync(true);
-                self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
+                write_options.set_sync(false);
             }
             ApplyDurability::DeferredBatch => {
                 write_options.set_sync(false);
@@ -6667,24 +7333,58 @@ impl Store {
             if let Some(observer) = observer {
                 observer(std::thread::current().id());
             }
-            db.write_opt(WriteBatch::from_data(&payload), &write_options)
+            db.write_opt(batch, &write_options)
         })
         .await
         .map_err(|error| format!("{label} write task failed: {error}"))?
-        .map_err(|error| format!("failed to write {label}: {error}"))
+        .map_err(|error| format!("failed to write {label}: {error}"))?;
+
+        let durability_seq = (durability == ApplyDurability::Sync)
+            .then(|| self.wal_pending_seq.fetch_add(1, Ordering::AcqRel) + 1);
+        drop(pending_writer);
+        if let Some(durability_seq) = durability_seq {
+            self.ensure_wal_durable(durability_seq).await?;
+        }
+        Ok(())
+    }
+
+    async fn ensure_wal_durable(&self, seq: u64) -> Result<(), String> {
+        if self.wal_durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        let _commit = self.wal_fsync_lock.lock().await;
+        if self.wal_durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        if self.wal_writers_ahead_of_durability.load(Ordering::Acquire) > 0 {
+            tokio::time::sleep(WAL_DURABILITY_GROUP_COMMIT_DELAY).await;
+        }
+        #[cfg(test)]
+        self.hit_failpoint(FailpointName::BeforeWalFsync).await?;
+        let target = self.wal_pending_seq.load(Ordering::Acquire);
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.flush_wal(true))
+            .await
+            .map_err(|error| format!("WAL flush task failed: {error}"))?
+            .map_err(|error| format!("failed to flush WAL: {error}"))?;
+        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
+        self.wal_durable_seq.store(target, Ordering::Release);
+        Ok(())
     }
 
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
     /// makes every WAL-only commit before it durable.
     fn flush_wal_barrier(&self) -> Result<(), String> {
-        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         self.db
             .flush_wal(true)
-            .map_err(|error| format!("failed to flush WAL: {error}"))
+            .map_err(|error| format!("failed to flush WAL: {error}"))?;
+        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
+        Ok(())
     }
 
-    /// (sync WriteBatch commits, deferred WriteBatch commits, WAL flushes) —
-    /// the durability-accounting counters tests pin path semantics with.
+    /// (writes committed with sync enabled, deferred writes, successful synced
+    /// WAL flushes) — the durability-accounting counters tests pin path
+    /// semantics with.
     #[cfg(test)]
     pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
         (
@@ -6774,7 +7474,7 @@ impl Store {
             .transpose()
     }
 
-    fn manifest_cache_get(&self, artifact_id: &str) -> Option<ArtifactManifest> {
+    fn manifest_cache_get_retained(&self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
         let mut cache = self
             .manifest_cache
             .lock()
@@ -6782,7 +7482,27 @@ impl Store {
         cache.get(artifact_id)
     }
 
+    #[cfg(test)]
+    fn manifest_cache_get(&self, artifact_id: &str) -> Option<ArtifactManifest> {
+        let retained = self.manifest_cache_get_retained(artifact_id)?;
+        Some((*retained).clone())
+    }
+
+    #[cfg(test)]
+    fn manifest_cache_get_cloning_under_lock(&self, artifact_id: &str) -> Option<ArtifactManifest> {
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
+        let retained = cache.get(artifact_id)?;
+        Some((*retained).clone())
+    }
+
     fn maybe_cache_manifest(&self, manifest: ArtifactManifest) {
+        self.maybe_cache_manifest_retained(Arc::new(manifest));
+    }
+
+    fn maybe_cache_manifest_retained(&self, manifest: Arc<ArtifactManifest>) {
         if !self.memory.allow_manifest_cache_admission() {
             self.io
                 .metrics()
@@ -6797,7 +7517,7 @@ impl Store {
             .manifest_cache
             .lock()
             .expect("manifest cache lock poisoned");
-        match cache.insert(manifest) {
+        match cache.insert_retained(manifest) {
             ManifestCacheInsertResult::Admitted { evicted } => {
                 self.io
                     .metrics()
@@ -7146,7 +7866,7 @@ fn validate_total_size(next_total: u64, max_total: u64) -> Result<(), MultipartE
 /// cache entry stores the order returned by `touch` and passes it back on the
 /// next touch or removal so the mirror stays in sync with the entry map.
 struct AccessOrder {
-    order: BTreeMap<u64, String>,
+    order: BTreeMap<u64, Arc<str>>,
     next: u64,
 }
 
@@ -7161,12 +7881,12 @@ impl AccessOrder {
     /// Assigns a fresh access order to `key`, dropping its previous order (from
     /// an earlier touch or insert) when supplied. Returns the new order to
     /// store on the entry.
-    fn touch(&mut self, key: &str, previous: Option<u64>) -> u64 {
+    fn touch(&mut self, key: Arc<str>, previous: Option<u64>) -> u64 {
         if let Some(previous) = previous {
             self.order.remove(&previous);
         }
         self.next = self.next.wrapping_add(1);
-        self.order.insert(self.next, key.to_owned());
+        self.order.insert(self.next, key);
         self.next
     }
 
@@ -7175,13 +7895,13 @@ impl AccessOrder {
     }
 
     /// Removes and returns the least-recently-used key.
-    fn pop_lru(&mut self) -> Option<String> {
+    fn pop_lru(&mut self) -> Option<Arc<str>> {
         self.order.pop_first().map(|(_, key)| key)
     }
 }
 
 struct ManifestCache {
-    entries: HashMap<String, CachedManifest>,
+    entries: HashMap<Arc<str>, CachedManifest>,
     total_bytes: usize,
     access: AccessOrder,
     max_bytes: usize,
@@ -7226,7 +7946,7 @@ impl ShardedExistenceCache {
         self.shard(artifact_id)
             .lock()
             .expect("existence cache lock poisoned")
-            .insert(artifact_id.to_owned());
+            .insert(artifact_id);
     }
 
     fn remove_many(&self, artifact_ids: &[String]) {
@@ -7252,7 +7972,7 @@ impl ShardedExistenceCache {
 }
 
 struct ExistenceCache {
-    entries: HashMap<String, CachedExistence>,
+    entries: HashMap<Arc<str>, CachedExistence>,
     access: AccessOrder,
     capacity: usize,
     ttl: Duration,
@@ -7264,7 +7984,7 @@ struct CachedExistence {
 }
 
 struct CachedManifest {
-    manifest: ArtifactManifest,
+    manifest: Arc<ArtifactManifest>,
     size_bytes: usize,
     access_order: u64,
 }
@@ -7293,31 +8013,39 @@ impl ManifestCache {
         self.total_bytes
     }
 
-    fn get(&mut self, artifact_id: &str) -> Option<ArtifactManifest> {
-        let previous_order = self.entries.get(artifact_id)?.access_order;
-        let access_order = self.access.touch(artifact_id, Some(previous_order));
+    fn get(&mut self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
+        let (key, previous_order) = self
+            .entries
+            .get_key_value(artifact_id)
+            .map(|(key, cached)| (key.clone(), cached.access_order))?;
+        let access_order = self.access.touch(key, Some(previous_order));
         let cached = self.entries.get_mut(artifact_id)?;
         cached.access_order = access_order;
         Some(cached.manifest.clone())
     }
 
+    #[cfg(test)]
     fn insert(&mut self, manifest: ArtifactManifest) -> ManifestCacheInsertResult {
-        let artifact_id = manifest.artifact_id.clone();
+        self.insert_retained(Arc::new(manifest))
+    }
+
+    fn insert_retained(&mut self, manifest: Arc<ArtifactManifest>) -> ManifestCacheInsertResult {
         let size_bytes = estimated_manifest_bytes(&manifest);
         if size_bytes > self.max_bytes {
-            if let Some(removed) = self.entries.remove(&artifact_id) {
+            if let Some(removed) = self.entries.remove(manifest.artifact_id.as_str()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 self.access.forget(removed.access_order);
             }
             return ManifestCacheInsertResult::Oversized;
         }
 
-        let existed = self.entries.remove(&artifact_id);
+        let artifact_id: Arc<str> = Arc::from(manifest.artifact_id.as_str());
+        let existed = self.entries.remove(artifact_id.as_ref());
         let previous_order = existed.as_ref().map(|removed| {
             self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
             removed.access_order
         });
-        let access_order = self.access.touch(&artifact_id, previous_order);
+        let access_order = self.access.touch(artifact_id.clone(), previous_order);
         self.entries.insert(
             artifact_id,
             CachedManifest {
@@ -7338,7 +8066,7 @@ impl ManifestCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            if let Some(removed) = self.entries.remove(artifact_id) {
+            if let Some(removed) = self.entries.remove(artifact_id.as_str()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 self.access.forget(removed.access_order);
             }
@@ -7351,7 +8079,7 @@ impl ManifestCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            if let Some(removed) = self.entries.remove(&oldest_key) {
+            if let Some(removed) = self.entries.remove(oldest_key.as_ref()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 evicted += 1;
             }
@@ -7371,10 +8099,10 @@ impl ExistenceCache {
     }
 
     fn contains(&mut self, artifact_id: &str) -> bool {
-        let Some((inserted_at, previous_order)) = self
+        let Some((key, inserted_at, previous_order)) = self
             .entries
-            .get(artifact_id)
-            .map(|entry| (entry.inserted_at, entry.access_order))
+            .get_key_value(artifact_id)
+            .map(|(key, entry)| (key.clone(), entry.inserted_at, entry.access_order))
         else {
             return false;
         };
@@ -7383,21 +8111,22 @@ impl ExistenceCache {
             self.access.forget(previous_order);
             return false;
         }
-        let access_order = self.access.touch(artifact_id, Some(previous_order));
+        let access_order = self.access.touch(key, Some(previous_order));
         if let Some(entry) = self.entries.get_mut(artifact_id) {
             entry.access_order = access_order;
         }
         true
     }
 
-    fn insert(&mut self, artifact_id: String) {
-        let previous_order = self
+    fn insert(&mut self, artifact_id: &str) {
+        let (key, previous_order) = self
             .entries
-            .get(&artifact_id)
-            .map(|entry| entry.access_order);
-        let access_order = self.access.touch(&artifact_id, previous_order);
+            .get_key_value(artifact_id)
+            .map(|(key, entry)| (key.clone(), Some(entry.access_order)))
+            .unwrap_or_else(|| (Arc::from(artifact_id), None));
+        let access_order = self.access.touch(key.clone(), previous_order);
         self.entries.insert(
-            artifact_id,
+            key,
             CachedExistence {
                 inserted_at: Instant::now(),
                 access_order,
@@ -7408,7 +8137,7 @@ impl ExistenceCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            if let Some(removed) = self.entries.remove(artifact_id) {
+            if let Some(removed) = self.entries.remove(artifact_id.as_str()) {
                 self.access.forget(removed.access_order);
             }
         }
@@ -7420,7 +8149,7 @@ impl ExistenceCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&oldest_key);
+            self.entries.remove(oldest_key.as_ref());
             evicted += 1;
         }
         evicted
@@ -7431,7 +8160,7 @@ impl ExistenceCache {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&oldest_key);
+            self.entries.remove(oldest_key.as_ref());
         }
     }
 }
@@ -7439,15 +8168,17 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
-    // The artifact id is owned three times: inside the manifest, as the
-    // HashMap key, and in AccessOrder's BTreeMap value.
-    manifest.artifact_id.len().saturating_mul(3)
+    // The artifact id has one allocation inside the manifest and one shared
+    // by the HashMap key and AccessOrder's BTreeMap value. The retained
+    // manifest has one allocation header for its reference counts.
+    manifest.artifact_id.len().saturating_mul(2)
         + manifest.namespace_id.len()
         + manifest.key.len()
         + manifest.content_type.len()
         + optional_blob_path
         + optional_segment_id
         + std::mem::size_of::<ArtifactManifest>()
+        + std::mem::size_of::<usize>() * 2
 }
 
 pub const DISK_FULL_MARKER: &str = "disk_full";
@@ -7667,10 +8398,28 @@ struct SegmentLocation {
     offset: u64,
 }
 
+#[derive(Default)]
+struct ActiveSegmentWriter {
+    segment_id: Option<String>,
+    file: Option<Arc<PersistentFile>>,
+    len: u64,
+    len_unknown: bool,
+    directory_sync_pending: bool,
+}
+
+/// Amortizes atomic publication when concurrent traffic alternates between cached handles.
+const SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS: usize = 64;
+
 struct SegmentHandleCache {
-    entries: HashMap<String, CachedSegmentHandle>,
+    entries: HashMap<Arc<str>, CachedSegmentHandle>,
     access: AccessOrder,
     capacity: usize,
+    fast_path_candidate: Option<(Arc<str>, usize)>,
+}
+
+struct SegmentHandleFastPath {
+    cache_key: Arc<str>,
+    handle: Arc<PersistentFile>,
 }
 
 struct CachedSegmentHandle {
@@ -7684,6 +8433,7 @@ impl SegmentHandleCache {
             entries: HashMap::new(),
             access: AccessOrder::new(),
             capacity,
+            fast_path_candidate: None,
         }
     }
 
@@ -7691,25 +8441,41 @@ impl SegmentHandleCache {
         self.entries.len()
     }
 
-    fn touch(&mut self, cache_key: &str) -> Option<Arc<PersistentFile>> {
-        let previous_order = self.entries.get(cache_key)?.access_order;
-        let access_order = self.access.touch(cache_key, Some(previous_order));
+    fn touch(&mut self, cache_key: &str) -> Option<(Arc<str>, Arc<PersistentFile>)> {
+        let (key, previous_order) = self
+            .entries
+            .get_key_value(cache_key)
+            .map(|(key, entry)| (key.clone(), entry.access_order))?;
+        let access_order = self.access.touch(key.clone(), Some(previous_order));
         let entry = self.entries.get_mut(cache_key)?;
         entry.access_order = access_order;
-        Some(entry.handle.clone())
+        Some((key, entry.handle.clone()))
     }
 
-    fn insert(&mut self, cache_key: String, handle: Arc<PersistentFile>) -> usize {
-        let previous_order = self.entries.get(&cache_key).map(|entry| entry.access_order);
-        let access_order = self.access.touch(&cache_key, previous_order);
+    fn insert(
+        &mut self,
+        cache_key: String,
+        handle: Arc<PersistentFile>,
+    ) -> (Option<Arc<str>>, usize) {
+        let cache_key: Arc<str> = Arc::from(cache_key);
+        let previous_order = self
+            .entries
+            .get(cache_key.as_ref())
+            .map(|entry| entry.access_order);
+        let access_order = self.access.touch(cache_key.clone(), previous_order);
         self.entries.insert(
-            cache_key,
+            cache_key.clone(),
             CachedSegmentHandle {
                 handle,
                 access_order,
             },
         );
-        self.evict_over_capacity()
+        let evicted = self.evict_over_capacity();
+        let retained_key = self
+            .entries
+            .contains_key(cache_key.as_ref())
+            .then_some(cache_key);
+        (retained_key, evicted)
     }
 
     fn remove(&mut self, cache_key: &str) -> bool {
@@ -7719,6 +8485,28 @@ impl SegmentHandleCache {
         } else {
             false
         }
+    }
+
+    fn record_fast_path_miss(&mut self, cache_key: Arc<str>) -> bool {
+        let hits = match &mut self.fast_path_candidate {
+            Some((candidate_key, hits)) if candidate_key.as_ref() == cache_key.as_ref() => {
+                *hits += 1;
+                *hits
+            }
+            candidate => {
+                *candidate = Some((cache_key, 1));
+                1
+            }
+        };
+        if hits < SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS {
+            return false;
+        }
+        self.fast_path_candidate = None;
+        true
+    }
+
+    fn reset_fast_path_candidate(&mut self) {
+        self.fast_path_candidate = None;
     }
 
     fn trim_to(&mut self, target_entries: usize) -> usize {
@@ -7735,7 +8523,7 @@ impl SegmentHandleCache {
             let Some(lru_key) = self.access.pop_lru() else {
                 break;
             };
-            self.entries.remove(&lru_key);
+            self.entries.remove(lru_key.as_ref());
             evicted += 1;
         }
         evicted
@@ -7810,9 +8598,60 @@ fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> boo
     incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
 }
 
+pub(crate) fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(size).ok()?;
+    Some(bytes)
+}
+
+async fn read_exact_to_vec<R>(
+    reader: &mut R,
+    mut bytes: Vec<u8>,
+    size: usize,
+) -> std::io::Result<Vec<u8>>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut limited_reader = reader.take(size as u64);
+    while bytes.len() < size {
+        let read_offset = bytes.len();
+        limited_reader.read_buf(&mut bytes).await?;
+        if bytes.len() == read_offset {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+    }
+    bytes.truncate(size);
+    Ok(bytes)
+}
+
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
     let size = usize::try_from(size)
         .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
+    read_bytes_at_len(file, offset, size)
+}
+
+#[cfg(unix)]
+fn read_bytes_at_len(file: &std::fs::File, offset: u64, size: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::with_capacity(size);
+    while bytes.len() < size {
+        let read_offset = bytes.len();
+        rustix::io::pread(
+            file,
+            rustix::buffer::spare_capacity(&mut bytes),
+            offset + read_offset as u64,
+        )
+        .map_err(|error| format!("failed to read artifact bytes at offset {offset}: {error}"))?;
+        if bytes.len() == read_offset {
+            return Err(format!(
+                "unexpected EOF while reading {size} bytes at offset {offset}"
+            ));
+        }
+    }
+    Ok(bytes)
+}
+
+#[cfg(windows)]
+fn read_bytes_at_len(file: &std::fs::File, offset: u64, size: usize) -> Result<Vec<u8>, String> {
     let mut bytes = vec![0; size];
     let mut read_offset = 0_usize;
     while read_offset < bytes.len() {
@@ -7829,13 +8668,6 @@ fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>
         read_offset += bytes_read;
     }
     Ok(bytes)
-}
-
-#[cfg(unix)]
-fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
-    use std::os::unix::fs::FileExt;
-
-    file.read_at(bytes, offset)
 }
 
 #[cfg(windows)]
@@ -7973,6 +8805,809 @@ mod tests {
     const GIB: u64 = 1024 * 1024 * 1024;
 
     #[test]
+    fn read_bytes_at_returns_exact_requested_range() {
+        use std::io::Write as _;
+
+        let mut file = tempfile::tempfile().expect("create range test file");
+        file.write_all(b"prefix-payload-suffix")
+            .expect("write range test file");
+
+        assert_eq!(
+            read_bytes_at(&file, 7, 7).expect("read exact range"),
+            b"payload"
+        );
+    }
+
+    #[test]
+    fn read_bytes_at_rejects_a_truncated_range() {
+        use std::io::Write as _;
+
+        let mut file = tempfile::tempfile().expect("create truncation test file");
+        file.write_all(b"short")
+            .expect("write truncation test file");
+
+        let error = read_bytes_at(&file, 0, 6).expect_err("truncated range must fail");
+        assert_eq!(error, "unexpected EOF while reading 6 bytes at offset 0");
+    }
+
+    #[tokio::test]
+    async fn segment_preload_read_is_bounded_to_requested_size() {
+        let mut source = &[1_u8, 2, 3, 4][..];
+        let bytes = read_exact_to_vec(
+            &mut source,
+            try_allocate_exact_vec(3).expect("allocate exact buffer"),
+            3,
+        )
+        .await
+        .expect("read exact bytes");
+        assert_eq!(bytes, vec![1, 2, 3]);
+        assert_eq!(source, &[4]);
+    }
+
+    #[tokio::test]
+    async fn segment_preload_read_reports_truncated_source() {
+        let mut source = &[1_u8, 2][..];
+        let error = read_exact_to_vec(
+            &mut source,
+            try_allocate_exact_vec(3).expect("allocate exact buffer"),
+            3,
+        )
+        .await
+        .expect_err("truncated source should fail");
+        assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn segment_preload_falls_back_when_allocation_is_impossible() {
+        assert!(try_allocate_exact_vec(usize::MAX).is_none());
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn segment_preload_uninitialized_read_benchmark() {
+        const ITERATIONS: usize = 4_096;
+        const SAMPLES: usize = 8;
+
+        async fn initialized_read(source: &[u8]) -> Vec<u8> {
+            let mut source = source;
+            let mut bytes = vec![0; SEGMENT_COPY_BUFFER_BYTES];
+            source
+                .read_exact(&mut bytes)
+                .await
+                .expect("read initialized preload buffer");
+            bytes
+        }
+
+        async fn uninitialized_read(source: &[u8]) -> Vec<u8> {
+            let mut source = source;
+            read_exact_to_vec(
+                &mut source,
+                try_allocate_exact_vec(SEGMENT_COPY_BUFFER_BYTES)
+                    .expect("benchmark allocation should succeed"),
+                SEGMENT_COPY_BUFFER_BYTES,
+            )
+            .await
+            .expect("read uninitialized preload buffer")
+        }
+
+        async fn measure(source: &[u8], uninitialized: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let bytes = if uninitialized {
+                    uninitialized_read(source).await
+                } else {
+                    initialized_read(source).await
+                };
+                assert_eq!(bytes.len(), SEGMENT_COPY_BUFFER_BYTES);
+                std::hint::black_box(bytes.as_ptr());
+            }
+            let total_bytes = (ITERATIONS * SEGMENT_COPY_BUFFER_BYTES) as f64;
+            total_bytes / started_at.elapsed().as_secs_f64() / (1_024.0 * 1_024.0)
+        }
+
+        let source = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&source, false).await, measure(&source, true).await)
+            } else {
+                let candidate = measure(&source, true).await;
+                (measure(&source, false).await, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC segment_preload_baseline_mebibytes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC segment_preload_candidate_mebibytes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC segment_preload_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn positioned_segment_write_benchmark() {
+        const WRITERS: usize = 64;
+        const WRITES_PER_WRITER: usize = 8;
+        const SAMPLES: usize = 6;
+
+        async fn measure(store: Arc<Store>, bytes: Arc<Vec<u8>>, positioned: bool) -> (f64, u64) {
+            store
+                .positioned_segment_writes_enabled
+                .store(positioned, Ordering::Release);
+            let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+            let start = Arc::new(tokio::sync::Barrier::new(WRITERS + 1));
+            let mut writers = Vec::with_capacity(WRITERS);
+            for _ in 0..WRITERS {
+                let store = store.clone();
+                let bytes = bytes.clone();
+                let start = start.clone();
+                writers.push(tokio::spawn(async move {
+                    start.wait().await;
+                    for _ in 0..WRITES_PER_WRITER {
+                        store
+                            .append_preloaded_to_segment(
+                                &bytes,
+                                None,
+                                FileCachePolicy::Adaptive,
+                                ApplyDurability::Sync,
+                            )
+                            .await
+                            .expect("benchmark segment write should persist");
+                    }
+                }));
+            }
+            start.wait().await;
+            let started_at = std::time::Instant::now();
+            for writer in writers {
+                writer.await.expect("benchmark writer should finish");
+            }
+            let writes = WRITERS * WRITES_PER_WRITER;
+            (
+                writes as f64 / started_at.elapsed().as_secs_f64(),
+                store
+                    .segment_fsync_count
+                    .load(Ordering::Relaxed)
+                    .saturating_sub(fsyncs_before),
+            )
+        }
+
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let bytes = Arc::new(vec![0x5a; 64 * 1024]);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_fsyncs = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_fsyncs = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (
+                    measure(store.clone(), bytes.clone(), false).await,
+                    measure(store.clone(), bytes.clone(), true).await,
+                )
+            } else {
+                let candidate = measure(store.clone(), bytes.clone(), true).await;
+                (
+                    measure(store.clone(), bytes.clone(), false).await,
+                    candidate,
+                )
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline.0);
+                candidate_rates.push(candidate.0);
+                speedups.push(candidate.0 / baseline.0);
+                baseline_fsyncs.push(baseline.1);
+                candidate_fsyncs.push(candidate.1);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        baseline_fsyncs.sort_unstable();
+        candidate_fsyncs.sort_unstable();
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC positioned_segment_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC serialized_segment_writes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC positioned_segment_writes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC serialized_segment_fsyncs={}",
+            baseline_fsyncs[median]
+        );
+        println!(
+            "METRIC positioned_segment_fsyncs={}",
+            candidate_fsyncs[median]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually for end-to-end validation"]
+    async fn positioned_artifact_write_benchmark() {
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+
+        async fn measure(
+            store: Arc<Store>,
+            bytes: Arc<Vec<u8>>,
+            label: &'static str,
+            sample: usize,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                store: Arc<Store>,
+                bytes: Arc<Vec<u8>>,
+                key: String,
+            ) {
+                writes.spawn(async move {
+                    let started_at = std::time::Instant::now();
+                    store
+                        .persist_artifact_from_bytes(
+                            ArtifactProducer::Xcode,
+                            "positioned-write-benchmark",
+                            &key,
+                            "application/octet-stream",
+                            &bytes,
+                        )
+                        .await
+                        .expect("benchmark artifact should persist");
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(
+                    &mut writes,
+                    store.clone(),
+                    bytes.clone(),
+                    format!("{label}-{sample}-{next}"),
+                );
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(
+                        &mut writes,
+                        store.clone(),
+                        bytes.clone(),
+                        format!("{label}-{sample}-{next}"),
+                    );
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let (_baseline_temp, _baseline_config, baseline) = temp_store();
+        baseline
+            .positioned_segment_writes_enabled
+            .store(false, Ordering::Release);
+        let baseline = Arc::new(baseline);
+        let (_candidate_temp, _candidate_config, candidate) = temp_store();
+        candidate
+            .positioned_segment_writes_enabled
+            .store(true, Ordering::Release);
+        let candidate = Arc::new(candidate);
+        let bytes = Arc::new(vec![0x5a; SEGMENT_COPY_BUFFER_BYTES]);
+        let mut baseline_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline_result, candidate_result) = if sample % 2 == 0 {
+                (
+                    measure(baseline.clone(), bytes.clone(), "baseline", sample).await,
+                    measure(candidate.clone(), bytes.clone(), "candidate", sample).await,
+                )
+            } else {
+                let candidate_result =
+                    measure(candidate.clone(), bytes.clone(), "candidate", sample).await;
+                (
+                    measure(baseline.clone(), bytes.clone(), "baseline", sample).await,
+                    candidate_result,
+                )
+            };
+            if sample > 0 {
+                speedups.push(candidate_result.0 / baseline_result.0);
+                baseline_samples.push(baseline_result);
+                candidate_samples.push(candidate_result);
+            }
+        }
+        baseline_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        candidate_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let baseline_median = baseline_samples[median];
+        let candidate_median = candidate_samples[median];
+
+        println!(
+            "METRIC positioned_artifact_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC serialized_artifact_writes_per_second={:.3}",
+            baseline_median.0
+        );
+        println!(
+            "METRIC positioned_artifact_writes_per_second={:.3}",
+            candidate_median.0
+        );
+        println!(
+            "METRIC serialized_artifact_write_p50_microseconds={}",
+            baseline_median.1
+        );
+        println!(
+            "METRIC serialized_artifact_write_p95_microseconds={}",
+            baseline_median.2
+        );
+        println!(
+            "METRIC serialized_artifact_write_p99_microseconds={}",
+            baseline_median.3
+        );
+        println!(
+            "METRIC positioned_artifact_write_p50_microseconds={}",
+            candidate_median.1
+        );
+        println!(
+            "METRIC positioned_artifact_write_p95_microseconds={}",
+            candidate_median.2
+        );
+        println!(
+            "METRIC positioned_artifact_write_p99_microseconds={}",
+            candidate_median.3
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn direct_memory_artifact_write_benchmark() {
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+
+        async fn measure(
+            store: Arc<Store>,
+            bytes: Arc<Vec<u8>>,
+            direct: bool,
+            sample: usize,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                store: Arc<Store>,
+                bytes: Arc<Vec<u8>>,
+                key: String,
+                direct: bool,
+            ) {
+                writes.spawn(async move {
+                    let started_at = std::time::Instant::now();
+                    let spec = PersistArtifactSpec {
+                        producer: ArtifactProducer::Xcode,
+                        namespace_id: "direct-memory-write-benchmark",
+                        key: &key,
+                        content_type: "application/octet-stream",
+                        version_ms: now_ms(),
+                        replication_targets: &[],
+                        branch: None,
+                        trunk: None,
+                    };
+                    let result = if direct {
+                        store
+                            .persist_artifact_from_bytes_with_version(spec, &bytes)
+                            .await
+                    } else {
+                        store
+                            .persist_artifact_from_bytes_via_temp_with_version(spec, &bytes)
+                            .await
+                    };
+                    result.expect("benchmark artifact should persist");
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(
+                    &mut writes,
+                    store.clone(),
+                    bytes.clone(),
+                    format!(
+                        "{}-{sample}-{next}",
+                        if direct { "direct" } else { "staged" }
+                    ),
+                    direct,
+                );
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(
+                        &mut writes,
+                        store.clone(),
+                        bytes.clone(),
+                        format!(
+                            "{}-{sample}-{next}",
+                            if direct { "direct" } else { "staged" }
+                        ),
+                        direct,
+                    );
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let (_staged_temp, _staged_config, staged) = temp_store();
+        let staged = Arc::new(staged);
+        let (_direct_temp, _direct_config, direct) = temp_store();
+        let direct = Arc::new(direct);
+        let bytes = Arc::new(vec![0x5a; SEGMENT_COPY_BUFFER_BYTES]);
+        let mut staged_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut direct_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (staged_result, direct_result) = if sample % 2 == 0 {
+                (
+                    measure(staged.clone(), bytes.clone(), false, sample).await,
+                    measure(direct.clone(), bytes.clone(), true, sample).await,
+                )
+            } else {
+                let direct_result = measure(direct.clone(), bytes.clone(), true, sample).await;
+                (
+                    measure(staged.clone(), bytes.clone(), false, sample).await,
+                    direct_result,
+                )
+            };
+            if sample > 0 {
+                speedups.push(direct_result.0 / staged_result.0);
+                staged_samples.push(staged_result);
+                direct_samples.push(direct_result);
+            }
+        }
+        staged_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        direct_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let staged_median = staged_samples[median];
+        let direct_median = direct_samples[median];
+
+        println!(
+            "METRIC direct_memory_artifact_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC staged_artifact_writes_per_second={:.3}",
+            staged_median.0
+        );
+        println!(
+            "METRIC direct_memory_artifact_writes_per_second={:.3}",
+            direct_median.0
+        );
+        println!(
+            "METRIC staged_artifact_write_p50_microseconds={}",
+            staged_median.1
+        );
+        println!(
+            "METRIC staged_artifact_write_p95_microseconds={}",
+            staged_median.2
+        );
+        println!(
+            "METRIC staged_artifact_write_p99_microseconds={}",
+            staged_median.3
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p50_microseconds={}",
+            direct_median.1
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p95_microseconds={}",
+            direct_median.2
+        );
+        println!(
+            "METRIC direct_memory_artifact_write_p99_microseconds={}",
+            direct_median.3
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn streaming_write_buffer_uninitialized_benchmark() {
+        const SOURCE_BYTES: usize = 1024 * 1024;
+        const ITERATIONS: usize = 1_024;
+        const SAMPLES: usize = 8;
+
+        async fn initialized_copy(source: &[u8]) -> usize {
+            let source_len = source.len();
+            let mut source = source;
+            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+            let mut copied = 0;
+            while copied < source_len {
+                let remaining = (source_len - copied).min(buffer.len());
+                let read = source
+                    .read(&mut buffer[..remaining])
+                    .await
+                    .expect("read initialized streaming buffer");
+                if read == 0 {
+                    break;
+                }
+                copied += read;
+                std::hint::black_box(&buffer[..read]);
+            }
+            copied
+        }
+
+        async fn uninitialized_copy(source: &[u8]) -> usize {
+            let source_len = source.len();
+            let mut source = source;
+            let mut buffer = try_allocate_exact_vec(SEGMENT_COPY_BUFFER_BYTES)
+                .expect("allocate uninitialized streaming buffer");
+            let mut copied = 0;
+            while copied < source_len {
+                let remaining = (source_len - copied).min(SEGMENT_COPY_BUFFER_BYTES);
+                buffer.clear();
+                let mut limited_source = (&mut source).take(remaining as u64);
+                limited_source
+                    .read_buf(&mut buffer)
+                    .await
+                    .expect("read uninitialized streaming buffer");
+                if buffer.is_empty() {
+                    break;
+                }
+                copied += buffer.len();
+                std::hint::black_box(buffer.as_slice());
+            }
+            copied
+        }
+
+        async fn measure(source: &[u8], uninitialized: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let copied = if uninitialized {
+                    uninitialized_copy(source).await
+                } else {
+                    initialized_copy(source).await
+                };
+                assert_eq!(copied, source.len());
+            }
+            (ITERATIONS * source.len()) as f64
+                / started_at.elapsed().as_secs_f64()
+                / (1_024.0 * 1_024.0)
+        }
+
+        let source = vec![0_u8; SOURCE_BYTES];
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&source, false).await, measure(&source, true).await)
+            } else {
+                let candidate = measure(&source, true).await;
+                (measure(&source, false).await, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC streaming_write_buffer_baseline_mebibytes_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC streaming_write_buffer_candidate_mebibytes_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC streaming_write_buffer_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn write_batch_handoff_benchmark() {
+        const ITERATIONS: usize = 100_000;
+        const SAMPLES: usize = 8;
+
+        fn representative_batch(seed: usize) -> WriteBatch {
+            let key = format!("manifest/{seed:016x}");
+            let index = format!("namespace/index/{seed:016x}");
+            let segment = format!("segment/artifacts/{seed:016x}");
+            let manifest = [0x5a_u8; 512];
+            let mut batch = WriteBatch::default();
+            batch.put(key.as_bytes(), manifest);
+            batch.put(index.as_bytes(), []);
+            batch.put(segment.as_bytes(), []);
+            batch
+        }
+
+        fn measure(serialized_handoff: bool) -> f64 {
+            let started_at = std::time::Instant::now();
+            for iteration in 0..ITERATIONS {
+                let batch = representative_batch(iteration);
+                if serialized_handoff {
+                    let payload = batch.data().to_vec();
+                    drop(batch);
+                    let reconstructed = WriteBatch::from_data(&payload);
+                    std::hint::black_box(reconstructed.len());
+                } else {
+                    std::hint::black_box(batch.len());
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC write_batch_handoff_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC write_batch_handoff_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC write_batch_handoff_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn whole_artifact_uninitialized_read_benchmark() {
+        use std::{os::unix::fs::FileExt as _, time::Duration};
+
+        const SAMPLE_BYTES: usize = 512 * 1_024 * 1_024;
+        const SAMPLE_COUNT: usize = 9;
+
+        fn initialized_read(
+            file: &std::fs::File,
+            offset: u64,
+            size: usize,
+        ) -> Result<Vec<u8>, String> {
+            let mut bytes = vec![0; size];
+            let mut read_offset = 0;
+            while read_offset < bytes.len() {
+                let bytes_read = file
+                    .read_at(&mut bytes[read_offset..], offset + read_offset as u64)
+                    .map_err(|error| format!("failed to read benchmark bytes: {error}"))?;
+                if bytes_read == 0 {
+                    return Err("unexpected benchmark EOF".to_owned());
+                }
+                read_offset += bytes_read;
+            }
+            Ok(bytes)
+        }
+
+        fn measure(file: &std::fs::File, uninitialized: bool) -> Duration {
+            let started_at = std::time::Instant::now();
+            let bytes = if uninitialized {
+                read_bytes_at_len(file, 0, SAMPLE_BYTES)
+            } else {
+                initialized_read(file, 0, SAMPLE_BYTES)
+            }
+            .expect("read benchmark artifact");
+            assert_eq!(bytes.len(), SAMPLE_BYTES);
+            std::hint::black_box(bytes.as_ptr());
+            started_at.elapsed()
+        }
+
+        let file = tempfile::tempfile().expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES as u64)
+            .expect("size sparse benchmark file");
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(&file, false), measure(&file, true))
+            } else {
+                let candidate = measure(&file, true);
+                let baseline = measure(&file, false);
+                (baseline, candidate)
+            };
+            if sample == 0 {
+                continue;
+            }
+            speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            baseline_throughputs
+                .push(SAMPLE_BYTES as f64 / baseline.as_secs_f64() / (1_024.0 * 1_024.0));
+            candidate_throughputs
+                .push(SAMPLE_BYTES as f64 / candidate.as_secs_f64() / (1_024.0 * 1_024.0));
+        }
+
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        println!(
+            "whole artifact read benchmark: speedup={:.6} baseline_mib_per_second={:.3} candidate_mib_per_second={:.3}",
+            speedups[median], baseline_throughputs[median], candidate_throughputs[median]
+        );
+    }
+
+    #[test]
     fn segment_ring_limits_fall_back_to_legacy_floor_without_disk_information() {
         let limits = resolve_segment_ring_limits(None, None);
 
@@ -8047,7 +9682,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new_with_forced_pressure(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
             pressure,
@@ -8144,7 +9779,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -8157,6 +9792,101 @@ mod tests {
             .read_artifact_bytes(manifest)
             .await
             .expect("artifact bytes should read")
+    }
+
+    #[tokio::test]
+    async fn cancelled_segment_append_reconciles_the_retained_writer_offset() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let (mut source_writer, mut source_reader) = tokio::io::duplex(64);
+        source_writer
+            .write_all(b"orphan")
+            .await
+            .expect("partial source should write");
+
+        let append = tokio::spawn({
+            let store = Arc::clone(&store);
+            async move {
+                store
+                    .append_reader_to_segment(
+                        &mut source_reader,
+                        12,
+                        None,
+                        FileCachePolicy::Adaptive,
+                        ApplyDurability::Sync,
+                    )
+                    .await
+            }
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let appended = store
+                    .segment_state_snapshot()
+                    .state
+                    .active()
+                    .map(|active| store.segment_path(&active.segment_id))
+                    .and_then(|path| std::fs::metadata(path).ok())
+                    .is_some_and(|metadata| metadata.len() == 6);
+                if appended {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("partial append should reach the segment");
+
+        append.abort();
+        match append.await {
+            Err(error) => assert!(error.is_cancelled()),
+            Ok(_) => panic!("append should be cancelled"),
+        }
+        drop(source_writer);
+
+        let (location, _, _) = store
+            .append_preloaded_to_reserved_segment(
+                b"valid",
+                ApplyDurability::Sync,
+                Some(FileCachePolicy::Adaptive),
+            )
+            .await
+            .expect("next positioned append should succeed");
+        assert_eq!(location.offset, 6);
+
+        let segment =
+            std::fs::read(store.segment_path(&location.segment_id)).expect("segment should read");
+        assert_eq!(&segment[location.offset as usize..], b"valid");
+    }
+
+    #[tokio::test]
+    async fn small_segment_append_falls_back_when_preload_memory_is_exhausted() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads/preload-fallback");
+        let bytes = vec![7_u8; SEGMENT_COPY_BUFFER_BYTES];
+        std::fs::write(&source, &bytes).expect("source should write");
+        let _held = store
+            .memory
+            .try_reserve_foreground_memory(store.memory.transient_capacity_bytes())
+            .expect("test should reserve the transient memory pool");
+
+        let outcome = store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "instance",
+                "preload-fallback",
+                "application/octet-stream",
+                &source,
+                100,
+            )
+            .await
+            .expect("streaming fallback should persist the artifact");
+        assert!(outcome.applied());
+        let manifest = store
+            .manifest_for_key(ArtifactProducer::Reapi, "instance", "preload-fallback")
+            .expect("manifest lookup should succeed")
+            .expect("manifest should exist");
+        assert_eq!(read_manifest_bytes(&store, &manifest).await, bytes);
     }
 
     #[tokio::test]
@@ -9422,7 +11152,7 @@ mod tests {
     #[test]
     fn existence_cache_expires_entries_after_ttl() {
         let mut cache = ExistenceCache::new(8, Duration::from_millis(10));
-        cache.insert("artifact-1".into());
+        cache.insert("artifact-1");
         assert!(cache.contains("artifact-1"));
         std::thread::sleep(Duration::from_millis(20));
         assert!(!cache.contains("artifact-1"));
@@ -9432,16 +11162,90 @@ mod tests {
     fn existence_cache_evicts_least_recently_used() {
         let mut cache = ExistenceCache::new(3, Duration::from_secs(60));
         for id in ["a", "b", "c"] {
-            cache.insert(id.into());
+            cache.insert(id);
         }
         // Touch "a" so "b" becomes the least-recently-used entry.
         assert!(cache.contains("a"));
-        cache.insert("d".into());
+        cache.insert("d");
 
         assert!(!cache.contains("b"), "LRU entry should have been evicted");
         for id in ["a", "c", "d"] {
             assert!(cache.contains(id), "{id} should still be present");
         }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn existence_cache_shared_key_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLE_COUNT: usize = 9;
+        const ARTIFACT_ID: &str = "reapi/tenant/namespace/blobs/0123456789abcdef0123456789abcdef";
+
+        struct BaselineExistenceCache {
+            entries: HashMap<String, (Instant, u64)>,
+            access: BTreeMap<u64, String>,
+            next: u64,
+        }
+
+        impl BaselineExistenceCache {
+            fn contains(&mut self, artifact_id: &str) -> bool {
+                let Some((inserted_at, previous_order)) = self.entries.get(artifact_id).copied()
+                else {
+                    return false;
+                };
+                if Instant::now().duration_since(inserted_at) > Duration::from_secs(60) {
+                    return false;
+                }
+                self.access.remove(&previous_order);
+                self.next = self.next.wrapping_add(1);
+                self.access.insert(self.next, artifact_id.to_owned());
+                self.entries
+                    .get_mut(artifact_id)
+                    .expect("benchmark entry exists")
+                    .1 = self.next;
+                true
+            }
+        }
+
+        fn measure(shared: bool) -> Duration {
+            let started_at = Instant::now();
+            if shared {
+                let mut cache = ExistenceCache::new(1, Duration::from_secs(60));
+                cache.insert(ARTIFACT_ID);
+                for _ in 0..ITERATIONS {
+                    assert!(cache.contains(ARTIFACT_ID));
+                }
+            } else {
+                let mut cache = BaselineExistenceCache {
+                    entries: HashMap::from([(ARTIFACT_ID.to_owned(), (Instant::now(), 1))]),
+                    access: BTreeMap::from([(1, ARTIFACT_ID.to_owned())]),
+                    next: 1,
+                };
+                for _ in 0..ITERATIONS {
+                    assert!(cache.contains(ARTIFACT_ID));
+                }
+            }
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                let baseline = measure(false);
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                speedups.push(baseline.as_secs_f64() / candidate.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "existence cache shared key benchmark: speedup={:.6}",
+            speedups[speedups.len() / 2]
+        );
     }
 
     #[test]
@@ -9451,7 +11255,7 @@ mod tests {
         // Insert far past capacity: O(log n) eviction must keep the entry map
         // and its access-order mirror bounded and equal in size.
         for index in 0..capacity * 20 {
-            cache.insert(format!("artifact-{index}"));
+            cache.insert(&format!("artifact-{index}"));
         }
         assert_eq!(cache.entries.len(), capacity);
         assert_eq!(
@@ -9538,7 +11342,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -9566,7 +11370,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -9583,8 +11387,9 @@ mod tests {
             .expect("an active segment should exist")
             .segment_id
             .clone();
+        let mut writer = store.segment_write_lock.lock().await;
         store
-            .active_segment(MAX_SEGMENT_BYTES)
+            .active_segment(MAX_SEGMENT_BYTES, &mut writer)
             .await
             .expect("rotation should seal the active segment");
         outgoing
@@ -9854,7 +11659,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn live_apply_paths_keep_per_record_sync_commits() {
+    async fn live_apply_paths_flush_the_wal_before_returning() {
         let (_temp_dir, config, store) = temp_store();
         // Warm the store so the active segment exists: the first append's
         // ring-state initialization would otherwise pollute the deltas below.
@@ -9870,8 +11675,8 @@ mod tests {
             .await
             .expect("warm apply should succeed");
 
-        // Live replicated applies commit sync, never deferred, and never
-        // flush the WAL as a separate barrier.
+        // Live replicated applies request sync durability and wait for their
+        // group flush, never taking the backfill-only deferred mode.
         let (sync_before, deferred_before, flush_before) = store.wal_write_counts();
         store
             .apply_replicated_artifact_from_bytes(
@@ -9902,8 +11707,11 @@ mod tests {
             deferred_after, deferred_before,
             "live applies must not take deferred commits"
         );
-        assert_eq!(flush_after, flush_before);
-        assert!(sync_after >= sync_before + 2);
+        assert!(flush_after >= flush_before + 2);
+        assert_eq!(
+            sync_after, sync_before,
+            "request-path writes use an explicit synced WAL flush, not sync-enabled writes"
+        );
 
         // The backfill batch path is the inverse: ceil(records / group size)
         // deferred group commits plus one WAL-flush barrier, zero sync
@@ -10368,6 +12176,193 @@ mod tests {
         );
     }
 
+    #[test]
+    fn manifest_cache_reuses_retained_manifest_allocation() {
+        let mut cache = ManifestCache::new(1024 * 1024);
+        cache.insert(ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+        });
+
+        let first = cache.get("artifact").expect("manifest should be cached");
+        let second = cache.get("artifact").expect("manifest should stay cached");
+
+        assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn manifest_cache_concurrent_hit_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        let (_temp_dir, _config, store) = temp_store();
+        let artifact_id = "artifact".repeat(16);
+        store.maybe_cache_manifest(ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".repeat(16),
+            key: "key".repeat(32),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".repeat(16)),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: Some("branch".repeat(16)),
+        });
+
+        let measure = |clone_under_lock: bool| {
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    let store = &store;
+                    let artifact_id = &artifact_id;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..LOOKUPS_PER_WORKER {
+                            let manifest = if clone_under_lock {
+                                store.manifest_cache_get_cloning_under_lock(artifact_id)
+                            } else {
+                                store.manifest_cache_get(artifact_id)
+                            }
+                            .expect("benchmark manifest should stay cached");
+                            std::hint::black_box(manifest.version_ms);
+                        }
+                    });
+                }
+                let started_at = std::time::Instant::now();
+                barrier.wait();
+                started_at
+            });
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                speedups.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC manifest_cache_hit_speedup_ratio={:.6}\nMETRIC baseline_lookups_per_second={:.3}\nMETRIC candidate_lookups_per_second={:.3}",
+            speedups[speedups.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            candidate_rates[candidate_rates.len() / 2]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually during optimization"]
+    fn retained_manifest_serving_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 100_000;
+        const SAMPLES: usize = 8;
+
+        let (_temp_dir, _config, store) = temp_store();
+        let artifact_id = "artifact".repeat(16);
+        store.maybe_cache_manifest(ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Reapi,
+            namespace_id: "namespace".repeat(16),
+            key: "key".repeat(32),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".repeat(16)),
+            segment_offset: Some(1024),
+            size: 256 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: Some("branch".repeat(16)),
+        });
+
+        let measure = |retained: bool| {
+            let barrier = Arc::new(std::sync::Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    let store = &store;
+                    let artifact_id = &artifact_id;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..LOOKUPS_PER_WORKER {
+                            if retained {
+                                let manifest = store
+                                    .manifest_cache_get_retained(artifact_id)
+                                    .expect("benchmark manifest should stay cached");
+                                std::hint::black_box(manifest.version_ms);
+                            } else {
+                                let manifest = store
+                                    .manifest_cache_get(artifact_id)
+                                    .expect("benchmark manifest should stay cached");
+                                std::hint::black_box(manifest.version_ms);
+                            }
+                        }
+                    });
+                }
+                let started_at = std::time::Instant::now();
+                barrier.wait();
+                started_at
+            });
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                speedups.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC retained_manifest_speedup_ratio={:.6}\nMETRIC owned_manifests_per_second={:.3}\nMETRIC retained_manifests_per_second={:.3}",
+            speedups[speedups.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            candidate_rates[candidate_rates.len() / 2]
+        );
+    }
+
     #[tokio::test]
     async fn manifest_cache_stays_within_configured_byte_budget() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
@@ -10423,6 +12418,267 @@ mod tests {
         assert_eq!(reloaded.artifact_id, second.artifact_id);
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn segment_handle_hot_cache_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(store: Arc<Store>, cache_key: Arc<str>, fast_path: bool) -> f64 {
+            let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+            let mut workers = tokio::task::JoinSet::new();
+            for _ in 0..WORKERS {
+                let store = store.clone();
+                let cache_key = cache_key.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for _ in 0..LOOKUPS_PER_WORKER {
+                        let handle = if fast_path {
+                            store
+                                .segment_handle_cache_get(&cache_key)
+                                .await
+                                .expect("benchmark handle should stay cached")
+                        } else {
+                            store
+                                .segment_handles
+                                .lock()
+                                .await
+                                .touch(&cache_key)
+                                .expect("benchmark handle should stay cached")
+                                .1
+                        };
+                        std::hint::black_box(Arc::as_ptr(&handle));
+                    }
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let (_temp_dir, config, store) = temp_store();
+        let path = config.data_dir.join("hot-segment-handle");
+        std::fs::write(&path, b"segment").expect("write benchmark segment");
+        let cache_key: Arc<str> = Arc::from("segment:hot");
+        store
+            .persistent_file_handle(cache_key.to_string(), &path, "benchmark")
+            .await
+            .expect("open benchmark segment");
+        let store = Arc::new(store);
+
+        let mut ratios = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (
+                    measure(store.clone(), cache_key.clone(), false).await,
+                    measure(store.clone(), cache_key.clone(), true).await,
+                )
+            } else {
+                let candidate = measure(store.clone(), cache_key.clone(), true).await;
+                let baseline = measure(store.clone(), cache_key.clone(), false).await;
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                ratios.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        ratios.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_handle_cache_lookups_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC segment_handle_cache_baseline_lookups_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC segment_handle_cache_speedup_ratio={:.6}",
+            ratios[ratios.len() / 2]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually during optimization"]
+    async fn segment_handle_alternating_cache_benchmark() {
+        const WORKERS: usize = 8;
+        const LOOKUPS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        async fn measure(store: Arc<Store>, cache_keys: [Arc<str>; 2], fast_path: bool) -> f64 {
+            let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+            let mut workers = tokio::task::JoinSet::new();
+            for worker in 0..WORKERS {
+                let store = store.clone();
+                let cache_keys = cache_keys.clone();
+                let barrier = barrier.clone();
+                workers.spawn(async move {
+                    barrier.wait().await;
+                    for lookup in 0..LOOKUPS_PER_WORKER {
+                        let cache_key = &cache_keys[(worker + lookup) % cache_keys.len()];
+                        let handle = if fast_path {
+                            store
+                                .segment_handle_cache_get(cache_key)
+                                .await
+                                .expect("benchmark handle should stay cached")
+                        } else {
+                            store
+                                .segment_handles
+                                .lock()
+                                .await
+                                .touch(cache_key)
+                                .expect("benchmark handle should stay cached")
+                                .1
+                        };
+                        std::hint::black_box(Arc::as_ptr(&handle));
+                    }
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            barrier.wait().await;
+            while let Some(result) = workers.join_next().await {
+                result.expect("benchmark worker should finish");
+            }
+            (WORKERS * LOOKUPS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let (_temp_dir, config, store) = temp_store();
+        let mut cache_keys = Vec::new();
+        for index in 0..2 {
+            let path = config
+                .data_dir
+                .join(format!("alternating-segment-handle-{index}"));
+            std::fs::write(&path, b"segment").expect("write benchmark segment");
+            let cache_key: Arc<str> = Arc::from(format!("segment:alternating-{index}"));
+            store
+                .persistent_file_handle(cache_key.to_string(), &path, "benchmark")
+                .await
+                .expect("open benchmark segment");
+            cache_keys.push(cache_key);
+        }
+        let cache_keys: [Arc<str>; 2] = cache_keys.try_into().expect("two benchmark keys");
+        let store = Arc::new(store);
+
+        let mut ratios = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (
+                    measure(store.clone(), cache_keys.clone(), false).await,
+                    measure(store.clone(), cache_keys.clone(), true).await,
+                )
+            } else {
+                let candidate = measure(store.clone(), cache_keys.clone(), true).await;
+                let baseline = measure(store.clone(), cache_keys.clone(), false).await;
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                ratios.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        ratios.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_handle_alternating_speedup_ratio={:.6}",
+            ratios[ratios.len() / 2]
+        );
+        println!(
+            "METRIC alternating_baseline_lookups_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC alternating_candidate_lookups_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    async fn segment_handle_cache_fast_path_preserves_recency_and_bounds() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 2;
+        });
+        let paths = ["handle-a", "handle-b", "handle-c"].map(|name| config.data_dir.join(name));
+        for path in &paths {
+            std::fs::write(path, b"segment").expect("write test segment");
+        }
+
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("open first handle");
+        store
+            .persistent_file_handle("b".into(), &paths[1], "test")
+            .await
+            .expect("open second handle");
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("refresh first handle");
+        store
+            .persistent_file_handle("a".into(), &paths[0], "test")
+            .await
+            .expect("reuse fast-path handle");
+        store
+            .persistent_file_handle("c".into(), &paths[2], "test")
+            .await
+            .expect("open third handle");
+
+        {
+            let cache = store.segment_handles.lock().await;
+            assert_eq!(cache.len(), 2);
+            assert!(cache.entries.contains_key("a"));
+            assert!(!cache.entries.contains_key("b"));
+            assert!(cache.entries.contains_key("c"));
+        }
+
+        assert_eq!(store.trim_segment_handle_cache_to(1, "test").await, 1);
+        assert!(store.segment_handle_hot.load().is_none());
+        for _ in 1..SEGMENT_HANDLE_FAST_PATH_PROMOTION_HITS {
+            assert!(store.segment_handle_cache_get("c").await.is_some());
+        }
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("c").await.is_some());
+        assert!(store.segment_handle_hot.load().is_some());
+
+        store.remove_cached_file_handle("c", "test").await;
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("c").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn segment_handle_cache_fast_path_respects_zero_capacity() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 0;
+        });
+        let path = config.data_dir.join("uncached-handle");
+        std::fs::write(&path, b"segment").expect("write test segment");
+
+        store
+            .persistent_file_handle("uncached".into(), &path, "test")
+            .await
+            .expect("open uncached handle");
+
+        assert!(store.segment_handles.lock().await.entries.is_empty());
+        assert!(store.segment_handle_hot.load().is_none());
+        assert!(store.segment_handle_cache_get("uncached").await.is_none());
+    }
+
     #[tokio::test]
     async fn segment_handle_cache_evicts_least_recently_used_handles_when_full() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
@@ -10455,12 +12711,15 @@ mod tests {
             let cache = store.segment_handles.lock().await;
             assert_eq!(cache.len(), 1);
             assert!(
-                cache.entries.contains_key(&segment_handle_cache_key(
-                    xcode
-                        .segment_id
-                        .as_deref()
-                        .expect("xcode manifest should have a segment id")
-                ))
+                cache.entries.contains_key(
+                    segment_handle_cache_key(
+                        xcode
+                            .segment_id
+                            .as_deref()
+                            .expect("xcode manifest should have a segment id"),
+                    )
+                    .as_str(),
+                )
             );
         }
 
@@ -10469,21 +12728,27 @@ mod tests {
             let cache = store.segment_handles.lock().await;
             assert_eq!(cache.len(), 1);
             assert!(
-                cache.entries.contains_key(&segment_handle_cache_key(
-                    gradle
-                        .segment_id
-                        .as_deref()
-                        .expect("gradle manifest should have a segment id")
-                ))
+                cache.entries.contains_key(
+                    segment_handle_cache_key(
+                        gradle
+                            .segment_id
+                            .as_deref()
+                            .expect("gradle manifest should have a segment id"),
+                    )
+                    .as_str(),
+                )
             );
             if xcode.segment_id != gradle.segment_id {
                 assert!(
-                    !cache.entries.contains_key(&segment_handle_cache_key(
-                        xcode
-                            .segment_id
-                            .as_deref()
-                            .expect("xcode manifest should have a segment id")
-                    ))
+                    !cache.entries.contains_key(
+                        segment_handle_cache_key(
+                            xcode
+                                .segment_id
+                                .as_deref()
+                                .expect("xcode manifest should have a segment id"),
+                        )
+                        .as_str(),
+                    )
                 );
             }
         }
@@ -10546,7 +12811,7 @@ mod tests {
             assert!(
                 cache
                     .entries
-                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+                    .contains_key(blob_handle_cache_key(&blob_path_string).as_str())
             );
         }
 
@@ -10560,7 +12825,7 @@ mod tests {
             assert!(
                 !cache
                     .entries
-                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+                    .contains_key(blob_handle_cache_key(&blob_path_string).as_str())
             );
         }
         assert!(!blob_path.exists());
@@ -10968,6 +13233,13 @@ mod tests {
             .expect("tolerant open should succeed")
             .expect("artifact should still be served");
         assert_ne!(fresh.segment_id, stale.segment_id);
+        assert_eq!(drain_reader(reader).await, b"hello");
+
+        let reader = store
+            .open_artifact_reader_range_tolerating_promotion_reader_only(&stale, 0, None)
+            .await
+            .expect("reader-only tolerant open should succeed")
+            .expect("artifact should still be served");
         assert_eq!(drain_reader(reader).await, b"hello");
     }
 
@@ -11987,13 +14259,14 @@ mod tests {
         );
 
         // Peek rather than `manifest()`, which would repopulate what it reads.
+        // Peek rather than `manifest()`, which would repopulate what it reads.
         let cache = store
             .manifest_cache
             .lock()
             .expect("manifest cache lock should not be poisoned");
         for artifact_id in &evicted {
             assert!(
-                !cache.entries.contains_key(artifact_id),
+                !cache.entries.contains_key(artifact_id.as_str()),
                 "the eviction was cancelled mid-commit, so {artifact_id} was \
                  deleted from the store while the manifest cache kept serving it"
             );
@@ -12103,20 +14376,6 @@ mod tests {
             "the eviction committed inline on the thread driving the runtime, so \
              a write-buffer stall inside RocksDB would park the runtime itself"
         );
-    }
-
-    #[test]
-    fn an_empty_write_batch_survives_the_serialized_round_trip() {
-        // `commit_eviction_chunk` moves the batch to the blocking pool as its
-        // serialized representation, because `WriteBatch` is not `Send`. The
-        // tail commit of an eviction can hand it an empty batch — every row
-        // already went out on a chunk boundary — so the round trip has to hold
-        // for one, rather than `from_data` choking on a bare header.
-        let batch = WriteBatch::default();
-        assert!(batch.is_empty());
-        let round_tripped = WriteBatch::from_data(batch.data());
-        assert!(round_tripped.is_empty());
-        assert_eq!(round_tripped.len(), 0);
     }
 
     #[tokio::test]
@@ -14420,7 +16679,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -14471,7 +16730,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -14517,7 +16776,7 @@ mod tests {
         )
         .expect("reopened io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -14769,7 +17028,7 @@ mod tests {
         )
         .expect("failed to recreate io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -14939,7 +17198,7 @@ mod tests {
         )
         .expect("failed to recreate io controller");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15051,29 +17310,83 @@ mod tests {
             FailpointName::BeforeSegmentFsync,
             FailpointAction::Sleep(std::time::Duration::from_millis(50)),
         );
+        store.failpoints().set_always(
+            FailpointName::BeforeWalFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
 
+        let (_, _, wal_flushes_before) = store.wal_write_counts();
         let writers = 16u64;
         let mut handles = Vec::new();
         for i in 0..writers {
             let store = store.clone();
             let path = config.tmp_dir.join(format!("artifact-{i}"));
-            std::fs::write(&path, format!("artifact-body-{i}")).expect("write artifact body");
+            let mut body = vec![i as u8; 64 * 1024];
+            body[..8].copy_from_slice(&i.to_le_bytes());
+            if i % 2 == 0 {
+                std::fs::write(&path, &body).expect("write artifact body");
+            }
             handles.push(tokio::spawn(async move {
-                store
-                    .persist_artifact_from_path_and_enqueue(
-                        ArtifactProducer::Xcode,
-                        "ns",
-                        &format!("key-{i}"),
-                        "application/octet-stream",
-                        StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
-                        &[],
-                    )
-                    .await
-                    .expect("artifact should persist");
+                let key = format!("key-{i}");
+                let persisted = if i % 2 == 0 {
+                    store
+                        .persist_artifact_from_path_and_enqueue(
+                            ArtifactProducer::Xcode,
+                            "ns",
+                            &key,
+                            "application/octet-stream",
+                            StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
+                            &[],
+                        )
+                        .await
+                } else {
+                    store
+                        .persist_admitted_artifact_from_bytes_and_enqueue(
+                            ArtifactProducer::Xcode,
+                            "ns",
+                            &key,
+                            "application/octet-stream",
+                            &body,
+                            FileCachePolicy::Bounded,
+                            &[],
+                        )
+                        .await
+                };
+                let manifest = persisted.expect("artifact should persist").manifest;
+                (manifest, body)
             }));
         }
+        let mut persisted = Vec::with_capacity(writers as usize);
         for handle in handles {
-            handle.await.expect("writer task should complete");
+            persisted.push(handle.await.expect("writer task should complete"));
+        }
+
+        let segment_id = persisted[0]
+            .0
+            .segment_id
+            .as_deref()
+            .expect("concurrent artifact should be segment backed");
+        let mut ranges = Vec::with_capacity(persisted.len());
+        for (manifest, expected) in &persisted {
+            assert_eq!(manifest.segment_id.as_deref(), Some(segment_id));
+            let offset = manifest
+                .segment_offset
+                .expect("concurrent artifact should have a segment offset");
+            ranges.push((offset, offset + manifest.size));
+            assert_eq!(
+                store
+                    .read_artifact_bytes(manifest)
+                    .await
+                    .expect("concurrent artifact should remain readable"),
+                *expected
+            );
+        }
+        ranges.sort_unstable();
+        for adjacent in ranges.windows(2) {
+            assert!(
+                adjacent[0].1 <= adjacent[1].0,
+                "positioned segment ranges must not overlap: {adjacent:?}"
+            );
         }
 
         let fsyncs = store
@@ -15084,6 +17397,30 @@ mod tests {
             "expected concurrent writes to batch segment fsyncs (<=4) but observed {fsyncs} \
              for {writers} writers — every write is fsyncing under the global segment write lock"
         );
+        let (_, _, wal_flushes_after) = store.wal_write_counts();
+        assert!(
+            wal_flushes_after - wal_flushes_before <= 4,
+            "expected concurrent writes to batch WAL flushes (<=4) but observed {} for {writers} writers",
+            wal_flushes_after - wal_flushes_before,
+        );
+
+        let store = Arc::try_unwrap(store)
+            .unwrap_or_else(|_| panic!("all concurrent writer references should be released"));
+        drop(store);
+        let reopened = reopen_store(&config);
+        for (manifest, expected) in persisted {
+            let manifest = reopened
+                .manifest(&manifest.artifact_id)
+                .expect("reopened manifest lookup should succeed")
+                .expect("concurrent artifact should survive reopen");
+            assert_eq!(
+                reopened
+                    .read_artifact_bytes(&manifest)
+                    .await
+                    .expect("reopened concurrent artifact should remain readable"),
+                expected
+            );
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -15208,7 +17545,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15266,7 +17603,7 @@ mod tests {
         )
         .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
-            reopened_io.metrics(),
+            reopened_io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );
@@ -15628,7 +17965,7 @@ mod tests {
         )
         .expect("io controller should build");
         let memory = MemoryController::new(
-            io.metrics(),
+            io.metrics().clone(),
             config.memory_soft_limit_bytes,
             config.memory_hard_limit_bytes,
         );

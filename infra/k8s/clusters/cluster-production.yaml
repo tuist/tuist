@@ -50,6 +50,12 @@ spec:
       # (`tuist-bm-production-…`).
       - name: bareMetalCluster
         value: production
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
       # Insert InternalIP so the apiserver can reach kubelets on nodes with no
       # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
       # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,13 +59,13 @@ func newPool(name, image string, replicas int32) *tuistv1.RunnerPool {
 	}
 }
 
-func newLinuxKataPool(name string, replicas, maxProvisioning int32) *tuistv1.RunnerPool {
+func newLinuxKataPool(name string, replicas, maxProvisioningPerNode int32) *tuistv1.RunnerPool {
 	pool := newPool(name, "ghcr.io/tuist/tuist-linux-runner:test", replicas)
 	pool.Spec.OS = "linux"
 	pool.Spec.RuntimeClass = "kata-qemu"
 	pool.Spec.Provisioning = &tuistv1.RunnerPoolProvisioning{
-		MaxConcurrentPerFleetSelector: ptr.To(maxProvisioning),
-		StartTimeoutSeconds:           ptr.To[int32](300),
+		MaxConcurrentPerNode: ptr.To(maxProvisioningPerNode),
+		StartTimeoutSeconds:  ptr.To[int32](300),
 	}
 	return pool
 }
@@ -1741,5 +1742,140 @@ func TestIdleReplicasExcludesDarwinPodWithStaleHeartbeat(t *testing.T) {
 
 	if got := idleReplicasGauge(t, poolName); got != 2 {
 		t.Fatalf("idle replicas = %v, want 2 (the wedged Pod is not capacity; the silent one still is)", got)
+	}
+}
+
+// A kata sandbox whose shim never tears the VM down leaves the Pod deleting
+// with its containers still running. Nothing else in the controller can see it
+// (isAlive excludes a deleting Pod), so it holds its node's CPU and memory
+// against the scheduler indefinitely while the pool reads as having a gap.
+//
+// This one is pinned by a finalizer whose owning node is gone, which a force
+// delete alone cannot clear: grace period 0 does not bypass a finalizer, so the
+// Delete succeeds as a no-op and the object stays. Observed in production as a
+// Pod deleting for nine days while the reap retried six times a minute.
+func TestReconcileForceReapsFinalizerPinnedPodWhoseNodeIsGone(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-zombie", pool.Name, nil)
+	pod.Spec.NodeName = "node-that-no-longer-exists"
+	pod.Finalizers = []string{"tart-kubelet.tuist.dev/vm-cleanup"}
+	deletion := metav1.NewTime(now.Add(-4 * time.Hour))
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = ptr.To[int64](30)
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	recorder := record.NewFakeRecorder(2)
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    recorder,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("stuck Pod's ServiceAccount get error = %v, want NotFound", err)
+	}
+	select {
+	case event := <-recorder.Events:
+		if !strings.Contains(event, "RunnerPodTerminationStuck") {
+			t.Fatalf("event = %q, want RunnerPodTerminationStuck", event)
+		}
+	default:
+		t.Fatal("expected RunnerPodTerminationStuck event")
+	}
+}
+
+// A finalizer whose owner still exists may be doing real cleanup (tart-kubelet
+// tears the guest VM down under tart-kubelet.tuist.dev/vm-cleanup). Stripping it
+// would leak whatever it was releasing, and force-deleting around it cannot work
+// anyway, so the Pod is left alone rather than retried every reconcile.
+func TestReconcileLeavesFinalizerPinnedPodOnLiveNodeAlone(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-pinned", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.Finalizers = []string{"tart-kubelet.tuist.dev/vm-cleanup"}
+	deletion := metav1.NewTime(now.Add(-4 * time.Hour))
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = ptr.To[int64](30)
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	recorder := record.NewFakeRecorder(2)
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    recorder,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); err != nil {
+		t.Fatalf("finalizer-pinned Pod on a live node was reaped: %v", err)
+	}
+	select {
+	case event := <-recorder.Events:
+		t.Fatalf("unexpected event for a Pod left to its finalizer owner: %q", event)
+	default:
+	}
+}
+
+// A Pod that is merely shutting down is still making progress; force-deleting
+// it would cut a graceful drain short.
+func TestReconcileLeavesRecentlyDeletedPodAlone(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-draining", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.Finalizers = []string{"tuist.dev/test-hold"}
+	deletion := metav1.NewTime(now.Add(-time.Minute))
+	pod.DeletionTimestamp = &deletion
+	pod.DeletionGracePeriodSeconds = ptr.To[int64](30)
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    record.NewFakeRecorder(2),
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); err != nil {
+		t.Fatalf("draining Pod's ServiceAccount was reaped early: %v", err)
 	}
 }

@@ -263,16 +263,16 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def kura_capacity_admission_required? do
+    tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
+  end
+
   def turnstile_enabled? do
     truthy?(System.get_env("TUIST_TURNSTILE_ENABLED", "0"))
   end
 
   def turnstile_required? do
     tuist_hosted?() and turnstile_enabled?()
-  end
-
-  def kura_capacity_admission_required? do
-    tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
   end
 
   def turnstile_site_key(secrets \\ secrets()) do
@@ -704,7 +704,7 @@ defmodule Tuist.Environment do
   end
 
   def analytics_enabled?(secrets \\ secrets()) do
-    not is_nil(posthog_api_key(secrets)) && not is_nil(posthog_url(secrets))
+    not is_nil(faro_collector_url(secrets))
   end
 
   def error_tracking_enabled? do
@@ -813,12 +813,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def posthog_api_key(secrets \\ secrets()) do
-    get([:posthog, :api_key], secrets)
-  end
-
-  def posthog_url(secrets \\ secrets()) do
-    get([:posthog, :url], secrets)
+  def faro_collector_url(secrets \\ secrets()) do
+    System.get_env("TUIST_FARO_COLLECTOR_URL") || get([:faro, :collector_url], secrets)
   end
 
   def object_storage_provider(secrets \\ secrets()) do
@@ -1631,6 +1627,10 @@ defmodule Tuist.Environment do
 
   def sentry_dsn(secrets \\ secrets()) do
     get([:sentry, :dsn], secrets)
+  end
+
+  def sentry_hive_dsn(secrets \\ secrets()) do
+    get([:sentry, :hive_dsn], secrets)
   end
 
   def secret_key_base(secrets \\ secrets()) do

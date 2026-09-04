@@ -99,10 +99,10 @@ server:
   # Runtime secrets are sourced from 1Password by ESO; the encrypted priv/secrets
   # blob (and MASTER_KEY) are gone. `config.managedSecrets` syncs the
   # consolidated config Secret (Sentry, Stripe API keys, Slack, Apple, the
-  # OAuth/OIDC keys, the Mailgun key, PostHog, Loops, the ClickHouse URL, Plain,
-  # the cache key, and the Phoenix/Cloak/Guardian secret keys) as TUIST_* env
-  # vars via envFrom; GitHub / Google / object storage / Kura / license keep
-  # their own ESO secrets below. `managedSecrets` still gates the chart skipping
+  # OAuth/OIDC keys, the Mailgun key, the ClickHouse URL, the cache key, and
+  # the Phoenix/Cloak/Guardian secret keys) as TUIST_* env vars via envFrom;
+  # GitHub / Google / object storage / Kura / license keep their own ESO
+  # secrets below. `managedSecrets` still gates the chart skipping
   # the env vars it would otherwise emit (DATABASE_URL / ClickHouse / secret-key
   # base / S3), since those now come from ESO + CNPG.
   managedSecrets: true

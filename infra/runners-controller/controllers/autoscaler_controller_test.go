@@ -936,15 +936,15 @@ func macosNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int6
 	return node
 }
 
-// The production topology: 9 M2-L (8 CPU / 14336 MB) + 2 M4-XL
-// (12 CPU / 28672 MB). The 6 vCPU shape seats 13, the 12 vCPU shape
+// The production topology: 10 M2-L (8 CPU / 14336 MB) + 2 M4-XL
+// (12 CPU / 28672 MB). The 6 vCPU shape seats 14, the 12 vCPU shape
 // seats 2 — and the second number is the one no fleet-wide division can
-// produce, since 186368 MB / 28672 reads as 6.
+// produce, since 200704 MB / 28672 reads as 7.
 func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
 	const fleet = "runners-macos"
 
 	objects := []client.Object{}
-	for i := 0; i < 9; i++ {
+	for i := 0; i < 10; i++ {
 		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m2-%d", i), fleet, 8, 14336))
 	}
 	for i := 0; i < 2; i++ {
@@ -968,8 +968,8 @@ func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}
 
-	if got := caps[small.key()]; got != 13 {
-		t.Fatalf("6 vCPU seats = %d, want 13 (9 M2-L at one + 2 M4-XL at two)", got)
+	if got := caps[small.key()]; got != 14 {
+		t.Fatalf("6 vCPU seats = %d, want 14 (10 M2-L at one + 2 M4-XL at two)", got)
 	}
 	if got := caps[large.key()]; got != 2 {
 		t.Fatalf("12 vCPU seats = %d, want 2 (M4-XL only, one guest each)", got)

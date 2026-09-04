@@ -41,6 +41,37 @@ defmodule Tuist.FeatureFlags do
     not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
   end
 
+  @doc """
+  Whether the Cloudflare Turnstile signup gate is active. The env-var
+  toggle (`TUIST_TURNSTILE_ENABLED`) still decides which environments
+  render the widget at all; the flag on top is a kill switch, not an
+  opt-in: enabling `turnstile_kill_switch` (via /ops/flags, no deploy,
+  no rolling restart) turns the gate off immediately across every
+  replica, everywhere, without touching Helm or the running deployment.
+  This is the ops surface the 2026-09-03 outage did not have.
+  """
+  def turnstile_enabled? do
+    Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+  end
+
+  @doc """
+  Whether Sentry envelopes produced by this node should be rerouted to
+  the self-hosted Hive ingest (`../hive`) instead of Sentry. Off by
+  default: flipping `hive_error_tracking_enabled` on in `/ops/flags`
+  (no deploy, no rolling restart) tells `TuistCommon.SentryHTTPClient`
+  to rewrite the destination URL and the `X-Sentry-Auth` header for
+  every subsequent envelope. Flipping the flag off is the immediate
+  revert path if Hive misbehaves.
+
+  Independent of `TUIST_SENTRY_HIVE_DSN`: without a configured Hive
+  DSN the reroute callback returns `nil` even when the flag is on and
+  the SDK keeps sending to Sentry, so enabling the flag on a Pod that
+  is missing the secret is a no-op rather than a drop.
+  """
+  def hive_error_tracking_enabled? do
+    FunWithFlags.enabled?(:hive_error_tracking_enabled)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"
