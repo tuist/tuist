@@ -92,6 +92,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
        }) do
     case process_xcresult(test_run_id, storage_key, args) do
       {:ok, parsed_data} ->
+        parsed_data = merge_stress_repetitions(parsed_data, test_run_id, args)
+
         case replace_test_run(parsed_data, args) do
           :ok -> complete_processing(args)
           {:error, reason} -> handle_processing_error(args, attempt, reason)
@@ -265,6 +267,117 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         File.rm(temp_path)
       end
     end
+  end
+
+  # The stress gate reruns a run's new test cases in a second xcodebuild pass,
+  # which writes its own result bundle. The client uploads it beside the run's
+  # own, and its executions are folded into the test cases they belong to here,
+  # before anything is written, so a test case ends up with one row and every
+  # execution of it hanging off that row.
+  #
+  # The gate's repetitions are numbered after the run's own and tagged
+  # `stress`, which is what lets the dashboard say which of them were
+  # solicited. A stress bundle that cannot be downloaded or parsed is not worth
+  # failing the run over: the run's own results are already parsed and correct,
+  # and the gate's verdict is recorded separately on the run.
+  defp merge_stress_repetitions(parsed_data, test_run_id, %{"stress_storage_key" => key} = args) when is_binary(key) do
+    case parse_stress_bundle(test_run_id, key, args) do
+      {:ok, stress_data} ->
+        repetitions_by_case = stress_repetitions_by_case(stress_data)
+        Map.put(parsed_data, "test_modules", attach_stress_repetitions(parsed_data, repetitions_by_case))
+
+      {:error, reason} ->
+        Logger.warning("Could not read the stress bundle for test run #{test_run_id}: #{inspect(reason)}")
+
+        parsed_data
+    end
+  end
+
+  defp merge_stress_repetitions(parsed_data, _test_run_id, _args), do: parsed_data
+
+  defp parse_stress_bundle(test_run_id, storage_key, args) do
+    with {:ok, account} <- storage_account(args["project_id"]) do
+      temp_path = Path.join(System.tmp_dir!(), "xcresult_stress_#{test_run_id}_#{System.unique_integer([:positive])}.zip")
+
+      try do
+        case Storage.download_to_file(storage_key, temp_path, account) do
+          {:ok, _} ->
+            XCResultProcessor.process_local(temp_path,
+              test_run_id: test_run_id,
+              account_handle: args["account_handle"],
+              project_handle: args["project_handle"],
+              s3_bucket: Environment.s3_bucket_name()
+            )
+
+          {:error, _} = error ->
+            error
+        end
+      after
+        File.rm(temp_path)
+      end
+    end
+  end
+
+  defp stress_repetitions_by_case(stress_data) do
+    for module <- stress_data["test_modules"] || [],
+        test_case <- module["test_cases"] || [],
+        into: %{} do
+      {case_identity(module, test_case), case_executions(test_case)}
+    end
+  end
+
+  defp attach_stress_repetitions(parsed_data, repetitions_by_case) do
+    Enum.map(parsed_data["test_modules"] || [], fn module ->
+      test_cases =
+        Enum.map(module["test_cases"] || [], fn test_case ->
+          case Map.get(repetitions_by_case, case_identity(module, test_case)) do
+            nil -> test_case
+            [] -> test_case
+            stress_repetitions -> Map.put(test_case, "repetitions", append_stress(test_case, stress_repetitions))
+          end
+        end)
+
+      Map.put(module, "test_cases", test_cases)
+    end)
+  end
+
+  defp append_stress(test_case, stress_repetitions) do
+    own = test_case["repetitions"] || []
+    offset = length(own)
+
+    numbered =
+      stress_repetitions
+      |> Enum.with_index(offset + 1)
+      |> Enum.map(fn {repetition, number} ->
+        repetition
+        |> Map.put("repetition_number", number)
+        |> Map.put("name", "Stress #{number - offset}")
+        |> Map.put("source", "stress")
+      end)
+
+    own ++ numbered
+  end
+
+  # A pass that ran a test case once produces no repetition nodes, so the test
+  # case's own result is the execution.
+  defp case_executions(test_case) do
+    case test_case["repetitions"] || [] do
+      [] ->
+        [
+          %{
+            "status" => test_case["status"],
+            "duration" => test_case["duration"] || 0,
+            "failures" => test_case["failures"] || []
+          }
+        ]
+
+      repetitions ->
+        repetitions
+    end
+  end
+
+  defp case_identity(module, test_case) do
+    {module["name"], test_case["test_suite"], test_case["name"]}
   end
 
   defp storage_account(project_id) do

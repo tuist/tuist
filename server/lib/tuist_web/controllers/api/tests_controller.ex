@@ -498,7 +498,13 @@ defmodule TuistWeb.API.TestsController do
                                      description: "The status.",
                                      enum: ["success", "failure"]
                                    },
-                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."}
+                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."},
+                                   source: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+                                     enum: ["run", "stress"]
+                                   }
                                  },
                                  required: [:repetition_number, :name, :status]
                                }
@@ -571,9 +577,18 @@ defmodule TuistWeb.API.TestsController do
             storage_key =
               "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
 
+            # The gate's pass writes its own bundle, uploaded beside the run's under
+            # the same id. The worker folds its executions into the test cases they
+            # belong to, so the key travels with the job rather than being rebuilt there.
+            stress_storage_key =
+              if get_in(body_params, [Access.key(:stress_new_tests), Access.key(:has_result_bundle)]) do
+                "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/stress_result_bundle.zip"
+              end
+
             enqueue_xcresult_processing(%{
               test_run_id: test_run.id,
               storage_key: storage_key,
+              stress_storage_key: stress_storage_key,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,

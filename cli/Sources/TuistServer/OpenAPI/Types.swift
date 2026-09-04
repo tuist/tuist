@@ -3228,6 +3228,17 @@ public enum Components {
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                             public var repetition_number: Swift.Int
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case run = "run"
+                                case stress = "stress"
+                            }
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                             /// The status.
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -3245,22 +3256,26 @@ public enum Components {
                             ///   - duration: The duration in milliseconds.
                             ///   - name: The name of the repetition.
                             ///   - repetition_number: The repetition attempt number.
+                            ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                             ///   - status: The status.
                             public init(
                                 duration: Swift.Int? = nil,
                                 name: Swift.String,
                                 repetition_number: Swift.Int,
+                                source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                 status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                             ) {
                                 self.duration = duration
                                 self.name = name
                                 self.repetition_number = repetition_number
+                                self.source = source
                                 self.status = status
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
                                 case name
                                 case repetition_number
+                                case source
                                 case status
                             }
                         }
@@ -3729,6 +3744,7 @@ public enum Components {
             public var name: Swift.String?
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -3737,12 +3753,14 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case result_bundle = "result_bundle"
+                case stress_result_bundle = "stress_result_bundle"
                 case invocation_record = "invocation_record"
                 case result_bundle_object = "result_bundle_object"
                 case session = "session"
             }
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -6159,6 +6177,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/excluded_count`.
             public var excluded_count: Swift.Int
+            /// Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/has_result_bundle`.
+            public var has_result_bundle: Swift.Bool?
             /// How many test cases have run in CI on the default branch, as the verdict measured it.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/inventory_count`.
@@ -6414,6 +6436,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
+            ///   - has_result_bundle: Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
             ///   - inventory_count: How many test cases have run in CI on the default branch, as the verdict measured it.
             ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
@@ -6423,6 +6446,7 @@ public enum Components {
             ///   - test_cases: Every candidate the gate examined.
             public init(
                 excluded_count: Swift.Int,
+                has_result_bundle: Swift.Bool? = nil,
                 inventory_count: Swift.Int? = nil,
                 mode: Components.Schemas.StressNewTestsResult.modePayload,
                 new_count: Swift.Int,
@@ -6432,6 +6456,7 @@ public enum Components {
                 test_cases: Components.Schemas.StressNewTestsResult.test_casesPayload
             ) {
                 self.excluded_count = excluded_count
+                self.has_result_bundle = has_result_bundle
                 self.inventory_count = inventory_count
                 self.mode = mode
                 self.new_count = new_count
@@ -6442,6 +6467,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case excluded_count
+                case has_result_bundle
                 case inventory_count
                 case mode
                 case new_count
@@ -20118,6 +20144,17 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                                     public var repetition_number: Swift.Int
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case run = "run"
+                                        case stress = "stress"
+                                    }
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                     /// The status.
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -20135,22 +20172,26 @@ public enum Operations {
                                     ///   - duration: The duration in milliseconds.
                                     ///   - name: The name of the repetition.
                                     ///   - repetition_number: The repetition attempt number.
+                                    ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                     ///   - status: The status.
                                     public init(
                                         duration: Swift.Int? = nil,
                                         name: Swift.String,
                                         repetition_number: Swift.Int,
+                                        source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                         status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                                     ) {
                                         self.duration = duration
                                         self.name = name
                                         self.repetition_number = repetition_number
+                                        self.source = source
                                         self.status = status
                                     }
                                     public enum CodingKeys: String, CodingKey {
                                         case duration
                                         case name
                                         case repetition_number
+                                        case source
                                         case status
                                     }
                                 }

@@ -15,6 +15,11 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
     description:
       "What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.",
     properties: %{
+      has_result_bundle: %Schema{
+        type: :boolean,
+        description:
+          "Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to."
+      },
       mode: %Schema{
         type: :string,
         enum: StressNewTests.modes(),

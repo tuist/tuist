@@ -295,6 +295,14 @@ components:
                                   type: integer
                                   x-struct:
                                   x-validate:
+                                source:
+                                  description: "Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`."
+                                  enum:
+                                    - run
+                                    - stress
+                                  type: string
+                                  x-struct:
+                                  x-validate:
                                 status:
                                   description: The status.
                                   enum:
@@ -514,11 +522,13 @@ components:
           description: |
             The command event artifact type. It can be:
             - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             - session: A zipped CLI session directory containing logs and network recordings.
           enum:
             - result_bundle
+            - stress_result_bundle
             - invocation_record
             - result_bundle_object
             - session
@@ -2287,6 +2297,11 @@ components:
         excluded_count:
           description: 'How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.'
           type: integer
+          x-struct:
+          x-validate:
+        has_result_bundle:
+          description: "Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to."
+          type: boolean
           x-struct:
           x-validate:
         inventory_count:
@@ -9713,6 +9728,14 @@ paths:
                                         repetition_number:
                                           description: The repetition attempt number.
                                           type: integer
+                                          x-struct:
+                                          x-validate:
+                                        source:
+                                          description: "Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`."
+                                          enum:
+                                            - run
+                                            - stress
+                                          type: string
                                           x-struct:
                                           x-validate:
                                         status:
