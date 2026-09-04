@@ -657,17 +657,14 @@ fn test_result_delivery(
         .iter()
         .filter_map(|output| {
             let artifact_kind = BazelTestArtifactKind::from_output_path(&output.name)?;
-            let size = u64::try_from(output.length).ok()?;
-            if size == 0
-                || size > MAX_BAZEL_TEST_ARTIFACT_BYTES
-                || !valid_sha256_digest(&output.digest)
-            {
+            let (digest, size) = bazel_file_digest_and_size(output)?;
+            if size == 0 || size > MAX_BAZEL_TEST_ARTIFACT_BYTES || !valid_sha256_digest(&digest) {
                 return None;
             }
 
             Some(BazelTestArtifact {
                 artifact_kind,
-                digest: output.digest.clone(),
+                digest,
                 size,
             })
         })
@@ -690,6 +687,28 @@ fn test_result_delivery(
         sequence_number: context.sequence_number,
         artifacts,
     }
+}
+
+fn bazel_file_digest_and_size(file: &BazelFile) -> Option<(String, u64)> {
+    if !file.digest.is_empty() {
+        return Some((file.digest.clone(), u64::try_from(file.length).ok()?));
+    }
+
+    let uri = file.uri.as_deref()?;
+    let url = reqwest::Url::parse(uri).ok()?;
+    if url.scheme() != "bytestream" {
+        return None;
+    }
+
+    let segments = url.path_segments()?.collect::<Vec<_>>();
+    let blobs_index = segments.iter().rposition(|segment| *segment == "blobs")?;
+    if segments.len() != blobs_index + 3 {
+        return None;
+    }
+
+    let digest = segments[blobs_index + 1];
+    let size = segments[blobs_index + 2].parse::<u64>().ok()?;
+    Some((digest.to_owned(), size))
 }
 
 fn test_status(status: i32) -> &'static str {
@@ -1037,11 +1056,11 @@ mod tests {
                 test_action_output: vec![
                     BazelFile {
                         name: "test.xml".into(),
-                        uri: Some("bytestream://cache/blobs/report/123".into()),
+                        uri: Some(format!("bytestream://cache/ios/blobs/{digest}/123")),
                         contents: None,
                         path_prefix: Vec::new(),
-                        digest: digest.clone(),
-                        length: 123,
+                        digest: String::new(),
+                        length: 0,
                     },
                     BazelFile {
                         name: "undeclared_outputs.zip".into(),
@@ -1081,6 +1100,52 @@ mod tests {
             result.artifacts[0].artifact_kind,
             BazelTestArtifactKind::Junit
         );
+    }
+
+    #[test]
+    fn rejects_non_bytestream_and_malformed_test_artifact_uris() {
+        for uri in [
+            "file:///tmp/test.xml",
+            "https://cache/ios/blobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/123",
+            "bytestream://cache/ios/blobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytestream://cache/ios/blobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/123/trailing",
+        ] {
+            let result = test_result_delivery(
+                TestResultContext {
+                    account_handle: "acme",
+                    project_handle: "ios",
+                    invocation_id: "invocation-1",
+                    target_label: "//app:tests",
+                    is_ci: false,
+                    sequence_number: 1,
+                },
+                &BazelTestResultId {
+                    label: "//app:tests".into(),
+                    run: 1,
+                    shard: 1,
+                    attempt: 1,
+                },
+                &BazelTestResult {
+                    test_action_output: vec![BazelFile {
+                        name: "test.xml".into(),
+                        uri: Some(uri.into()),
+                        contents: None,
+                        path_prefix: Vec::new(),
+                        digest: String::new(),
+                        length: 0,
+                    }],
+                    test_attempt_duration_millis: 1,
+                    cached_locally: false,
+                    status: BazelTestStatus::Passed as i32,
+                    test_attempt_start_millis_epoch: 1,
+                    execution_info: None,
+                    test_attempt_start: None,
+                    test_attempt_duration: None,
+                },
+            );
+
+            assert!(result.artifacts.is_empty(), "accepted {uri}");
+        }
     }
 
     #[test]
