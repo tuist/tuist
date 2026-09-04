@@ -40,7 +40,7 @@ defmodule TuistWeb.Router do
 
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
-    turnstile_source = if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
+    turnstile_source = if TuistWeb.Turnstile.required?(), do: " https://challenges.cloudflare.com", else: ""
 
     [
       frame_ancestors: "'self'",

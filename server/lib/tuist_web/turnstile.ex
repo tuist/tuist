@@ -2,13 +2,14 @@ defmodule TuistWeb.Turnstile do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
 
   require Logger
 
   @endpoint "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
   def required? do
-    Environment.turnstile_required?()
+    FeatureFlags.turnstile_enabled?()
   end
 
   def site_key do
