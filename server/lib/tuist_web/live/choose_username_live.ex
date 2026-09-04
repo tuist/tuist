@@ -34,7 +34,6 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:turnstile_error, nil)
           |> assign(:turnstile_ready?, false)
           |> assign(:submit_pending?, false)
-          |> assign(:load_turnstile_script?, Turnstile.required?())
 
         {:ok, socket}
     end

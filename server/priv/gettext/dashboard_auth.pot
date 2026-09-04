@@ -16,12 +16,12 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:413
+#: lib/tuist_web/live/user_registration_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:427
+#: lib/tuist_web/live/user_registration_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr ""
@@ -63,7 +63,7 @@ msgstr ""
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:61
+#: lib/tuist_web/live/choose_username_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "Choose a username"
 msgstr ""
@@ -108,7 +108,7 @@ msgstr ""
 msgid "Contact us"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:104
+#: lib/tuist_web/live/choose_username_live.ex:103
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -137,7 +137,7 @@ msgstr ""
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:433
+#: lib/tuist_web/live/user_registration_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr ""
@@ -275,7 +275,7 @@ msgstr ""
 msgid "Sign up for Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:220
+#: lib/tuist_web/live/choose_username_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
 msgstr ""
@@ -285,7 +285,7 @@ msgstr ""
 msgid "Tuist CLI is connected!"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:52
+#: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:28
 #: lib/tuist_web/live/sso_login_live.ex:63
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:18
@@ -324,13 +324,13 @@ msgstr ""
 msgid "User confirmation link is invalid or it has expired."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:76
+#: lib/tuist_web/live/choose_username_live.ex:75
 #: lib/tuist_web/live/user_registration_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:77
+#: lib/tuist_web/live/choose_username_live.ex:76
 #: lib/tuist_web/live/user_registration_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
@@ -433,7 +433,7 @@ msgstr ""
 msgid "Log in as test user"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:63
+#: lib/tuist_web/live/choose_username_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Choose a username for your account"
 msgstr ""
@@ -484,44 +484,44 @@ msgstr ""
 msgid "Your email isn't confirmed yet"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:166
-#: lib/tuist_web/live/user_registration_live.ex:368
+#: lib/tuist_web/live/choose_username_live.ex:165
+#: lib/tuist_web/live/user_registration_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Please complete the security check and try again."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:179
-#: lib/tuist_web/live/user_registration_live.ex:381
+#: lib/tuist_web/live/choose_username_live.ex:178
+#: lib/tuist_web/live/user_registration_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:191
-#: lib/tuist_web/live/user_registration_live.ex:393
+#: lib/tuist_web/live/choose_username_live.ex:190
+#: lib/tuist_web/live/user_registration_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "The security check failed. Please reload the page and try again."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:151
-#: lib/tuist_web/live/user_registration_live.ex:353
+#: lib/tuist_web/live/choose_username_live.ex:150
+#: lib/tuist_web/live/user_registration_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "Too many sign-up attempts. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:159
-#: lib/tuist_web/live/user_registration_live.ex:361
+#: lib/tuist_web/live/choose_username_live.ex:158
+#: lib/tuist_web/live/user_registration_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Your session has expired. Please reload the page and try again."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:235
-#: lib/tuist_web/live/choose_username_live.ex:263
-#: lib/tuist_web/live/choose_username_live.ex:274
+#: lib/tuist_web/live/choose_username_live.ex:234
+#: lib/tuist_web/live/choose_username_live.ex:262
+#: lib/tuist_web/live/choose_username_live.ex:273
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:98
+#: lib/tuist_web/live/choose_username_live.ex:97
 #: lib/tuist_web/live/user_registration_live.ex:199
 #, elixir-autogen, elixir-format
 msgid "Verifying, one moment..."

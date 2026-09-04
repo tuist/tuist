@@ -298,7 +298,6 @@ defmodule TuistWeb.UserRegistrationLive do
         |> assign(:turnstile_error, nil)
         |> assign(:turnstile_ready?, false)
         |> assign(:submit_pending?, false)
-        |> assign(:load_turnstile_script?, Turnstile.required?())
         |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
         |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
         |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
