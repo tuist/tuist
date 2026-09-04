@@ -4,17 +4,18 @@ import { micromark } from "micromark";
 import type { Component, ComponentStatus, Incident, IncidentSeverity, StatusSnapshot } from "../types.js";
 import {
   ICON_ALERT_CIRCLE,
-  ICON_ALERT_HEXAGON,
   ICON_ALERT_TRIANGLE,
-  ICON_BELL,
+  ICON_ATOM,
   ICON_CIRCLE_CHECK,
-  ICON_CIRCLE_DASHED,
-  ICON_HISTORY,
-  ICON_LAYOUT_GRID,
+  ICON_DEVICE_DESKTOP,
+  ICON_EXTERNAL_LINK,
+  ICON_MOON,
   ICON_RSS,
+  ICON_SUN_HIGH,
 } from "./icons.js";
-import { TUIST_MARK_SVG } from "./logo.js";
+import { TUIST_MARK_SVG, TUIST_WORDMARK_SVG } from "./logo.js";
 import { STYLES } from "./styles.js";
+import { WAVE_SCRIPT } from "./wave.js";
 
 type Renderable = HtmlEscapedString | Promise<HtmlEscapedString>;
 
@@ -29,7 +30,6 @@ type NooraBadgeColor =
   | "focus"
   | "primary"
   | "secondary";
-type NooraBannerStatus = "primary" | "error" | "success" | "warning" | "information";
 
 const COMPONENT_STATUS_LABEL: Record<ComponentStatus, string> = {
   operational: "Operational",
@@ -47,21 +47,30 @@ const COMPONENT_STATUS_TO_NOORA: Record<ComponentStatus, NooraStatusBadge> = {
   under_maintenance: "in_progress",
 };
 
-const COMPONENT_STATUS_TO_BANNER: Record<ComponentStatus, NooraBannerStatus> = {
-  operational: "success",
-  degraded_performance: "warning",
-  partial_outage: "warning",
-  major_outage: "error",
-  under_maintenance: "information",
-};
-
+// One glyph per status across the hero alert, the component badges and the
+// incident state badges: check for success, circle for error and
+// information/maintenance, triangle for every warning (Noora's status badge
+// would use a hexagon there, but the alert uses a triangle, so the triangle
+// wins page-wide).
 const STATUS_ICONS: Record<NooraStatusBadge, string> = {
   success: ICON_CIRCLE_CHECK,
   error: ICON_ALERT_CIRCLE,
-  warning: ICON_ALERT_HEXAGON,
+  warning: ICON_ALERT_TRIANGLE,
   attention: ICON_ALERT_TRIANGLE,
-  in_progress: ICON_CIRCLE_DASHED,
+  in_progress: ICON_ALERT_CIRCLE,
   disabled: ICON_ALERT_CIRCLE,
+};
+
+// Which particle wave the stage shows: the calm sinusoid, the jittery band,
+// the torn band, or the calm wave in maintenance blue.
+type WaveState = "operational" | "degraded" | "outage" | "maintenance";
+
+const WAVE_STATE: Record<ComponentStatus, WaveState> = {
+  operational: "operational",
+  degraded_performance: "degraded",
+  partial_outage: "degraded",
+  major_outage: "outage",
+  under_maintenance: "maintenance",
 };
 
 const OVERALL_HEADLINES: Record<ComponentStatus, string> = {
@@ -104,10 +113,16 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// Day-level range only: the update timeline below already carries the times.
 function formatRange(startISO: string, endISO: string | null): string {
-  const start = formatDate(startISO);
+  const start = formatDay(startISO);
   if (!endISO) return `Started ${start}`;
-  return `${start} → ${formatDate(endISO)}`;
+  const end = formatDay(endISO);
+  return start === end ? start : `${start} → ${end}`;
 }
 
 function statusBadge(status: ComponentStatus): Renderable {
@@ -120,34 +135,73 @@ function statusBadge(status: ComponentStatus): Renderable {
 
 function severityBadge(severity: IncidentSeverity): Renderable {
   const color = SEVERITY_TO_BADGE_COLOR[severity];
-  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="small"
-    >${SEVERITY_LABEL[severity]}</span
+  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="large"
+    ><span>${SEVERITY_LABEL[severity]}</span></span
   >`;
 }
 
-function lineDivider(): Renderable {
-  return html`<div class="noora-line-divider" role="separator">
-    <span data-part="line"></span>
+type NooraAlertStatus = "information" | "warning" | "error" | "success";
+
+const COMPONENT_STATUS_TO_ALERT: Record<ComponentStatus, NooraAlertStatus> = {
+  operational: "success",
+  degraded_performance: "warning",
+  partial_outage: "warning",
+  major_outage: "error",
+  under_maintenance: "information",
+};
+
+const ALERT_ICONS: Record<NooraAlertStatus, string> = {
+  information: ICON_ALERT_CIRCLE,
+  error: ICON_ALERT_CIRCLE,
+  success: ICON_CIRCLE_CHECK,
+  warning: ICON_ALERT_TRIANGLE,
+};
+
+// The hero's overall state as a medium Noora alert (Noora.Alert, secondary
+// type): status icon plus the state label.
+function overallAlert(status: ComponentStatus): Renderable {
+  const alert = COMPONENT_STATUS_TO_ALERT[status];
+  return html`<div class="noora-alert" data-type="secondary" data-status="${alert}" data-size="medium" role="status">
+    <div data-part="icon">${raw(ALERT_ICONS[alert])}</div>
+    <span data-part="title">${COMPONENT_STATUS_LABEL[status]}</span>
   </div>`;
 }
 
-function joinWithDividers(items: Renderable[]): Renderable[] {
-  const out: Renderable[] = [];
-  items.forEach((item, i) => {
-    if (i > 0) out.push(lineDivider());
-    out.push(item);
-  });
-  return out;
+const COMPONENT_STATUS_TO_BADGE_COLOR: Record<ComponentStatus, NooraBadgeColor> = {
+  operational: "success",
+  degraded_performance: "warning",
+  partial_outage: "warning",
+  major_outage: "destructive",
+  under_maintenance: "information",
+};
+
+// The incident header's state as a light-fill badge (matching the severity
+// badge beside it) with the status glyph in its icon slot.
+function stateBadge(status: ComponentStatus): Renderable {
+  const color = COMPONENT_STATUS_TO_BADGE_COLOR[status];
+  const glyph = STATUS_ICONS[COMPONENT_STATUS_TO_NOORA[status]];
+  return html`<span
+    class="noora-badge"
+    data-style="light-fill"
+    data-color="${color}"
+    data-size="large"
+    data-icon="true"
+  >
+    <div data-part="icon">${raw(glyph)}</div>
+    <span>${COMPONENT_STATUS_LABEL[status]}</span>
+  </span>`;
 }
 
 function componentRow(component: Component): Renderable {
-  return html`<div class="status-component">
-    <div data-part="name">
-      <span data-part="title">${component.name}</span>
-      <span data-part="description">${component.description}</span>
+  return html`<li>
+    <div class="status-component">
+      <div data-part="name">
+        <span data-part="title">${component.name}</span>
+        <span data-part="description">${component.description}</span>
+      </div>
+      ${statusBadge(component.status)}
     </div>
-    ${statusBadge(component.status)}
-  </div>`;
+  </li>`;
 }
 
 function incidentToComponentStatus(i: Incident): ComponentStatus {
@@ -177,35 +231,83 @@ function incidentBlock(incident: Incident): Renderable {
       </div>
     </li>`;
   });
-  return html`<article class="status-incident" id="${incident.id}">
-    <header data-part="header">
-      <h3 data-part="title">${incident.title}</h3>
-      ${severityBadge(incident.severity)} ${statusBadge(incidentToComponentStatus(incident))}
-    </header>
-    <div data-part="meta">${formatRange(incident.startedAt, incident.resolvedAt)}</div>
-    <ol data-part="updates">
-      ${updates}
-    </ol>
-  </article>`;
+  return html`<li>
+    <article class="status-incident" id="${incident.id}">
+      <div data-part="meta">${formatRange(incident.startedAt, incident.resolvedAt)}</div>
+      <header data-part="header">
+        <h3 data-part="title">${incident.title}</h3>
+        ${severityBadge(incident.severity)} ${stateBadge(incidentToComponentStatus(incident))}
+      </header>
+      <ol data-part="updates">
+        ${updates}
+      </ol>
+    </article>
+  </li>`;
 }
 
-interface CardOptions {
-  icon: string;
+interface SectionOptions {
+  id: string;
   title: string;
-  body: Renderable;
+  empty: string;
+  items: Renderable[];
+  action?: Renderable;
 }
 
-function card({ icon, title, body }: CardOptions): Renderable {
-  return html`<div class="noora-card">
-    <div data-part="header">
-      <div data-part="icon-with-title">
-        <div data-part="icon">${raw(icon)}</div>
-        <div data-part="title">${title}</div>
-      </div>
-    </div>
-    <div class="noora-card__section">${body}</div>
-  </div>`;
+function section({ id, title, empty, items, action }: SectionOptions): Renderable {
+  const body =
+    items.length === 0
+      ? html`<p class="status-empty">${empty}</p>`
+      : html`<ol data-part="list">
+          ${items}
+        </ol>`;
+  return html`<section class="status-frame status-section" data-section="${id}" aria-labelledby="${id}-title">
+    <header data-part="header">
+      <h2 data-part="title" id="${id}-title">${title}</h2>
+      ${action ?? ""}
+    </header>
+    ${body}
+  </section>`;
 }
+
+// Runs before the stylesheet applies so the page never flashes the wrong
+// theme. Shares the dashboard's and marketing site's "preferred-theme"
+// localStorage key: Noora's shadow tokens key off data-theme, its colors off
+// color-scheme. The footer switcher writes the same key and re-applies.
+const THEME_SCRIPT = `
+(function () {
+  var root = document.documentElement;
+  var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  function preferred() {
+    try {
+      var stored = localStorage.getItem("preferred-theme");
+      return stored === null || stored === "null" ? "system" : stored;
+    } catch (e) {
+      return "system";
+    }
+  }
+  function apply() {
+    var theme = preferred();
+    var resolved = theme === "system" ? (systemDark.matches ? "dark" : "light") : theme;
+    root.style.setProperty("color-scheme", theme === "system" ? "light dark" : theme);
+    root.setAttribute("data-theme", resolved);
+    var options = document.querySelectorAll("[data-theme-option]");
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].getAttribute("data-theme-option") === theme) options[i].setAttribute("data-selected", "");
+      else options[i].removeAttribute("data-selected");
+    }
+  }
+  apply();
+  systemDark.addEventListener("change", apply);
+  document.addEventListener("click", function (event) {
+    var target = event.target instanceof Element ? event.target.closest("[data-theme-option]") : null;
+    if (!target) return;
+    try {
+      localStorage.setItem("preferred-theme", target.getAttribute("data-theme-option"));
+    } catch (e) {}
+    apply();
+  });
+})();
+`;
 
 interface PageOptions {
   title: string;
@@ -214,31 +316,6 @@ interface PageOptions {
 
 export function statusPage({ title, snapshot }: PageOptions): Renderable {
   const overall = snapshot.overall;
-  const bannerStatus = COMPONENT_STATUS_TO_BANNER[overall];
-  const bannerIcon = STATUS_ICONS[COMPONENT_STATUS_TO_NOORA[overall]];
-
-  const componentsBody =
-    snapshot.components.length === 0
-      ? html`<div class="status-empty">No components configured.</div>`
-      : html`${joinWithDividers(snapshot.components.map(componentRow))}`;
-
-  const activeBody =
-    snapshot.activeIncidents.length === 0
-      ? html`<div class="status-empty">No active incidents.</div>`
-      : html`${joinWithDividers(snapshot.activeIncidents.map(incidentBlock))}`;
-
-  const recentBody =
-    snapshot.recentIncidents.length === 0
-      ? html`<div class="status-empty">No incidents reported in the last 14 days.</div>`
-      : html`${joinWithDividers(snapshot.recentIncidents.map(incidentBlock))}`;
-
-  const subscribeBody = html`<div class="status-subscribe">
-    <p data-part="text">Follow updates from any feed reader.</p>
-    <div data-part="links">
-      <a data-part="link" href="/feed.rss">${raw(ICON_RSS)} RSS</a>
-      <a data-part="link" href="/feed.atom">${raw(ICON_RSS)} Atom</a>
-    </div>
-  </div>`;
 
   return html`<!doctype html>
     <html lang="en">
@@ -250,40 +327,144 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="alternate" type="application/rss+xml" title="${title} — RSS" href="/feed.rss" />
         <link rel="alternate" type="application/atom+xml" title="${title} — Atom" href="/feed.atom" />
+        <link rel="preconnect" href="https://rsms.me/" />
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+        <script>
+          ${raw(THEME_SCRIPT)};
+        </script>
         <style>
           ${raw(STYLES)}
         </style>
       </head>
       <body>
-        <main>
-          <section class="noora-banner" data-status="${bannerStatus}">
-            <div data-part="icon">${raw(bannerIcon)}</div>
-            <div data-part="title">${OVERALL_HEADLINES[overall]}</div>
-          </section>
-          <div class="status-page">
-            <header class="status-header">
-              <a data-part="brand" href="/">
-                <span data-part="mark">${raw(TUIST_MARK_SVG)}</span>
-                <span data-part="title">${title}</span>
-              </a>
-              <span data-part="meta">Updated ${formatDate(snapshot.fetchedAt)}</span>
-            </header>
-
-            ${card({ icon: ICON_LAYOUT_GRID, title: "Components", body: componentsBody })}
-            ${card({ icon: ICON_BELL, title: "Active incidents", body: activeBody })}
-            ${card({ icon: ICON_HISTORY, title: "Past 14 days", body: recentBody })}
-            ${card({ icon: ICON_RSS, title: "Subscribe", body: subscribeBody })}
-
-            <footer class="status-footer">
-              <span>Tuist — status.tuist.dev</span>
-              <span>
-                <a href="/api/status.json">JSON</a> · <a href="/feed.rss">RSS</a> ·
-                <a href="/feed.atom">Atom</a>
-              </span>
-            </footer>
+        <header class="status-navbar">
+          <div data-part="bar">
+            <a data-part="brand" href="/">
+              ${raw(TUIST_MARK_SVG)}
+              <span data-part="title">${title}</span>
+            </a>
+            <div data-part="subscribe">
+              <span data-part="label">Subscribe for updates</span>
+              <a
+                class="noora-button"
+                data-variant="secondary"
+                data-size="medium"
+                data-icon-only
+                href="/feed.atom"
+                aria-label="Atom feed"
+                title="Atom feed"
+                >${raw(ICON_ATOM)}</a
+              >
+              <a
+                class="noora-button"
+                data-variant="secondary"
+                data-size="medium"
+                data-icon-only
+                href="/feed.rss"
+                aria-label="RSS feed"
+                title="RSS feed"
+                >${raw(ICON_RSS)}</a
+              >
+            </div>
           </div>
+        </header>
+        <main>
+          <!-- Status wave (Figma: 1200x96): the particle field's shape and
+               ink ramp follow the overall status. -->
+          <div class="status-frame status-stage" aria-hidden="true">
+            <canvas data-wave="${WAVE_STATE[overall]}"></canvas>
+          </div>
+          <section class="status-frame status-hero" aria-labelledby="status-overall">
+            <span data-part="eyebrow">Current status</span>
+            <h1 data-part="title" id="status-overall">${OVERALL_HEADLINES[overall]}</h1>
+            ${overallAlert(overall)}
+            <p data-part="meta">Updated ${formatDate(snapshot.fetchedAt)}</p>
+          </section>
+
+          ${section({
+            id: "components",
+            title: "Components",
+            empty: "No components configured.",
+            items: snapshot.components.map(componentRow),
+          })}
+          ${section({
+            id: "active",
+            title: "Active incidents",
+            empty: "No active incidents.",
+            items: snapshot.activeIncidents.map(incidentBlock),
+          })}
+          ${section({
+            id: "recent",
+            title: "Past 14 days",
+            empty: "No incidents reported in the last 14 days.",
+            items: snapshot.recentIncidents.map(incidentBlock),
+            action: html`<a
+              class="noora-link-button"
+              data-variant="secondary"
+              data-size="large"
+              href="https://hive.tuist.dev/postmortems"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>Incident history</span>${raw(ICON_EXTERNAL_LINK)}</a
+            >`,
+          })}
+
+          <footer class="status-frame status-footer">
+            <div data-part="main">
+              <div data-part="brand">
+                ${raw(TUIST_WORDMARK_SVG)}
+                <p data-part="tagline">
+                  Live status of Tuist's hosted services, sourced from our incident tooling and refreshed on every
+                  visit.
+                </p>
+              </div>
+            </div>
+            <div data-part="bar">
+              <div class="noora-button-group" data-size="small" role="group" aria-label="Theme">
+                <button
+                  class="noora-button-group-item"
+                  type="button"
+                  data-icon-only
+                  data-theme-option="system"
+                  data-selected
+                  aria-label="System theme"
+                  title="System theme"
+                >
+                  ${raw(ICON_DEVICE_DESKTOP)}
+                </button>
+                <button
+                  class="noora-button-group-item"
+                  type="button"
+                  data-icon-only
+                  data-theme-option="light"
+                  aria-label="Light theme"
+                  title="Light theme"
+                >
+                  ${raw(ICON_SUN_HIGH)}
+                </button>
+                <button
+                  class="noora-button-group-item"
+                  type="button"
+                  data-icon-only
+                  data-theme-option="dark"
+                  aria-label="Dark theme"
+                  title="Dark theme"
+                >
+                  ${raw(ICON_MOON)}
+                </button>
+              </div>
+              <div data-part="links">
+                <a href="/api/status.json">JSON</a>
+                <a href="/feed.rss">RSS</a>
+                <a href="/feed.atom">Atom</a>
+                <a href="https://tuist.dev" target="_blank" rel="noopener noreferrer">tuist.dev</a>
+              </div>
+            </div>
+          </footer>
         </main>
+        <script>
+          ${raw(WAVE_SCRIPT)};
+        </script>
       </body>
     </html>`;
 }

@@ -15,10 +15,12 @@ status/
 │   └── views/
 │       ├── page.ts        # HTML rendering with hono/html; incident update bodies are rendered as safe Markdown
 │       ├── feed.ts        # RSS 2.0 + Atom 1.0 renderers
-│       ├── logo.ts        # Inlined Tuist mark (verbatim copy of noora/lib/noora/icons/brand-tuist.svg)
-│       ├── icons.ts       # Inlined Tabler/Noora status icons used by noora-banner and noora-status-badge
-│       ├── noora-css.ts   # Verbatim concat of Noora tokens.css + card.css + badge.css + banner.css + line_divider.css
-│       └── styles.ts      # Combines NOORA_CSS with the small page-glue CSS (header, footer, incident layout)
+│       ├── logo.ts        # Inlined five-petal Tuist mark + wordmark (from server/priv/static/marketing/images/brand)
+│       ├── icons.ts       # Inlined Tabler/Noora status icons used by noora-status-badge, plus RSS / external-link
+│       ├── noora-css.ts   # Verbatim concat of Noora tokens.css + alert.css + badge.css + button.css + button_group.css + line_divider.css
+│       ├── marketing-tokens.ts # Verbatim copy of server/assets/marketing/css/shared/tokens.css (page frame, strokes)
+│       ├── wave.ts        # Inline script running the particle status wave canvases under the navbar
+│       └── styles.ts      # Combines NOORA_CSS + MARKETING_TOKENS_CSS with the page's own layout CSS
 ├── wrangler.jsonc
 ├── tsconfig.json
 └── package.json
@@ -92,22 +94,19 @@ After that, every push to `main` that touches `status/**` runs `mise run deploy`
 
 ## Style
 
-The worker re-renders Noora components in plain HTML — same class names (`noora-card`, `noora-card__section`, `noora-banner`, `noora-status-badge`, `noora-badge`, `noora-line-divider`) and the same `data-part` / `data-status` / `data-color` / `data-style` / `data-size` attributes Noora's Phoenix components emit.
+The page follows the redesigned marketing site (tuist.dev): a primary-surface page built from 1200px hairline-framed sections separated by 2px seams, a navbar bar with the 32px wordmark, a centered hero carrying the overall headline, and an open-bottom footer frame with the feed links and a theme switcher. Theme handling mirrors the marketing root layout: a head script resolves the shared `preferred-theme` localStorage key, sets `color-scheme` and stamps `data-theme` on `<html>` (Noora's shadow tokens key off `data-theme`, its colors off `color-scheme`).
 
-To stay visually identical without depending on Phoenix or Tailwind, `views/noora-css.ts` is a verbatim concatenation of the relevant Noora CSS files:
+Only tokens are shared with the marketing bundle, nothing else. Two verbatim copies keep the worker free of the Phoenix build:
 
-- `noora/css/tokens.css`
-- `noora/css/card.css`
-- `noora/css/badge.css`
-- `noora/css/banner.css`
-- `noora/css/line_divider.css`
+- `views/noora-css.ts` — Noora `tokens.css` + `alert.css` + `badge.css` + `button.css` + `button_group.css` + `line_divider.css`. The hero alert, badges, the header's feed buttons and the footer theme switcher are real Noora markup (`noora-alert`, `noora-status-badge`, `noora-badge`, `noora-button`, `noora-button-group` / `noora-button-group-item`) with the same `data-*` attributes the Phoenix components emit.
+- `views/marketing-tokens.ts` — `server/assets/marketing/css/shared/tokens.css` (`--marketing-page-width`, `--marketing-stroke-default`, the illustration neutral ramp). Backticks inside its CSS comments are swapped for straight quotes so the template literal survives.
 
 To regenerate after a Noora release, from the repo root:
 
 ```
 {
   echo 'export const NOORA_CSS = String.raw`'
-  for f in tokens card badge banner line_divider; do
+  for f in tokens alert badge button button_group line_divider; do
     printf '\n/* %s.css */\n' "$f"
     cat "noora/css/$f.css"
   done
@@ -115,7 +114,7 @@ To regenerate after a Noora release, from the repo root:
 } > status/src/views/noora-css.ts
 ```
 
-The Tuist mark in `views/logo.ts` and the status icons in `views/icons.ts` are similarly verbatim copies — update them when Noora's icon set or brand mark changes. `views/styles.ts` adds only the small layout glue Noora doesn't ship (page wrapper, header, footer, incident grid, feed-link pills).
+`views/marketing-tokens.ts` is regenerated the same way from `server/assets/marketing/css/shared/tokens.css` (then replace any backtick in the copied CSS with `'`). The brand marks in `views/logo.ts` are the marketing site's `tuist-logo.svg` and navbar `logo-light.svg` with their fills replaced by `data-part="petals"` / `data-part="wordmark"` hooks that `views/styles.ts` colors per theme. `views/styles.ts` owns all page layout (navbar, frames, hero, sections, incident timeline, footer).
 
 ## Components (sourced from Grafana)
 
