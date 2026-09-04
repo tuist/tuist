@@ -4,6 +4,8 @@ How to reconstruct, after the fact, what happened during a JIT elevation. Three 
 
 After the Pomerium pivot, `tuist-ops` (mgmt cluster) owns the bot's tables and serves the Pomerium impersonation policy endpoint; the tailnet ACL is no longer mutated at runtime, so the historical "Tailscale ACL audit log" trail no longer applies.
 
+**Staging is not part of this runbook.** Its `tuist-staging-write` group is standing access for every engineering identity, so a staging mutation has no elevation row, no Slack card and no TTL to reconstruct — only the Pomerium access log (trail 3), which still carries the email, verb and path of every request. Elevations exist for canary and production only.
+
 ## What you need to know upfront
 
 - **Elevation ID**: the integer primary key of the `tailscale_jit_elevations` row in tuist-ops's database. Surfaced in the Slack approval thread once the bot grants the request, and is the stable join key across trails.

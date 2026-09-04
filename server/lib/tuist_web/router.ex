@@ -7,6 +7,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.OperatorGrant
+  import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
   alias TuistWeb.Marketing.Localization
@@ -41,6 +42,20 @@ defmodule TuistWeb.Router do
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
 
+    # Deliberately reads the env-var toggle directly rather than the
+    # flag-aware `TuistWeb.Turnstile.required?/0`. This plug feeds the
+    # `:content_security_policy` pipeline, which the app, marketing, docs,
+    # image and ueberauth pipelines all use, so a per-request
+    # `FunWithFlags.enabled?(:turnstile_kill_switch)` would fire on every
+    # page load site-wide for a widget only two LiveViews ever render — and
+    # the underlying store `raise`s on a cold cache during a Postgres blip,
+    # which would 500 pages that previously had no DB dependency here.
+    # Flipping the kill switch still turns off the widget and the verify
+    # path everywhere immediately; the only thing left behind is a CSP
+    # source pointing at a host nothing loads from.
+    turnstile_source =
+      if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
+
     [
       frame_ancestors: "'self'",
       img_src:
@@ -52,10 +67,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}"
+      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
 
@@ -1095,6 +1110,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user_for_previews,
+      :mark_public_preview_page,
       :analytics
     ]
 
@@ -1124,6 +1140,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,
+      :mark_public_account_page,
       :require_sso_authentication,
       :analytics
     ]
@@ -1204,6 +1221,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
+      :mark_public_project_page,
       :require_sso_authentication,
       :analytics,
       :require_user_can_read_project

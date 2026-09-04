@@ -62,6 +62,12 @@ dictate this shape — do not regress them:
   and agent restarts and leaves foreign links alone; our pinned links keep
   their first position. The reconcile loop still verifies position every
   cycle and reattaches (plus a churn metric) if something strips them.
+  Because Cilium leaves our links alone, a reattach means external
+  interference, and the metric counts only that: a brand-new pod device has
+  no pin yet and lands on `kura_egress_tree_link_attach_total` instead. The
+  discriminator is pin existence, not `linkAttached`, which deliberately
+  reads a present-but-unreadable pin as detached — that case is interference
+  to report, not a pod that never had a program.
 - Sibling traffic (headless DNS → the co-located replica's pod IP) takes a
   bypass branch before stamping and stays on Cilium's fast path
   (`redirect_peer`, measured at node-local line rate). The bypass is an
@@ -212,13 +218,33 @@ Alert on: `kura_egress_tree_direct_packets` growth,
 `kura_egress_tree_return_dropped_packets` growth,
 `kura_egress_tree_return_attach_failures_total` growth (a failing return
 attach blackholes shaped pods until the detach threshold),
-`kura_egress_tree_link_reattach_total` churn after steady state,
+`kura_egress_tree_link_reattach_total` growth at all (see below),
 `kura_egress_tree_skipped_pods` > 0,
 `kura_egress_tree_sibling_overflow_total` growth (an account outgrew the
 16-entry sibling map; extra siblings run shaped instead of bypassed, with no
 log — the counter is the only signal), and per-class floor violations under
 contention (`kura_egress_tree_class_sent_bytes` rate vs
 `kura_egress_tree_class_rate_bytes_per_second`).
+
+Do not alert on `kura_egress_tree_link_attach_total`. It counts first attaches
+on new pod devices — one per pod creation — so it tracks pod churn, not shaping
+integrity: a fleet-wide kura rollout replaces every pod, each replacement gets a
+new `lxc` device, and the counter climbs by the node's whole pod count with
+nothing wrong. Its job is to keep that traffic out of the reattach signal, which
+used to carry both and tripped its alert on every kura release. It has
+deliberately no alert arm and no dashboard panel — the kura dashboard's agent
+panel groups integrity signals, and a pod-churn counter sitting among them is
+the same conflation one level up — so it is an ad-hoc query when you want to
+confirm a rollout attached what it should, not something anyone watches.
+
+`kura_egress_tree_link_reattach_total` now moves only when a link we already
+installed was stripped or displaced, so it should sit flat at zero and any
+growth is worth a look; the matching `reattached pod program` warning names the
+pod and device. The production alert still carries the old `> 5` per-hour
+threshold that was chosen to ride over rollout noise; drop it to `> 0` once this
+split is deployed across the fleet, and not before — until then the running
+agents still emit the conflated counter and a tighter threshold only fires
+sooner on rollouts.
 
 A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
