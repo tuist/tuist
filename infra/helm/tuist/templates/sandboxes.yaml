@@ -1,0 +1,317 @@
+{{- if .Values.sandboxes.enabled }}
+{{- $namespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "sandboxd") }}
+{{- $imageTag := .Values.sandboxes.image.tag }}
+{{- $templateTag := .Values.sandboxes.templateImage.tag }}
+{{- if not $imageTag }}
+{{- fail "sandboxes.image.tag is required: a privileged DaemonSet driving KVM must not float on :latest. Pin a sha-<git-sha> tag built by sandboxd-image.yml." }}
+{{- end }}
+{{- if not $templateTag }}
+{{- fail "sandboxes.templateImage.tag is required: the tag names the guest template version on every node. Pin a sha-<git-sha> tag built by sandbox-image.yml." }}
+{{- end }}
+{{- if not .Values.sandboxes.nodePools }}
+{{- fail "sandboxes.nodePools is required: restrict the privileged DaemonSet to the bare-metal pools that run sandboxes" }}
+{{- end }}
+{{- $serverName := include "tuist.componentName" (dict "root" . "component" "server") }}
+{{- $serverURL := printf "http://%s.%s.svc.cluster.local:%v" $serverName .Release.Namespace (.Values.server.service.port | default 80) }}
+{{- /*
+Sandboxes run in their own namespace, like runners: the daemon Pod is
+privileged (it drives /dev/kvm and creates tap devices and network
+namespaces inside its own Pod netns), so its ServiceAccount and NetworkPolicy
+are kept away from the chart's other workloads. The namespace is helm-owned
+with `keep` because paused sandboxes live on the node's disk and a chart
+uninstall must not yank the namespace from under them.
+*/}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+    tuist.dev/sandboxes-namespace: "true"
+  annotations:
+    helm.sh/resource-policy: keep
+---
+# The daemon authenticates to the server with a projected token for this
+# ServiceAccount (audience `tuist-sandboxes`); the server validates it with a
+# cluster-scoped TokenReview it already holds for runners and requires the
+# principal to live in this namespace. No Kubernetes API access is needed.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxd
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sandboxd
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sandboxd
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: sandboxd
+        tuist.dev/sandboxd: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.sandboxes.metricsPort | quote }}
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      # Not hostNetwork on purpose: the sandboxes' traffic is NAT'd to this
+      # Pod's IP, so the Pod's Cilium endpoint and the NetworkPolicy below
+      # gate every guest's egress.
+      dnsPolicy: ClusterFirst
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 120
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
+      {{- with .Values.sandboxes.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Seeds the node with this template version's kernel and rootfs. The
+        # daemon builds the per-shape snapshots from them on the node, because
+        # Firecracker snapshots are tied to the host CPU.
+        - name: template
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          env:
+            - name: TEMPLATE_TAG
+              value: {{ $templateTag | quote }}
+            - name: TEMPLATE_DIR
+              value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
+          volumeMounts:
+            - name: data
+              mountPath: /host
+      containers:
+        - name: sandboxd
+          image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.image.pullPolicy }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: SERVER_URL
+              value: {{ $serverURL | quote }}
+            - name: TOKEN_PATH
+              value: /var/run/secrets/tuist/token
+            - name: DATA_DIR
+              value: /data/sandboxes
+            - name: TEMPLATE_NAME
+              value: {{ .Values.sandboxes.templateName | quote }}
+            - name: TEMPLATE_TAG
+              value: {{ $templateTag | quote }}
+            - name: PREBUILD_SHAPES
+              value: {{ .Values.sandboxes.prebuildShapes | quote }}
+            - name: METRICS_ADDR
+              value: ":{{ .Values.sandboxes.metricsPort }}"
+            {{- if .Values.sandboxes.admin.enabled }}
+            - name: ADMIN_ADDR
+              value: ":{{ .Values.sandboxes.admin.port }}"
+            {{- end }}
+            - name: JAILER_ENABLED
+              value: {{ .Values.sandboxes.jailer | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.sandboxes.logLevel | quote }}
+          securityContext:
+            # KVM, tap devices, network namespaces, chroot jails and cgroup
+            # placement for the jailer: the same reasons the datapath agents
+            # run privileged rather than with a capabilities-only grant.
+            privileged: true
+          resources:
+            requests:
+              cpu: {{ .Values.sandboxes.cpu | quote }}
+              memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
+            limits:
+              memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.sandboxes.metricsPort }}
+            {{- if .Values.sandboxes.admin.enabled }}
+            - name: admin
+              containerPort: {{ .Values.sandboxes.admin.port }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data/sandboxes
+            - name: kvm
+              mountPath: /dev/kvm
+            - name: tun
+              mountPath: /dev/net/tun
+            - name: token
+              mountPath: /var/run/secrets/tuist
+              readOnly: true
+      volumes:
+        - name: data
+          hostPath:
+            path: /data/sandboxes
+            type: DirectoryOrCreate
+        - name: kvm
+          hostPath:
+            path: /dev/kvm
+            type: CharDevice
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: token
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken:
+                  audience: tuist-sandboxes
+                  expirationSeconds: 3600
+                  path: token
+{{- if .Values.sandboxes.admin.enabled }}
+---
+# Stable in-cluster address for the admin API during bring-up. With more
+# than one node this round-robins across daemons; validation Jobs that need a
+# specific node target the Pod IP instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-admin
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: sandboxd
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: admin
+      port: {{ .Values.sandboxes.admin.port }}
+      targetPort: admin
+{{- end }}
+{{- if .Values.sandboxes.networkPolicy.enabled }}
+---
+# Gates the daemon Pod and, through the NAT, every sandbox on the node:
+# ingress only for metrics scraping and the admin API, egress to DNS, the
+# in-cluster server (the node connection and, from the guests, the Tuist
+# API), and the public internet on 80/443 with the cluster ranges carved out.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/sandboxd: "true"
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: {{ .Values.sandboxes.metricsPort }}
+    {{- if .Values.sandboxes.admin.enabled }}
+    # Bring-up only: validation Jobs in this namespace labelled as admin
+    # clients may drive the daemon directly.
+    - from:
+        - podSelector:
+            matchLabels:
+              tuist.dev/sandboxd-admin-client: "true"
+      ports:
+        - protocol: TCP
+          port: {{ .Values.sandboxes.admin.port }}
+    {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: {{ .Values.server.service.targetPort | default 8080 }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with .Values.sandboxes.networkPolicy.exceptCIDRs }}
+            except:
+              {{- range $cidr := . }}
+              - {{ $cidr | quote }}
+              {{- end }}
+            {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- if .Values.sandboxes.networkPolicy.kuraEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kura
+      ports:
+        - protocol: TCP
+          port: 4000
+    {{- end }}
+{{- end }}
+{{- end }}
