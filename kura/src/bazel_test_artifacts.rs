@@ -559,7 +559,18 @@ fn retry_delay(attempt: usize) -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use super::{BazelTestArtifactKind, MAX_BAZEL_TEST_ARTIFACT_BYTES, retry_delay, should_retry};
+    use std::sync::{Arc, Mutex};
+
+    use axum::{Router, body::Bytes, http::HeaderMap, routing::post};
+    use serde_json::Value;
+    use tokio::time::{Duration, sleep, timeout};
+
+    use crate::{config::AnalyticsConfig, test_support::test_context};
+
+    use super::{
+        BazelTestArtifactKind, BazelTestInvocationFinished, BazelTestResult, BazelTestSummary,
+        MAX_BAZEL_TEST_ARTIFACT_BYTES, retry_delay, should_retry, sign,
+    };
 
     #[test]
     fn recognizes_only_conventional_test_output_names() {
@@ -587,5 +598,140 @@ mod tests {
         assert_eq!(retry_delay(0).as_millis(), 100);
         assert_eq!(retry_delay(4).as_millis(), 1_600);
         assert_eq!(MAX_BAZEL_TEST_ARTIFACT_BYTES, 256 * 1024);
+    }
+
+    #[tokio::test]
+    async fn sends_result_summary_and_completion_in_contract_order() {
+        let captured = Arc::new(Mutex::new(Vec::<(HeaderMap, Bytes)>::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("listener should have an address");
+        let router = Router::new().route(
+            "/webhooks/bazel-test-artifacts",
+            post({
+                let captured = captured.clone();
+                move |headers, body| capture_request(captured.clone(), headers, body)
+            }),
+        );
+        let _server = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("capture server should run");
+        });
+
+        let context = test_context(|config| {
+            config.analytics = Some(AnalyticsConfig {
+                server_url: format!("http://{address}"),
+                signing_key: "secret-key".into(),
+                batch_size: 1,
+                batch_timeout_ms: 5_000,
+                queue_capacity: 8,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 5_000,
+            });
+        })
+        .await;
+        let delivery = context
+            .state
+            .bazel_test_artifacts
+            .as_ref()
+            .expect("test artifact delivery should be configured");
+
+        delivery.enqueue_test_result(BazelTestResult {
+            account_handle: "acme".into(),
+            project_handle: "app".into(),
+            invocation_id: "invocation-1".into(),
+            target_label: "//App:Tests".into(),
+            run: 0,
+            shard: 0,
+            attempt: 1,
+            status: "success",
+            duration_ms: 123,
+            started_at_ms: 1_700_000_000_000,
+            cached: false,
+            is_ci: true,
+            sequence_number: 7,
+            artifacts: vec![],
+        });
+        delivery.enqueue_test_summary(BazelTestSummary {
+            account_handle: "acme".into(),
+            project_handle: "app".into(),
+            invocation_id: "invocation-1".into(),
+            target_label: "//App:Tests".into(),
+            status: "success",
+            total_run_count: 1,
+            total_num_cached: 0,
+            duration_ms: 123,
+            started_at_ms: 1_700_000_000_000,
+            finished_at_ms: 1_700_000_000_123,
+        });
+        delivery
+            .enqueue_invocation_finished(BazelTestInvocationFinished {
+                account_handle: "acme".into(),
+                project_handle: "app".into(),
+                invocation_id: "invocation-1".into(),
+            })
+            .await;
+
+        timeout(Duration::from_secs(2), async {
+            loop {
+                if captured.lock().expect("captured request lock").len() == 3 {
+                    break;
+                }
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("all test artifact events should arrive");
+
+        let captured = captured.lock().expect("captured request lock");
+        let payloads = captured
+            .iter()
+            .map(|(_, body)| {
+                serde_json::from_slice::<Value>(body).expect("payload should be valid JSON")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            payloads
+                .iter()
+                .map(|payload| payload["event_kind"]
+                    .as_str()
+                    .expect("event kind should be a string"))
+                .collect::<Vec<_>>(),
+            vec!["test_result", "test_summary", "invocation_finished"]
+        );
+        assert_eq!(payloads[0]["target_label"], "//App:Tests");
+        assert_eq!(payloads[0]["artifacts"], serde_json::json!([]));
+
+        for (headers, body) in captured.iter() {
+            assert_eq!(
+                headers
+                    .get("x-cache-signature")
+                    .expect("signature should be present"),
+                &sign("secret-key", body)
+            );
+            assert_eq!(
+                headers
+                    .get("x-cache-endpoint")
+                    .expect("cache endpoint should be present"),
+                "127.0.0.1:7443"
+            );
+        }
+    }
+
+    async fn capture_request(
+        captured: Arc<Mutex<Vec<(HeaderMap, Bytes)>>>,
+        headers: HeaderMap,
+        body: Bytes,
+    ) -> axum::http::StatusCode {
+        captured
+            .lock()
+            .expect("captured request lock")
+            .push((headers, body));
+        axum::http::StatusCode::ACCEPTED
     }
 }

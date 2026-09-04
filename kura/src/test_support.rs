@@ -11,6 +11,7 @@ use crate::{
     analytics::Analytics,
     auth::SharedAuth,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
     io::IoController,
     memory::MemoryController,
@@ -137,12 +138,21 @@ where
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store =
-        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let store = Arc::new(
+        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
+    );
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .expect("failed to build Bazel test artifact delivery");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
     let peer_client_factory = PeerClientFactory::plain();
@@ -173,7 +183,7 @@ where
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -181,7 +191,7 @@ where
         runtime,
         auth,
         analytics,
-        bazel_test_artifacts: None,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
