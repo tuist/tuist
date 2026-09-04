@@ -171,17 +171,32 @@ defmodule Tuist.Release do
 
     opts = [source_repo: Tuist.ClickHouseRepo, target_repo: Tuist.ShadowClickHouseRepo]
 
-    case Parity.compare(opts) do
-      {:ok, %{differing: []} = report} ->
-        Logger.info("ClickHouse reads agree across #{report.compared} table(s) on both servers")
-        :ok
+    # Inside the flag store, because the read path asks on every query whether
+    # reads have moved, and the flag's cache is an ETS table owned by a process
+    # `bin/tuist eval` does not start. Without it every read through
+    # `Tuist.ClickHouseRepo` fails with "the table identifier does not refer to
+    # an existing ETS table", which is what the first run of this task did.
+    with_flag_store(fn ->
+      # Comparing the two servers only means anything while reads are still
+      # served by the system of record. With the flag already on, the "source"
+      # side of this comparison routes to the destination and the check passes
+      # by comparing it with itself.
+      if Tuist.ClickHouse.ReadRoute.enabled?() do
+        raise "ClickHouse reads are already served by the in-cluster server; this check only means something before that"
+      end
 
-      {:ok, report} ->
-        raise "ClickHouse read parity failed: #{inspect(report.differing)}"
+      case Parity.compare(opts) do
+        {:ok, %{differing: []} = report} ->
+          Logger.info("ClickHouse reads agree across #{report.compared} table(s) on both servers")
+          :ok
 
-      {:error, reason} ->
-        raise "ClickHouse read parity could not run: #{inspect(reason)}"
-    end
+        {:ok, report} ->
+          raise "ClickHouse read parity failed: #{inspect(report.differing)}"
+
+        {:error, reason} ->
+          raise "ClickHouse read parity could not run: #{inspect(reason)}"
+      end
+    end)
   end
 
   @doc """
@@ -198,29 +213,37 @@ defmodule Tuist.Release do
   """
   def disable_clickhouse_bare_metal_reads, do: set_clickhouse_bare_metal_reads(false)
 
-  # `bin/tuist eval` loads the application without starting it, so the flag
-  # store's repository and the process that tells the running pods to drop
-  # their cached copy both have to be started here. Without the second one the
-  # write lands but nothing notices it for the length of the cache TTL.
   defp set_clickhouse_bare_metal_reads(enabled?) do
     load_app()
 
-    {:ok, _, _} =
+    with_flag_store(fn ->
+      {:ok, _} =
+        if enabled? do
+          FunWithFlags.enable(:clickhouse_bare_metal_reads)
+        else
+          FunWithFlags.disable(:clickhouse_bare_metal_reads)
+        end
+
+      Logger.info("ClickHouse bare-metal reads #{(enabled? && "enabled") || "disabled"}")
+      :ok
+    end)
+  end
+
+  # `bin/tuist eval` loads the application without starting it, so the flag
+  # store's repository, the process that owns its cache, and the one that tells
+  # the running pods to drop their copy of it all have to be started here.
+  # Without the last of those a write lands but nothing notices it for the
+  # length of the cache TTL.
+  defp with_flag_store(fun) do
+    {:ok, result, _apps} =
       Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
         {:ok, _} = Supervisor.start_link([{Phoenix.PubSub, name: Tuist.PubSub}], strategy: :one_for_one)
         {:ok, _} = Application.ensure_all_started(:fun_with_flags)
 
-        {:ok, _} =
-          if enabled? do
-            FunWithFlags.enable(:clickhouse_bare_metal_reads)
-          else
-            FunWithFlags.disable(:clickhouse_bare_metal_reads)
-          end
-
-        Logger.info("ClickHouse bare-metal reads #{(enabled? && "enabled") || "disabled"}")
+        fun.()
       end)
 
-    :ok
+    result
   end
 
   # A migration that brings the VM down instead of raising (an exit signal from a
