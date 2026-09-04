@@ -87,7 +87,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:324
 #: lib/tuist_web/live/module_cache_module_live.html.heex:41
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
-#: lib/tuist_web/live/module_invalidations_live.ex:290
+#: lib/tuist_web/live/module_invalidations_live.ex:291
 #: lib/tuist_web/live/module_invalidations_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -197,7 +197,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:26
 #: lib/tuist_web/live/module_cache_module_live.ex:323
 #: lib/tuist_web/live/module_cache_module_live.html.heex:43
-#: lib/tuist_web/live/module_invalidations_live.ex:289
+#: lib/tuist_web/live/module_invalidations_live.ex:290
 #: lib/tuist_web/live/module_invalidations_live.html.heex:13
 #: lib/tuist_web/live/xcode_cache_live.ex:425
 #, elixir-autogen, elixir-format
@@ -222,9 +222,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:642
 #: lib/tuist_web/live/module_cache_module_live.html.heex:182
 #: lib/tuist_web/live/module_cache_module_live.html.heex:372
-#: lib/tuist_web/live/module_invalidations_live.ex:284
-#: lib/tuist_web/live/module_invalidations_live.html.heex:122
-#: lib/tuist_web/live/module_invalidations_live.html.heex:286
+#: lib/tuist_web/live/module_invalidations_live.ex:285
 #: lib/tuist_web/live/xcode_cache_live.ex:304
 #: lib/tuist_web/live/xcode_cache_live.html.heex:109
 #: lib/tuist_web/live/xcode_cache_live.html.heex:786
@@ -405,7 +403,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.html.heex:120
 #: lib/tuist_web/live/module_cache_module_live.html.heex:151
 #: lib/tuist_web/live/module_cache_module_live.html.heex:318
-#: lib/tuist_web/live/module_invalidations_live.html.heex:241
+#: lib/tuist_web/live/module_invalidations_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Hits"
 msgstr ""
@@ -446,7 +444,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:322
 #: lib/tuist_web/live/module_cache_module_live.html.heex:42
 #: lib/tuist_web/live/module_cache_module_live.html.heex:596
-#: lib/tuist_web/live/module_invalidations_live.ex:288
+#: lib/tuist_web/live/module_invalidations_live.ex:289
 #: lib/tuist_web/live/module_invalidations_live.html.heex:12
 #: lib/tuist_web/live/xcode_cache_live.ex:426
 #, elixir-autogen, elixir-format
@@ -469,9 +467,9 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.html.heex:119
 #: lib/tuist_web/live/module_cache_module_live.html.heex:168
 #: lib/tuist_web/live/module_cache_module_live.html.heex:326
-#: lib/tuist_web/live/module_invalidations_live.ex:286
+#: lib/tuist_web/live/module_invalidations_live.ex:287
 #: lib/tuist_web/live/module_invalidations_live.html.heex:106
-#: lib/tuist_web/live/module_invalidations_live.html.heex:233
+#: lib/tuist_web/live/module_invalidations_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Misses"
 msgstr ""
@@ -647,7 +645,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:639
 #: lib/tuist_web/live/bundles_live.html.heex:310
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
-#: lib/tuist_web/live/module_invalidations_live.html.heex:382
+#: lib/tuist_web/live/module_invalidations_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
@@ -1050,7 +1048,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:310
 #: lib/tuist_web/live/module_cache_module_live.html.heex:256
 #: lib/tuist_web/live/module_cache_module_live.html.heex:463
-#: lib/tuist_web/live/module_invalidations_live.html.heex:330
+#: lib/tuist_web/live/module_invalidations_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Changed"
 msgstr ""
@@ -1059,7 +1057,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:312
 #: lib/tuist_web/live/module_cache_module_live.html.heex:260
 #: lib/tuist_web/live/module_cache_module_live.html.heex:479
-#: lib/tuist_web/live/module_invalidations_live.html.heex:346
+#: lib/tuist_web/live/module_invalidations_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Cold"
 msgstr ""
@@ -1072,7 +1070,7 @@ msgstr ""
 #: lib/tuist_web/components/module_invalidations_table.ex:49
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #: lib/tuist_web/live/module_cache_module_live.html.heex:419
-#: lib/tuist_web/live/module_invalidations_live.ex:285
+#: lib/tuist_web/live/module_invalidations_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Dependents"
 msgstr ""
@@ -1091,8 +1089,8 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.html.heex:3
 #: lib/tuist_web/live/module_invalidations_live.ex:26
 #: lib/tuist_web/live/module_invalidations_live.html.heex:90
-#: lib/tuist_web/live/module_invalidations_live.html.heex:189
-#: lib/tuist_web/live/module_invalidations_live.html.heex:361
+#: lib/tuist_web/live/module_invalidations_live.html.heex:173
+#: lib/tuist_web/live/module_invalidations_live.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
@@ -1121,12 +1119,12 @@ msgid "Needs CLI graph edges"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:616
-#: lib/tuist_web/live/module_invalidations_live.html.heex:406
+#: lib/tuist_web/live/module_invalidations_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "No cache misses yet"
 msgstr ""
 
-#: lib/tuist_web/live/module_invalidations_live.html.heex:442
+#: lib/tuist_web/live/module_invalidations_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
 msgstr ""
@@ -1141,7 +1139,7 @@ msgstr ""
 msgid "Product: %{product}"
 msgstr ""
 
-#: lib/tuist_web/live/module_invalidations_live.html.heex:373
+#: lib/tuist_web/live/module_invalidations_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Search modules"
 msgstr ""
@@ -1165,7 +1163,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:311
 #: lib/tuist_web/live/module_cache_module_live.html.heex:258
 #: lib/tuist_web/live/module_cache_module_live.html.heex:471
-#: lib/tuist_web/live/module_invalidations_live.html.heex:338
+#: lib/tuist_web/live/module_invalidations_live.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Upstream"
 msgstr ""
@@ -1176,7 +1174,7 @@ msgid "Upstream misses"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:561
-#: lib/tuist_web/live/module_invalidations_live.html.heex:138
+#: lib/tuist_web/live/module_invalidations_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
 msgstr ""
@@ -1258,12 +1256,7 @@ msgstr ""
 msgid "Modules that were a cache miss at least once in this range."
 msgstr ""
 
-#: lib/tuist_web/live/module_invalidations_live.html.heex:141
-#, elixir-autogen, elixir-format
-msgid "Share of attributed misses caused only by a dependency changing rather than the module's own code. This is the fraction better module boundaries can remove."
-msgstr ""
-
 #: lib/tuist_web/live/module_invalidations_live.html.heex:125
 #, elixir-autogen, elixir-format
-msgid "Share of module builds served from cache instead of rebuilt."
+msgid "Share of attributed misses caused only by a dependency changing rather than the module's own code. This is the fraction better module boundaries can remove."
 msgstr ""
