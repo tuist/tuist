@@ -1,9 +1,10 @@
-<% # The four feature cards share the cache page's 2x2 hairline grid; each
-# illustration slot is a reserved blank until the artwork lands. %>
+<% # The four feature cards share the cache page's 2x2 hairline grid. The
+# first slot carries the Slack message illustration; the rest are reserved
+# blanks until their artwork lands. %>
 <% features = [
   %{
     id: "url-collaboration",
-    title: dgettext("marketing", "URL-centric collaboration"),
+    title: dgettext("marketing", "Share a build, not a setup"),
     description:
       dgettext(
         "marketing",
@@ -16,25 +17,25 @@
     description:
       dgettext(
         "marketing",
-        "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
-      )
-  },
-  %{
-    id: "click-to-run",
-    title: dgettext("marketing", "Click to run, no CLI needed"),
-    description:
-      dgettext(
-        "marketing",
-        "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
+        "Tuist automatically posts Preview links to pull requests, so reviewers can try changes instead of relying on code or images."
       )
   },
   %{
     id: "audiences",
-    title: dgettext("marketing", "Organize builds for every audience"),
+    title: dgettext("marketing", "A preview for every version"),
     description:
       dgettext(
         "marketing",
         "Group previews by branch, release, or team so stakeholders always find the build meant for them."
+      )
+  },
+  %{
+    id: "click-to-run",
+    title: dgettext("marketing", "Keep everyone on the latest build"),
+    description:
+      dgettext(
+        "marketing",
+        "Notify testers when a newer Preview is available, keeping everyone on the latest version for their track."
       )
   }
 ] %>
@@ -51,6 +52,78 @@
   %{label: "e19b7c4a2d", icon: "git_commit", x: 515, y: 79.6},
   %{label: "5f8a2d6b90", icon: "git_commit", x: 347, y: 238.4},
   %{label: "9c3e1f7a48", icon: "git_commit", x: 515, y: 238.4}
+] %>
+<% # Dark modules of the decorative QR code on the code-review card: three
+# finder patterns, the timing rows, and a seeded scatter for the data area,
+# on a 21x21 grid. %>
+<% qr_modules = [
+  {0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {8, 0}, {9, 0}, {11, 0}, {12, 0}, {14, 0},
+  {15, 0}, {16, 0}, {17, 0}, {18, 0}, {19, 0}, {20, 0}, {0, 1}, {6, 1}, {9, 1}, {14, 1}, {20, 1}, {0, 2},
+  {2, 2}, {3, 2}, {4, 2}, {6, 2}, {9, 2}, {10, 2}, {11, 2}, {14, 2}, {16, 2}, {17, 2}, {18, 2}, {20, 2},
+  {0, 3}, {2, 3}, {3, 3}, {4, 3}, {6, 3}, {8, 3}, {10, 3}, {12, 3}, {14, 3}, {16, 3}, {17, 3}, {18, 3},
+  {20, 3}, {0, 4}, {2, 4}, {3, 4}, {4, 4}, {6, 4}, {9, 4}, {10, 4}, {11, 4}, {14, 4}, {16, 4}, {17, 4},
+  {18, 4}, {20, 4}, {0, 5}, {6, 5}, {11, 5}, {14, 5}, {20, 5}, {0, 6}, {1, 6}, {2, 6}, {3, 6}, {4, 6},
+  {5, 6}, {6, 6}, {8, 6}, {10, 6}, {12, 6}, {14, 6}, {15, 6}, {16, 6}, {17, 6}, {18, 6}, {19, 6}, {20, 6},
+  {8, 7}, {10, 7}, {12, 7}, {5, 8}, {6, 8}, {7, 8}, {8, 8}, {10, 8}, {11, 8}, {12, 8}, {13, 8}, {15, 8},
+  {17, 8}, {19, 8}, {20, 8}, {1, 9}, {2, 9}, {3, 9}, {4, 9}, {5, 9}, {7, 9}, {16, 9}, {18, 9}, {19, 9},
+  {20, 9}, {4, 10}, {5, 10}, {6, 10}, {7, 10}, {9, 10}, {10, 10}, {11, 10}, {12, 10}, {13, 10}, {14, 10}, {16, 10},
+  {18, 10}, {19, 10}, {20, 10}, {2, 11}, {3, 11}, {5, 11}, {9, 11}, {11, 11}, {12, 11}, {16, 11}, {18, 11}, {1, 12},
+  {6, 12}, {7, 12}, {11, 12}, {15, 12}, {16, 12}, {18, 12}, {19, 12}, {20, 12}, {9, 13}, {11, 13}, {13, 13}, {16, 13},
+  {18, 13}, {19, 13}, {0, 14}, {1, 14}, {2, 14}, {3, 14}, {4, 14}, {5, 14}, {6, 14}, {10, 14}, {12, 14}, {14, 14},
+  {18, 14}, {19, 14}, {20, 14}, {0, 15}, {6, 15}, {11, 15}, {12, 15}, {13, 15}, {14, 15}, {16, 15}, {19, 15}, {20, 15},
+  {0, 16}, {2, 16}, {3, 16}, {4, 16}, {6, 16}, {8, 16}, {11, 16}, {12, 16}, {13, 16}, {15, 16}, {19, 16}, {20, 16},
+  {0, 17}, {2, 17}, {3, 17}, {4, 17}, {6, 17}, {9, 17}, {14, 17}, {16, 17}, {17, 17}, {18, 17}, {0, 18}, {2, 18},
+  {3, 18}, {4, 18}, {6, 18}, {14, 18}, {15, 18}, {18, 18}, {19, 18}, {0, 19}, {6, 19}, {11, 19}, {12, 19}, {13, 19},
+  {14, 19}, {15, 19}, {16, 19}, {18, 19}, {19, 19}, {20, 19}, {0, 20}, {1, 20}, {2, 20}, {3, 20}, {4, 20}, {5, 20},
+  {6, 20}, {9, 20}, {10, 20}, {12, 20}, {14, 20}, {16, 20}, {17, 20}
+] %>
+<% # Rows of the previews table on the third card: one app across tracks
+# and platforms, so the columns show what a preview is organized by. %>
+<% preview_rows = [
+  %{
+    id: "tuist-ios-release",
+    name: "Tuist",
+    track: "Release",
+    track_color: "primary",
+    platform: "iOS",
+    icon: "device_mobile",
+    branch: "main",
+    commit: "a3f9c1e",
+    built: "12 minutes ago"
+  },
+  %{
+    id: "tuist-ios-beta",
+    name: "Tuist",
+    track: "Beta",
+    track_color: "information",
+    platform: "iOS",
+    icon: "device_mobile",
+    branch: "feature/complications",
+    commit: "7b2e8d0",
+    built: "1 hour ago"
+  },
+  %{
+    id: "tuist-macos-nightly",
+    name: "Tuist",
+    track: "Nightly",
+    track_color: "attention",
+    platform: "macOS",
+    icon: "device_laptop",
+    branch: "release/3.2",
+    commit: "c4d1a9f",
+    built: "3 hours ago"
+  },
+  %{
+    id: "tuist-visionos-beta",
+    name: "Tuist",
+    track: "Beta",
+    track_color: "information",
+    platform: "visionOS",
+    icon: "device_vision_pro",
+    branch: "fix/sync-crash",
+    commit: "e19b7c4",
+    built: "Yesterday"
+  }
 ] %>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-previews">
@@ -205,6 +278,120 @@
             id={"previews-#{feature.id}"}
             aria-hidden="true"
           >
+            <%!-- Slack message card (Figma: 541x117, centered in the slot):
+            a translucent macOS title bar with traffic lights and the
+            sender's avatar, then the message carrying the preview link. --%>
+            <div :if={feature.id == "url-collaboration"} data-part="message">
+              <div data-part="bar">
+                <span data-part="lights">
+                  <span data-part="light" data-color="red"></span>
+                  <span data-part="light" data-color="yellow"></span>
+                  <span data-part="light" data-color="green"></span>
+                </span>
+                <span data-part="avatar">
+                  <img src={~p"/marketing/images/previews/pedro-avatar.webp"} alt="" />
+                  <span data-part="status"></span>
+                </span>
+              </div>
+              <div data-part="body">
+                <span data-part="avatar">
+                  <img src={~p"/marketing/images/previews/pedro-avatar.webp"} alt="" />
+                  <span data-part="status"></span>
+                </span>
+                <div data-part="content">
+                  <div data-part="meta">
+                    <span data-part="author">Pedro</span>
+                    <span data-part="time">11:55 AM</span>
+                  </div>
+                  <p data-part="text">
+                    Check out this preview:
+                    <span data-part="link">https://tuist.dev/tuist/tuist/previews/<wbr />019cc393-117c-7b0b-a8f9-2aa94870baaf</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <%!-- GitHub PR comment from the Tuist bot (Figma: 487x270, 15px
+            below the slot's top edge) running past the bottom into a fade.
+            The QR code is drawn from the module list above so it follows
+            the theme instead of being a baked image. --%>
+            <div :if={feature.id == "code-review"} data-part="comment">
+              <div data-part="comment-header">
+                <span data-part="author">tuist-dev</span>
+                <span data-part="badge">bot</span>
+                <span data-part="action">commented just now</span>
+              </div>
+              <div data-part="comment-body">
+                <p data-part="report-title">Tuist Run Report</p>
+                <p data-part="report-subtitle">Run the latest preview of your app</p>
+                <div data-part="table">
+                  <div data-part="column">
+                    <span data-part="heading">App</span>
+                    <span data-part="value"><span data-part="link">App Link</span></span>
+                  </div>
+                  <div data-part="column">
+                    <span data-part="heading">Commit</span>
+                    <span data-part="value"><span data-part="link">10a356195</span></span>
+                  </div>
+                  <div data-part="column">
+                    <span data-part="heading">Open on device</span>
+                    <span data-part="value">
+                      <svg data-part="qr" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                        <rect :for={{x, y} <- qr_modules} x={x} y={y} width="1" height="1" />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span :if={feature.id == "code-review"} data-part="fade"></span>
+            <%!-- Previews list on the Noora table, pinned to the slot's top-left
+            and running past its right and bottom edges into fades, so the
+            columns trail off the way a wide dashboard table does. --%>
+            <div :if={feature.id == "audiences"} data-part="previews-list">
+              <.table id="previews-feature-table" rows={preview_rows}>
+                <:col :let={preview} label="Name">
+                  <.text_cell label={preview.name} />
+                </:col>
+                <:col :let={preview} label="Track">
+                  <.badge_cell label={preview.track} color={preview.track_color} style="light-fill" />
+                </:col>
+                <:col :let={preview} label="Platform">
+                  <.tag_cell label={preview.platform} icon={preview.icon} />
+                </:col>
+                <:col :let={preview} label="Branch">
+                  <.text_cell icon="git_branch" label={preview.branch} />
+                </:col>
+                <:col :let={preview} label="Commit">
+                  <.text_cell label={preview.commit} />
+                </:col>
+                <:col :let={preview} label="Built">
+                  <.text_cell label={preview.built} />
+                </:col>
+              </.table>
+            </div>
+            <span :if={feature.id == "audiences"} data-part="fade"></span>
+            <span :if={feature.id == "audiences"} data-part="fade-right"></span>
+            <%!-- The hero's phone again, with only the dynamic island on the
+            screen and an iOS-style alert offering the newer preview. --%>
+            <div :if={feature.id == "click-to-run"} data-part="phone" data-screen="0">
+              <TuistWeb.Marketing.MarketingIllustrations.illustration name="previews-iphone" />
+              <div data-part="screen">
+                <span data-part="block" data-block="island"></span>
+                <div data-part="alert">
+                  <div data-part="copy">
+                    <span data-part="title">Update Available</span>
+                    <span data-part="description">
+                      A new version is available.<br />Would you like to install it?
+                    </span>
+                  </div>
+                  <div data-part="actions">
+                    <span data-part="button">Cancel</span>
+                    <span data-part="button">Install</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span :if={feature.id == "click-to-run"} data-part="fade"></span>
           </figure>
           <div data-part="text">
             <h3 data-part="title">{feature.title}</h3>
