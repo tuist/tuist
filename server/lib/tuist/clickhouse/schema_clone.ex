@@ -47,6 +47,7 @@ defmodule Tuist.ClickHouse.SchemaClone do
   """
 
   alias Tuist.ClickHouse.Endpoints
+  alias Tuist.ClickHouse.Tables
 
   require Logger
 
@@ -79,6 +80,147 @@ defmodule Tuist.ClickHouse.SchemaClone do
       Logger.info("Schema clone finished: #{inspect(report)}")
       {:ok, report}
     end)
+  end
+
+  @doc """
+  Brings the destination back in line with the source, for the objects that
+  have appeared or changed since it was cloned.
+
+  Migrations run against the source only, so from the moment of the clone the
+  two schemas drift apart, and the drift is not survivable: a column the
+  destination lacks costs a dropped mirror write while the source is still
+  primary, and breaks the ingest path the moment it is not.
+
+  Reconciling from the source's own DDL rather than replaying the migrations,
+  because a replay changes where the statements go without changing what they
+  say. The ingest migrations create plain `MergeTree` tables, and this
+  destination refuses them outright:
+
+      Code: 56. Only tables with a Replicated engine ... are allowed in a
+      Replicated database. (UNKNOWN_STORAGE)
+
+  The clone already solves that by taking the source's definition and
+  rewriting the engine family, so the same path is reused here. What it cannot
+  see is a change to an object that already exists on both sides, which is why
+  columns are reconciled separately.
+
+  Deliberately additive. It creates what is missing and adds columns that are
+  missing, and it does not drop or retype anything: those are rare, they are
+  not always recoverable, and a schema reconciler that can delete is a worse
+  thing to run unattended on every deploy than a little drift is.
+  """
+  def reconcile(opts \\ []) do
+    Endpoints.with_repos(opts, fn source, target ->
+      drift = Tables.schema_drift(source, target)
+
+      created = create_missing(source, target, drift.missing_on_destination)
+      added = add_missing_columns(source, target, drift.differing_columns)
+
+      report = %{created: created, columns_added: added}
+      Logger.info("ClickHouse schema reconcile: #{inspect(report)}")
+      {:ok, report}
+    end)
+  end
+
+  defp create_missing(_source, _target, []), do: []
+
+  defp create_missing(source, target, names) do
+    wanted = MapSet.new(names)
+    objects = read_objects(source)
+
+    # Tables before views, because a view's `SELECT` refers to the table it
+    # reads and cannot be created before it.
+    (objects.tables ++ objects.views)
+    |> Enum.filter(&MapSet.member?(wanted, &1.name))
+    |> Enum.map(&clone_object(source, target, &1))
+    |> Enum.map(fn
+      {:ok, name} -> name
+      {:error, name, message} -> "#{name} (failed: #{message})"
+    end)
+  end
+
+  defp add_missing_columns(source, target, differing) do
+    Enum.flat_map(differing, fn {table, only_on_source, only_on_destination} ->
+      retyped = retyped_columns(only_on_source, only_on_destination)
+
+      if retyped != [] do
+        # A column whose type changed appears on both sides, and adding it
+        # would fail because it is already there. Left alone and named, since
+        # a type change needs a human to decide whether the data survives it.
+        Logger.error("#{table}: column type changed, not reconciled: #{inspect(retyped)}")
+      end
+
+      positions = column_positions(source, table)
+
+      only_on_source
+      |> Enum.reject(&(name_of(&1) in retyped))
+      |> Enum.map(fn column ->
+        statement = add_column_statement(target.database, table, column, positions)
+
+        case execute(target, statement) do
+          :ok ->
+            "#{table}.#{name_of(column)}"
+
+          {:error, message} ->
+            Logger.error("Could not add #{table}.#{name_of(column)}: #{message}")
+            "#{table}.#{name_of(column)} (failed)"
+        end
+      end)
+    end)
+  end
+
+  defp retyped_columns(only_on_source, only_on_destination) do
+    destination_names = MapSet.new(only_on_destination, &name_of/1)
+
+    only_on_source |> Enum.map(&name_of/1) |> Enum.filter(&MapSet.member?(destination_names, &1))
+  end
+
+  @doc """
+  The `ALTER` that adds one column back, in the position the source has it.
+
+  Position is not cosmetic here: the backfill copies with `SELECT *`, which
+  maps columns by position, so a column appended to the end of one server and
+  sitting in the middle of the other would copy every later column into the
+  wrong place.
+
+  Public because that is the part worth testing without a ClickHouse to talk
+  to, and because the failure it prevents is silent.
+  """
+  def add_column_statement(database, table, column, positions) do
+    [name, type] = String.split(column, " ", parts: 2)
+
+    prefix =
+      "ALTER TABLE #{Endpoints.quote_ident(database)}.#{Endpoints.quote_ident(table)} ADD COLUMN IF NOT EXISTS #{Endpoints.quote_ident(name)} #{type}"
+
+    case previous_column(name, positions) do
+      nil -> "#{prefix} FIRST"
+      previous -> "#{prefix} AFTER #{Endpoints.quote_ident(previous)}"
+    end
+  end
+
+  defp previous_column(name, positions) do
+    case Enum.find_index(positions, &(&1 == name)) do
+      nil -> nil
+      0 -> nil
+      index -> Enum.at(positions, index - 1)
+    end
+  end
+
+  defp name_of(column), do: column |> String.split(" ", parts: 2) |> hd()
+
+  defp column_positions(source, table) do
+    %{rows: rows} =
+      source.repo.query!(
+        """
+        SELECT name FROM system.columns
+        WHERE database = {database:String} AND table = {table:String}
+        ORDER BY position
+        """,
+        %{"database" => source.database, "table" => table},
+        log: false
+      )
+
+    List.flatten(rows)
   end
 
   @doc """

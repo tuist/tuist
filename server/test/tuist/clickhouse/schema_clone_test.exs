@@ -134,4 +134,33 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
       assert {:error, :no_target_configured} = SchemaClone.run()
     end
   end
+
+  describe "add_column_statement/4" do
+    @positions ~w(id name inserted_at)
+
+    test "adds the column where the source has it, not at the end" do
+      # Position is not cosmetic: the backfill copies with `SELECT *`, which
+      # maps by position, so a column appended here and sitting in the middle
+      # there would copy every later column into the wrong one.
+      assert SchemaClone.add_column_statement("tuist", "build_runs", "name String", @positions) =~
+               "ADD COLUMN IF NOT EXISTS `name` String AFTER `id`"
+    end
+
+    test "puts a new first column first rather than after nothing" do
+      assert SchemaClone.add_column_statement("tuist", "build_runs", "id UUID", @positions) =~ "`id` UUID FIRST"
+    end
+
+    test "keeps a type containing a space intact" do
+      # `Map(String, String)` splits on its own space if the name and type are
+      # separated naively, which would emit `Map(String,` as the type.
+      statement = SchemaClone.add_column_statement("tuist", "t", "labels Map(String, String)", ["a", "labels"])
+
+      assert statement =~ "`labels` Map(String, String) AFTER `a`"
+    end
+
+    test "quotes the table and column, so a name that needs it still works" do
+      assert SchemaClone.add_column_statement("tuist", "order", "date Date", ["date"]) =~
+               "ALTER TABLE `tuist`.`order` ADD COLUMN IF NOT EXISTS `date` Date FIRST"
+    end
+  end
 end
