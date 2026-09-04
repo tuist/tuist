@@ -38,11 +38,21 @@ import (
 // promotion for CRs we own
 // (`app.kubernetes.io/managed-by=hetzner-robot-controller`).
 //
-// Selection of disks: takes the first two WWN-bearing entries in
-// `spec.status.hardwareDetails.storage`. AX42-U / AX102-U /
-// AX162-R ship with paired NVMes; this matches Hetzner's
-// documented default RAID-1 layout for AX-class boxes. If the
-// operator wants a different topology, set `rootDeviceHints`
+// Selection of disks: every WWN-bearing entry in
+// `spec.status.hardwareDetails.storage`, so the array matches the
+// machine rather than an assumption about it.
+//
+// It used to take the first two, which was right for as long as
+// every box we ordered was an AX-class pair. It stops being right
+// the moment a four-disk box arrives: the host would install
+// across two of its disks and silently leave the other two out of
+// the array, and the partition layout is fixed at install, so the
+// only way back is a reinstall. The RAID level is chosen
+// separately, per cluster, by `statefulRaidLevel`.
+//
+// This changes nothing for a two-disk host, which is every
+// Hetzner bare-metal host we run today. If the operator wants a
+// topology that is not "all the disks", set `rootDeviceHints`
 // manually before the first rescue boot — once the field is
 // non-empty this reconciler stops touching it (Patch is no-op).
 type WWNFillReconciler struct {
@@ -98,11 +108,6 @@ func (r *WWNFillReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		logger.V(1).Info("waiting for at least 2 WWNs in hardwareDetails", "have", len(wwns))
 		return ctrl.Result{}, nil
 	}
-
-	// Take the first two. caph's storage order is stable across
-	// reboots (it scans `/dev/disk/by-id` deterministically), so
-	// the first two are always the same physical disks.
-	wwns = wwns[:2]
 
 	patch := client.MergeFrom(obj.DeepCopy())
 	if err := unstructured.SetNestedStringSlice(obj.Object, wwns, "spec", "rootDeviceHints", "raid", "wwn"); err != nil {

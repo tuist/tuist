@@ -54,8 +54,17 @@ spec:
       # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
       # ClusterClass variable left implicit here makes the post-apply drift
       # check in `mgmt-cluster-apply.yml` fail permanently.
+      #
+      # 10 rather than the default 1, and this has to be right before the
+      # ClickHouse host's first rescue boot rather than after it: installimage
+      # applies the level across the whole disk set, and the partition layout
+      # is fixed at install. The production box carries four disks, so level 1
+      # there is a four-way mirror — 3.84 TB of usable space instead of 7.68,
+      # on a machine bought for its disk — and the only way back is a
+      # reinstall. Canary's two-disk AX42-1 keeps 1, where the two levels mean
+      # the same thing.
       - name: statefulRaidLevel
-        value: 1
+        value: 10
       # Insert InternalIP so the apiserver can reach kubelets on nodes with no
       # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
       # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
