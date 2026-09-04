@@ -3420,6 +3420,17 @@ public enum Components {
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                         public var repetition_number: Swift.Int
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case run = "run"
+                            case stress = "stress"
+                        }
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                         /// The status of this repetition attempt.
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
@@ -3437,22 +3448,26 @@ public enum Components {
                         ///   - duration: The duration of this repetition in milliseconds.
                         ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                         ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                        ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                         ///   - status: The status of this repetition attempt.
                         public init(
                             duration: Swift.Int? = nil,
                             name: Swift.String,
                             repetition_number: Swift.Int,
+                            source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                             status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                         ) {
                             self.duration = duration
                             self.name = name
                             self.repetition_number = repetition_number
+                            self.source = source
                             self.status = status
                         }
                         public enum CodingKeys: String, CodingKey {
                             case duration
                             case name
                             case repetition_number
+                            case source
                             case status
                         }
                     }
@@ -20336,6 +20351,17 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                                 public var repetition_number: Swift.Int
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case run = "run"
+                                    case stress = "stress"
+                                }
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                 /// The status of this repetition attempt.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
@@ -20353,22 +20379,26 @@ public enum Operations {
                                 ///   - duration: The duration of this repetition in milliseconds.
                                 ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                                 ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                 ///   - status: The status of this repetition attempt.
                                 public init(
                                     duration: Swift.Int? = nil,
                                     name: Swift.String,
                                     repetition_number: Swift.Int,
+                                    source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                     status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                                 ) {
                                     self.duration = duration
                                     self.name = name
                                     self.repetition_number = repetition_number
+                                    self.source = source
                                     self.status = status
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case duration
                                     case name
                                     case repetition_number
+                                    case source
                                     case status
                                 }
                             }

@@ -105,6 +105,25 @@ import TuistHTTP
                     .processing
                 }
 
+            // The gate's reruns are executions of the test case like any other, so they ride
+            // along with the test case they belong to rather than as a payload of their own.
+            // They are numbered after the run's own attempts and tagged `stress`, which is
+            // what lets the dashboard say which executions were solicited. Remote runs send
+            // no test cases here; their bundle carries the same information instead.
+            let stressRepetitionsByTestCase = Dictionary(
+                (stressNewTests?.test_cases ?? []).map { candidate in
+                    (
+                        StressRepetitionKey(
+                            module: candidate.module_name,
+                            suite: candidate.suite_name,
+                            name: candidate.name
+                        ),
+                        candidate.repetition_results ?? []
+                    )
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+
             let testModules = testSummary.testModules.map { module in
                 let testSuites = module.testSuites.map { suite in
                     Operations.createTest.Input.Body.jsonPayload
@@ -145,9 +164,19 @@ import TuistHTTP
                                     duration: repetition.duration,
                                     name: repetition.name,
                                     repetition_number: repetition.repetitionNumber,
+                                    source: .run,
                                     status: repetitionStatusToServerStatus(repetition.status)
                                 )
                         }
+                        + stressRepetitions(
+                            for: StressRepetitionKey(
+                                module: module.name,
+                                suite: testCase.testSuite,
+                                name: testCase.name
+                            ),
+                            in: stressRepetitionsByTestCase,
+                            after: testCase.repetitions.count
+                        )
 
                     let arguments = testCase.arguments.map { argument in
                         let argFailures = argument.failures.map { failure in
@@ -400,3 +429,36 @@ import TuistHTTP
     }
 
 #endif
+
+struct StressRepetitionKey: Hashable {
+    let module: String?
+    let suite: String?
+    let name: String
+
+    init(module: String?, suite: String?, name: String) {
+        self.module = module
+        self.suite = (suite?.isEmpty ?? true) ? nil : suite
+        self.name = name
+    }
+}
+
+private func stressRepetitions(
+    for key: StressRepetitionKey,
+    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+        .repetition_resultsPayloadPayload]],
+    after ownCount: Int
+) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
+    .repetitionsPayloadPayload]
+{
+    (repetitionsByTestCase[key] ?? []).enumerated().map { index, repetition in
+        Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload
+            .test_casesPayloadPayload.repetitionsPayloadPayload(
+                duration: repetition.duration,
+                name: "Stress \(index + 1)",
+                repetition_number: ownCount + index + 1,
+                source: .stress,
+                status: repetition.status == .success ? .success : .failure
+            )
+    }
+}

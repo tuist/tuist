@@ -408,6 +408,14 @@ components:
                             type: integer
                             x-struct:
                             x-validate:
+                          source:
+                            description: "Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`."
+                            enum:
+                              - run
+                              - stress
+                            type: string
+                            x-struct:
+                            x-validate:
                           status:
                             description: The status of this repetition attempt.
                             enum:
@@ -9841,6 +9849,14 @@ paths:
                                   repetition_number:
                                     description: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
                                     type: integer
+                                    x-struct:
+                                    x-validate:
+                                  source:
+                                    description: "Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`."
+                                    enum:
+                                      - run
+                                      - stress
+                                    type: string
                                     x-struct:
                                     x-validate:
                                   status:
