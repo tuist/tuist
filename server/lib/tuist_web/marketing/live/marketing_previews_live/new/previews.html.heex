@@ -1,0 +1,459 @@
+<% # The four feature cards share the cache page's 2x2 hairline grid. The
+# first slot carries the Slack message illustration; the rest are reserved
+# blanks until their artwork lands. %>
+<% features = [
+  %{
+    id: "url-collaboration",
+    title: dgettext("marketing", "Share a build, not a setup"),
+    description:
+      dgettext(
+        "marketing",
+        "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
+      )
+  },
+  %{
+    id: "code-review",
+    title: dgettext("marketing", "Make code review hands-on"),
+    description:
+      dgettext(
+        "marketing",
+        "Tuist automatically posts Preview links to pull requests, so reviewers can try changes instead of relying on code or images."
+      )
+  },
+  %{
+    id: "audiences",
+    title: dgettext("marketing", "A preview for every version"),
+    description:
+      dgettext(
+        "marketing",
+        "Group previews by branch, release, or team so stakeholders always find the build meant for them."
+      )
+  },
+  %{
+    id: "click-to-run",
+    title: dgettext("marketing", "Keep everyone on the latest build"),
+    description:
+      dgettext(
+        "marketing",
+        "Notify testers when a newer Preview is available, keeping everyone on the latest version for their track."
+      )
+  }
+] %>
+<% companion_apps_link =
+  ~s(<a href="#{TuistWeb.Marketing.MarketingHTML.localized_href("/download")}" data-part="link">#{Phoenix.HTML.html_escape(dgettext("marketing", "Tuist companion apps")) |> Phoenix.HTML.safe_to_string()}</a>) %>
+<% # Commit graph nodes (Figma x/y of each tag's left edge and lane
+# center). The lanes sit at y=159 (trunk), 79.6 (top branch) and 238.4
+# (bottom branch). %>
+<% graph_nodes = [
+  %{label: "main", x: 132, y: 159},
+  %{label: "a3f9c1e2d4", icon: "git_commit", x: 238, y: 159},
+  %{label: "7b2e8d0c15", icon: "git_commit", x: 440, y: 159},
+  %{label: "c4d1a9f36e", icon: "git_commit", x: 642, y: 159},
+  %{label: "e19b7c4a2d", icon: "git_commit", x: 515, y: 79.6},
+  %{label: "5f8a2d6b90", icon: "git_commit", x: 347, y: 238.4},
+  %{label: "9c3e1f7a48", icon: "git_commit", x: 515, y: 238.4}
+] %>
+<% # Dark modules of the decorative QR code on the code-review card: three
+# finder patterns, the timing rows, and a seeded scatter for the data area,
+# on a 21x21 grid. %>
+<% qr_modules = [
+  {0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {8, 0}, {9, 0}, {11, 0}, {12, 0}, {14, 0},
+  {15, 0}, {16, 0}, {17, 0}, {18, 0}, {19, 0}, {20, 0}, {0, 1}, {6, 1}, {9, 1}, {14, 1}, {20, 1}, {0, 2},
+  {2, 2}, {3, 2}, {4, 2}, {6, 2}, {9, 2}, {10, 2}, {11, 2}, {14, 2}, {16, 2}, {17, 2}, {18, 2}, {20, 2},
+  {0, 3}, {2, 3}, {3, 3}, {4, 3}, {6, 3}, {8, 3}, {10, 3}, {12, 3}, {14, 3}, {16, 3}, {17, 3}, {18, 3},
+  {20, 3}, {0, 4}, {2, 4}, {3, 4}, {4, 4}, {6, 4}, {9, 4}, {10, 4}, {11, 4}, {14, 4}, {16, 4}, {17, 4},
+  {18, 4}, {20, 4}, {0, 5}, {6, 5}, {11, 5}, {14, 5}, {20, 5}, {0, 6}, {1, 6}, {2, 6}, {3, 6}, {4, 6},
+  {5, 6}, {6, 6}, {8, 6}, {10, 6}, {12, 6}, {14, 6}, {15, 6}, {16, 6}, {17, 6}, {18, 6}, {19, 6}, {20, 6},
+  {8, 7}, {10, 7}, {12, 7}, {5, 8}, {6, 8}, {7, 8}, {8, 8}, {10, 8}, {11, 8}, {12, 8}, {13, 8}, {15, 8},
+  {17, 8}, {19, 8}, {20, 8}, {1, 9}, {2, 9}, {3, 9}, {4, 9}, {5, 9}, {7, 9}, {16, 9}, {18, 9}, {19, 9},
+  {20, 9}, {4, 10}, {5, 10}, {6, 10}, {7, 10}, {9, 10}, {10, 10}, {11, 10}, {12, 10}, {13, 10}, {14, 10}, {16, 10},
+  {18, 10}, {19, 10}, {20, 10}, {2, 11}, {3, 11}, {5, 11}, {9, 11}, {11, 11}, {12, 11}, {16, 11}, {18, 11}, {1, 12},
+  {6, 12}, {7, 12}, {11, 12}, {15, 12}, {16, 12}, {18, 12}, {19, 12}, {20, 12}, {9, 13}, {11, 13}, {13, 13}, {16, 13},
+  {18, 13}, {19, 13}, {0, 14}, {1, 14}, {2, 14}, {3, 14}, {4, 14}, {5, 14}, {6, 14}, {10, 14}, {12, 14}, {14, 14},
+  {18, 14}, {19, 14}, {20, 14}, {0, 15}, {6, 15}, {11, 15}, {12, 15}, {13, 15}, {14, 15}, {16, 15}, {19, 15}, {20, 15},
+  {0, 16}, {2, 16}, {3, 16}, {4, 16}, {6, 16}, {8, 16}, {11, 16}, {12, 16}, {13, 16}, {15, 16}, {19, 16}, {20, 16},
+  {0, 17}, {2, 17}, {3, 17}, {4, 17}, {6, 17}, {9, 17}, {14, 17}, {16, 17}, {17, 17}, {18, 17}, {0, 18}, {2, 18},
+  {3, 18}, {4, 18}, {6, 18}, {14, 18}, {15, 18}, {18, 18}, {19, 18}, {0, 19}, {6, 19}, {11, 19}, {12, 19}, {13, 19},
+  {14, 19}, {15, 19}, {16, 19}, {18, 19}, {19, 19}, {20, 19}, {0, 20}, {1, 20}, {2, 20}, {3, 20}, {4, 20}, {5, 20},
+  {6, 20}, {9, 20}, {10, 20}, {12, 20}, {14, 20}, {16, 20}, {17, 20}
+] %>
+<% # Rows of the previews table on the third card: one app across tracks
+# and platforms, so the columns show what a preview is organized by. %>
+<% preview_rows = [
+  %{
+    id: "tuist-ios-release",
+    name: "Tuist",
+    track: "Release",
+    track_color: "primary",
+    platform: "iOS",
+    icon: "device_mobile",
+    branch: "main",
+    commit: "a3f9c1e",
+    built: "12 minutes ago"
+  },
+  %{
+    id: "tuist-ios-beta",
+    name: "Tuist",
+    track: "Beta",
+    track_color: "information",
+    platform: "iOS",
+    icon: "device_mobile",
+    branch: "feature/complications",
+    commit: "7b2e8d0",
+    built: "1 hour ago"
+  },
+  %{
+    id: "tuist-macos-nightly",
+    name: "Tuist",
+    track: "Nightly",
+    track_color: "attention",
+    platform: "macOS",
+    icon: "device_laptop",
+    branch: "release/3.2",
+    commit: "c4d1a9f",
+    built: "3 hours ago"
+  },
+  %{
+    id: "tuist-visionos-beta",
+    name: "Tuist",
+    track: "Beta",
+    track_color: "information",
+    platform: "visionOS",
+    icon: "device_vision_pro",
+    branch: "fix/sync-crash",
+    commit: "e19b7c4",
+    built: "Yesterday"
+  }
+] %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-previews">
+    <%!-- Hero card: centered copy (Figma: 64px above the title, 8px sides,
+    32px gaps) over a full-width 300px illustration slot that runs flush to
+    the card's bottom edge. The illustration is still to come. --%>
+    <header data-part="header">
+      <div data-part="copy">
+        <h1 data-part="title">{dgettext("marketing", "Every change, ready to try")}</h1>
+        <p data-part="subtitle">
+          <span data-part="line">
+            {dgettext(
+              "marketing",
+              "Share your app instantly via URL. No delays, just click and run on any device."
+            )}
+          </span>
+          <span data-part="line">
+            {raw(
+              dgettext("marketing", "Explore the %{companion_apps} for macOS and iOS.",
+                companion_apps: companion_apps_link
+              )
+            )}
+          </span>
+        </p>
+        <.button
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "https://tuist.dev/en/docs/guides/features/previews"
+            )
+          }
+          variant="secondary"
+          label={dgettext("marketing", "Read docs")}
+        />
+      </div>
+      <%!-- Commit graph → iPhone illustration on a fixed 1200x300 stage
+      (Figma coordinates). The connectors are one SVG layer; the nodes are
+      Noora tags absolutely positioned on top of it, centered on their
+      lane's y; the phone outline is a tokenized illustration with the
+      skeleton screen blocks laid over it and a surface-colored fade over
+      its bottom edge. --%>
+      <div data-part="illustration" aria-hidden="true">
+        <div
+          data-part="stage"
+          id="previews-commit-graph"
+          phx-hook="PreviewsCommitGraph"
+          phx-update="ignore"
+        >
+          <svg
+            data-part="connectors"
+            viewBox="0 0 1200 300"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <%!-- Invisible full routes (commit → phone edge) the streaks
+            travel along; the visible lines below are the same geometry
+            broken around the tags. --%>
+            <g data-part="routes">
+              <path data-part="route" d="M172 159H843" />
+              <path
+                data-part="route"
+                d="M337 159H350C356 159 361 156 365 151.5L426.4 85.2C430.2 81.9 435.5 79.6 441.1 79.6H843"
+              />
+              <path
+                data-part="route"
+                d="M173 159H186C192 159 197 162 201 166.5L258.6 232C262.4 236.2 267.9 238.4 273.6 238.4H843"
+              />
+              <path data-part="route" d="M489.5 143V126C489.5 121.6 493.1 118 497.5 118H843" />
+              <path data-part="route" d="M287.5 175V192C287.5 196.4 291.1 200 295.5 200H843" />
+              <path data-part="route" d="M396.5 222.4V208C396.5 203.6 400.1 200 404.5 200H843" />
+            </g>
+            <%!-- Trunk lane (y 159): main → three commits → phone. --%>
+            <path d="M173 159H238" />
+            <path d="M337 159H439" />
+            <path d="M539 159H641" />
+            <path d="M741 159H843" />
+            <%!-- Top branch (y 79.6): first commit → commit → phone. The
+            branch-off is a short horizontal lead and a rounded turn into the
+            diagonal; the lane then runs straight into the phone. --%>
+            <path d="M337 159H350C356 159 361 156 365 151.5L426.4 85.2C430.2 81.9 435.5 79.6 441.1 79.6H515" />
+            <path d="M614 79.6H843" />
+            <%!-- Bottom branch (y 238.4): main → two commits → phone. --%>
+            <path d="M173 159H186C192 159 197 162 201 166.5L258.6 232C262.4 236.2 267.9 238.4 273.6 238.4H347" />
+            <path d="M447 238.4H515" />
+            <path d="M614 238.4H843" />
+            <%!-- Direct preview lanes: every commit reaches the phone on its
+            own. The second trunk commit leaves from its top edge onto the
+            y 118 lane; the first trunk commit leaves from its bottom edge
+            onto the y 200 lane, which the first bottom-branch commit joins
+            from below. Lanes enter the phone horizontally so the fan never
+            crosses itself. --%>
+            <path d="M489.5 143V126C489.5 121.6 493.1 118 497.5 118H843" />
+            <path d="M287.5 175V192C287.5 196.4 291.1 200 295.5 200H843" />
+            <path d="M396.5 222.4V208C396.5 203.6 400.1 200 404.5 200H420" />
+          </svg>
+          <.tag
+            :for={node <- graph_nodes}
+            label={node.label}
+            icon={node[:icon]}
+            data-part="node"
+            style={"left: #{node.x}px; top: #{node.y}px;"}
+          />
+          <%!-- Phone: the tokenized outline with a skeleton app screen laid
+          over it. data-screen (advanced by the hook on every streak hit)
+          reflows the blocks between three layouts: rows reorder, a third
+          preview slides in as the card grows, the avatar changes shape. --%>
+          <div data-part="phone" data-screen="0">
+            <TuistWeb.Marketing.MarketingIllustrations.illustration name="previews-iphone" />
+            <div data-part="screen">
+              <span data-part="block" data-block="island"></span>
+              <span data-part="block" data-block="avatar"></span>
+              <span data-part="block" data-block="name"></span>
+              <span data-part="block" data-block="subline"></span>
+              <span data-part="block" data-block="tab" data-tab="0"></span>
+              <span data-part="block" data-block="tab" data-tab="1"></span>
+              <span data-part="block" data-block="tab" data-tab="2"></span>
+              <span data-part="block" data-block="card">
+                <span data-part="block" data-block="card-title"></span>
+                <span data-part="block" data-block="card-meta"></span>
+                <span :for={i <- 0..2} data-part="row" data-row={i}>
+                  <span data-part="block" data-block="app-icon"></span>
+                  <span data-part="block" data-block="row-title"></span>
+                  <span data-part="block" data-block="row-subtitle"></span>
+                  <span data-part="block" data-block="run"></span>
+                </span>
+              </span>
+              <span data-part="block" data-block="footer"></span>
+            </div>
+          </div>
+          <span data-part="fade"></span>
+        </div>
+      </div>
+    </header>
+
+    <section data-part="features" aria-labelledby="previews-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="previews-features-title">
+          {dgettext("marketing", "Everything you need to share what you build")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Turn app builds into runnable previews for review, testing, and feedback before they ship."
+          )}
+        </p>
+      </div>
+      <div data-part="grid">
+        <div :for={feature <- features} data-part="cell">
+          <figure
+            data-part="illustration"
+            data-illustration={feature.id}
+            id={"previews-#{feature.id}"}
+            aria-hidden="true"
+          >
+            <%!-- Slack message card (Figma: 541x117, centered in the slot):
+            a translucent macOS title bar with traffic lights and the
+            sender's avatar, then the message carrying the preview link. --%>
+            <div :if={feature.id == "url-collaboration"} data-part="message">
+              <div data-part="bar">
+                <span data-part="lights">
+                  <span data-part="light" data-color="red"></span>
+                  <span data-part="light" data-color="yellow"></span>
+                  <span data-part="light" data-color="green"></span>
+                </span>
+                <span data-part="avatar">
+                  <img src={~p"/marketing/images/previews/pedro-avatar.webp"} alt="" />
+                  <span data-part="status"></span>
+                </span>
+              </div>
+              <div data-part="body">
+                <span data-part="avatar">
+                  <img src={~p"/marketing/images/previews/pedro-avatar.webp"} alt="" />
+                  <span data-part="status"></span>
+                </span>
+                <div data-part="content">
+                  <div data-part="meta">
+                    <span data-part="author">Pedro</span>
+                    <span data-part="time">11:55 AM</span>
+                  </div>
+                  <p data-part="text">
+                    Check out this preview:
+                    <span data-part="link">https://tuist.dev/tuist/tuist/previews/<wbr />019cc393-117c-7b0b-a8f9-2aa94870baaf</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <%!-- GitHub PR comment from the Tuist bot (Figma: 487x270, 15px
+            below the slot's top edge) running past the bottom into a fade.
+            The QR code is drawn from the module list above so it follows
+            the theme instead of being a baked image. --%>
+            <div :if={feature.id == "code-review"} data-part="comment">
+              <div data-part="comment-header">
+                <span data-part="author">tuist-dev</span>
+                <span data-part="badge">bot</span>
+                <span data-part="action">commented just now</span>
+              </div>
+              <div data-part="comment-body">
+                <p data-part="report-title">Tuist Run Report</p>
+                <p data-part="report-subtitle">Run the latest preview of your app</p>
+                <div data-part="table">
+                  <div data-part="column">
+                    <span data-part="heading">App</span>
+                    <span data-part="value"><span data-part="link">App Link</span></span>
+                  </div>
+                  <div data-part="column">
+                    <span data-part="heading">Commit</span>
+                    <span data-part="value"><span data-part="link">10a356195</span></span>
+                  </div>
+                  <div data-part="column">
+                    <span data-part="heading">Open on device</span>
+                    <span data-part="value">
+                      <svg data-part="qr" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                        <rect :for={{x, y} <- qr_modules} x={x} y={y} width="1" height="1" />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span :if={feature.id == "code-review"} data-part="fade"></span>
+            <%!-- Previews list on the Noora table, pinned to the slot's top-left
+            and running past its right and bottom edges into fades, so the
+            columns trail off the way a wide dashboard table does. --%>
+            <div :if={feature.id == "audiences"} data-part="previews-list">
+              <.table id="previews-feature-table" rows={preview_rows}>
+                <:col :let={preview} label="Name">
+                  <.text_cell label={preview.name} />
+                </:col>
+                <:col :let={preview} label="Track">
+                  <.badge_cell label={preview.track} color={preview.track_color} style="light-fill" />
+                </:col>
+                <:col :let={preview} label="Platform">
+                  <.tag_cell label={preview.platform} icon={preview.icon} />
+                </:col>
+                <:col :let={preview} label="Branch">
+                  <.text_cell icon="git_branch" label={preview.branch} />
+                </:col>
+                <:col :let={preview} label="Commit">
+                  <.text_cell label={preview.commit} />
+                </:col>
+                <:col :let={preview} label="Built">
+                  <.text_cell label={preview.built} />
+                </:col>
+              </.table>
+            </div>
+            <span :if={feature.id == "audiences"} data-part="fade"></span>
+            <span :if={feature.id == "audiences"} data-part="fade-right"></span>
+            <%!-- The hero's phone again, with only the dynamic island on the
+            screen and an iOS-style alert offering the newer preview. --%>
+            <div :if={feature.id == "click-to-run"} data-part="phone" data-screen="0">
+              <TuistWeb.Marketing.MarketingIllustrations.illustration name="previews-iphone" />
+              <div data-part="screen">
+                <span data-part="block" data-block="island"></span>
+                <div data-part="alert">
+                  <div data-part="copy">
+                    <span data-part="title">Update Available</span>
+                    <span data-part="description">
+                      A new version is available.<br />Would you like to install it?
+                    </span>
+                  </div>
+                  <div data-part="actions">
+                    <span data-part="button">Cancel</span>
+                    <span data-part="button">Install</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span :if={feature.id == "click-to-run"} data-part="fade"></span>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{feature.title}</h3>
+            <p data-part="description">{feature.description}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the cache
+    page's closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="previews-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="previews-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

@@ -31,6 +31,7 @@ import { DownloadMacDemo } from "./hooks/download-mac-demo.js";
 import { DownloadIosDemo } from "./hooks/download-ios-demo.js";
 import { TestGrid } from "./hooks/test-grid.js";
 import { ShardingTimeline } from "./hooks/sharding-timeline.js";
+import { PreviewsCommitGraph } from "./hooks/previews-commit-graph.js";
 import { InsightsChart } from "./hooks/insights-chart.js";
 import { FlakyQuarantine } from "./hooks/flaky-quarantine.js";
 import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
@@ -63,6 +64,7 @@ const Hooks = {
   DownloadIosDemo,
   TestGrid,
   ShardingTimeline,
+  PreviewsCommitGraph,
   InsightsChart,
   FlakyQuarantine,
   TuistDitherParticles,
