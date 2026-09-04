@@ -10,15 +10,35 @@
 // until someone does that — a fact worth remembering when a fresh
 // grant appears not to work.
 //
-// That manual step is a gap we have not closed yet, not a platform
-// limitation. Tailscale does expose the policy file over its API
-// (`GET`/`POST /api/v2/tailnet/<tailnet>/acl`, which accepts HuJSON
-// and honours `If-Match` for optimistic concurrency, plus an
-// `/acl/validate` endpoint), and ships an official GitHub Action —
-// `tailscale/gitops-acl-action` — that runs `action: test` on pull
-// requests and `action: apply` on merge. Wiring that up needs an
-// OAuth client with the `policy_file` scope stored as a repo
-// secret. Note the one we already have, used by tuist-ops's
+// Manual is a DECISION, not a platform limitation, and not an
+// oversight to go fix. Tailscale does expose the policy file over
+// its API (`GET`/`POST /api/v2/tailnet/<tailnet>/acl`, accepting
+// HuJSON and honouring `If-Match` for optimistic concurrency, plus
+// an `/acl/validate` endpoint), and ships an official GitHub Action
+// — `tailscale/gitops-acl-action` — that runs `action: test` on
+// pull requests and `action: apply` on merge.
+//
+// We are not using it yet, because the `policy_file` scope is
+// whole-file: there is no way to authorise a credential for "may
+// edit the staging grants" and nothing else. A CI identity able to
+// apply this file could therefore add a
+// `tailscale.com/cap/kubernetes` grant on
+// `tag:tuist-k8s-production` handing its holder
+// `tuist-production-write` — exactly the elevation the JIT flow
+// exists to gate behind a stated intent, a TTL and a second human.
+// Automating the paste would put that capability behind "can land a
+// commit on main" instead. The `tests` block below cannot backstop
+// it either: Tailscale's test engine does not resolve `autogroup:*`,
+// so the human-kubectl grants are precisely the ones an automated
+// `apply` would validate the least.
+//
+// Revisit when both halves have an answer: federated identity
+// (GitHub Actions OIDC, so no long-lived secret — see
+// https://tailscale.com/kb/1581/workload-identity-federation) for
+// the credential, and some way to keep production-tier grants off
+// the automated path. Until then, a human pastes it.
+//
+// Note the OAuth client we already have, used by tuist-ops's
 // TuistOps.JIT.TailscaleClient, is deliberately `users:read` only
 // and cannot write this file.
 //
