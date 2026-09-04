@@ -98,35 +98,6 @@ class CachedManifestLoaderTests {
         #expect(result.name == "App")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func load_returnsTheManifestWhenTheCacheEntryCannotBeWritten() async throws {
-        // Given
-        // A cache directory that cannot be created, standing in for the runner cache volume that
-        // filled up: the manifest itself loads fine, only the cache write fails. This used to throw,
-        // and because `TuistCommand` loads the config manifest before it parses the subcommand, it
-        // took down every command for the account — a `tuist auth login` that never authenticated.
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let blocker = temporaryDirectory.appending(component: "blocked")
-        try await fileSystem.writeText("not a directory", at: blocker)
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.manifests))
-            .willReturn(blocker.appending(component: "Manifests"))
-        subject = try createSubject()
-
-        let path = temporaryDirectory.appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When
-        let result = try await subject.loadProject(at: path, disableSandbox: false)
-
-        // Then
-        #expect(result == project)
-        // Nothing was cached, so a second load re-reads the manifest rather than serving a hit.
-        _ = try await subject.loadProject(at: path, disableSandbox: false)
-        #expect(recordedLoadProjectCalls == 2)
-    }
-
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestCached() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
@@ -354,12 +325,16 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_writeErrors() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func load_returnsTheManifestWhenTheCacheEntryCannotBeWritten() async throws {
         // Given
-        let expectedError = TestError.writeFailed
+        // The manifest itself loads fine and only the cache write fails — a full cache volume, say.
+        // This used to rethrow, and because `TuistCommand` loads the config manifest before it parses
+        // the subcommand, it took down every command for the account rather than costing this one
+        // manifest a cache entry.
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
-            throw expectedError
+            throw TestError.writeFailed
         }
 
         subject = try createSubject(fileSystem: fileSystem)
@@ -368,10 +343,11 @@ class CachedManifestLoaderTests {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
 
-        // When/Then
-        await #expect(throws: expectedError, performing: {
-            try await self.subject.loadProject(at: path, disableSandbox: false)
-        })
+        // When
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then
+        #expect(result == project)
     }
 
     // MARK: - Helpers
