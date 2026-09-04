@@ -214,8 +214,8 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.ex:359
 #: lib/tuist_web/live/module_cache_live.html.heex:128
 #: lib/tuist_web/live/module_cache_live.html.heex:642
-#: lib/tuist_web/live/module_cache_module_live.html.heex:186
-#: lib/tuist_web/live/module_cache_module_live.html.heex:376
+#: lib/tuist_web/live/module_cache_module_live.html.heex:182
+#: lib/tuist_web/live/module_cache_module_live.html.heex:372
 #: lib/tuist_web/live/module_invalidations_live.ex:123
 #: lib/tuist_web/live/xcode_cache_live.ex:304
 #: lib/tuist_web/live/xcode_cache_live.html.heex:109
@@ -393,9 +393,9 @@ msgid "Hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:217
-#: lib/tuist_web/live/module_cache_module_live.html.heex:122
-#: lib/tuist_web/live/module_cache_module_live.html.heex:155
-#: lib/tuist_web/live/module_cache_module_live.html.heex:322
+#: lib/tuist_web/live/module_cache_module_live.html.heex:120
+#: lib/tuist_web/live/module_cache_module_live.html.heex:151
+#: lib/tuist_web/live/module_cache_module_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Hits"
 msgstr ""
@@ -455,9 +455,9 @@ msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:21
 #: lib/tuist_web/live/module_cache_live.html.heex:237
-#: lib/tuist_web/live/module_cache_module_live.html.heex:121
-#: lib/tuist_web/live/module_cache_module_live.html.heex:172
-#: lib/tuist_web/live/module_cache_module_live.html.heex:330
+#: lib/tuist_web/live/module_cache_module_live.html.heex:119
+#: lib/tuist_web/live/module_cache_module_live.html.heex:168
+#: lib/tuist_web/live/module_cache_module_live.html.heex:326
 #: lib/tuist_web/live/module_invalidations_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Misses"
@@ -1016,7 +1016,7 @@ msgstr ""
 msgid "Write latency"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:196
+#: lib/tuist_web/live/module_cache_module_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "%{rate}%"
 msgstr ""
@@ -1026,37 +1026,37 @@ msgstr ""
 msgid "%{share}%"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:128
+#: lib/tuist_web/live/module_cache_module_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Builds where this module was served from cache, versus those where it was a cache miss and had to be rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:260
-#: lib/tuist_web/live/module_cache_module_live.html.heex:467
+#: lib/tuist_web/live/module_cache_module_live.html.heex:256
+#: lib/tuist_web/live/module_cache_module_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Changed"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:264
-#: lib/tuist_web/live/module_cache_module_live.html.heex:483
+#: lib/tuist_web/live/module_cache_module_live.html.heex:260
+#: lib/tuist_web/live/module_cache_module_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Cold"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:224
+#: lib/tuist_web/live/module_cache_module_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Cold misses"
 msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:27
-#: lib/tuist_web/live/module_cache_module_live.html.heex:205
-#: lib/tuist_web/live/module_cache_module_live.html.heex:423
+#: lib/tuist_web/live/module_cache_module_live.html.heex:201
+#: lib/tuist_web/live/module_cache_module_live.html.heex:419
 #: lib/tuist_web/live/module_invalidations_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Dependents"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:208
+#: lib/tuist_web/live/module_cache_module_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
 msgstr ""
@@ -1085,9 +1085,9 @@ msgstr ""
 msgid "Most missed"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:160
-#: lib/tuist_web/live/module_cache_module_live.html.heex:177
-#: lib/tuist_web/live/module_cache_module_live.html.heex:278
+#: lib/tuist_web/live/module_cache_module_live.html.heex:156
+#: lib/tuist_web/live/module_cache_module_live.html.heex:173
+#: lib/tuist_web/live/module_cache_module_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""
@@ -1108,7 +1108,7 @@ msgstr ""
 msgid "No modules match your search"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:225
+#: lib/tuist_web/live/module_cache_module_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Own-change misses"
 msgstr ""
@@ -1128,7 +1128,7 @@ msgstr ""
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:189
+#: lib/tuist_web/live/module_cache_module_live.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
 msgstr ""
@@ -1138,13 +1138,13 @@ msgstr ""
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:262
-#: lib/tuist_web/live/module_cache_module_live.html.heex:475
+#: lib/tuist_web/live/module_cache_module_live.html.heex:258
+#: lib/tuist_web/live/module_cache_module_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Upstream"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:223
+#: lib/tuist_web/live/module_cache_module_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Upstream misses"
 msgstr ""
@@ -1159,7 +1159,7 @@ msgstr ""
 msgid "View all modules"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:236
+#: lib/tuist_web/live/module_cache_module_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Why this module missed: its own content changed, only an upstream dependency changed, or it was never cached (cold or first-seen)."
 msgstr ""
