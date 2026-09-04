@@ -2960,6 +2960,20 @@ clickhouse:
       # leaving a gap between them. RFC 3339, for example
       # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
       cutoff: ""
+      # Run the step as an ordinary Job rather than a deploy hook, so the
+      # release does not wait for it. For the schema clone and the parity
+      # checks, which take seconds to minutes, waiting is what makes the
+      # deploy's result meaningful. For the backfill it is the opposite: helm
+      # waits for hook Jobs, so a copy of a production-sized dataset would hold
+      # the release for hours and then fail it on the deadline below, rolling
+      # the release back with it.
+      #
+      # The task takes an advisory lock, so a second deploy while a copy is
+      # running starts a Job that exits immediately rather than a second copy.
+      background: false
+      # Only used by a background Job, which is not deleted by the deploy that
+      # follows it. Long enough to read the logs of one that failed overnight.
+      ttlSecondsAfterFinished: 86400
       # No retries. These steps are resumable, so a failure should be read
       # and re-run deliberately rather than repeated automatically against a
       # database.

@@ -56,6 +56,19 @@ defmodule Tuist.ClickHouse.Parity do
 
   require Logger
 
+  # A ceiling for one fingerprint, well below the per-user budget these
+  # connections share with the running server (8 GiB in production).
+  #
+  # That relationship is the whole point, and getting it backwards has already
+  # cost a day: an ingest migration once set a per-query ceiling *above* the
+  # shared cap, so the ceiling could never bind, the query grew into the pool
+  # instead, and the overcommit tracker picked it. That blocked every
+  # production deploy until it was fixed. A fingerprint sums every numeric
+  # column of a table with `FINAL`, which on the largest ones is the same shape
+  # of query, so it gets an explicit ceiling and fails on its own rather than
+  # at the expense of the application.
+  @max_memory_usage 1024 * 1024 * 1024
+
   @doc """
   Fingerprints every table on the destination and compares it with the source.
 
@@ -171,7 +184,7 @@ defmodule Tuist.ClickHouse.Parity do
     statement =
       "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of)}"
 
-    %{rows: [values]} = endpoint.repo.query!(statement, [], log: false)
+    %{rows: [values]} = endpoint.repo.query!(statement, [], settings: [max_memory_usage: @max_memory_usage], log: false)
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
   rescue
     error -> %{error: Exception.message(error)}

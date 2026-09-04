@@ -3,6 +3,7 @@
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 {{- $task := .Values.clickhouse.managed.migration.task | quote }}
+{{- $background := .Values.clickhouse.managed.migration.background }}
 {{- /*
 Runs one step of the ClickHouse migration (spec #73) against the in-cluster
 server: cloning the schema from the system of record, backfilling the rows
@@ -26,23 +27,43 @@ history rather than in someone's terminal.
 apiVersion: batch/v1
 kind: Job
 metadata:
+{{- if $background }}
+  # Suffixed with the release revision, because a background Job is an ordinary
+  # release resource and `spec.template` is immutable: without a new name each
+  # revision, the next deploy would try to patch a Job it cannot patch.
+  name: {{ include "tuist.componentName" (dict "root" . "component" (printf "clickhouse-%s-r%d" .Values.clickhouse.managed.migration.name (int .Release.Revision))) }}
+{{- else }}
   # Named for the task, so moving to the next step creates a new Job rather
   # than colliding with the immutable `spec.template` of the previous one.
   name: {{ include "tuist.componentName" (dict "root" . "component" (printf "clickhouse-%s" .Values.clickhouse.managed.migration.name)) }}
+{{- end }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: clickhouse-migration
   annotations:
+{{- if $background }}
+    # Not a hook, so helm does not wait for it: the deploy passes `--wait` but
+    # not `--wait-for-jobs`, and a copy of the production dataset would
+    # otherwise hold the release for hours and then fail it on the deadline.
+    #
+    # Kept, so that the deploy which rolls the *next* revision does not delete
+    # a copy that is still running. Finished ones remove themselves.
+    "helm.sh/resource-policy": keep
+{{- else }}
     helm.sh/hook: post-upgrade,post-install
     helm.sh/hook-weight: "5"
     # Kept on failure so its logs can be read. The next deploy of the same
     # task replaces it.
     helm.sh/hook-delete-policy: before-hook-creation
+{{- end }}
 spec:
   backoffLimit: {{ .Values.clickhouse.managed.migration.backoffLimit }}
   # These steps move the whole dataset, so the ceiling is hours rather than
   # the minutes a schema migration takes.
   activeDeadlineSeconds: {{ .Values.clickhouse.managed.migration.activeDeadlineSeconds }}
+{{- if $background }}
+  ttlSecondsAfterFinished: {{ .Values.clickhouse.managed.migration.ttlSecondsAfterFinished }}
+{{- end }}
   template:
     metadata:
       labels:

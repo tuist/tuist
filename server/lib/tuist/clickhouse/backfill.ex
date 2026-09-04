@@ -13,6 +13,18 @@ defmodule Tuist.ClickHouse.Backfill do
   other, which is the direction that already works: the bare-metal node has
   public egress, while nothing outside the cluster can reach it.
 
+  ## Why only one may run at a time
+
+  The ledger stops a *finished* chunk being redone; it does not stop two runs
+  claiming the same unfinished one. That mattered less when the copy only
+  inserted, and matters now that each chunk clears its range first: two runs
+  overlapping could have one deleting rows the other had just written. Once
+  the copy is a background Job rather than a deploy hook, nothing about how it
+  is launched prevents a second one, so the guard belongs here rather than in
+  whatever starts it. A Postgres advisory lock is the right shape because it
+  is released when the connection holding it goes away, so a Job that is
+  killed does not leave the next one locked out.
+
   ## Why there is a ledger
 
   `INSERT ... SELECT` is not idempotent. Re-running a chunk against a
@@ -70,6 +82,16 @@ defmodule Tuist.ClickHouse.Backfill do
 
   @hash_buckets 16
 
+  # Arbitrary but fixed: an advisory lock key is only ever compared with
+  # itself, and every pod that might start a backfill has to choose the same
+  # one.
+  @lock_key 738_412_001
+
+  # Bounds a `FINAL` count, which merges a chunk's parts at read time. Below
+  # the per-user budget these connections share with the running server, so it
+  # binds before the shared pool does; see `Tuist.ClickHouse.Parity`.
+  @max_memory_usage 1024 * 1024 * 1024
+
   @doc """
   Copies every table the destination has, oldest chunk first.
 
@@ -78,22 +100,46 @@ defmodule Tuist.ClickHouse.Backfill do
   """
   def run(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      case Keyword.get_lazy(opts, :cutoff, &Environment.clickhouse_backfill_cutoff/0) do
-        nil ->
-          {:error, :no_cutoff_configured}
+      with_single_flight(fn -> backfill(source, target, opts) end)
+    end)
+  end
 
-        cutoff ->
-          tables = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
+  # Held on one pinned connection for the length of the run rather than inside
+  # a transaction: the copy takes hours, and an open transaction for hours is
+  # its own problem.
+  defp with_single_flight(fun) do
+    Repo.checkout(fn ->
+      case Repo.query!("SELECT pg_try_advisory_lock($1)", [@lock_key]) do
+        %{rows: [[true]]} ->
+          try do
+            fun.()
+          after
+            Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
+          end
 
-          Logger.info(
-            "Backfilling #{length(tables)} table(s) from #{source.database} into #{target.database}, up to #{DateTime.to_iso8601(cutoff)}"
-          )
-
-          results = Enum.map(tables, fn table -> {table, backfill_table(source, target, table, cutoff)} end)
-
-          {:ok, Map.new(results)}
+        _ ->
+          Logger.warning("Another ClickHouse backfill holds the lock; leaving it to finish")
+          {:error, :already_running}
       end
     end)
+  end
+
+  defp backfill(source, target, opts) do
+    case Keyword.get_lazy(opts, :cutoff, &Environment.clickhouse_backfill_cutoff/0) do
+      nil ->
+        {:error, :no_cutoff_configured}
+
+      cutoff ->
+        tables = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
+
+        Logger.info(
+          "Backfilling #{length(tables)} table(s) from #{source.database} into #{target.database}, up to #{DateTime.to_iso8601(cutoff)}"
+        )
+
+        results = Enum.map(tables, fn table -> {table, backfill_table(source, target, table, cutoff)} end)
+
+        {:ok, Map.new(results)}
+    end
   end
 
   defp backfill_table(source, target, table, cutoff) do
@@ -330,6 +376,7 @@ defmodule Tuist.ClickHouse.Backfill do
       endpoint.repo.query!(
         "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}",
         [],
+        settings: [max_memory_usage: @max_memory_usage],
         log: false
       )
 
