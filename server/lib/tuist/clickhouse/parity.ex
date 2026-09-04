@@ -68,7 +68,7 @@ defmodule Tuist.ClickHouse.Parity do
         derived: %{
           compared: length(derived),
           matching: Enum.map(derived_matching, & &1.table),
-          differing: Enum.map(derived_differing, & &1.table)
+          differing: Enum.map(derived_differing, &Map.delete(&1, :matches))
         }
       }
 
@@ -79,8 +79,12 @@ defmodule Tuist.ClickHouse.Parity do
       end
 
       if report.derived.differing != [] do
+        # Reported with both fingerprints rather than by name. These tables are
+        # recomputed rather than copied, so some difference is expected, and
+        # the question is only ever how much: a percent on a rebuilt aggregate
+        # is the design working, and half the rows is not.
         Logger.warning(
-          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{Enum.join(report.derived.differing, ", ")}"
+          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{inspect(report.derived.differing)}"
         )
       end
 
