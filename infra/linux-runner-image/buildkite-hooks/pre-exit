@@ -5,11 +5,13 @@
 # Identical on the macOS and Linux fleets; only the path it reads differs,
 # and that arrives as TUIST_RUNNER_JOB_ENV. Keep the two copies in step.
 #
-# This is where the job's log and outcome reach Tuist. The agent was
-# started with `--enable-job-log-tmpfile`, so BUILDKITE_JOB_LOG_TMPFILE
-# names a file holding the job's output verbatim; the agent deletes it
-# once the job ends, which is why the upload happens here rather than
-# anywhere later.
+# This is where the job's log and outcome reach Tuist. The agent is
+# started with `--enable-job-log-tmpfile`, which writes the job's output
+# verbatim to BUILDKITE_JOB_LOG_TMPFILE — but the agent removes that file
+# at the end of the job, and on the first staging run it was already gone
+# by the time this hook ran. The `post-command` hook therefore copies it
+# to ${STATE_DIR}/job.log while the command has only just finished, and
+# this hook uploads that copy, falling back to the tmpfile if present.
 #
 # Authentication is the job-scoped report token dispatch minted, NOT the
 # Pod's ServiceAccount token. That distinction is what lets this hook run
@@ -31,7 +33,10 @@ STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/var/log/tuist-runner}"
 JOB_ENV="${TUIST_RUNNER_JOB_ENV:-/etc/tuist-runner-job.env}"
 
 mkdir -p "${STATE_DIR}" 2>/dev/null || true
-exec >>"${STATE_DIR}/buildkite-hook.log" 2>&1
+# Tee rather than redirect: the file dies with the machine, so anything
+# only written there is invisible the moment the runner is reaped. The
+# first staging run shipped no logs and left nothing to explain why.
+exec > >(tee -a "${STATE_DIR}/buildkite-hook.log") 2>&1
 
 # Chunked so one request never has to carry a whole build's output.
 # ClickHouse keys log lines by (job, line number), so a retried chunk
@@ -63,8 +68,21 @@ post() {
 }
 
 upload_logs() {
-  local log_file="${BUILDKITE_JOB_LOG_TMPFILE:-}"
-  [ -n "${log_file}" ] && [ -f "${log_file}" ] || return 0
+  # Prefer the copy `post-command` took. The agent documents
+  # BUILDKITE_JOB_LOG_TMPFILE as removed at the end of the job, so by the
+  # time this hook runs it may already be gone — which is exactly what
+  # happened on the first staging run.
+  local log_file=""
+  if [ -f "${STATE_DIR}/job.log" ]; then
+    log_file="${STATE_DIR}/job.log"
+  elif [ -n "${BUILDKITE_JOB_LOG_TMPFILE:-}" ] && [ -f "${BUILDKITE_JOB_LOG_TMPFILE}" ]; then
+    log_file="${BUILDKITE_JOB_LOG_TMPFILE}"
+  fi
+
+  if [ -z "${log_file}" ]; then
+    echo "$(date -u +%FT%TZ) buildkite-hook: no job log to upload (post-command capture missing and BUILDKITE_JOB_LOG_TMPFILE=${BUILDKITE_JOB_LOG_TMPFILE:-unset})"
+    return 0
+  fi
 
   local total first body http
   total=$(wc -l <"${log_file}" | tr -d ' ')
@@ -91,6 +109,7 @@ json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
     fi
     first=$((first + CHUNK_LINES))
   done
+  echo "$(date -u +%FT%TZ) buildkite-hook: uploaded ${total} log lines from ${log_file}"
 }
 
 report_finish() {
