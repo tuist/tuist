@@ -58,6 +58,20 @@ data:
             <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
             <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
             <region>{{ include "tuist.objectStorageRegion" . }}</region>
+            <!--
+              ClickHouse write-tests every S3 disk while it starts, and treats
+              a failure as fatal: it refuses to boot. That is the wrong trade
+              for a disk nothing serves queries from. It makes the database's
+              availability depend on the backup bucket, so an expired key, a
+              tightened policy or an unreachable endpoint takes the whole
+              server down rather than the next backup.
+
+              Skipping it moves that failure to where it belongs, the backup
+              job, which fails visibly and on its own. This is not theoretical:
+              the first deploy of this disk crash-looped the staging server
+              with `Access Denied ... While checking access for disk backups`.
+            -->
+            <skip_access_check>true</skip_access_check>
           </backups>
         </disks>
       </storage_configuration>
