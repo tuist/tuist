@@ -15,7 +15,6 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
-  alias Tuist.Tests.TestRunStressRepetition
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -73,12 +72,11 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_run, test_run)
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
+      # The gate's reruns are repetitions of this test case run like any other; the
+      # column says which of them it asked for.
       |> assign(
         :stress_repetitions,
-        StressNewTests.repetitions_for_test_case(
-          test_case_run.test_run_id,
-          test_case_run.test_case_id
-        )
+        Enum.filter(test_case_run.repetitions || [], &(&1.source == "stress"))
       )
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
       |> assign_text_attachment_urls(test_case_run)

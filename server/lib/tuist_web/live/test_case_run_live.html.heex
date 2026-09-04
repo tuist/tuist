@@ -284,13 +284,6 @@
                 )}
               </span>
             </div>
-            <.failure_message_span
-              :if={TestRunStressRepetition.failure(repetition)}
-              failure={TestRunStressRepetition.failure(repetition)}
-              context={
-                %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
-              }
-            />
           </div>
         </div>
       </.card_section>

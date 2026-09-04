@@ -735,20 +735,13 @@
               }
             }
 
-            & [data-part="repetitions"],
-            & [data-part="stress-repetitions"] {
+            & [data-part="repetitions"] {
               display: flex;
               flex-direction: column;
               gap: var(--noora-spacing-5);
-
-              /* The organic list groups repetitions under a run header, so it needs
-                 its own box. The stress gate's pass has no header above it, so a box
-                 there is only a box inside a box. */
-              &[data-part="repetitions"] {
-                box-shadow: var(--noora-light-border-default);
-                border-radius: var(--noora-radius-4);
-                padding: var(--noora-spacing-5);
-              }
+              box-shadow: var(--noora-light-border-default);
+              border-radius: var(--noora-radius-4);
+              padding: var(--noora-spacing-5);
 
               & [data-part="repetition-wrapper"] {
                 display: flex;

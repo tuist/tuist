@@ -164,7 +164,8 @@
                 shardIndex: nil,
                 onlyTestIdentifiers: [],
                 skipTestIdentifiers: [],
-                stressNewTests: nil
+                stressNewTests: nil,
+                stressResultBundlePaths: []
             )
 
             AlertController.current.success(

@@ -69,7 +69,16 @@ defmodule TuistWeb.TestCaseRunLiveTest do
               status: "success",
               duration: 10,
               test_cases: [
-                %{name: "testNew", test_suite_name: "CheckoutTests", status: "success", duration: 5}
+                %{
+                  name: "testNew",
+                  test_suite_name: "CheckoutTests",
+                  status: "success",
+                  duration: 5,
+                  repetitions: [
+                    %{repetition_number: 1, name: "Stress 1", status: "success", duration: 4, source: "stress"},
+                    %{repetition_number: 2, name: "Stress 2", status: "failure", duration: 5, source: "stress"}
+                  ]
+                }
               ]
             }
           ],
@@ -116,7 +125,6 @@ defmodule TuistWeb.TestCaseRunLiveTest do
       assert html =~ "Repetitions"
       assert html =~ "Repetition 1"
       assert html =~ "Repetition 2"
-      assert html =~ "Bool.random()"
     end
 
     test "summarises the stress gate's repetitions when every one of them passed", %{
@@ -141,7 +149,22 @@ defmodule TuistWeb.TestCaseRunLiveTest do
               status: "success",
               duration: 10,
               test_cases: [
-                %{name: "testNew", test_suite_name: "CheckoutTests", status: "success", duration: 5}
+                %{
+                  name: "testNew",
+                  test_suite_name: "CheckoutTests",
+                  status: "success",
+                  duration: 5,
+                  repetitions:
+                    Enum.map(1..3, fn number ->
+                      %{
+                        repetition_number: number,
+                        name: "Stress #{number}",
+                        status: "success",
+                        duration: 4,
+                        source: "stress"
+                      }
+                    end)
+                }
               ]
             }
           ],

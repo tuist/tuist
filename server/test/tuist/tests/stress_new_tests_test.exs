@@ -6,8 +6,8 @@ defmodule Tuist.Tests.StressNewTestsTest do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
+  alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestRunStressCandidate
-  alias Tuist.Tests.TestRunStressRepetition
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -237,31 +237,6 @@ defmodule Tuist.Tests.StressNewTestsTest do
       [candidate | _] = candidates
       assert candidate.test_case_id == Tests.generate_test_case_id(project.id, "testNew", "AppTests", "CheckoutTests")
 
-      # The repetitions are stored so the dashboard can render the finding like a failure,
-      # and are keyed on the same identity the test case runs use.
-      repetitions = StressNewTests.repetitions_by_test_case(test.id)
-      stored_repetitions = Map.fetch!(repetitions, candidate.test_case_id)
-
-      assert Enum.map(stored_repetitions, &{&1.repetition_number, &1.status}) == [
-               {1, "success"},
-               {2, "failure"}
-             ]
-
-      failed = Enum.find(stored_repetitions, &(&1.status == "failure"))
-
-      assert TestRunStressRepetition.failure(failed) == %{
-               message: "Bool.random()",
-               path: "AppTests.swift",
-               line_number: 7,
-               issue_type: "assertion_failure"
-             }
-
-      assert TestRunStressRepetition.failure(Enum.find(stored_repetitions, &(&1.status == "success"))) == nil
-
-      [blocking] = StressNewTests.blocking_candidates_with_repetitions(test.id)
-      assert blocking.name == "testNew"
-      assert length(blocking.stress_repetitions) == 2
-
       by_identity = StressNewTests.candidates_by_identity(test.id)
 
       assert by_identity |> Map.fetch!({"AppTests", "CheckoutTests", "testNew"}) |> Map.get(:outcome) ==
@@ -343,27 +318,27 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert %{test_case_id: ["can't be blank"]} = errors_on(changeset)
     end
 
-    test "a repetition only accepts the two statuses the gate records" do
+    test "a repetition records who asked for the execution" do
       attrs = %{
         id: UUIDv7.generate(),
-        test_run_id: UUIDv7.generate(),
-        project_id: 1,
-        test_case_id: UUIDv7.generate(),
+        test_case_run_id: UUIDv7.generate(),
         repetition_number: 1,
-        status: "success"
+        name: "Stress 1",
+        status: "success",
+        source: "stress"
       }
 
       assert %{valid?: true} =
-               TestRunStressRepetition.create_changeset(%TestRunStressRepetition{}, attrs)
+               TestCaseRunRepetition.create_changeset(%TestCaseRunRepetition{}, attrs)
 
       changeset =
-        TestRunStressRepetition.create_changeset(
-          %TestRunStressRepetition{},
-          %{attrs | status: "skipped"}
+        TestCaseRunRepetition.create_changeset(
+          %TestCaseRunRepetition{},
+          %{attrs | source: "gate"}
         )
 
       refute changeset.valid?
-      assert %{status: ["is invalid"]} = errors_on(changeset)
+      assert %{source: ["is invalid"]} = errors_on(changeset)
     end
 
     test "a project accepts a curve and rejects parameters outside their bounds", %{project: project} do

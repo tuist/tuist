@@ -394,7 +394,8 @@ struct XcodeBuildTestCommandServiceTests {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                stressResultBundlePaths: .any
             )
             .called(0)
         verify(uploadResultBundleService)

@@ -12,10 +12,10 @@ defmodule Tuist.Tests.StressNewTests do
   so both clients only have to run what they are handed and stop at the
   wall-clock ceiling.
 
-  The pass the client runs afterwards is recorded on the test run and in
-  `test_run_stress_candidates`, never as `test_case_run_repetitions`, so the
-  aggregates, auto-marking, cooldown and alerts that attribute flakiness to a
-  test case never see a solicited repetition.
+  The gate's verdict per candidate is recorded in `test_run_stress_candidates`.
+  The reruns themselves are executions of the test case like any other, so they
+  land in `test_case_run_repetitions` tagged `stress`, which is what lets the
+  dashboard say which executions were solicited.
   """
 
   import Ecto.Query
@@ -26,7 +26,6 @@ defmodule Tuist.Tests.StressNewTests do
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestRunStressCandidate
-  alias Tuist.Tests.TestRunStressRepetition
 
   @modes ~w(report enforce)
   @run_outcomes ~w(passed disagreed skipped no_candidates)
@@ -303,47 +302,7 @@ defmodule Tuist.Tests.StressNewTests do
       IngestRepo.insert_all(TestRunStressCandidate, rows)
     end
 
-    insert_repetitions(test_run_id, project_id, test_cases, now)
-
     :ok
-  end
-
-  defp insert_repetitions(test_run_id, project_id, test_cases, now) do
-    rows =
-      Enum.flat_map(test_cases, fn test_case ->
-        test_case_id =
-          Tests.generate_test_case_id(
-            project_id,
-            Map.fetch!(test_case, :name),
-            Map.fetch!(test_case, :module_name),
-            Map.get(test_case, :suite_name) || ""
-          )
-
-        test_case
-        |> Map.get(:repetition_results, [])
-        |> Enum.map(fn repetition ->
-          failure = Map.get(repetition, :failure) || %{}
-
-          %{
-            id: UUIDv7.generate(),
-            test_run_id: test_run_id,
-            project_id: project_id,
-            test_case_id: test_case_id,
-            repetition_number: Map.fetch!(repetition, :repetition_number),
-            status: Map.fetch!(repetition, :status),
-            duration: Map.get(repetition, :duration) || 0,
-            failure_message: Map.get(failure, :message) || "",
-            failure_path: Map.get(failure, :path) || "",
-            failure_line_number: Map.get(failure, :line_number) || 0,
-            failure_issue_type: Map.get(failure, :issue_type) || "",
-            inserted_at: now
-          }
-        end)
-      end)
-
-    if rows != [] do
-      IngestRepo.insert_all(TestRunStressRepetition, rows)
-    end
   end
 
   def list_candidates(test_run_id) do
@@ -353,53 +312,6 @@ defmodule Tuist.Tests.StressNewTests do
     )
     |> ClickHouseRepo.all()
     |> Enum.uniq_by(&{&1.module_name, &1.suite_name, &1.name})
-  end
-
-  @doc """
-  Every repetition the gate ran for `test_run_id`, grouped by test case id and
-  ordered, so a candidate can be rendered with its own pass/fail sequence.
-  """
-  def repetitions_by_test_case(test_run_id) do
-    from(r in TestRunStressRepetition,
-      where: r.test_run_id == ^test_run_id,
-      order_by: [asc: r.test_case_id, asc: r.repetition_number, asc: r.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(&{&1.test_case_id, &1.repetition_number})
-    |> Enum.group_by(& &1.test_case_id)
-  end
-
-  @doc """
-  The repetitions the gate ran for one test case in one test run, in order.
-  """
-  def repetitions_for_test_case(_test_run_id, nil), do: []
-
-  def repetitions_for_test_case(test_run_id, test_case_id) do
-    from(r in TestRunStressRepetition,
-      where: r.test_run_id == ^test_run_id,
-      where: r.test_case_id == ^test_case_id,
-      order_by: [asc: r.repetition_number, asc: r.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(& &1.repetition_number)
-  end
-
-  @doc """
-  The candidates the gate holds against the run, with their repetitions attached,
-  so the dashboard can render them beside the run's own failures.
-  """
-  def blocking_candidates_with_repetitions(test_run_id) do
-    candidates = test_run_id |> list_candidates() |> Enum.filter(&blocking_candidate?/1)
-
-    if candidates == [] do
-      []
-    else
-      repetitions = repetitions_by_test_case(test_run_id)
-
-      Enum.map(candidates, fn candidate ->
-        Map.put(candidate, :stress_repetitions, Map.get(repetitions, candidate.test_case_id, []))
-      end)
-    end
   end
 
   @doc """

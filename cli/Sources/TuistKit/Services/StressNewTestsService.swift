@@ -110,6 +110,10 @@ public struct StressNewTestsResult: Equatable, Sendable {
     public let excludedCount: Int
     public let inventoryCount: Int
     public let candidates: [StressNewTestsCandidate]
+    /// The bundles the gate's passes wrote, for a caller that uploads them for server-side parsing.
+    public let resultBundlePaths: [AbsolutePath]
+    /// Set once those bundles have been uploaded, so the run tells the server to expect them.
+    public var uploadedResultBundle = false
 
     public init(
         mode: StressNewTestsMode,
@@ -119,7 +123,8 @@ public struct StressNewTestsResult: Equatable, Sendable {
         stressedCount: Int,
         excludedCount: Int,
         inventoryCount: Int,
-        candidates: [StressNewTestsCandidate]
+        candidates: [StressNewTestsCandidate],
+        resultBundlePaths: [AbsolutePath] = []
     ) {
         self.mode = mode
         self.outcome = outcome
@@ -129,6 +134,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
         self.excludedCount = excludedCount
         self.inventoryCount = inventoryCount
         self.candidates = candidates
+        self.resultBundlePaths = resultBundlePaths
     }
 
     public var blockingCandidates: [StressNewTestsCandidate] { candidates.filter(\.blocks) }
@@ -139,6 +145,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
     public var serverPayload: Components.Schemas.StressNewTestsResult {
         .init(
             excluded_count: excludedCount,
+            has_result_bundle: uploadedResultBundle,
             inventory_count: inventoryCount,
             mode: mode == .enforce ? .enforce : .report,
             new_count: newCount,
@@ -211,6 +218,7 @@ public protocol StressNewTestsServicing {
         fullHandle: String,
         serverURL: URL,
         mutedTests: [TestIdentifier],
+        resultBundleDirectory: AbsolutePath?,
         stressPass: @escaping StressNewTestsPass
     ) async -> StressNewTestsResult?
 }
@@ -237,6 +245,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         fullHandle: String,
         serverURL: URL,
         mutedTests: [TestIdentifier],
+        resultBundleDirectory: AbsolutePath? = nil,
         stressPass: @escaping StressNewTestsPass
     ) async -> StressNewTestsResult? {
         guard !firstPassFailed, let testSummary else {
@@ -336,7 +345,12 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
 
         let ceiling = Duration.milliseconds(verdict.parameters.wall_clock_ceiling_ms)
-        await stressCandidates(&candidates, ceiling: ceiling, stressPass: stressPass)
+        let resultBundlePaths = await stressCandidates(
+            &candidates,
+            ceiling: ceiling,
+            resultBundleDirectory: resultBundleDirectory,
+            stressPass: stressPass
+        )
 
         let stressedCount = candidates.filter { $0.outcome == .passed || $0.outcome == .disagreed }.count
         let result = StressNewTestsResult(
@@ -346,7 +360,8 @@ public struct StressNewTestsService: StressNewTestsServicing {
             stressedCount: stressedCount,
             excludedCount: candidates.count - stressedCount,
             inventoryCount: verdict.inventory_count,
-            candidates: candidates
+            candidates: candidates,
+            resultBundlePaths: resultBundlePaths
         )
         print(result, ceiling: ceiling, candidateCap: verdict.parameters.candidate_cap)
         return result
@@ -366,8 +381,10 @@ public struct StressNewTestsService: StressNewTestsServicing {
     private func stressCandidates(
         _ candidates: inout [StressNewTestsCandidate],
         ceiling: Duration,
+        resultBundleDirectory: AbsolutePath?,
         stressPass: StressNewTestsPass
-    ) async {
+    ) async -> [AbsolutePath] {
+        var writtenBundles: [AbsolutePath] = []
         let start = ContinuousClock.now
         let groups = Dictionary(
             grouping: candidates.indices.filter { candidates[$0].repetitions > 0 },
@@ -389,7 +406,14 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 }
 
                 let identifiers = indices.map { candidates[$0].identifier }
-                let outcomes = await stress(identifiers: identifiers, repetitions: repetitions, stressPass: stressPass)
+                let (outcomes, bundlePath) = await stress(
+                    identifiers: identifiers,
+                    repetitions: repetitions,
+                    batch: writtenBundles.count,
+                    resultBundleDirectory: resultBundleDirectory,
+                    stressPass: stressPass
+                )
+                if let bundlePath { writtenBundles.append(bundlePath) }
                 for index in indices {
                     let identifier = candidates[index].identifier
                     guard let observed = outcomes[identifier] else {
@@ -416,18 +440,32 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 }
             }
         }
+
+        return writtenBundles
     }
 
+    /// Returns what the pass observed, and the bundle it wrote when the caller owns the directory
+    /// it went to. A caller that keeps the bundle uploads it for the server to parse; one that does
+    /// not gets a temporary directory that is cleaned up here.
     private func stress(
         identifiers: [TestIdentifier],
         repetitions: Int,
+        batch: Int,
+        resultBundleDirectory: AbsolutePath?,
         stressPass: StressNewTestsPass
-    ) async -> [TestIdentifier: ObservedRepetitions] {
-        guard let directory = try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests") else {
-            return [:]
+    ) async -> ([TestIdentifier: ObservedRepetitions], AbsolutePath?) {
+        let directory: AbsolutePath
+        if let resultBundleDirectory {
+            directory = resultBundleDirectory
+        } else if let temporaryDirectory = try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests") {
+            directory = temporaryDirectory
+        } else {
+            return ([:], nil)
         }
-        defer { Task { try? await fileSystem.remove(directory) } }
-        let resultBundlePath = directory.appending(component: "stress-\(repetitions).xcresult")
+        if resultBundleDirectory == nil {
+            defer { Task { try? await fileSystem.remove(directory) } }
+        }
+        let resultBundlePath = directory.appending(component: "stress-\(repetitions)-\(batch).xcresult")
 
         var passError: Error?
         do {
@@ -442,7 +480,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                     .alert("The stress pass with \(repetitions) repetitions failed to run: \(passError.localizedDescription)")
                 )
             }
-            return [:]
+            return ([:], nil)
         }
 
         var observed: [TestIdentifier: ObservedRepetitions] = [:]
@@ -481,7 +519,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 results: results
             )
         }
-        return observed
+        return (observed, resultBundleDirectory == nil ? nil : resultBundlePath)
     }
 
     private func printHeading() {

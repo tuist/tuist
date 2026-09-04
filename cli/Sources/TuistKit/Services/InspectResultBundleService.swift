@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCI
 import TuistConfig
@@ -56,7 +57,8 @@ public protocol UploadResultBundleServicing {
         shardIndex: Int?,
         onlyTestIdentifiers: [String],
         skipTestIdentifiers: [String],
-        stressNewTests: Components.Schemas.StressNewTestsResult?
+        stressNewTests: Components.Schemas.StressNewTestsResult?,
+        stressResultBundlePaths: [AbsolutePath]
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -74,6 +76,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private let xcActivityLogController: XCActivityLogControlling
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSysteming
+    private let xcresultToolController: XCResultToolControlling
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -88,7 +91,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        xcresultToolController: XCResultToolControlling = XCResultToolController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -103,6 +107,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.xcActivityLogController = xcActivityLogController
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
+        self.xcresultToolController = xcresultToolController
     }
 
     public func uploadTestSummary(
@@ -191,7 +196,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         shardIndex: Int? = nil,
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
-        stressNewTests: Components.Schemas.StressNewTestsResult? = nil
+        stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
+        stressResultBundlePaths: [AbsolutePath] = []
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -233,6 +239,27 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             commandEventId: testRunId,
             serverURL: serverURL
         )
+
+        // The gate's pass wrote its own bundle. It goes up under the same run id, so the
+        // server can fold its executions into the test cases they belong to when it parses
+        // the run's own. A failure here costs the gate's per-execution detail and nothing
+        // else: the run and the gate's verdict are reported either way.
+        var stressNewTests = stressNewTests
+        if !stressResultBundlePaths.isEmpty {
+            do {
+                try await analyticsArtifactUploadService.uploadStressResultBundle(
+                    mergedStressResultBundle(stressResultBundlePaths),
+                    fullHandle: fullHandle,
+                    commandEventId: testRunId,
+                    serverURL: serverURL
+                )
+                stressNewTests?.has_result_bundle = true
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to upload the stress gate's results: \(error.localizedDescription)")
+                )
+            }
+        }
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
@@ -362,4 +389,17 @@ private struct QuarantinedTestEntry: Codable {
     let target: String
     let `class`: String?
     let method: String?
+}
+
+extension UploadResultBundleService {
+    /// One bundle for the server to parse. A run whose candidates were priced at different
+    /// repetition counts ran a pass per count, and those are merged the same way the
+    /// per-scheme bundles of a multi-scheme run are.
+    private func mergedStressResultBundle(_ paths: [AbsolutePath]) async throws -> AbsolutePath {
+        guard paths.count > 1 else { return paths[0] }
+        let directory = try await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests-merged")
+        let merged = directory.appending(component: "stress.xcresult")
+        try await xcresultToolController.merge(paths, into: merged)
+        return merged
+    }
 }

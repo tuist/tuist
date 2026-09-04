@@ -291,7 +291,8 @@ struct InspectTestCommandServiceTests {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                stressResultBundlePaths: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -321,7 +322,8 @@ struct InspectTestCommandServiceTests {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                stressResultBundlePaths: .any
             )
             .called(1)
         verify(uploadResultBundleService)

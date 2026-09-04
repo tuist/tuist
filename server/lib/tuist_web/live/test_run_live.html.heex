@@ -220,7 +220,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={Enum.any?(@flaky_runs_grouped) or @stress_flaky_candidates != []}
+      :if={Enum.any?(@flaky_runs_grouped)}
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
@@ -387,7 +387,7 @@
                 "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
               )
             }
-            value={@test_metrics.flaky_count + length(@stress_flaky_candidates)}
+            value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
           />
           <.widget
@@ -911,7 +911,7 @@
     </.card>
 
     <.card
-      :if={Enum.any?(@flaky_runs_grouped) or @stress_flaky_candidates != []}
+      :if={Enum.any?(@flaky_runs_grouped)}
       title={dgettext("dashboard_tests", "Flaky Runs")}
       icon="alert_triangle"
       data-part="flaky-runs-card"
@@ -925,8 +925,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end) +
-              length(@stress_flaky_candidates)}
+            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end)}
           </span>
           <.button
             variant="secondary"
@@ -936,13 +935,6 @@
           />
         </div>
         <div data-part="flaky-runs-list">
-          <.stress_flaky_card
-            :for={candidate <- @stress_flaky_candidates}
-            candidate={candidate}
-            run={@run}
-            project={@selected_project}
-            id_prefix="overview"
-          />
           <div
             :for={group <- Enum.take(@flaky_runs_grouped, 4)}
             id={"flaky-group-#{group.test_case_id}"}
@@ -2028,16 +2020,9 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@flaky_runs_meta.total_runs_count + length(@stress_flaky_candidates)}
+          {@flaky_runs_meta.total_runs_count}
         </span>
       </div>
-      <.stress_flaky_card
-        :for={candidate <- @stress_flaky_candidates}
-        candidate={candidate}
-        run={@run}
-        project={@selected_project}
-        id_prefix="flaky-tab"
-      />
       <div
         :for={group <- @flaky_runs_grouped}
         id={"flaky-tab-group-#{group.test_case_id}"}

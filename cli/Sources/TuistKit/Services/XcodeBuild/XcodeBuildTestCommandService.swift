@@ -421,6 +421,7 @@ extension XcodeBuildTestCommandService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             mutedTests: mutedTests,
+            resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
             stressPass: stressPass
         )
     }
@@ -556,7 +557,8 @@ extension XcodeBuildTestCommandService {
                     shardIndex: shardIndex,
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
-                    stressNewTests: stressNewTests?.serverPayload
+                    stressNewTests: stressNewTests?.serverPayload,
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(

@@ -64,7 +64,16 @@ defmodule TuistWeb.TestRunLiveTest do
             status: "success",
             duration: 1000,
             test_cases: [
-              %{name: "testAppliesDiscount", test_suite_name: "CheckoutTests", status: "success", duration: 10}
+              %{
+                name: "testAppliesDiscount",
+                test_suite_name: "CheckoutTests",
+                status: "success",
+                duration: 10,
+                repetitions: [
+                  %{repetition_number: 1, name: "Stress 1", status: "success", duration: 4, source: "stress"},
+                  %{repetition_number: 2, name: "Stress 2", status: "failure", duration: 5, source: "stress"}
+                ]
+              }
             ]
           }
         ],
@@ -115,9 +124,9 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#test-cases-table", "2 of 10 repetitions failed")
 
     # And the finding sits with the run's flaky tests, expandable to its repetitions.
-    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "testAppliesDiscount")
-    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Repetition 2")
-    assert has_element?(lv, "#overview-stress-flaky-#{test_case_id}", "Bool.random()")
+    # The finding needs no surface of its own: reruns that disagreed make the test case
+    # run flaky, so it appears with the run's flaky tests like any other.
+    assert has_element?(lv, "[data-part='flaky-runs-card']", "testAppliesDiscount")
 
     # It is not presented as one of the run's failures.
     refute has_element?(lv, "[data-part='failures-overview-card']")

@@ -25,7 +25,6 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
-  alias Tuist.Tests.TestRunStressRepetition
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
@@ -120,19 +119,16 @@ defmodule TuistWeb.TestRunLive do
     {:ok, socket}
   end
 
-  # The gate's findings ride the surfaces a reader already reads: a badge on each
-  # stressed test case, and a card per disagreement in the run's failures, beside
-  # the failures the run produced itself.
+  # The gate's verdict rides the badge on each stressed test case. Its findings need
+  # no surface of their own: a test case whose reruns disagreed is flaky, and those
+  # reruns are repetitions of its test case run, so it appears with the run's flaky
+  # tests through the same path as any other.
   defp assign_stress_gate(socket, %{stress_mode: ""}) do
-    socket
-    |> assign(:stress_candidates_by_identity, %{})
-    |> assign(:stress_flaky_candidates, [])
+    assign(socket, :stress_candidates_by_identity, %{})
   end
 
   defp assign_stress_gate(socket, run) do
-    socket
-    |> assign(:stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
-    |> assign(:stress_flaky_candidates, StressNewTests.blocking_candidates_with_repetitions(run.id))
+    assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
   end
 
   @doc false
@@ -1340,129 +1336,6 @@ defmodule TuistWeb.TestRunLive do
 
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
-  end
-
-  # A finding from the stress gate: a test case whose repetitions disagreed. It is
-  # flaky, so it belongs with the run's flaky tests rather than its failures, in
-  # the same collapsible card and under its own label so the provenance is visible.
-  attr :candidate, :map, required: true
-  attr :run, :map, required: true
-  attr :project, :map, required: true
-  attr :id_prefix, :string, required: true
-  attr :user_timezone, :string, default: nil
-
-  def stress_flaky_card(assigns) do
-    ~H"""
-    <div
-      id={"#{@id_prefix}-stress-flaky-#{@candidate.test_case_id}"}
-      phx-hook="NooraCollapsible"
-      data-part="collapsible"
-      data-state="closed"
-    >
-      <div data-part="root">
-        <div data-part="header-row">
-          <div data-part="title-and-subtitle">
-            <h3 data-part="title">
-              <.link
-                navigate={
-                  ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/#{@candidate.test_case_id}"
-                }
-                data-part="test-case-link"
-              >
-                {@candidate.name}
-              </.link>
-              <.badge
-                :if={@candidate.is_quarantined}
-                label={dgettext("dashboard_tests", "Quarantined")}
-                color="information"
-                style="light-fill"
-                size="large"
-              />
-            </h3>
-            <span
-              :if={@candidate.module_name != "" and @candidate.suite_name != ""}
-              data-part="subtitle"
-            >
-              {@candidate.module_name} • {@candidate.suite_name}
-            </span>
-            <span
-              :if={@candidate.module_name != "" and @candidate.suite_name == ""}
-              data-part="subtitle"
-            >
-              {@candidate.module_name}
-            </span>
-          </div>
-          <div data-part="stats">
-            <span data-part="time-ago">
-              {Timex.from_now(@run.ran_at)}
-            </span>
-            <div data-part="passed-count">
-              <.circle_check />
-              <span data-part="label">
-                {@candidate.repetitions - @candidate.failed_repetitions}
-              </span>
-            </div>
-            <div data-part="failed-count">
-              <.circle_x />
-              <span data-part="label">{@candidate.failed_repetitions}</span>
-            </div>
-          </div>
-          <.neutral_button data-part="trigger" variant="secondary" size="medium">
-            <span data-part="icon-closed"><.chevron_down /></span>
-            <span data-part="icon-open"><.chevron_up /></span>
-          </.neutral_button>
-        </div>
-        <div data-part="content" data-state="closed">
-          <div data-part="flaky-run-item-wrapper">
-            <div data-part="flaky-run-item">
-              <div :if={@candidate.stress_repetitions != []} data-part="stress-repetitions">
-                <div
-                  :for={repetition <- @candidate.stress_repetitions}
-                  data-part="repetition-wrapper"
-                >
-                  <div data-part="repetition-item">
-                    <.badge
-                      :if={repetition.status == "success"}
-                      label={dgettext("dashboard_tests", "Passed")}
-                      color="success"
-                      style="light-fill"
-                      size="small"
-                    />
-                    <.badge
-                      :if={repetition.status == "failure"}
-                      label={dgettext("dashboard_tests", "Failed")}
-                      color="destructive"
-                      style="light-fill"
-                      size="small"
-                    />
-                    <span data-part="repetition-name">
-                      {dgettext("dashboard_tests", "Repetition %{number}",
-                        number: repetition.repetition_number
-                      )}
-                    </span>
-                    <span data-part="repetition-duration">
-                      <.history />
-                      {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                        repetition.duration
-                      )}
-                    </span>
-                  </div>
-                  <.failure_message_span
-                    :if={TestRunStressRepetition.failure(repetition)}
-                    failure={TestRunStressRepetition.failure(repetition)}
-                    context={@run}
-                  />
-                </div>
-              </div>
-              <span :if={@candidate.stress_repetitions == []} data-part="repetition-name">
-                {dgettext("dashboard_tests", "This run recorded no per-repetition detail.")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
   end
 
   attr :attachments, :list, required: true
