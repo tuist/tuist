@@ -283,6 +283,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     /// dependency from the graph being generated. Only the targets that survive into the generated projects count
     /// there: a target replaced by a cached binary, or dropped by tree shaking, no longer references the xcframework,
     /// so Xcode never produces the copy that would define the module.
+    ///
+    /// The set also includes xcframeworks that reach a generated target's Frameworks build phase through a
+    /// transitive-static relink — Tuist's `linkableDependencies` walks static consumers and relinks their precompiled
+    /// deps at the outermost linkable, and Xcode's `ProcessXCFramework` fires for every xcframework in that phase.
+    /// The direct graph-edge walk misses this shape (the xcframework is not a direct dep of the linker), so a static
+    /// SwiftPM shim like `GoogleMapsTarget` that wraps `GoogleMaps.xcframework` slips through it: the App ends up
+    /// linking the xcframework transitively and Xcode still writes `include/<Module>/module.modulemap`, but the
+    /// mapper would add the vendor `Headers/` copy on top and consumers hit `redefinition of module`.
     private static func unconditionallyDirectlyLinkedXCFrameworkPaths(
         in graph: Graph,
         initialGraphWithSources: Graph?
@@ -295,6 +303,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 }
             )
         }
+        paths.formUnion(xcframeworkPathsProcessedByGeneratedTargets(in: graph))
         return paths
     }
 
@@ -310,6 +319,33 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                       case let .xcframework(xcframework) = dependency
                 else { continue }
                 paths.insert(xcframework.path)
+            }
+        }
+        return paths
+    }
+
+    /// Xcframeworks that a generated target's Frameworks build phase links — including the ones a static consumer
+    /// relinks transitively through `LinkGenerator`'s `staticDependenciesPrecompiledLibrariesAndFrameworks`. Xcode
+    /// runs `ProcessXCFramework` for every one of them and writes `include/<Module>/module.modulemap` under
+    /// `$(BUILT_PRODUCTS_DIR)/include`. `linkableDependencies` already excludes static xcframeworks reached through
+    /// a dynamic xcframework (the dynamic wrapper absorbed them at its own build), so this set is disjoint from the
+    /// static-behind-dynamic scenarios the walker adds vendor `Headers/` for.
+    private static func xcframeworkPathsProcessedByGeneratedTargets(in graph: Graph) -> Set<AbsolutePath> {
+        var paths = Set<AbsolutePath>()
+        let traverser = GraphTraverser(graph: graph)
+        for project in graph.projects.values {
+            for target in project.targets.values {
+                guard let references = try? traverser.linkableDependencies(
+                    path: project.path,
+                    name: target.name,
+                    shouldExcludeHostAppDependencies: false
+                ) else { continue }
+                for reference in references {
+                    guard case let .xcframework(path, _, _, _, condition) = reference,
+                          condition == nil
+                    else { continue }
+                    paths.insert(path)
+                }
             }
         }
         return paths
