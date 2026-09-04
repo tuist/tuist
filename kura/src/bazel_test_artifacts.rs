@@ -5,13 +5,7 @@
 //! strict size cap and a background memory reservation, so a slow control
 //! plane can never delay or inflate a cache write.
 
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use hmac::{Hmac, Mac};
@@ -35,11 +29,11 @@ const BAZEL_TEST_ARTIFACTS_WEBHOOK_PATH: &str = "/webhooks/bazel-test-artifacts"
 pub const MAX_BAZEL_TEST_ARTIFACT_BYTES: u64 = 256 * 1024;
 const DELIVERY_MEMORY_OVERHEAD_BYTES: u64 = 64 * 1024;
 const DELIVERY_ATTEMPTS: usize = 5;
+const MAX_BAZEL_TEST_ARTIFACT_QUEUE_DEPTH: usize = 64;
 
 #[derive(Clone)]
 pub struct BazelTestArtifactDelivery {
     sender: mpsc::Sender<BazelTestArtifact>,
-    pending: Arc<AtomicUsize>,
     metrics: Metrics,
 }
 
@@ -86,7 +80,6 @@ struct Runtime {
     store: Arc<Store>,
     memory: MemoryController,
     metrics: Metrics,
-    pending: Arc<AtomicUsize>,
 }
 
 #[derive(Serialize)]
@@ -118,8 +111,11 @@ impl BazelTestArtifactDelivery {
             .timeout(Duration::from_millis(config.request_timeout_ms))
             .build()
             .map_err(|error| format!("failed to build Bazel test-artifact client: {error}"))?;
-        let (sender, receiver) = mpsc::channel(config.queue_capacity);
-        let pending = Arc::new(AtomicUsize::new(0));
+        let (sender, receiver) = mpsc::channel(
+            config
+                .queue_capacity
+                .min(MAX_BAZEL_TEST_ARTIFACT_QUEUE_DEPTH),
+        );
         let runtime = Runtime {
             client,
             config,
@@ -127,18 +123,13 @@ impl BazelTestArtifactDelivery {
             store,
             memory,
             metrics: metrics.clone(),
-            pending: pending.clone(),
         };
 
         tokio::spawn(async move {
             runtime.run(receiver).await;
         });
 
-        Ok(Some(Self {
-            sender,
-            pending,
-            metrics,
-        }))
+        Ok(Some(Self { sender, metrics }))
     }
 
     /// Queues metadata only. This deliberately never waits for I/O, memory, or
@@ -152,7 +143,6 @@ impl BazelTestArtifactDelivery {
 
         match self.sender.try_send(artifact) {
             Ok(()) => {
-                self.pending.fetch_add(1, Ordering::Relaxed);
                 self.metrics
                     .record_analytics_event("bazel_test_artifact", "enqueued", 1);
             }
@@ -167,12 +157,32 @@ impl BazelTestArtifactDelivery {
 impl Runtime {
     async fn run(self, mut receiver: mpsc::Receiver<BazelTestArtifact>) {
         while let Some(artifact) = receiver.recv().await {
-            self.pending.fetch_sub(1, Ordering::Relaxed);
             self.deliver(artifact).await;
         }
     }
 
     async fn deliver(&self, artifact: BazelTestArtifact) {
+        // Hold the reservation until the raw bytes, base64 payload, serialized
+        // request, and retry clone have all been released. The largest live
+        // representation is bounded by the artifact size plus four expanded
+        // or serialized copies.
+        let reservation_bytes = artifact
+            .size
+            .saturating_mul(5)
+            .saturating_add(DELIVERY_MEMORY_OVERHEAD_BYTES);
+        let _reservation = match self
+            .memory
+            .reserve_background_transient(reservation_bytes)
+            .await
+        {
+            Ok(reservation) => reservation,
+            Err(()) => {
+                self.metrics
+                    .record_analytics_event("bazel_test_artifact", "memory_rejected", 1);
+                return;
+            }
+        };
+
         let Some(bytes) = self.read_artifact(&artifact).await else {
             return;
         };
@@ -263,23 +273,6 @@ impl Runtime {
     }
 
     async fn read_artifact(&self, artifact: &BazelTestArtifact) -> Option<Vec<u8>> {
-        let reservation_bytes = artifact
-            .size
-            .saturating_mul(5)
-            .saturating_add(DELIVERY_MEMORY_OVERHEAD_BYTES);
-        let _reservation = match self
-            .memory
-            .reserve_background_transient(reservation_bytes)
-            .await
-        {
-            Ok(reservation) => reservation,
-            Err(()) => {
-                self.metrics
-                    .record_analytics_event("bazel_test_artifact", "memory_rejected", 1);
-                return None;
-            }
-        };
-
         let key = blob_key(&format!("{}/{}", artifact.digest, artifact.size));
         let manifest = match self.store.manifest_for_key(
             ArtifactProducer::Reapi,
