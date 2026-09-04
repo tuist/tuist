@@ -181,6 +181,7 @@ where
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts: None,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),

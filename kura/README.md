@@ -23,6 +23,8 @@ Contributions to Kura require signing the Kura Contributor License Agreement (CL
 - 🔎 Nodes can discover peers through DNS and catch up from already-running nodes
 - 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and module-cache protocols
 - 🧪 Compatibility endpoints for Nx and React Native Metro are available, but they are not a primary focus today
+- 🧰 The gRPC API exposes Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services
+- 🧪 After committing a Bazel action-cache result, Kura can best-effort deliver its conventional `test.xml` and `test.log` outputs to Tuist without delaying cache traffic
 - 🧰 The gRPC API exposes Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache services and [Build Event Service](https://bazel.build/remote/bep) receiver
 - 📊 The local stack includes Grafana, Prometheus, Loki, Promtail, and Tempo traces
 
@@ -416,7 +418,9 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode, Gradle, and Bazel remote-cache traffic. Bazel's [Build Event Service](https://bazel.build/remote/bep) adds completed-command records separately, so cache observations can be attributed to the corresponding invocation.
 
-Kura emits cache webhook events only for namespace-scoped Xcode and Gradle HTTP requests, plus Bazel Remote Execution API action-cache and content-addressable-storage requests. It uses the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Bazel Build Event Service requests use the `x-tuist-project-handle` metadata set by `tuist bazel setup`; Kura authenticates them with the same account metadata and credential helper as cache traffic. Tenant-scoped cache requests skip analytics until Tuist grows account-scoped binary analytics.
+After an action-cache result is read or written, Kura also recognizes conventional Bazel test outputs named `test.xml` and `test.log`. It queues only their metadata and re-reads an artifact in a background worker before delivering at most two artifacts per action result to Tuist's test-artifact webhook. Each artifact is limited to 256 KiB. The queue is bounded, delivery is best-effort with bounded retries for temporary upstream responses, and the action-cache request never waits for it. Kura does not make this a durable outbox and Tuist never pulls artifacts back from Kura: losing a delivery is preferable to allowing test reporting to consume unbounded memory, disk, or cache-path latency.
+
+Kura emits cache webhook events only for namespace-scoped Xcode and Gradle HTTP requests, plus Bazel [Remote Execution API](https://github.com/bazelbuild/remote-apis) action-cache and content-addressable-storage requests. It uses the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Bazel Build Event Service requests use the `x-tuist-project-handle` metadata set by `tuist bazel setup`; Kura authenticates them with the same account metadata and credential helper as cache traffic. Tenant-scoped cache requests skip analytics until Tuist grows account-scoped binary analytics.
 
 When enabled:
 

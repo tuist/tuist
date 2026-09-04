@@ -1,18 +1,29 @@
 # Bazel Invocation Insights
 
-This boundary owns completed Bazel invocation records delivered from Kura's
-[Build Event Protocol](https://bazel.build/remote/bep) receiver.
+This boundary owns Bazel invocation records and test artifacts received from
+Kura. Kura terminates Bazel's [Build Event Service](https://bazel.build/remote/bep)
+and forwards completed invocation summaries to the Tuist server. The server
+does not expose a second Build Event Service listener.
 
-## Boundaries
+## Test artifacts
 
-- `bazel_invocations` stores one completed Bazel command. It contains command
-  kind, result, duration, timestamps, and project-scoping metadata, but never
-  the full command line, environment, build artifacts, or test output.
-- Remote-cache observations remain in `Tuist.ReapiCache`. They are correlated
-  only when their Bazel invocation identifier matches a completed invocation.
-  Do not derive a command result or duration from cache traffic.
-- Invocation data is stored in ClickHouse for 90 days. Retained fields and
-  retention must stay documented in `server/data-export.md` and the public
-  data-retention guide.
-- Public readers are the Bazel REST endpoints and the Model Context Protocol
-  tools. Keep their response schemas in sync with this context.
+- Kura recognizes only Bazel's conventional `test.xml` and `test.log` action
+  outputs after an action-cache write has committed.
+- Kura queues metadata, reads at most 256 KiB under a background-memory
+  reservation, and posts the content to the signed test-artifacts webhook.
+  The cache write never waits for delivery.
+- The webhook waits for the matching invocation, parses JUnit XML into the
+  shared test-run data model, and stores sanitized `test.log` output as an
+  invocation log. It uses Postgres receipts keyed by artifact identity to make
+  retries idempotent.
+- Tuist never pulls cache artifacts from Kura. Artifact delivery is bounded and
+  best effort, so a lost diagnostic never affects a build or cache operation.
+
+## Data handling
+
+- `bazel_invocations` stores completed commands received from Kura.
+- `bazel_invocation_logs` stores sanitized, ordered log chunks in ClickHouse.
+- Test cases and failure details derived from JUnit reports use the shared
+  `test_runs` data model and retain the Bazel invocation identifier.
+- Update `server/data-export.md` and the public retention guide whenever a
+  retained field, table, or retention period changes.

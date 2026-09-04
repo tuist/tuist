@@ -39,7 +39,7 @@ These windows define how long selected dashboard and activity data remains avail
 | Data | Retention |
 | --- | --- |
 | Xcode project graph records | 30 days |
-| Gradle build records, task records, cache event records, Bazel invocations, and Bazel remote action-cache observations | 90 days |
+| Gradle build records, task records, cache event records, Bazel invocations, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |

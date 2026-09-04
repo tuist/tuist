@@ -4,10 +4,34 @@ defmodule Tuist.Bazel do
   import Ecto.Query
 
   alias Tuist.Bazel.Invocation
+  alias Tuist.Bazel.InvocationLog
+  alias Tuist.Bazel.TestArtifactReceipt
+  alias Tuist.Bazel.TestReportIngestor
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
+  alias Tuist.Repo
+
+  @credential_pattern ~r/(?i)\b(authorization|token|api[_-]?key|password|secret)\b\s*(?:=|:)\s*(?:bearer\s+)?[^\s'"]+/
+  @url_credentials_pattern ~r/([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^\s\/:@]+:[^\s@\/]+@/
+  @local_path_pattern ~r{(?:~|/(?:Users|home|private|var/folders|tmp))(?:/[^\s'"]*)?}
+  @ansi_escape_pattern ~r/\e\[[0-?]*[ -\/]*[@-~]/
+
+  def ingest_test_report(project, invocation, test_result, report) do
+    TestReportIngestor.ingest(project, invocation, test_result, report)
+  end
+
+  def sanitize_log_message(message) when is_binary(message) do
+    message
+    |> then(&Regex.replace(@ansi_escape_pattern, &1, ""))
+    |> then(&Regex.replace(@url_credentials_pattern, &1, "\\1<REDACTED>@"))
+    |> then(&Regex.replace(@credential_pattern, &1, "\\1=<REDACTED>"))
+    |> then(&Regex.replace(@local_path_pattern, &1, "<LOCAL_PATH>"))
+    |> String.replace(~r/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/, "")
+  end
+
+  def sanitize_log_message(_), do: ""
 
   def create_invocations([]), do: {0, nil}
 
@@ -34,6 +58,74 @@ defmodule Tuist.Bazel do
       end)
 
     IngestRepo.insert_all(Invocation, entries)
+  end
+
+  def create_invocation_logs([]), do: {:ok, 0}
+
+  def create_invocation_logs(logs) when is_list(logs) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(logs, fn log ->
+        %{
+          id: UUIDv7.generate(),
+          invocation_id: log.invocation_id,
+          sequence_number: log.sequence_number,
+          stream: log.stream,
+          message: log.message,
+          project_id: log.project_id,
+          observed_at: log.observed_at,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(InvocationLog, entries)
+  end
+
+  def claim_test_artifact_receipt(attrs) when is_map(attrs) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    {count, _rows} =
+      Repo.insert_all(
+        TestArtifactReceipt,
+        [
+          %{
+            id: UUIDv7.generate(),
+            project_id: attrs.project_id,
+            invocation_id: attrs.invocation_id,
+            target_label: attrs.target_label,
+            action_digest: attrs.action_digest,
+            artifact_kind: attrs.artifact_kind,
+            artifact_digest: attrs.artifact_digest,
+            inserted_at: now,
+            updated_at: now
+          }
+        ],
+        on_conflict: :nothing,
+        conflict_target: [
+          :project_id,
+          :invocation_id,
+          :target_label,
+          :action_digest,
+          :artifact_kind,
+          :artifact_digest
+        ]
+      )
+
+    if count == 1, do: :claimed, else: :already_claimed
+  end
+
+  def delete_test_artifact_receipt(attrs) when is_map(attrs) do
+    Repo.delete_all(
+      from(receipt in TestArtifactReceipt,
+        where:
+          receipt.project_id == ^attrs.project_id and receipt.invocation_id == ^attrs.invocation_id and
+            receipt.target_label == ^attrs.target_label and receipt.action_digest == ^attrs.action_digest and
+            receipt.artifact_kind == ^attrs.artifact_kind and receipt.artifact_digest == ^attrs.artifact_digest
+      )
+    )
+
+    :ok
   end
 
   def list_invocations(project_id, flop_params \\ %{}) do
