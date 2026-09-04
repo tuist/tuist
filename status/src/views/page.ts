@@ -236,7 +236,9 @@ function incidentBlock(incident: Incident): Renderable {
       <div data-part="meta">${formatRange(incident.startedAt, incident.resolvedAt)}</div>
       <header data-part="header">
         <h3 data-part="title">${incident.title}</h3>
-        ${severityBadge(incident.severity)} ${stateBadge(incidentToComponentStatus(incident))}
+        <div data-part="badges">
+          ${severityBadge(incident.severity)} ${stateBadge(incidentToComponentStatus(incident))}
+        </div>
       </header>
       <ol data-part="updates">
         ${updates}

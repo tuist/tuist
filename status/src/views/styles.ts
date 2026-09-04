@@ -263,9 +263,7 @@ main {
   text-align: center;
 
   @media (max-width: 720px) {
-    align-items: flex-start;
     padding: var(--noora-spacing-11) var(--noora-spacing-7);
-    text-align: left;
   }
 
   & > [data-part="eyebrow"] {
@@ -341,17 +339,17 @@ main {
   & > [data-part="name"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-1);
+    gap: var(--noora-spacing-2);
     min-width: 0;
 
     & > [data-part="title"] {
       color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
     }
 
     & > [data-part="description"] {
       color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
   }
 
@@ -368,15 +366,18 @@ main {
   gap: var(--noora-spacing-5);
   padding: var(--noora-spacing-7);
 
-  & > [data-part="meta"] {
-    margin-bottom: calc(-1 * var(--noora-spacing-3));
-  }
-
+  /* Title with the severity and state badges at the right on desktop; on
+     narrow viewports the badges drop to their own row under the title. */
   & > [data-part="header"] {
     display: flex;
-    flex-wrap: wrap;
+    justify-content: space-between;
     align-items: center;
-    gap: var(--noora-spacing-3) var(--noora-spacing-4);
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 720px) {
+      flex-direction: column;
+      align-items: flex-start;
+    }
 
     & > [data-part="title"] {
       flex: 1 1 auto;
@@ -385,18 +386,26 @@ main {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-large);
     }
+
+    & > [data-part="badges"] {
+      display: flex;
+      flex: none;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+    }
   }
 
   & > [data-part="meta"] {
     color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     font-variant-numeric: tabular-nums;
   }
 
   & > [data-part="updates"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-7);
     margin: var(--noora-spacing-2) 0 0;
     padding: 0;
     list-style: none;
@@ -411,7 +420,7 @@ main {
 
       @media (max-width: 720px) {
         grid-template-columns: 1fr;
-        gap: var(--noora-spacing-1);
+        gap: var(--noora-spacing-2);
       }
 
       & > [data-part="time"] {
