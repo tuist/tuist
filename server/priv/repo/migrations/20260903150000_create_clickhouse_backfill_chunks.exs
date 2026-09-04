@@ -35,11 +35,21 @@ defmodule Tuist.Repo.Migrations.CreateClickhouseBackfillChunks do
 
     # The resume cursor. A chunk is identified by its table and interval, so a
     # re-run finds the completed ones and skips them.
+    #
+    # Built non-concurrently because the table is created empty in this same
+    # migration: there are no rows to scan and no readers to block, which is
+    # the situation the concurrent form exists for.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:clickhouse_backfill_chunks, [:table_name, :chunk_start, :chunk_end])
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:clickhouse_backfill_chunks, [:status])
   end
 
   def down do
+    # Dropping is the whole rollback: this table is created by this migration
+    # and holds only the backfill's own progress, so nothing outside the
+    # migration reads it and there is no customer data to lose.
+    # excellent_migrations:safety-assured-for-next-line table_dropped
     drop table(:clickhouse_backfill_chunks)
   end
 end

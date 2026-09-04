@@ -43,12 +43,14 @@ defmodule Tuist.ClickHouse.Endpoints do
       # has not started either. A repository that is not started fails at the
       # first query rather than at lookup, so the omission surfaced only once
       # the first chunk had already been copied.
-      with_started_repo(Tuist.Repo, fn _ledger ->
-        with_started_repo(source_repo, fn source ->
-          with_started_repo(target_repo, fn target -> fun.(source, target) end)
-        end)
-      end)
+      with_started_repo(Tuist.Repo, fn _ledger -> with_clickhouse_repos(source_repo, target_repo, fun) end)
     end
+  end
+
+  defp with_clickhouse_repos(source_repo, target_repo, fun) do
+    with_started_repo(source_repo, fn source ->
+      with_started_repo(target_repo, fn target -> fun.(source, target) end)
+    end)
   end
 
   defp with_started_repo(repo, fun) do
