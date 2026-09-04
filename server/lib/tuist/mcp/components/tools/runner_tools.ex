@@ -164,7 +164,11 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in" => %{"type" => "integer"},
         "network_bytes_out" => %{"type" => "integer"},
         "disk_used_bytes" => %{"type" => "integer"},
-        "disk_total_bytes" => %{"type" => "integer"}
+        "disk_total_bytes" => %{"type" => "integer"},
+        # Nullable: absent on samples from runner images predating the field.
+        # Not `disk_total_bytes - disk_used_bytes` — on APFS those do not
+        # subtract, so this is the only trustworthy capacity figure.
+        "disk_available_bytes" => %{"type" => ["integer", "null"]}
       },
       "required" => [
         "timestamp",
@@ -175,7 +179,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in",
         "network_bytes_out",
         "disk_used_bytes",
-        "disk_total_bytes"
+        "disk_total_bytes",
+        "disk_available_bytes"
       ],
       "additionalProperties" => false
     }

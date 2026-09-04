@@ -24,7 +24,11 @@ defmodule Tuist.Runners.JobMetrics do
     :disk_used_bytes,
     :disk_total_bytes
   ]
-  @sample_fields @float_fields ++ @integer_fields
+  # Stored `Nullable(Int64)` and so defaulted to `nil`, not `0`, when a sample
+  # omits it: on this column zero is a real reading (the volume is full) and has
+  # to stay distinguishable from a runner image that predates the field.
+  @nullable_integer_fields [:disk_available_bytes]
+  @sample_fields @float_fields ++ @integer_fields ++ @nullable_integer_fields
 
   @doc """
   Inserts a batch of metric samples for a job. Each sample carries
@@ -43,7 +47,9 @@ defmodule Tuist.Runners.JobMetrics do
     rows =
       Enum.map(samples, fn sample ->
         @sample_fields
-        |> Map.new(fn field -> {field, coerce(field, Map.get(sample, field, 0))} end)
+        |> Map.new(fn field ->
+          {field, coerce(field, Map.get(sample, field, default_for(field)))}
+        end)
         |> Map.merge(%{
           workflow_job_id: workflow_job_id,
           account_id: account_id,
@@ -61,6 +67,11 @@ defmodule Tuist.Runners.JobMetrics do
   # coerce each value to its column's type before insert.
   defp coerce(field, value) when field in @float_fields, do: value / 1
   defp coerce(field, value) when field in @integer_fields, do: trunc(value)
+  defp coerce(field, nil) when field in @nullable_integer_fields, do: nil
+  defp coerce(field, value) when field in @nullable_integer_fields, do: trunc(value)
+
+  defp default_for(field) when field in @nullable_integer_fields, do: nil
+  defp default_for(_field), do: 0
 
   @doc """
   Lists a job's metric samples in time order. Returns maps with
@@ -85,7 +96,8 @@ defmodule Tuist.Runners.JobMetrics do
           network_bytes_in: fragment("argMax(?, ?)", m.network_bytes_in, m.inserted_at),
           network_bytes_out: fragment("argMax(?, ?)", m.network_bytes_out, m.inserted_at),
           disk_used_bytes: fragment("argMax(?, ?)", m.disk_used_bytes, m.inserted_at),
-          disk_total_bytes: fragment("argMax(?, ?)", m.disk_total_bytes, m.inserted_at)
+          disk_total_bytes: fragment("argMax(?, ?)", m.disk_total_bytes, m.inserted_at),
+          disk_available_bytes: fragment("argMax(?, ?)", m.disk_available_bytes, m.inserted_at)
         }
       )
     )

@@ -43,14 +43,22 @@ defmodule TuistWeb.RunnerJobMetricsController do
             "network_bytes_in": 10485760,
             "network_bytes_out": 5242880,
             "disk_used_bytes": 48318382080,
-            "disk_total_bytes": 68719476736
+            "disk_total_bytes": 68719476736,
+            "disk_available_bytes": 20401093656
           }
         ]
       }
 
-  Every metric field but `timestamp` is optional and defaults to 0,
-  so a Linux-only or macOS-only collector can omit what it can't
-  measure. Delivery is at-least-once; the ReplacingMergeTree
+  Every metric field but `timestamp` is optional. They default to 0, so
+  a Linux-only or macOS-only collector can omit what it can't measure —
+  with one exception. `disk_available_bytes` defaults to `nil` and is
+  stored nullable, because on that field 0 is a real reading (the volume
+  is full) and must stay distinguishable from a runner image that
+  predates it. It is also not `disk_total_bytes - disk_used_bytes`: on
+  APFS those do not subtract, and the difference is what separates
+  "this job filled the disk" from "this job failed for another reason".
+
+  Delivery is at-least-once; the ReplacingMergeTree
   `(workflow_job_id, timestamp)` key collapses re-POSTed batches.
   """
 
@@ -69,6 +77,10 @@ defmodule TuistWeb.RunnerJobMetricsController do
     network_bytes_in network_bytes_out
     disk_used_bytes disk_total_bytes
   )a
+
+  # Absent from a sample means "not reported", so these are read with a `nil`
+  # default rather than the 0 the other metrics fall back to.
+  @nullable_metric_fields ~w(disk_available_bytes)a
 
   @doc """
   `POST /api/internal/runners/pods/:pod_name/metrics`
@@ -161,11 +173,19 @@ defmodule TuistWeb.RunnerJobMetricsController do
         {field, numeric(Map.get(sample, Atom.to_string(field), 0))}
       end)
 
-    {:ok, Map.put(metrics, :timestamp, timestamp)}
+    nullable_metrics =
+      Map.new(@nullable_metric_fields, fn field ->
+        {field, optional_numeric(Map.get(sample, Atom.to_string(field)))}
+      end)
+
+    {:ok, metrics |> Map.merge(nullable_metrics) |> Map.put(:timestamp, timestamp)}
   end
 
   defp parse_sample(_), do: {:error, {:invalid_field, "sample timestamp"}}
 
   defp numeric(value) when is_number(value), do: value
   defp numeric(_), do: 0
+
+  defp optional_numeric(value) when is_number(value), do: value
+  defp optional_numeric(_), do: nil
 end

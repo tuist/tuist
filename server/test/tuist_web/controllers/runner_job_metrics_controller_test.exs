@@ -55,7 +55,8 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
         "network_bytes_in" => 10_485_760,
         "network_bytes_out" => 5_242_880,
         "disk_used_bytes" => 48_318_382_080,
-        "disk_total_bytes" => 68_719_476_736
+        "disk_total_bytes" => 68_719_476_736,
+        "disk_available_bytes" => 20_401_093_656
       },
       attrs
     )
@@ -83,6 +84,33 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
       assert [%{timestamp: 1_750_000_000.0, cpu_usage_percent: cpu}] = JobMetrics.list_for_job(33_001)
       assert_in_delta cpu, 88.0, 0.01
+    end
+
+    test "distinguishes a reported zero available from an omitted one", %{conn: conn} do
+      # A full volume POSTs 0; a runner image predating the field POSTs nothing.
+      # Defaulting the second to 0 the way every other metric does would make an
+      # old runner indistinguishable from one that just ran out of disk.
+      account = account_fixture()
+      session(account, 33_010, "runner-pod-avail", "runner-avail")
+      prove_execution(account, "runner-avail", 33_010)
+      runner_token_stub("runner-pod-avail")
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-avail", %{
+          "samples" => [
+            sample(1_750_000_000.0, %{"disk_available_bytes" => 0}),
+            Map.delete(sample(1_750_000_001.0), "disk_available_bytes")
+          ]
+        })
+
+      assert response(conn, 204)
+
+      assert [
+               %{timestamp: 1_750_000_000.0, disk_available_bytes: 0},
+               %{timestamp: 1_750_000_001.0, disk_available_bytes: nil}
+             ] = JobMetrics.list_for_job(33_010)
     end
 
     test "records under the executed job, not the job the Pod was minted for", %{conn: conn} do

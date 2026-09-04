@@ -77,11 +77,26 @@ net_totals() {
     END { printf "%d %d", rx + 0, tx + 0 }'
 }
 
-# disk_totals echoes "used total" bytes for the volume the job writes
-# to. On APFS `/` is the sealed, read-only system volume (a few GB);
+# disk_totals echoes "used total available" bytes for the volume the job
+# writes to. On APFS `/` is the sealed, read-only system volume (a few GB);
 # the runner's work lands on the firmlinked Data volume, so sample that.
+#
+# Available ($4) is reported SEPARATELY because on APFS it is not
+# `total - used`. The 1024-blocks column is the whole container, `Used` is
+# this volume's own usage, and the rest of the container goes to the other
+# volumes in it, to snapshots, and to purgeable space — so `total - used`
+# is an upper bound that can overstate what a build may actually write by
+# several times. Measured on a developer Mac: 45.8 GB from `total - used`
+# against 12.8 GB actually available, at 98% capacity.
+#
+# That gap is not academic. It is the difference between "this job filled
+# the disk" and "this job failed for another reason", and without this
+# column the two are indistinguishable after the fact: a runner job that
+# died on `No space left on device` was seen holding a LOWER `used` than a
+# job that completed on the same image.
 disk_totals() {
-  df -k /System/Volumes/Data 2>/dev/null | awk 'NR == 2 { printf "%d %d", $3 * 1024, $2 * 1024 }'
+  df -k /System/Volumes/Data 2>/dev/null |
+    awk 'NR == 2 { printf "%d %d %d", $3 * 1024, $2 * 1024, $4 * 1024 }'
 }
 
 delta() {
@@ -90,12 +105,12 @@ delta() {
 }
 
 emit_sample() {
-  local ts cpu mem_used rx tx disk_used disk_total net_in net_out payload
+  local ts cpu mem_used rx tx disk_used disk_total disk_available net_in net_out payload
   ts="$(date +%s)"
   cpu="$(cpu_busy_percent)"
   mem_used="$(mem_used_bytes)"
   read -r rx tx <<<"$(net_totals)"
-  read -r disk_used disk_total <<<"$(disk_totals)"
+  read -r disk_used disk_total disk_available <<<"$(disk_totals)"
 
   if [ -n "${prev_rx}" ]; then
     net_in="$(delta "${rx:-0}" "${prev_rx}")"
@@ -107,8 +122,17 @@ emit_sample() {
   prev_rx="${rx:-0}"
   prev_tx="${tx:-0}"
 
-  payload="$(printf '{"samples":[{"timestamp":%s,"cpu_usage_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s}]}' \
-    "${ts}" "${cpu:-0}" "${mem_used:-0}" "${mem_total:-0}" "${net_in}" "${net_out}" "${disk_used:-0}" "${disk_total:-0}")"
+  # `disk_available_bytes` is omitted rather than sent as 0 when `df` gave us
+  # nothing, because the server stores it nullable: on this field 0 is a real,
+  # load-bearing reading (the volume is full) and must not be confused with
+  # "this runner did not report it".
+  local disk_available_field=""
+  if [ -n "${disk_available}" ]; then
+    disk_available_field="$(printf ',"disk_available_bytes":%s' "${disk_available}")"
+  fi
+
+  payload="$(printf '{"samples":[{"timestamp":%s,"cpu_usage_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s%s}]}' \
+    "${ts}" "${cpu:-0}" "${mem_used:-0}" "${mem_total:-0}" "${net_in}" "${net_out}" "${disk_used:-0}" "${disk_total:-0}" "${disk_available_field}")"
 
   curl -sS -o /dev/null --max-time 10 \
     --request POST \

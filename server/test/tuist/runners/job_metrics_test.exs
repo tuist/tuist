@@ -14,7 +14,8 @@ defmodule Tuist.Runners.JobMetricsTest do
         network_bytes_in: 10_485_760,
         network_bytes_out: 5_242_880,
         disk_used_bytes: 48_318_382_080,
-        disk_total_bytes: 68_719_476_736
+        disk_total_bytes: 68_719_476_736,
+        disk_available_bytes: 20_401_093_656
       },
       attrs
     )
@@ -47,6 +48,22 @@ defmodule Tuist.Runners.JobMetricsTest do
       assert_in_delta cpu_second, 90.0, 0.01
     end
 
+    test "keeps a reported zero available distinct from an unreported one" do
+      # The whole point of the nullable column: a full volume reports 0, and a
+      # runner image predating the field reports nothing. Collapsing both to 0
+      # would hide exactly the state this metric exists to catch.
+      :ok =
+        JobMetrics.record(910_006, 42, [
+          sample(1_750_000_000.0, %{disk_available_bytes: 0}),
+          1_750_000_001.0 |> sample() |> Map.delete(:disk_available_bytes)
+        ])
+
+      assert [
+               %{timestamp: 1_750_000_000.0, disk_available_bytes: 0},
+               %{timestamp: 1_750_000_001.0, disk_available_bytes: nil}
+             ] = JobMetrics.list_for_job(910_006)
+    end
+
     test "defaults omitted metric fields to zero" do
       :ok = JobMetrics.record(910_002, 42, [%{timestamp: 1_750_000_000.0, cpu_usage_percent: 12.0}])
 
@@ -55,7 +72,9 @@ defmodule Tuist.Runners.JobMetricsTest do
                  cpu_iowait_percent: iowait,
                  memory_used_bytes: 0,
                  disk_total_bytes: 0,
-                 network_bytes_in: 0
+                 network_bytes_in: 0,
+                 # Nullable, so it is the one field that does not fall back to 0.
+                 disk_available_bytes: nil
                }
              ] = JobMetrics.list_for_job(910_002)
 

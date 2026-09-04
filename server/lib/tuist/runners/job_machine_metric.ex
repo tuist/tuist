@@ -24,6 +24,11 @@ defmodule Tuist.Runners.JobMachineMetric do
     field :network_bytes_out, Ch, type: "Int64", default: 0
     field :disk_used_bytes, Ch, type: "Int64", default: 0
     field :disk_total_bytes, Ch, type: "Int64", default: 0
+    # Nullable, unlike every other metric here: on this column 0 is a real
+    # reading (the volume is full), so it must stay distinguishable from a
+    # runner image that predates the field. See the migration for why
+    # `total - used` cannot substitute for it on APFS.
+    field :disk_available_bytes, Ch, type: "Nullable(Int64)"
     field :inserted_at, Ch, type: "DateTime64(6, 'UTC')"
   end
 end

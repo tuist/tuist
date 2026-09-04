@@ -148,7 +148,13 @@ defmodule TuistWeb.API.RunnersController do
       network_bytes_in: %Schema{type: :integer},
       network_bytes_out: %Schema{type: :integer},
       disk_used_bytes: %Schema{type: :integer},
-      disk_total_bytes: %Schema{type: :integer}
+      disk_total_bytes: %Schema{type: :integer},
+      # Nullable because it is absent on samples from runner images predating
+      # the field, and because 0 is a real reading here (a full volume) that
+      # must not be conflated with "not reported". It is deliberately not
+      # derivable as `disk_total_bytes - disk_used_bytes`: on APFS those do not
+      # subtract, so this is the only trustworthy capacity figure.
+      disk_available_bytes: %Schema{type: :integer, nullable: true}
     },
     required: [
       :timestamp,
@@ -159,7 +165,8 @@ defmodule TuistWeb.API.RunnersController do
       :network_bytes_in,
       :network_bytes_out,
       :disk_used_bytes,
-      :disk_total_bytes
+      :disk_total_bytes,
+      :disk_available_bytes
     ]
   }
 
