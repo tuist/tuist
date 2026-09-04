@@ -350,17 +350,19 @@ clickhouse:
     # kura_storage_snapshots. That row was dropped by the mirror in the twenty
     # seconds after a pod started, before its connection pool was ready.
     #
-    # Current step: run the backfill again with a later cutoff. Every chunk
-    # clears the destination's rows for its range before copying them, so
-    # advancing the cutoff repairs that range rather than duplicating it, and
-    # only the chunk whose end moved is redone. Next: parity again, then the
-    # read flag.
+    # That row was repaired by running the backfill again with a later cutoff,
+    # which cleared and recopied only the range whose end had moved.
+    #
+    # Current step: compare the two servers over the read path rather than the
+    # ingest path. It is the same comparison, through the connection the
+    # dashboards use, which is `readonly` and carries per-query and per-user
+    # memory ceilings that have only ever been exercised against Cloud. A
+    # setting this server refuses would otherwise surface at the moment the
+    # read flag was turned on. Next: that flag.
     migration:
       enabled: true
-      name: backfill-repair
-      task: Tuist.Release.backfill_clickhouse
-      # Past the rollout that carried the retry, so the window those drops
-      # happened in is recopied. Everything written after it is mirrored.
+      name: read-parity
+      task: Tuist.Release.check_clickhouse_reads
       cutoff: "2026-09-04T01:30:00Z"
 
 cache:
