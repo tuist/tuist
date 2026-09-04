@@ -421,7 +421,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.xcResultService.targetName),
-                    .target(name: Module.server.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: "XCResultParser"),
