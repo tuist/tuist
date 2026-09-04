@@ -135,6 +135,22 @@ if the cluster topology uses a different pool name.
 {{- .Values.runnersFleetLinux.name | default "runners-linux" -}}
 {{- end -}}
 
+{{/*
+The Secret holding the object-storage credentials, which is not always the
+same one. With `managedSecrets` the credentials are synced into their own
+Secret by External Secrets and the chart never sees their values; without it
+they are rendered into app-secrets from values. `server-deployment.yaml`
+branches on this inline; anything else that needs those credentials has to
+branch the same way, or it reads a key that exists and is empty.
+*/}}
+{{- define "tuist.objectStorageCredentialsSecretName" -}}
+{{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets -}}
+{{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+{{- else -}}
+{{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000

@@ -605,16 +605,21 @@ spec:
           # Read by `backups.xml` through `from_env`, so the backup disk's
           # credentials live in one Secret rather than being copied into the
           # server's configuration.
+          #
+          # Which Secret that is depends on `managedSecrets`, hence the helper:
+          # app-secrets carries those keys either way, but they are empty
+          # strings when External Secrets owns the real ones, and an empty key
+          # signs a request that object storage answers with 403.
           env:
             - name: BACKUP_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ include "tuist.objectStorageCredentialsSecretName" . }}
                   key: object-storage-access-key
             - name: BACKUP_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ include "tuist.objectStorageCredentialsSecretName" . }}
                   key: object-storage-secret-key
 {{- end }}
           volumeMounts:
