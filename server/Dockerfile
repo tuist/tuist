@@ -34,8 +34,14 @@ COPY server/native/xcactivitylog_nif/Sources/ Sources/
 COPY server/native/xcactivitylog_nif/Tests/ Tests/
 COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
+# The backtracer is the only thing that turns a Swift trap into a named frame:
+# optimized Swift emits a bare trap instruction, so without it a crash reaches
+# Tuist.Processor.XCActivityLogParser as an exit status and an empty string. The
+# static build is taken because the runner carries only the Swift shared
+# libraries, not a toolchain.
 RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-parser && \
     cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser && \
+    cp /usr/libexec/swift/linux/swift-backtrace-static /nif/swift-backtrace && \
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
@@ -169,17 +175,20 @@ RUN mix release
 
 # ========================================
 # Stage: Release with parser
-# Places the Swift parser executable under the release's tuist app priv dir,
-# where Tuist.Processor.XCActivityLogParser looks it up at runtime.
+# Places the Swift parser executable and the backtracer it crashes through under
+# the release's tuist app priv dir, where Tuist.Processor.XCActivityLogParser
+# looks both up at runtime.
 # ========================================
 FROM builder AS release-with-parser
 
 COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-backtrace /tmp/nif/swift-backtrace
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
-    cp /tmp/nif/xcactivitylog-parser "$TUIST_REL_DIR/priv/native/" && \
-    chmod +x "$TUIST_REL_DIR/priv/native/xcactivitylog-parser"
+    cp /tmp/nif/xcactivitylog-parser /tmp/nif/swift-backtrace "$TUIST_REL_DIR/priv/native/" && \
+    chmod +x "$TUIST_REL_DIR/priv/native/xcactivitylog-parser" \
+             "$TUIST_REL_DIR/priv/native/swift-backtrace"
 
 # ========================================
 # Stage: Common runtime
