@@ -30,6 +30,77 @@
   <h2 data-part="subtitle">
     {dgettext("dashboard_projects", "General")}
   </h2>
+  <.card_section data-part="logo-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_projects", "Project logo")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div :if={@selected_project.logo_storage_key} data-part="logo-preview">
+        <img
+          src={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/logo?v=#{Path.basename(@selected_project.logo_storage_key, Path.extname(@selected_project.logo_storage_key))}"
+          }
+          alt={dgettext("dashboard_projects", "Current project logo")}
+          width="80"
+          height="80"
+        />
+      </div>
+      <form
+        id="upload-logo-form"
+        phx-change="validate_logo"
+        phx-submit="upload_logo"
+        data-part="form"
+      >
+        <.live_file_input upload={@uploads.logo} />
+
+        <div :for={entry <- @uploads.logo.entries} data-part="entry">
+          <span>{entry.client_name}</span>
+          <.button
+            type="button"
+            variant="secondary"
+            size="small"
+            label={dgettext("dashboard_projects", "Cancel")}
+            phx-click="cancel_logo_upload"
+            phx-value-ref={entry.ref}
+          />
+          <div :for={err <- upload_errors(@uploads.logo, entry)} data-part="error">
+            {logo_upload_error_message(err)}
+          </div>
+        </div>
+
+        <div :for={err <- upload_errors(@uploads.logo)} data-part="error">
+          {logo_upload_error_message(err)}
+        </div>
+
+        <div data-part="actions">
+          <.button
+            :if={@selected_project.logo_storage_key}
+            type="button"
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_projects", "Remove")}
+            phx-click="remove_logo"
+            data-confirm={dgettext("dashboard_projects", "Remove the current project logo?")}
+          />
+          <.button
+            type="submit"
+            variant="primary"
+            size="medium"
+            label={dgettext("dashboard_projects", "Upload")}
+            disabled={@uploads.logo.entries == []}
+          />
+        </div>
+      </form>
+    </div>
+  </.card_section>
   <.card_section
     :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
     data-part="preview-access-card-section"

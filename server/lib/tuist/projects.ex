@@ -446,6 +446,149 @@ defmodule Tuist.Projects do
     |> Repo.update()
   end
 
+  @logo_storage_prefix "project-logos"
+  @logo_storage_actor :project_logos
+  @logo_allowed_content_types %{
+    "image/png" => "png",
+    "image/jpeg" => "jpg",
+    "image/webp" => "webp"
+  }
+  @logo_upload_salt "project_logo_upload"
+  @logo_upload_ttl_seconds 3_600
+
+  def logo_allowed_content_types, do: Map.keys(@logo_allowed_content_types)
+
+  # Two-step presigned upload used by clients that cannot POST a multipart
+  # form to a LiveView (the MCP surface, mainly). The client PUTs the binary
+  # straight at object storage using the URL below, then calls
+  # `finalize_project_logo_upload/2` with the returned token to commit the
+  # key on the project. The token binds the storage key to the project so a
+  # caller cannot swap one in for another project's logo at commit time.
+  def prepare_project_logo_upload(%Project{id: project_id}, content_type) do
+    with {:ok, extension} <- logo_extension_for(content_type) do
+      storage_key =
+        Path.join([
+          @logo_storage_prefix,
+          Integer.to_string(project_id),
+          "#{Ecto.UUID.generate()}.#{extension}"
+        ])
+
+      upload_url =
+        Tuist.Storage.generate_upload_url(storage_key, @logo_storage_actor, expires_in: @logo_upload_ttl_seconds)
+
+      payload = %{
+        project_id: project_id,
+        storage_key: storage_key,
+        content_type: content_type
+      }
+
+      upload_token = Phoenix.Token.sign(TuistWeb.Endpoint, @logo_upload_salt, payload)
+
+      expires_at = DateTime.add(DateTime.utc_now(), @logo_upload_ttl_seconds, :second)
+
+      {:ok,
+       %{
+         upload_url: upload_url,
+         upload_token: upload_token,
+         storage_key: storage_key,
+         method: "PUT",
+         content_type: content_type,
+         expires_at: expires_at,
+         expires_in_seconds: @logo_upload_ttl_seconds
+       }}
+    end
+  end
+
+  def finalize_project_logo_upload(%Project{id: project_id} = project, upload_token) when is_binary(upload_token) do
+    with {:ok, payload} <- verify_logo_upload_token(upload_token),
+         :ok <- ensure_token_matches_project(payload, project_id),
+         true <- Tuist.Storage.object_exists?(payload.storage_key, @logo_storage_actor),
+         {:ok, updated} <- persist_project_logo(project, payload.storage_key) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    else
+      false -> {:error, :logo_object_not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp verify_logo_upload_token(token) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
+      {:ok, %{project_id: _, storage_key: _, content_type: _} = payload} -> {:ok, payload}
+      {:ok, _} -> {:error, :invalid_logo_upload_token}
+      {:error, _reason} -> {:error, :invalid_logo_upload_token}
+    end
+  end
+
+  defp ensure_token_matches_project(%{project_id: project_id}, project_id), do: :ok
+  defp ensure_token_matches_project(_payload, _project_id), do: {:error, :logo_upload_token_project_mismatch}
+
+  # Content-address the object so replacements land at a new key and CDN
+  # caches on the public serving URL invalidate as soon as the DB row flips.
+  def set_project_logo(%Project{} = project, binary, content_type) when is_binary(binary) do
+    with {:ok, extension} <- logo_extension_for(content_type),
+         {:ok, storage_key} <- upload_project_logo(project, binary, extension),
+         {:ok, updated} <- persist_project_logo(project, storage_key) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    end
+  end
+
+  def clear_project_logo(%Project{logo_storage_key: nil} = project), do: {:ok, project}
+
+  def clear_project_logo(%Project{} = project) do
+    with {:ok, updated} <- persist_project_logo(project, nil) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    end
+  end
+
+  def read_project_logo(%Project{logo_storage_key: nil}), do: {:error, :not_found}
+
+  def read_project_logo(%Project{logo_storage_key: storage_key}) do
+    Tuist.Storage.get_object(storage_key, @logo_storage_actor)
+  end
+
+  def project_logo_content_type(%Project{logo_storage_key: nil}), do: nil
+
+  def project_logo_content_type(%Project{logo_storage_key: storage_key}) do
+    extension = storage_key |> Path.extname() |> String.trim_leading(".") |> String.downcase()
+
+    Enum.find_value(@logo_allowed_content_types, fn {mime, ext} ->
+      if ext == extension, do: mime
+    end)
+  end
+
+  defp logo_extension_for(content_type) do
+    case Map.get(@logo_allowed_content_types, content_type) do
+      nil -> {:error, :unsupported_logo_content_type}
+      extension -> {:ok, extension}
+    end
+  end
+
+  defp upload_project_logo(%Project{id: project_id}, binary, extension) do
+    hash = :sha256 |> :crypto.hash(binary) |> Base.encode16(case: :lower)
+    storage_key = Path.join([@logo_storage_prefix, Integer.to_string(project_id), "#{hash}.#{extension}"])
+
+    case Tuist.Storage.put_object(storage_key, binary, @logo_storage_actor) do
+      :ok -> {:ok, storage_key}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp persist_project_logo(%Project{} = project, storage_key) do
+    project
+    |> Project.logo_changeset(%{logo_storage_key: storage_key})
+    |> Repo.update()
+  end
+
+  defp delete_stored_logo(nil), do: :ok
+
+  defp delete_stored_logo(storage_key) do
+    _ = Tuist.Storage.delete_object(storage_key, @logo_storage_actor)
+    :ok
+  end
+
   def get_repository_url(%Project{} = project) do
     project = Repo.preload(project, :vcs_connection)
 
