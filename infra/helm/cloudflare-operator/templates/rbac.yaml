@@ -4,33 +4,20 @@ metadata:
   name: cloudflare-operator-manager
 rules:
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources:
-      - cloudflareratelimits
-      - cloudflarecacherules
-      - cloudflarewafcustomrules
-      - cloudflarezonesettings
-      - cloudflareaicrawlcontrols
-    verbs: ["get", "list", "watch", "update", "patch"]
+    resources: [cloudflareratelimits]
+    verbs: [get, list, watch, update, patch]
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources:
-      - cloudflareratelimits/status
-      - cloudflarecacherules/status
-      - cloudflarewafcustomrules/status
-      - cloudflarezonesettings/status
-      - cloudflareaicrawlcontrols/status
-    verbs: ["get", "update", "patch"]
+    resources: [cloudflareratelimits/status]
+    verbs: [get, update, patch]
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources:
-      - cloudflareratelimits/finalizers
-      - cloudflarecacherules/finalizers
-      - cloudflarewafcustomrules/finalizers
-    verbs: ["update"]
+    resources: [cloudflareratelimits/finalizers]
+    verbs: [update]
   - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
+    resources: [events]
+    verbs: [create, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

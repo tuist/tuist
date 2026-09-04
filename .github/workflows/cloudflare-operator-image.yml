@@ -41,6 +41,17 @@ jobs:
         with:
           go-version-file: infra/cloudflare-operator/go.mod
           cache-dependency-path: infra/cloudflare-operator/go.sum
+      # Install kube-apiserver + etcd binaries so the envtest suite
+      # under controllers/envtest_test.go actually runs (it skips
+      # when KUBEBUILDER_ASSETS is unset). This exercises CRD
+      # admission — CEL rules for immutable zoneId, cf.colo.id
+      # requirement, adopt-or-create — which the fake-client tests
+      # cannot cover.
+      - name: Install envtest binaries
+        working-directory: infra/cloudflare-operator
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          echo "KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 --bin-dir /tmp/envtest -p path)" >> "$GITHUB_ENV"
       - name: Test
         working-directory: infra/cloudflare-operator
         run: go test ./...

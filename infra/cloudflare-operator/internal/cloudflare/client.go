@@ -196,6 +196,20 @@ func FindRuleByRef(rs *Ruleset, ref string) *Rule {
 	return nil
 }
 
+// FindRuleByID returns the rule in ruleset whose Cloudflare id matches,
+// or nil. Used for adoption of existing (e.g. dashboard-created) rules.
+func FindRuleByID(rs *Ruleset, id string) *Rule {
+	if rs == nil || id == "" {
+		return nil
+	}
+	for i := range rs.Rules {
+		if rs.Rules[i].ID == id {
+			return &rs.Rules[i]
+		}
+	}
+	return nil
+}
+
 // APIError is returned when Cloudflare responds with a non-2xx status.
 type APIError struct {
 	Status  int

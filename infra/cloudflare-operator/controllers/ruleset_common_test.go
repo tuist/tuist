@@ -6,83 +6,78 @@ import (
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
 )
 
-// TestRulesetRuleDiffers_IgnoresServerAddedFields is the regression
-// test for the cache-rule reconcile-loop bug: Cloudflare returns
-// action_parameters with keys we did not set (server-added defaults,
-// reordered keys). Those must not count as drift, otherwise the
-// reconciler PATCHes forever on every resync interval.
-func TestRulesetRuleDiffers_IgnoresServerAddedFields(t *testing.T) {
+// TestRulesetRuleDiffers_KeyOrderNotDrift confirms two payloads with
+// the same key set but different serialisation order are equal, so
+// the reconciler does not PATCH on every resync just because
+// Cloudflare re-ordered keys or added whitespace.
+func TestRulesetRuleDiffers_KeyOrderNotDrift(t *testing.T) {
 	desired := &cloudflare.Rule{
-		Ref:         "cfcr_abc",
-		Action:      "set_cache_settings",
-		Expression:  `starts_with(http.request.uri.path, "/docs")`,
-		Description: "docs",
-		Enabled:     true,
-		ActionParameters: []byte(`{
-			"cache": true,
-			"edge_ttl": {"mode": "override_origin", "default": 300}
-		}`),
-	}
-	existing := &cloudflare.Rule{
-		ID:          "server-id",
-		Ref:         desired.Ref,
-		Action:      desired.Action,
-		Expression:  desired.Expression,
-		Description: desired.Description,
-		Enabled:     desired.Enabled,
-		// Same semantic value, different key order plus a server-added key.
-		ActionParameters: []byte(`{
-			"edge_ttl": {"default": 300, "mode": "override_origin"},
-			"cache": true,
-			"status_code_ttl": []
-		}`),
-	}
-	if rulesetRuleDiffers(existing, desired) {
-		t.Fatal("expected no drift when live has server-added keys and re-ordered fields")
-	}
-}
-
-// TestRulesetRuleDiffers_DetectsRealDrift confirms the opposite:
-// when a field the CR set changed on the live side, that IS drift.
-func TestRulesetRuleDiffers_DetectsRealDrift(t *testing.T) {
-	desired := &cloudflare.Rule{
-		Ref:              "cfcr_abc",
-		Action:           "set_cache_settings",
+		Ref:              "cfrl_abc",
+		Action:           "block",
 		Enabled:          true,
-		ActionParameters: []byte(`{"cache": true, "edge_ttl": {"mode": "override_origin", "default": 300}}`),
+		ActionParameters: []byte(`{"a":1,"b":2}`),
 	}
 	existing := &cloudflare.Rule{
 		Ref:              desired.Ref,
 		Action:           desired.Action,
 		Enabled:          true,
-		ActionParameters: []byte(`{"cache": true, "edge_ttl": {"mode": "override_origin", "default": 60}}`),
+		ActionParameters: []byte(`{"b":2,"a":1}`),
 	}
-	if !rulesetRuleDiffers(existing, desired) {
-		t.Fatal("expected drift when edge_ttl.default differs")
+	if rulesetRuleDiffers(existing, desired) {
+		t.Fatal("expected no drift when only key order differs")
 	}
 }
 
-// TestJSONSubsetMatches exercises the subset helper directly.
-func TestJSONSubsetMatches(t *testing.T) {
-	cases := []struct {
-		name   string
-		full   string
-		subset string
-		want   bool
-	}{
-		{"empty subset matches anything", `{"a":1}`, ``, true},
-		{"same object", `{"a":1,"b":2}`, `{"a":1,"b":2}`, true},
-		{"reordered", `{"b":2,"a":1}`, `{"a":1,"b":2}`, true},
-		{"extra key in full is ok", `{"a":1,"b":2,"c":3}`, `{"a":1,"b":2}`, true},
-		{"missing key in full is drift", `{"a":1}`, `{"a":1,"b":2}`, false},
-		{"wrong value is drift", `{"a":2}`, `{"a":1}`, false},
-		{"nested subset", `{"a":{"x":1,"y":2}}`, `{"a":{"x":1}}`, true},
-		{"nested drift", `{"a":{"x":1,"y":2}}`, `{"a":{"x":9}}`, false},
+// TestRulesetRuleDiffers_MissingKeyIsDrift is the regression Marek
+// reproduced: removing a field from the CR must be treated as
+// drift, otherwise Cloudflare keeps the old value forever.
+func TestRulesetRuleDiffers_MissingKeyIsDrift(t *testing.T) {
+	desired := &cloudflare.Rule{
+		Ref:              "cfrl_abc",
+		Action:           "block",
+		Enabled:          true,
+		ActionParameters: []byte(`{"a":1}`),
 	}
-	for _, c := range cases {
-		got := jsonSubsetMatches([]byte(c.full), []byte(c.subset))
-		if got != c.want {
-			t.Errorf("%s: got %v want %v (full=%s subset=%s)", c.name, got, c.want, c.full, c.subset)
-		}
+	existing := &cloudflare.Rule{
+		Ref:              desired.Ref,
+		Action:           desired.Action,
+		Enabled:          true,
+		ActionParameters: []byte(`{"a":1,"b":2}`),
+	}
+	if !rulesetRuleDiffers(existing, desired) {
+		t.Fatal("expected drift when desired dropped a key")
+	}
+}
+
+// TestRulesetRuleDiffers_ExtraDesiredKeyIsDrift covers the other
+// direction: a key present in desired but missing in existing (a
+// create-in-progress).
+func TestRulesetRuleDiffers_ExtraDesiredKeyIsDrift(t *testing.T) {
+	desired := &cloudflare.Rule{
+		Ref:              "cfrl_abc",
+		Action:           "block",
+		Enabled:          true,
+		ActionParameters: []byte(`{"a":1,"b":2}`),
+	}
+	existing := &cloudflare.Rule{
+		Ref:              desired.Ref,
+		Action:           desired.Action,
+		Enabled:          true,
+		ActionParameters: []byte(`{"a":1}`),
+	}
+	if !rulesetRuleDiffers(existing, desired) {
+		t.Fatal("expected drift when desired has a new key")
+	}
+}
+
+// TestActionParametersEqual_BothEmpty is the degenerate case: rate-
+// limit rules do not set action_parameters, so we exercise both
+// sides empty explicitly.
+func TestActionParametersEqual_BothEmpty(t *testing.T) {
+	if !actionParametersEqual(nil, nil) {
+		t.Fatal("both nil should be equal")
+	}
+	if !actionParametersEqual([]byte(""), nil) {
+		t.Fatal("empty vs nil should be equal")
 	}
 }
