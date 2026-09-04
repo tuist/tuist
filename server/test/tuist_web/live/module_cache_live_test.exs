@@ -70,7 +70,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       html = render_async(lv, 2000)
 
       # Then
-      assert has_element?(lv, "#module-invalidations-table")
+      assert has_element?(lv, "#module-cache-modules-table")
       assert has_element?(lv, "#widget-most-invalidated-module")
       assert html =~ "Core"
     end
@@ -131,5 +131,57 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       },
       Map.new(attrs)
     )
+  end
+
+  test "the module summary looks past the rows the card lists", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event = fn created_at ->
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: created_at
+      ).id
+    end
+
+    target = fn event_id, name, sources, deps ->
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event_id,
+        name: name,
+        product: "framework",
+        binary_cache_hash: "h-#{name}-#{sources}",
+        binary_cache_hit: :miss,
+        sources_hash: sources,
+        dependencies: deps
+      )
+    end
+
+    first = event.(~N[2024-01-29 10:00:00])
+    latest = event.(~N[2024-01-30 10:00:00])
+
+    # 40 noisy modules, each missing far more often than Core, so Core sorts
+    # last and falls outside the 30 the query returns by default.
+    for i <- 1..40 do
+      name = "Noise#{String.pad_leading("#{i}", 2, "0")}"
+
+      for {event_id, sources} <- [{first, "a"}, {latest, "b"}] do
+        target.(event_id, name, "#{sources}-#{name}", ["Core"])
+      end
+    end
+
+    # Core misses once, but every one of those modules depends on it.
+    target.(latest, "Core", "core", [])
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+
+    html = render_async(lv, 2000)
+
+    # Summarising only the returned rows would miss Core entirely.
+    assert html =~ "Core"
   end
 end

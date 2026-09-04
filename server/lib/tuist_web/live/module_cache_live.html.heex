@@ -527,7 +527,9 @@
       <.button
         variant="secondary"
         size="small"
-        navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"
+        }
         label={dgettext("dashboard_cache", "View all modules")}
       >
         <:icon_right><.arrow_right /></:icon_right>
@@ -599,7 +601,7 @@
       data-part="module-invalidation-section"
     >
       <.module_invalidations_table
-        id="module-invalidations-table"
+        id="module-cache-modules-table"
         rows={Enum.take(@module_invalidations.result, 5)}
         row_navigate={
           fn module ->

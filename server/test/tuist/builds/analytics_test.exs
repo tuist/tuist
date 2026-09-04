@@ -2046,6 +2046,166 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "module cache classification edge cases" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      %{project: ProjectsFixtures.project_fixture()}
+    end
+
+    test "a change to any own input counts as changed, not cold", %{project: project} do
+      build = fn created_at, attrs ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          Keyword.merge(
+            [
+              command_event_id: event.id,
+              name: "Core",
+              product: "framework",
+              binary_cache_hit: :miss,
+              sources_hash: "s1"
+            ],
+            attrs
+          )
+        )
+      end
+
+      # Only the additional hashing inputs move between the two builds. Every
+      # other own input, the dependency hash and the external hash stay put.
+      build.(~N[2024-04-01 10:00:00],
+        binary_cache_hash: "h1",
+        additional_hashing_inputs_hash: "a1"
+      )
+
+      build.(~N[2024-04-02 10:00:00],
+        binary_cache_hash: "h2",
+        additional_hashing_inputs_hash: "a2"
+      )
+
+      [core] = Analytics.module_invalidations(project_id: project.id)
+
+      assert core.self_changes == 1
+      assert core.dependency_induced == 0
+      # The first build has nothing before it, so exactly one miss is cold.
+      assert core.unclassified == 1
+    end
+
+    test "the branch filter reaches the hit rate analytics, not just the module table", %{
+      project: project
+    } do
+      on_branch = fn branch, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: branch,
+          created_at: created_at,
+          cacheable_targets: ["Core", "Networking"],
+          remote_cache_target_hits: if(branch == "main", do: ["Core", "Networking"], else: [])
+        )
+      end
+
+      on_branch.("main", ~N[2024-04-01 10:00:00])
+      on_branch.("feature/x", ~N[2024-04-02 10:00:00])
+
+      opts = [
+        project_id: project.id,
+        start_datetime: ~U[2024-04-01 00:00:00Z],
+        end_datetime: ~U[2024-04-03 00:00:00Z]
+      ]
+
+      everything = Analytics.module_cache_hits_analytics(opts)
+      just_main = Analytics.module_cache_hits_analytics(Keyword.put(opts, :git_branch, "main"))
+
+      # main hit both targets and the feature branch hit none, so scoping to
+      # main cannot leave the count unchanged.
+      assert everything.total_count == 2
+      assert just_main.total_count == 2
+
+      just_feature =
+        Analytics.module_cache_hits_analytics(Keyword.put(opts, :git_branch, "feature/x"))
+
+      assert just_feature.total_count == 0
+    end
+
+    test "a module removed from the latest commit is no longer a dependent", %{project: project} do
+      commit = fn sha, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          git_commit_sha: sha,
+          created_at: created_at
+        ).id
+      end
+
+      target = fn event_id, name, sources, deps ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}",
+          binary_cache_hit: :miss,
+          sources_hash: sources,
+          dependencies: deps
+        )
+      end
+
+      # Two modules depended on Core.
+      old = commit.("old", ~N[2024-04-01 10:00:00])
+      target.(old, "Core", "c1", [])
+      target.(old, "Networking", "n1", ["Core"])
+      target.(old, "Legacy", "l1", ["Core"])
+
+      # Legacy is gone in the newest commit, so Core has one dependent left.
+      latest = commit.("latest", ~N[2024-04-02 10:00:00])
+      target.(latest, "Core", "c2", [])
+      target.(latest, "Networking", "n2", ["Core"])
+
+      modules = Analytics.module_invalidations(project_id: project.id)
+      core = Enum.find(modules, &(&1.name == "Core"))
+
+      assert core.blast_radius == 1
+    end
+
+    test "the environment filter picks the latest commit within that environment", %{
+      project: project
+    } do
+      build = fn sha, is_ci, created_at, names ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            git_commit_sha: sha,
+            is_ci: is_ci,
+            created_at: created_at
+          )
+
+        for name <- names do
+          XcodeFixtures.xcode_target_fixture(
+            command_event_id: event.id,
+            name: name,
+            product: "framework",
+            binary_cache_hash: "h-#{name}-#{sha}",
+            binary_cache_hit: :miss,
+            sources_hash: "s-#{name}-#{sha}"
+          )
+        end
+      end
+
+      build.("ci-commit", true, ~N[2024-04-01 10:00:00], ["Core", "Networking"])
+      # A later local build of a different commit must not blank out the CI count.
+      build.("local-commit", false, ~N[2024-04-02 10:00:00], ["Core"])
+
+      opts = [project_id: project.id, git_branch: "main"]
+
+      assert Analytics.module_count(Keyword.put(opts, :is_ci, true)) == 2
+      assert Analytics.module_count(Keyword.put(opts, :is_ci, false)) == 1
+    end
+  end
+
   describe "module_build_history/1" do
     setup do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)

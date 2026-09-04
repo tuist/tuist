@@ -1204,7 +1204,7 @@ defmodule TuistWeb.Router do
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
-      live "/module-cache/modules", ModuleInvalidationsLive
+      live "/module-cache/modules", ModulesLive
       live "/module-cache/modules/:module", ModuleCacheModuleLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive

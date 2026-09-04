@@ -156,6 +156,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
             :project_settings_hash,
             :target_settings_hash,
             :buildable_folders_hash,
+            :additional_hashing_inputs_hash,
             :external_hash
           ],
           fn key -> {key, Keyword.get(opts, key, "")} end

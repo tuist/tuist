@@ -203,11 +203,8 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp analytics_opts(
-         %{
-           selected_project: project,
-           analytics_period: {start_datetime, end_datetime},
-           analytics_environment: env
-         } = assigns
+         %{selected_project: project, analytics_period: {start_datetime, end_datetime}, analytics_environment: env} =
+           assigns
        ) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
@@ -293,12 +290,18 @@ defmodule TuistWeb.ModuleCacheLive do
     end)
   end
 
+  # One row per module, so this bounds the project's module count rather than a
+  # growing event stream.
+  @summary_module_limit 5_000
+
   defp assign_module_invalidations(%{assigns: %{selected_project: project}} = socket, _params) do
     opts = analytics_opts(socket.assigns)
     {start_datetime, end_datetime} = socket.assigns.analytics_period
 
     assign_async(socket, [:module_invalidations, :module_invalidations_summary, :cache_branches], fn ->
-      invalidations = Analytics.module_invalidations(opts)
+      # The summary ranks and shares across every module, so it cannot be
+      # computed from the handful of rows the card lists.
+      invalidations = opts |> Keyword.put(:limit, @summary_module_limit) |> Analytics.module_invalidations()
 
       branches =
         Analytics.cache_branches(

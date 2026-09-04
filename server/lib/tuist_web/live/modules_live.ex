@@ -1,4 +1,4 @@
-defmodule TuistWeb.ModuleInvalidationsLive do
+defmodule TuistWeb.ModulesLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora

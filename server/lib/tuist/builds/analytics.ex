@@ -2324,7 +2324,8 @@ defmodule Tuist.Builds.Analytics do
               xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
               xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
               xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash
+              xt.target_settings_hash, xt.buildable_folders_hash,
+              xt.additional_hashing_inputs_hash
             ) AS own,
             xt.dependencies_hash AS deps,
             xt.external_hash AS ext
@@ -2391,16 +2392,34 @@ defmodule Tuist.Builds.Analytics do
     params =
       Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
 
+    # Grouping over the window would keep a module that newer builds no longer
+    # contain, so the graph is read from the newest commit that carries edges.
+    # A commit is usually built more than once, so it is taken across every
+    # build of that commit rather than from one.
     query = """
     SELECT name, argMax(dependencies, ran_at) AS dependencies
     FROM (
-      SELECT xt.name AS name, xt.dependencies AS dependencies, e.ran_at AS ran_at
+      SELECT
+        xt.name AS name,
+        xt.dependencies AS dependencies,
+        e.ran_at AS ran_at,
+        coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) AS commit
       FROM xcode_targets AS xt
       INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
         AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+    )
+    WHERE commit = (
+      SELECT argMax(coalesce(nullIf(e2.git_commit_sha, ''), toString(e2.id)), e2.ran_at)
+      FROM xcode_targets AS xt2
+      INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
+      WHERE e2.project_id = {project_id:Int64}
+        AND e2.ran_at >= {start:DateTime64(6)}
+        AND e2.ran_at <= {end:DateTime64(6)}
+        AND xt2.binary_cache_hash IS NOT NULL
+        AND notEmpty(xt2.dependencies)#{String.replace(filter_sql, "e.", "e2.")}
     )
     GROUP BY name
     """
@@ -2590,7 +2609,8 @@ defmodule Tuist.Builds.Analytics do
               xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
               xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
               xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash
+              xt.target_settings_hash, xt.buildable_folders_hash,
+              xt.additional_hashing_inputs_hash
             ) AS own,
             xt.dependencies_hash AS deps,
             xt.external_hash AS ext
@@ -2844,7 +2864,7 @@ defmodule Tuist.Builds.Analytics do
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND e2.git_branch = {branch:String}
-        AND xt2.binary_cache_hash IS NOT NULL
+        AND xt2.binary_cache_hash IS NOT NULL#{String.replace(filter_sql, "e.", "e2.")}
     )
     """
 
@@ -2995,7 +3015,8 @@ defmodule Tuist.Builds.Analytics do
             xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
             xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
             xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-            xt.target_settings_hash, xt.buildable_folders_hash
+            xt.target_settings_hash, xt.buildable_folders_hash,
+            xt.additional_hashing_inputs_hash
           ) AS own,
           xt.dependencies_hash AS deps,
           xt.external_hash AS ext

@@ -86,7 +86,7 @@
   }
 }
 
-#module-invalidations {
+#module-cache-modules {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);

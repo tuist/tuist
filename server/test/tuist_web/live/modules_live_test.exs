@@ -1,4 +1,4 @@
-defmodule TuistWeb.ModuleInvalidationsLiveTest do
+defmodule TuistWeb.ModulesLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
@@ -9,7 +9,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
 
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
-  alias TuistWeb.ModuleInvalidationsLive
+  alias TuistWeb.ModulesLive
 
   test "lists all modules with invalidations", %{
     conn: conn,
@@ -46,9 +46,9 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
 
     # Environment and date range filter the page; search and sort are table
     # controls and stay with the table.
-    assert has_element?(lv, "#module-invalidations > [data-part=\"filters\"] #module-invalidations-environment-dropdown")
-    refute has_element?(lv, "#module-invalidations-branch-dropdown")
-    assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-invalidations-sort-dropdown")
+    assert has_element?(lv, "#module-cache-modules > [data-part=\"filters\"] #modules-environment-dropdown")
+    refute has_element?(lv, "#modules-branch-dropdown")
+    assert has_element?(lv, "[data-part=\"modules-table-section\"] #modules-sort-dropdown")
     assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-search")
 
     headers =
@@ -317,9 +317,9 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
 
     # The lowest hit rate is the worst, so that column opens ascending while the
     # count columns open descending.
-    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "hit_rate") =~ "sort-order=asc"
-    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "invalidations") =~ "sort-order=desc"
-    assert ModuleInvalidationsLive.sort_dropdown_patch(%URI{query: ""}, "blast_radius") =~ "sort-order=desc"
+    assert ModulesLive.sort_dropdown_patch(%URI{query: ""}, "hit_rate") =~ "sort-order=asc"
+    assert ModulesLive.sort_dropdown_patch(%URI{query: ""}, "invalidations") =~ "sort-order=desc"
+    assert ModulesLive.sort_dropdown_patch(%URI{query: ""}, "blast_radius") =~ "sort-order=desc"
   end
 
   # phx-click sits on the wrapper the widget component renders, not on the
@@ -344,7 +344,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "starts on the first page when no cursor is given", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, nil, nil)
+      page = ModulesLive.page_of(modules, nil, nil)
 
       assert length(page.rows) == 25
       assert page.start_cursor == "Module01"
@@ -354,7 +354,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "an after cursor takes the rows following it", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, "Module25", nil)
+      page = ModulesLive.page_of(modules, "Module25", nil)
 
       assert page.start_cursor == "Module26"
       assert page.end_cursor == "Module50"
@@ -363,7 +363,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "a before cursor takes the page preceding it", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, nil, "Module26")
+      page = ModulesLive.page_of(modules, nil, "Module26")
 
       assert page.start_cursor == "Module01"
       assert page.end_cursor == "Module25"
@@ -372,7 +372,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "the last page is short and has no next page", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, "Module50", nil)
+      page = ModulesLive.page_of(modules, "Module50", nil)
 
       assert length(page.rows) == 10
       assert page.end_cursor == "Module60"
@@ -381,7 +381,7 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "paging back from a partial last page lands on a full page", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, nil, "Module51")
+      page = ModulesLive.page_of(modules, nil, "Module51")
 
       assert length(page.rows) == 25
       assert page.start_cursor == "Module26"
@@ -389,14 +389,14 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     end
 
     test "a cursor the search or sort removed falls back to the first page", %{modules: modules} do
-      page = ModuleInvalidationsLive.page_of(modules, "Gone", nil)
+      page = ModulesLive.page_of(modules, "Gone", nil)
 
       assert page.start_cursor == "Module01"
       refute page.has_previous_page
     end
 
     test "an empty list has neither a page nor cursors" do
-      page = ModuleInvalidationsLive.page_of([], nil, nil)
+      page = ModulesLive.page_of([], nil, nil)
 
       assert page.rows == []
       assert is_nil(page.start_cursor)

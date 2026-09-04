@@ -1,7 +1,7 @@
-<div id="module-invalidations">
+<div id="module-cache-modules">
   <div data-part="filters">
     <.dropdown
-      id="module-invalidations-environment-dropdown"
+      id="modules-environment-dropdown"
       label={environment_label(@analytics_environment)}
       secondary_text={dgettext("dashboard_cache", "Environment:")}
     >
@@ -22,7 +22,7 @@
       </.dropdown_item>
     </.dropdown>
     <.date_picker
-      id="module-invalidations-date-range-picker"
+      id="modules-date-range-picker"
       name="analytics-date-range"
       presets={[
         %{
@@ -58,7 +58,7 @@
           variant="secondary"
           phx-click={
             JS.dispatch("phx:date-picker-cancel",
-              detail: %{id: "module-invalidations-date-range-picker"}
+              detail: %{id: "modules-date-range-picker"}
             )
           }
         />
@@ -66,7 +66,7 @@
           label={dgettext("dashboard_cache", "Apply")}
           phx-click={
             JS.dispatch("phx:date-picker-apply",
-              detail: %{id: "module-invalidations-date-range-picker"}
+              detail: %{id: "modules-date-range-picker"}
             )
           }
         />
@@ -335,7 +335,7 @@
           />
         </form>
         <.dropdown
-          id="module-invalidations-sort-dropdown"
+          id="modules-sort-dropdown"
           label={sort_label(@sort_by)}
           secondary_text={dgettext("dashboard_cache", "Sort by:")}
         >
