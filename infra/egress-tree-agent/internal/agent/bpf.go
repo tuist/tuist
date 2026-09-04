@@ -102,48 +102,77 @@ func (a Attacher) EnsureReturn(returnDev string) error {
 	return nil
 }
 
+// AttachOutcome describes what EnsurePod did to a pod device's tcx link.
+// The distinction matters to the metrics: a first attach is routine (every
+// pod creation produces exactly one), while a reattach means something
+// stripped or displaced a link we had already installed.
+type AttachOutcome int
+
+const (
+	// AttachUnchanged: the pinned link was already attached and still first
+	// in the chain, so only the maps were synced.
+	AttachUnchanged AttachOutcome = iota
+	// AttachFirst: no link pin existed, so this is a new pod device. A
+	// rolling update of N pods produces exactly N of these.
+	AttachFirst
+	// AttachReattach: a link pin existed, but the link was missing, bound to
+	// a stale ifindex, unreadable, or no longer first in the chain. Cilium
+	// replaces its own link in place and leaves foreign links alone, so this
+	// means something else manipulated the chain.
+	AttachReattach
+)
+
 // EnsurePod converges one pod device: program attached first in the tcx
-// chain (before cil_from_container) and maps in sync. Returns whether the
-// link was (re)attached, which feeds the churn metric — repeated reattaches
-// mean something else is manipulating the chain.
-func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAttachment) (bool, error) {
+// chain (before cil_from_container) and maps in sync. The returned outcome
+// feeds the attach and churn metrics — repeated reattaches mean something
+// else is manipulating the chain.
+func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAttachment) (AttachOutcome, error) {
 	iface, err := net.InterfaceByName(dev)
 	if err != nil {
-		return false, fmt.Errorf("resolving %s: %w", dev, err)
+		return AttachUnchanged, fmt.Errorf("resolving %s: %w", dev, err)
 	}
 	dir := a.podDir(dev)
+
+	// Pin existence, not linkAttached, is what separates a new pod device
+	// from a displaced link: linkAttached deliberately reads a present but
+	// unreadable pin as detached, and that case is interference to report,
+	// not a pod that never had a program.
+	outcome := AttachFirst
+	if pathExists(filepath.Join(dir, "link")) {
+		outcome = AttachReattach
+	}
 
 	if a.linkAttached(dir, iface.Index) {
 		first, err := a.linkIsFirst(dir, iface.Index)
 		if err != nil {
-			return false, err
+			return AttachUnchanged, err
 		}
 		if first {
-			return false, a.syncPodMaps(dir, trampolineIfindex, attachment)
+			return AttachUnchanged, a.syncPodMaps(dir, trampolineIfindex, attachment)
 		}
 	}
 	a.removePins(dir)
 
 	objects := redirectObjects{}
 	if err := loadRedirectObjects(&objects, nil); err != nil {
-		return false, fmt.Errorf("loading pod program: %w", err)
+		return AttachUnchanged, fmt.Errorf("loading pod program: %w", err)
 	}
 	defer objects.Close()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
 	if err := objects.Config.Pin(filepath.Join(dir, "config")); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
 	if err := objects.Siblings.Pin(filepath.Join(dir, "siblings")); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
 	if err := objects.Counters.Pin(filepath.Join(dir, "counters")); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
 	// Maps are fully populated before the program can see a packet.
 	if err := a.syncPodMaps(dir, trampolineIfindex, attachment); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
 	l, err := link.AttachTCX(link.TCXOptions{
 		Interface: iface.Index,
@@ -152,13 +181,13 @@ func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAtt
 		Anchor:    link.Head(),
 	})
 	if err != nil {
-		return false, fmt.Errorf("attaching pod program to %s: %w", dev, err)
+		return AttachUnchanged, fmt.Errorf("attaching pod program to %s: %w", dev, err)
 	}
 	defer l.Close()
 	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
-		return false, err
+		return AttachUnchanged, err
 	}
-	return true, nil
+	return outcome, nil
 }
 
 func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodAttachment) error {

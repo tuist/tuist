@@ -50,7 +50,7 @@ use crate::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
     },
     io::{IoController, PersistentFile},
-    memory::MemoryController,
+    memory::{MemoryController, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
@@ -1997,7 +1997,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(segment_id.as_str()),
+                offset,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.segment_handle(segment_id).await?;
@@ -2016,7 +2024,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(blob_path.as_str()),
+                offset: 0,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.blob_handle(blob_path).await?;

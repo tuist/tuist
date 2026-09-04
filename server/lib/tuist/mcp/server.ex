@@ -78,6 +78,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjects,
     Tools.GetProject,
     Tools.ListProjectTokens,
+    Tools.StartProjectLogoUpload,
+    Tools.CompleteProjectLogoUpload,
     Tools.ListPreviews,
     Tools.GetPreview,
     Tools.GetLatestPreview

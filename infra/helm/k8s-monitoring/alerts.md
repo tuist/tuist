@@ -66,9 +66,13 @@ that hosts no cache pod count towards its region: one cache pod anywhere in the
 pool names the region, and every node of that pool inherits it.
 
 Create them under **Alerting → Recording rules**, folder `Alerts`, group
-`Kura region joins`, evaluated every minute. Rules in a group evaluate in
-order, so keep the order below: `kura:pool_region` reads the two rules above
-it and `kura:node_region` reads them both.
+`Kura Recording`, evaluated every minute. Each rule writes its result back to
+the metrics datasource and the next one reads it from there, so the chain
+settles over a few evaluation cycles rather than within one, and position
+inside the group does not order it. When extending the chain, create the new
+rule and wait for it to populate before pointing an existing rule at it:
+switching a consumer first leaves it evaluating against a missing series, and
+`kura:node_region` feeds every region rule in this document.
 
 ```promql
 # kura:pod_region
@@ -1137,7 +1141,9 @@ histogram_quantile(0.5,
   )
 )
 and on (cluster, pod) (
-  max by (cluster, pod) (kura_backfill_ring_fullness_percent{cluster="tuist-production"}) >= 100
+  min by (cluster, pod) (
+    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[1d])
+  ) >= 100
 )
 ```
 
@@ -1157,13 +1163,90 @@ and on (cluster, pod) (
   younger than a day (median age of the youngest artifact in each segment the
   ring rotated out over the last day). Overnight and weekend builds will miss.
   Rings run full by design; what this measures is whether the claim is enough
-  for the account's write rate, so the lever is the account's storage claim
-  (Tuist.Kura.ClaimSizing proposes the size), not the region. If several
-  accounts in one region fire together, the region is the problem, see "Kura
-  region cannot place another instance" for disk.`
+  for the account's write rate. The lever is the account's storage claim,
+  which Tuist.Kura.ClaimSizing sizes and applies on its own, so this fires
+  only where that loop cannot fix it: the claim is clamped at the plan ceiling
+  (64Gi air and pro, 256Gi enterprise), the region has no disk to grow into
+  (see "Kura region cannot place another instance"), or sizing itself is
+  stuck. Only rings that have been full for the whole day count: a ring
+  rebuilt more recently cannot report an eviction older than itself, so it
+  would fire on its own age.`
 
-The critical tier of **Kura instance retention horizon short** below, which
-carries the reasoning.
+Kura instances are expected to use all the disk they are given: every
+production ring runs at 100% of its desired segment count, and a full ring is
+not a signal of anything. What the customer feels is how long an artifact
+survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
+records, for every segment the ring rotates out, the age of the youngest
+content in it, which is exactly "how soon after being written can an artifact
+disappear". Under a day, overnight and weekend builds miss.
+
+**Per instance, not per region.** The write rate that empties a ring is one
+account's, and so is the lever: the storage claim, which
+`Tuist.Kura.ClaimSizing` sizes per account. The region only enters when the
+claim cannot grow because the box is full, which is the disk row of **Kura
+region cannot place another instance**. A region-level median would also hide
+the case that matters: on 2026-09-02 one account's instances sat at about
+three days in both US regions while every other instance in the fleet sat
+above ten, and the region medians read as "about three days" purely because
+of it.
+
+**There is no warning tier, because sizing is the actor.**
+`Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
+its proposals unattended every ten minutes, within a fleet-wide budget of five
+applies an hour. Its own `retention_floor_days` is 3, so any instance whose
+retention falls under two days is already inside the band sizing is working
+on, and it is deliberately unhurried there: the rung that matches a one-day
+shed age needs five consecutive qualifying days before it grows the claim. A
+two-day rule therefore alerts on a control loop that is mid-confirmation and
+would keep alerting for days while it does its job. A rule at two days was
+deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
+only on the artifact described below. One day is the tier worth waking
+someone: it means the loop did not keep up, or cannot act at all.
+
+What is genuinely actionable and still has no rule of its own is *sizing
+blocked*: the claim clamped at the plan ceiling, or open proposals the worker
+is not draining. Neither is visible to Prometheus today, because the server
+exports no claim-size or ceiling metric. That is the rule to add, in place of
+the two-day tier.
+
+**Only a ring that has been full for a whole day counts.** Fullness is the
+segment count against the ring's desired total, so it reads 100 in steady
+state on every instance; the gate keeps a ring that is still filling (after a
+bootstrap, or while the segment count is converging) out of the rule even if
+it rotates a segment early. It has to be `min_over_time` across the
+threshold's own window, not the instantaneous value: a ring is rebuilt from
+empty whenever its instance lands on a new node, since the cache is
+local-path, and a rebuilt ring holds nothing older than itself, so the oldest
+eviction it can possibly report is its own age. An instantaneous gate opens
+the moment the refill completes and the rule then fires on the rebuild, every
+time, for as long as the threshold. `min_over_time(...[1d]) >= 100` is exactly
+the invariant the threshold needs: content *could* be a day old, so a median
+under a day is real.
+
+This is not hypothetical. On 2026-09-03 at 10:20 UTC both
+`kura-tuist-eu-central-1` replicas moved from node `...fleet-tkhrc-wktsj` to
+`...-x47qf`; ring fullness went 100 to 1 on both and climbed back to 100 about
+25 hours later. The rollup median shed age for that account-region went from
+1,124,768s (13d) on 09-03 to 86,347s (~24h) on 09-04, with
+`median_ring_span_seconds` collapsing identically (1,169,349 to 85,242) while
+its scw-fr-par instance held at ~11 days. Both tiers fired within an hour of
+the refill completing, on rings whose entire contents were younger than the
+threshold. Sizing correctly proposed nothing: one day of evidence, and the
+matching rung needs five.
+
+**Bucket edges are coarse but sit where the threshold is.** The histogram's
+edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
+interpolated inside a bucket, but the threshold coincides with an edge. The
+`[1d]` window is one day of rotations: long enough that a single early
+rotation does not set the median, short enough to react within the day the
+claim became too small.
+
+Measured on 2026-09-04 with the gate in place, the rule returns ten instances
+and the shortest median is 216,000s (2.5 days, one account's four instances);
+the rest read between ten and thirty days, and three instances have shed no
+segment at all in the window (`NaN`, which the `< 86400` threshold does not
+match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
+the one to watch as its usage grows.
 
 ### Kura egress budget almost entirely consumed
 
@@ -2607,7 +2690,9 @@ spent above a threshold.
 
 ### Kura region has room for one more instance
 
-Same query as **Kura region cannot place another instance**.
+The `ceiling` and `memory` rows of **Kura region cannot place another
+instance**, carrying the same zero default. The `disk` and `egress` rows are
+on the critical rule only.
 
 - Threshold: `< 2`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
@@ -2622,11 +2707,10 @@ Same query as **Kura region cannot place another instance**.
 - Description: `Counts how many more two-replica enterprise instances the
   region can place, per placement constraint (ceiling = the
   tuist.dev/memory-ceiling-mib extended resource, memory = native requests
-  against allocatable, disk = ephemeral-storage claims against allocatable
-  disk, egress = 25 Mbps floors against the advertised budget). One means the next enterprise sign-up is the last that fits; zero is
-  paged separately. Plan a node for the region before it lands.`
+  against allocatable). One means the next enterprise sign-up is the last that
+  fits; zero is paged separately. Plan a node for the region before it lands.`
 
-The lead-time tier, on all three constraints: the next enterprise instance is
+The lead-time tier, on both constraints: the next enterprise instance is
 the last one that fits.
 It also holds at zero, alongside the critical rule; that is intended, the
 critical one pages and this one keeps the Slack thread.
@@ -2720,68 +2804,6 @@ Measured on 2026-09-02, every production pod's one-hour average sits well
 under half its request; over the previous 7 days a few pods peaked above their
 request at a single 10-minute sample, which is the allowed behaviour and which
 the hour average filters out.
-
-### Kura instance retention horizon short
-
-Same query as **Kura instance retention horizon under a day**.
-
-- Threshold: `< 172800` seconds (two days), as a separate threshold expression
-  on `A`
-- Pending period: 60 minutes
-- Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
-  `affected_service` for the cache component.
-- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
-  {{ $labels.region }} evicts artifacts after a median of
-  {{ $values.A.Value | humanizeDuration }}; grow its storage claim`
-- Description: `The instance's ring is full and the median age of the
-  artifacts it evicts has dropped under two days. Rings run full by design;
-  this measures whether the account's claim is enough for its write rate, so
-  the lever is the account's storage claim (Tuist.Kura.ClaimSizing proposes
-  the size). Under a day is paged separately.`
-
-Kura instances are expected to use all the disk they are given: every
-production ring runs at 100% of its desired segment count, and a full ring is
-not a signal of anything. What the customer feels is how long an artifact
-survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
-records, for every segment the ring rotates out, the age of the youngest
-content in it, which is exactly "how soon after being written can an artifact
-disappear". A median under two days means a build that reuses yesterday's
-artifacts is starting to miss; under a day, overnight and weekend builds miss.
-
-**Per instance, not per region.** The write rate that empties a ring is one
-account's, and so is the lever: the storage claim, which
-`Tuist.Kura.ClaimSizing` already proposes growing or shrinking per account.
-The region only enters when the claim cannot grow because the box is full,
-which is the disk row of **Kura region cannot place another instance**. A
-region-level median would also hide the case that matters: on 2026-09-02 one
-account's instances sat at about three days in both US regions while every
-other instance in the fleet sat above ten, and the region medians read as
-"about three days" purely because of it.
-
-**Only a full ring counts.** A new or recently restarted instance starts with
-an empty ring and fills over days; it has not shed anything, so it has no
-samples here and cannot fire, but the `and` on
-`kura_backfill_ring_fullness_percent >= 100` makes the intent explicit and
-keeps a ring that is still filling (after a bootstrap, or while the segment
-count is converging) out of the rule even if it rotates a segment early.
-Fullness is the segment count against the ring's desired total, so it reads
-100 in steady state on every instance and is the right gate, not an alarm.
-
-**Bucket edges are coarse but sit where the thresholds are.** The histogram's
-edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
-interpolated inside a bucket, but both thresholds coincide with an edge. The
-`[1d]` window is one day of rotations: long enough that a single early
-rotation does not set the median, short enough to react within the day the
-claim became too small.
-
-Measured on 2026-09-02 across production with the rule's own one-day window,
-every full ring's median is five days or more (one account's four instances
-at about five, the rest between ten and thirty); over a seven-day window that
-same account reads about three days. Nothing is under two days, so both rules
-are quiet on creation; that account is the one to watch as its usage grows.
 
 ### Kura egress budget heavily used
 
@@ -2962,8 +2984,19 @@ or label_replace(
   the return program failed to attach, shaped pods blackholed until the detach
   threshold. reconcile_errors: the loop is failing. sibling_overflow: an
   account outgrew the 16-entry sibling map, extra replicas run shaped with no
-  log. reattach_churn: links re-attaching after steady state. skipped_pods:
-  annotated pods not attached (unresolvable device or malformed annotation).
+  log. reattach_churn: a tcx link the agent had already installed was stripped
+  or displaced from the head of a pod device's chain. Cilium replaces its own
+  link in place and leaves ours alone, so this means external interference; the
+  matching 'reattached pod program' warning in the agent log names the pod and
+  device. CAVEAT on agent versions older than the metric split (those not
+  exporting kura_egress_tree_link_attach_total): there this counter ALSO counted
+  the first attach on every new pod device, so any kura rollout replaces every
+  pod, each replacement gets a new lxc device, and this signal trips with
+  nothing wrong. Before treating it as real on those versions, check that
+  kura_egress_tree_attached_pods moved (a rollout leaves it flat because deploys
+  are gapless) and that the pods on the node are not all freshly created.
+  skipped_pods: annotated pods not attached (unresolvable device or malformed
+  annotation).
   budget_mismatch: the tree's root ceiling disagrees with the node's advertised
   tuist.dev/egress-mbps. softnet_drops: per-CPU backlog overflow on a shaped
   box, a silent kernel drop no agent counter sees. no_agent: a box with a
@@ -2973,7 +3006,12 @@ or label_replace(
 
 Every arm is one of the alarms the agent's own notes ask for
 (`infra/egress-tree-agent/AGENTS.md`, *Metrics / alerts*), collected into one
-rule with a `signal` label so a single summary names the tripwire. Without
+rule with a `signal` label so a single summary names the tripwire. The one
+counter those notes deliberately exclude is `kura_egress_tree_link_attach_total`:
+it counts first attaches on new pod devices, one per pod creation, so it tracks
+pod churn rather than shaping integrity and climbs by a node's whole pod count
+on any rollout. It exists to keep that traffic out of `reattach_churn`, and
+must not become an arm here. Without
 them **Kura egress budget heavily used** measures a number the tree may not
 be enforcing, and **Kura account at its egress ceiling** reads a ceiling that
 may not be applied.
@@ -2993,10 +3031,22 @@ other boxes' agents still answer).
 Windows and bars: the tc/BPF counters are kernel counters exported as gauges,
 so every counting arm uses `increase()` over 30 minutes (a rebuild of the tree
 resets them, which reads as nothing, not as a spike), with the 15 minute
-pending period on top so a controller rollout, which re-attaches every pod
-once and briefly reports skipped pods, passes. `reattach_churn` is the one arm
-with a bar above zero: a rollout re-attaches each pod once, so more than five
-re-attaches on a box in an hour is churn. `no_agent` and `softnet_drops` are
+pending period on top so a rollout, which replaces every pod and so attaches
+each new device once and briefly reports the replacements as skipped while
+their Cilium endpoints appear, passes. `reattach_churn` is the one arm
+with a bar above zero, and the bar is a workaround being retired, not a
+property of the signal. It was set on the reasoning that "a rollout re-attaches
+each pod once, so more than five on a box in an hour is churn"; that premise is
+wrong twice. A rollout does not *re*-attach — each replaced pod is a new veth
+getting its *first* attach — and the count scales with the node's pod count, so
+no fixed bar is safe: the 2026-09-04 kura 0.33.0 -> 0.34.0 rollout replaced 47
+of 51 production pods and produced 18 on one box, with `attached_pods` flat and
+every other arm at zero. `kura_egress_tree_link_reattach_total` now counts only
+displaced links (`infra/egress-tree-agent/AGENTS.md`, *Metrics / alerts*), so
+this bar drops to `> 0` — but **only once that agent build is deployed
+fleet-wide**, since agents predating the split still emit the conflated counter
+and a tighter bar would fire sooner on rollouts, not less. `no_agent` and
+`softnet_drops` are
 scoped to boxes that advertise a budget, which keeps the deliberately
 unshaped runner-cache box out. The agent's pod name is joined to its node
 through `kube_pod_info`; the agent's series carry no `node` label.
@@ -3004,7 +3054,10 @@ through `kube_pod_info`; the agent's series carry no `node` label.
 Measured on 2026-09-02, every arm is zero across production over the last 7
 days (no unshaped or dropped packets, no attach failures, no softnet drops,
 every governed box has a healthy agent and its budget matches the advertised
-capacity). Quiet on creation.
+capacity). Quiet on creation. That held for every arm except `reattach_churn`,
+which was found on 2026-09-04 to fire on every kura release — roughly six
+windows in the preceding two weeks, all false — for the reason described under
+*Windows and bars* above.
 
 ### Kura response streams waiting or degraded
 

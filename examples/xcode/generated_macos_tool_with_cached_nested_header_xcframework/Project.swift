@@ -60,5 +60,53 @@ let project = Project(
                 .xcframework(path: "NestedObjCKit.xcframework"),
             ]
         ),
+        // A `.staticFramework` that links the same static nested-header xcframeworks. When it's
+        // cached and a consumer links it, `LinkGenerator`'s transitive-static relink pulls the
+        // wrapped xcframeworks into the consumer's Frameworks build phase — Xcode then runs
+        // `ProcessXCFramework` on them and copies `Headers/<Module>/` into
+        // `$(BUILT_PRODUCTS_DIR)/include/<Module>/`. The direct-graph-edge suppression walker
+        // never saw this shape, so a sibling target reaching the same xcframework via the
+        // cached dynamic `Library` still got vendor `Headers/` on `HEADER_SEARCH_PATHS`
+        // added by `StaticXCFrameworkModuleMapGraphMapper`, and Clang's dep scanner rejected
+        // both maps with `redefinition of module`.
+        .target(
+            name: "StaticWrapper",
+            destinations: .macOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.NestedHeaderXCFramework.StaticWrapper",
+            infoPlist: .default,
+            sources: ["StaticWrapper/Sources/**"],
+            dependencies: [
+                .xcframework(path: "NestedObjC.xcframework"),
+                .xcframework(path: "NestedObjCKit.xcframework"),
+            ]
+        ),
+        // Consumes both the cached `StaticWrapper` (which transitively relinks the nested
+        // xcframeworks at this level) and the cached dynamic `Library` (which routes the
+        // same xcframeworks through the mapper's dynamic-behind walker). Without the
+        // linkable-dependencies suppression widening, this target sees both the
+        // `include/<Module>/module.modulemap` copy from `ProcessXCFramework` and the
+        // vendor `Headers/<Module>/module.modulemap` on the search path, and Clang's
+        // dep scanner fails with `redefinition of module`.
+        .target(
+            name: "ToolLinkingStaticAndDynamicWrappers",
+            destinations: .macOS,
+            product: .commandLineTool,
+            bundleId: "io.tuist.NestedHeaderXCFramework.ToolLinkingStaticAndDynamicWrappers",
+            infoPlist: .default,
+            sources: ["ToolLinkingStaticAndDynamicWrappers/Sources/**"],
+            dependencies: [
+                .target(name: "Library"),
+                .target(name: "StaticWrapper"),
+            ],
+            // `redefinition of module` fires from Clang's explicit-modules dependency scanner.
+            // The project-level default disables explicit modules to keep the earlier fixtures
+            // focused on the umbrella-header / shadowed-module class of failures; override it
+            // here so this test actually exercises the dep-scan path where the redefinition
+            // surfaces.
+            settings: .settings(base: [
+                "SWIFT_ENABLE_EXPLICIT_MODULES": "YES",
+            ])
+        ),
     ]
 )

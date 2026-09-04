@@ -1168,48 +1168,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
-        // Given
-        try await withMockedDependencies {
-            givenGenerator()
-            given(buildGraphInspector)
-                .testableSchemes(graphTraverser: .any)
-                .willReturn([])
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(
-                            workspace: .test(schemes: [
-                                .test(name: "ProjectSchemeOne", testAction: .test(targets: [])),
-                            ])
-                        ),
-                        MapperEnvironment()
-                    )
-                }
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            try await fileSystem.touch(
-                testsCacheTemporaryDirectory.path.appending(component: "A")
-            )
-            try await fileSystem.touch(
-                testsCacheTemporaryDirectory.path.appending(component: "B")
-            )
-
-            // When
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
-            )
-
-            // Then
-            XCTAssertStandardOutput(
-                pattern:
-                "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
-            )
-            XCTAssertEmpty(testedSchemes)
-        }
+        try await assertSkippedTestReport(emptyScheme: .noTargets)
     }
 
     func test_throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
@@ -1292,201 +1251,51 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
-        try await withMockedDependencies {
-            // Given
-            givenGenerator()
-            var environment = MapperEnvironment()
-            environment.initialGraph = .test(
-                projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-                ]
-            )
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(),
-                        environment
-                    )
-                }
-
-            // When
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
-            )
-
-            // Then
-            XCTAssertEmpty(testedSchemes)
-            XCTAssertStandardOutput(
-                pattern:
-                "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
-            )
-        }
+        try await assertSkippedTestReport(emptyScheme: .removed)
     }
 
     func test_skips_running_tests_when_all_tests_are_cached() async throws {
-        try await withMockedDependencies {
-            // Given
-            givenGenerator()
-            var environment = MapperEnvironment()
-            environment.initialGraph = .test(
-                projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-                ]
-            )
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(),
-                        environment
-                    )
-                }
-
-            // When
-            try await testRun(
-                path: try temporaryPath()
-            )
-
-            // Then
-            XCTAssertEmpty(testedSchemes)
-            XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
-        }
+        try await assertSkippedTestReport(emptyScheme: .workspaceRemoved)
     }
 
     func test_writes_empty_shard_matrix_when_all_tests_are_cached_and_sharding_is_enabled() async throws {
-        try await withMockedDependencies {
-            // Given
-            givenGenerator()
-            var environment = MapperEnvironment()
-            environment.initialGraph = .test(
-                projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-                ]
-            )
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(),
-                        environment
-                    )
-                }
-            given(shardMatrixOutputService)
-                .output(.any)
-                .willReturn()
-
-            // When
-            try await testRun(
-                path: try temporaryPath(),
-                action: .build,
-                shardTotal: 2
-            )
-
-            // Then
-            XCTAssertEmpty(testedSchemes)
-            verify(shardMatrixOutputService)
-                .output(.any)
-                .called(1)
-        }
+        try await assertSkippedTestReport(emptyScheme: .workspaceRemoved, action: .build, shardTotal: 2)
     }
 
     func test_writes_empty_shard_matrix_when_scheme_is_in_initial_graph_only_and_sharding_is_enabled() async throws {
-        try await withMockedDependencies {
-            // Given
-            givenGenerator()
-            var environment = MapperEnvironment()
-            environment.initialGraph = .test(
-                projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-                ]
-            )
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(),
-                        environment
-                    )
-                }
-            given(shardMatrixOutputService)
-                .output(.any)
-                .willReturn()
-
-            // When
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath(),
-                action: .build,
-                shardTotal: 2
-            )
-
-            // Then
-            XCTAssertEmpty(testedSchemes)
-            verify(shardMatrixOutputService)
-                .output(.any)
-                .called(1)
-        }
+        try await assertSkippedTestReport(emptyScheme: .removed, action: .build, shardTotal: 2)
     }
 
     func test_writes_empty_shard_matrix_when_scheme_has_no_test_targets_and_sharding_is_enabled() async throws {
-        try await withMockedDependencies {
-            // Given
-            givenGenerator()
-            given(buildGraphInspector)
-                .testableSchemes(graphTraverser: .any)
-                .willReturn([])
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (
-                        path,
-                        .test(
-                            workspace: .test(schemes: [
-                                .test(name: "ProjectSchemeOne", testAction: .test(targets: [])),
-                            ])
-                        ),
-                        MapperEnvironment()
-                    )
-                }
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject()))
-            given(shardMatrixOutputService)
-                .output(.any)
-                .willReturn()
+        try await assertSkippedTestReport(emptyScheme: .noTargets, action: .build, shardTotal: 2)
+    }
 
-            // When
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath(),
-                action: .build,
-                shardTotal: 2
-            )
+    func test_skips_running_tests_when_scheme_has_no_test_plans() async throws {
+        try await assertSkippedTestReport(emptyScheme: .noTestPlans)
+    }
 
-            // Then
-            XCTAssertEmpty(testedSchemes)
-            verify(shardMatrixOutputService)
-                .output(.any)
-                .called(1)
-        }
+    func test_writes_empty_shard_matrix_when_scheme_has_no_test_plans() async throws {
+        try await assertSkippedTestReport(emptyScheme: .noTestPlans, action: .build, shardTotal: 2)
+    }
+
+    func test_build_skips_report_when_scheme_is_removed() async throws {
+        try await assertSkippedTestReport(emptyScheme: .removed, action: .build)
+    }
+
+    func test_build_skips_report_when_scheme_has_no_test_targets() async throws {
+        try await assertSkippedTestReport(emptyScheme: .noTargets, action: .build)
+    }
+
+    func test_build_skips_report_when_scheme_has_no_test_plans() async throws {
+        try await assertSkippedTestReport(emptyScheme: .noTestPlans, action: .build)
+    }
+
+    func test_build_skips_report_when_workspace_scheme_is_removed() async throws {
+        try await assertSkippedTestReport(emptyScheme: .workspaceRemoved, action: .build)
+    }
+
+    func test_empty_shard_matrix_without_full_handle() async throws {
+        try await assertSkippedTestReport(emptyScheme: .removed, action: .build, shardTotal: 2, fullHandle: nil)
     }
 
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
@@ -4730,6 +4539,126 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .any
             )
             .called(1)
+    }
+
+    private enum EmptyTestScheme {
+        case removed, noTargets, noTestPlans, workspaceRemoved
+    }
+
+    private func givenSkippedTestsGraph(emptyScheme: EmptyTestScheme, path: AbsolutePath) {
+        givenGenerator()
+        let target = Target.test(name: "AppTests", product: .unitTests)
+        let testableTarget = TestableTarget.test(target: TargetReference(projectPath: path, name: target.name))
+        let initialScheme = Scheme.test(
+            name: "ProjectSchemeOne",
+            testAction: .test(
+                targets: [testableTarget],
+                testPlans: emptyScheme == .noTestPlans ? [
+                    TestPlan(
+                        path: path.appending(component: "Tests.xctestplan"),
+                        testTargets: [testableTarget],
+                        isDefault: true
+                    ),
+                ] : nil
+            )
+        )
+        var mapperEnvironment = MapperEnvironment()
+        mapperEnvironment.initialGraph = .test(
+            workspace: .test(schemes: emptyScheme == .workspaceRemoved ? [initialScheme] : []),
+            projects: [path: .test(path: path, targets: [target], schemes: [initialScheme])]
+        )
+        let schemes: [Scheme] = switch emptyScheme {
+        case .removed, .workspaceRemoved: []
+        case .noTargets: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))]
+        case .noTestPlans: [.test(name: "ProjectSchemeOne", testAction: .test(targets: [], testPlans: []))]
+        }
+        let graph = Graph.test(projects: [path: .test(path: path, targets: [], schemes: schemes)])
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((path, graph, mapperEnvironment))
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willProduce { $0.workspace.schemes }
+    }
+
+    // swiftlint:disable:next function_body_length
+    private func assertSkippedTestReport(
+        emptyScheme: EmptyTestScheme,
+        action: XcodeBuildTestAction = .test,
+        shardTotal: Int? = nil,
+        fullHandle: String? = "tuist/tuist"
+    ) async throws {
+        try await withMockedDependencies {
+            let path = try temporaryPath()
+            givenSkippedTestsGraph(emptyScheme: emptyScheme, path: path)
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+            gitController.reset()
+            given(gitController)
+                .isInGitRepository(workingDirectory: .any)
+                .willReturn(true)
+            given(gitController)
+                .topLevelGitDirectory(workingDirectory: .any)
+                .willReturn(path)
+            given(gitController)
+                .gitInfo(workingDirectory: .any)
+                .willReturn(.test(ref: "refs/pull/12862/merge", sha: "current-commit"))
+            given(xcodebuildController)
+                .version()
+                .willReturn(nil)
+
+            var uploadedReports = 0
+            given(createTestService)
+                .createTest(
+                    fullHandle: .any, serverURL: .any, id: .any, testSummary: .any,
+                    buildRunId: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+                    gitRemoteURLOrigin: .any, isCI: .any, modelIdentifier: .any,
+                    macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
+                    ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
+                    shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any
+                )
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _ in
+                    uploadedReports += 1
+                    XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
+                    XCTAssertEqual(summary.status, .passed)
+                    self.XCTAssertEmpty(summary.testModules)
+                    XCTAssertEqual(commit, "current-commit")
+                    XCTAssertEqual(ref, "refs/pull/12862/merge")
+                    XCTAssertNil(planId)
+                    XCTAssertNil(shardIndex)
+                    return .init(
+                        duration: 0, id: "skipped-test-id", project_id: 1, test_case_runs: [],
+                        _type: .test, url: "https://tuist.dev/tuist/tuist/tests/test-runs/skipped-test-id"
+                    )
+                }
+
+            try await testRun(
+                schemeName: emptyScheme == .workspaceRemoved ? nil : "ProjectSchemeOne",
+                path: path,
+                action: action,
+                testPlanConfiguration: emptyScheme == .noTestPlans ? TestPlanConfiguration(testPlan: "Tests") : nil,
+                skipQuarantine: true,
+                shardTotal: shardTotal,
+                mode: .remote
+            )
+
+            let shouldUpload = fullHandle != nil && (action != .build || shardTotal != nil)
+            XCTAssertEqual(uploadedReports, shouldUpload ? 1 : 0)
+            let testRunId = await runMetadataStorage.testRunId
+            XCTAssertEqual(testRunId, shouldUpload ? "skipped-test-id" : nil)
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.matching { $0.shard_count == 0 && $0.shards.isEmpty })
+                .called(shardTotal != nil ? 1 : 0)
+
+            let log = switch emptyScheme {
+            case .removed, .noTargets: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
+            case .noTestPlans: "The scheme ProjectSchemeOne's test action has no test plans to run, finishing early."
+            case .workspaceRemoved: "There are no tests to run, finishing early"
+            }
+            XCTAssertStandardOutput(pattern: log)
+        }
     }
 
     private func givenGenerator() {

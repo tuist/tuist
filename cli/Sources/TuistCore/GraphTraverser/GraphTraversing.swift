@@ -361,6 +361,25 @@ public protocol GraphTraversing {
         name: String
     ) -> Set<GraphDependency>
 
+    /// Static Objective-C xcframeworks (that ship their own module map) reachable in this graph
+    /// from the target through targets that no longer exist in `currentGraph`. Used to recover
+    /// module visibility after a binary-cache substitution drops the graph edge to the static
+    /// xcframework a cached dynamic dependency still imports in its `.swiftmodule`.
+    func staticObjcXCFrameworksReachableViaCachedTargets(
+        path: AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency>
+
+    /// Static Swift xcframeworks reachable in this graph from the target through targets
+    /// that no longer exist in `currentGraph`. Sister to
+    /// `staticObjcXCFrameworksReachableViaCachedTargets` for the Swift-module flavour.
+    func staticSwiftXCFrameworksReachableViaCachedTargets(
+        path: AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency>
+
     /// Given a scheme, it returns the runnable target.
     /// - Parameter scheme: Scheme to check against.
     /// - Returns: The runnable target if any.

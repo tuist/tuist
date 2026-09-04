@@ -425,15 +425,42 @@ const (
 	// (crossover at 40 GiB). The binary cache and the folded CAS split the rest.
 	cacheVolumeReserveFloorGiB = 2
 	cacheVolumeReservePercent  = 5
+
+	// How many generations of a compilation-cache store are live at once, and
+	// therefore the factor between the store's FOOTPRINT on the image and the
+	// per-generation limit the compiler is given.
+	//
+	// COMPILATION_CACHE_LIMIT_SIZE bounds one GENERATION, not the directory.
+	// llcas keeps a chain: when the live chain is over the limit, closing the
+	// store's last handle starts a new primary and demotes the old one, and a
+	// prune then deletes whatever fell off the end. What survives a prune is
+	// therefore primary + upstream — the old generation is the warm cache and
+	// deleting it would defeat the point. Measured on Xcode 26.5: a store pruned
+	// every cycle settles at 1.8-2x its limit (0.45 GiB live against a 0.25 GiB
+	// limit).
+	//
+	// So casGiB is the CAS's share of the IMAGE and the compiler is given half
+	// of it. Handing the compiler the whole share instead is what over-committed
+	// the image: at cap 20 / cas 11 a correctly pruning store wants ~22 GiB
+	// inside a 20 GiB image before the binary cache gets a byte, and the
+	// measured masters (17-18 GB of CAS against a 2.2 GB binary cache) are
+	// exactly that arithmetic playing out.
+	casGenerationsRetained = 2
 )
 
 // cacheImageSplit computes the coordinated budget split for a capGiB cache image
 // shared by the binary cache and the folded CAS. It returns the binary cache's
-// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's byte budget
-// (COMPILATION_CACHE_LIMIT_SIZE, 0 when the CAS is off). binary + CAS never
-// exceed cap−reserve, so the two independent pruners cannot over-commit the one
-// image to ENOSPC. A CASGiB set larger than the usable space is clamped so the
-// binary cache always keeps a slice.
+// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's FOOTPRINT allowance on the
+// image (0 when the CAS is off). binary + CAS never exceed cap−reserve, so the
+// two independent pruners cannot over-commit the one image to ENOSPC. A CASGiB
+// set larger than the usable space is clamped so the binary cache always keeps
+// a slice.
+//
+// The CAS figure is a footprint, NOT the limit the compiler is given: a store
+// holds more than one generation, so the limit is casGenerationLimit of this.
+// Returning the footprint is what keeps the invariant above true — the thing
+// that has to fit inside the image is what the store occupies, not what one of
+// its generations may reach.
 func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	if capGiB <= 0 {
 		return 0, 0
@@ -463,6 +490,15 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	return binaryBytes, casBytes
 }
 
+// casGenerationLimit converts the CAS's footprint allowance on the image into
+// the per-generation budget the compiler is given as
+// COMPILATION_CACHE_LIMIT_SIZE. See casGenerationsRetained: the store keeps a
+// primary and an upstream generation, so a limit of half the allowance is what
+// makes the footprint land inside it.
+func casGenerationLimit(casBytes uint64) uint64 {
+	return casBytes / casGenerationsRetained
+}
+
 // writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
 func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
@@ -487,8 +523,14 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	// drift), which the guest emits as COMPILATION_CACHE_LIMIT_SIZE — an absolute
 	// bound, not a percent, because Swift Build's LIMIT_PERCENT is against the
 	// cache-db size plus free space, which shrinks as the binary cache fills.
+	//
+	// HALF the split's CAS share, because the split apportions the image and this
+	// number bounds a generation: see casGenerationLimit. The guest emits it as
+	// COMPILATION_CACHE_LIMIT_SIZE and passes the same value to the teardown
+	// prune, so the bound the build is told to keep is the one that is enforced.
 	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
+	limit := casGenerationLimit(casBytes)
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(limit, 10)), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
