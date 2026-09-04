@@ -422,6 +422,7 @@ defmodule Tuist.Application do
     if Environment.clickhouse_bare_metal_url() do
       [
         {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        Tuist.IngestRepo.ShadowWrite.child_spec_for_supervision(),
         # The read side of the same server. Reads move onto it a flag at a
         # time, so both have to be connected at once.
         {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}

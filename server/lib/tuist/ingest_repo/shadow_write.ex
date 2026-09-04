@@ -27,6 +27,26 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   than mirroring a read, which would double every metadata query's cost for
   no benefit.
 
+  ## Why inserts are mirrored off the request
+
+  Several of these call sites run inside a request rather than in one of the
+  buffers, so a synchronous mirror puts a second ClickHouse round trip in the
+  customer's path, and a slow destination spends the whole connection queue
+  timeout there before giving up. Staging showed exactly that: the writes that
+  failed in the seconds after a pod started had waited 5.5 seconds first, in a
+  request that had nothing to do with the migration.
+
+  Inserts are therefore handed to a bounded task supervisor. Cloud has already
+  taken the write by then, so there is nothing for the caller to wait for. The
+  bound is what keeps a destination that has stopped answering from turning
+  into unbounded memory: past it, the mirror is dropped and counted, which is
+  the same outcome as a failed write and is what parity is there to catch.
+
+  Mutations stay synchronous. `ALTER TABLE ... DELETE` erases a deleted
+  project's rows, and running it concurrently with the inserts around it could
+  put the delete before the rows it is meant to remove. They are rare enough
+  that their latency does not matter.
+
   ## Failure
 
   A mirrored write that fails is logged, counted through telemetry, and
@@ -43,6 +63,13 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   # `ALTER TABLE` covers the mutation-based deletes, which have to be mirrored
   # or the destination keeps rows the source has erased.
   @write_prefixes ["insert", "alter table"]
+
+  @supervisor __MODULE__.TaskSupervisor
+
+  # A memory bound rather than a throughput one: the destination's pool is
+  # small, so tasks queue on it, and this caps how much is held waiting when it
+  # stops draining.
+  @max_in_flight 100
 
   defmacro __before_compile__(_env) do
     quote do
@@ -67,16 +94,28 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   @doc false
   def mirror_statement(sql, params, opts) do
     if enabled?() and write?(sql) do
-      mirror(fn -> Tuist.ShadowIngestRepo.query(sql, params, opts) end, statement_kind(sql))
+      kind = statement_kind(sql)
+      run = fn -> Tuist.ShadowIngestRepo.query(sql, params, opts) end
+
+      if kind == "insert" do
+        detach(run, kind)
+      else
+        mirror(run, kind)
+      end
     end
 
     :ok
   end
 
   @doc false
+  def child_spec_for_supervision do
+    {Task.Supervisor, name: @supervisor, max_children: @max_in_flight}
+  end
+
+  @doc false
   def mirror_insert_all(schema_or_source, entries, opts) do
     if enabled?() do
-      mirror(fn -> Tuist.ShadowIngestRepo.insert_all(schema_or_source, entries, opts) end, "insert_all")
+      detach(fn -> Tuist.ShadowIngestRepo.insert_all(schema_or_source, entries, opts) end, "insert_all")
     end
 
     :ok
@@ -85,7 +124,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   @doc false
   def mirror_insert(struct, opts) do
     if enabled?() do
-      mirror(fn -> Tuist.ShadowIngestRepo.insert(struct, opts) end, "insert")
+      detach(fn -> Tuist.ShadowIngestRepo.insert(struct, opts) end, "insert")
     end
 
     :ok
@@ -103,6 +142,25 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   end
 
   def write?(_sql), do: false
+
+  defp detach(fun, kind) do
+    case Task.Supervisor.start_child(@supervisor, fn -> mirror(fun, kind) end) do
+      {:ok, _pid} ->
+        :ok
+
+      {:error, :max_children} ->
+        :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :dropped})
+
+        Logger.error("Shadow ClickHouse write (#{kind}) dropped: #{@max_in_flight} already in flight")
+        :error
+
+      {:error, reason} ->
+        :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :error})
+
+        Logger.error("Shadow ClickHouse write (#{kind}) could not start: #{inspect(reason)}")
+        :error
+    end
+  end
 
   defp mirror(fun, kind) do
     fun.()
