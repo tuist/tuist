@@ -170,6 +170,12 @@ spec:
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
               value: {{ .Values.config.telemetry.deploymentEnvironment | quote }}
+            - name: KURA_REQUEST_LOG_SAMPLE_RATE
+              value: {{ .Values.config.telemetry.requestLogSampleRate | quote }}
+            - name: KURA_SLOW_REQUEST_THRESHOLD_MS
+              value: {{ printf "%d" (int64 .Values.config.telemetry.slowRequestThresholdMs) | quote }}
+            - name: KURA_WARNING_LOG_INTERVAL_MS
+              value: {{ printf "%d" (int64 .Values.config.telemetry.warningLogIntervalMs) | quote }}
             {{- if .Values.auth.enabled }}
             - name: KURA_AUTH_ENABLED
               value: "true"

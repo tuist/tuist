@@ -207,7 +207,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"},
+              %Item{label: "Bazel cache and invocations", slug: "/en/guides/features/cache/bazel-cache"}
             ]
           },
           %Item{
@@ -275,7 +276,8 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/runners",
             items: [
               %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
-              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
             ]
           }
         ]
@@ -396,6 +398,7 @@ defmodule Tuist.Docs.Sidebar do
           %Item{
             label: "Agentic coding",
             items: [
+              %Item{label: "Plugins", slug: "/en/guides/features/agentic-coding/plugins"},
               %Item{label: "MCP", slug: "/en/guides/features/agentic-coding/mcp"},
               %Item{label: "Skills", slug: "/en/guides/features/agentic-coding/skills"}
             ]

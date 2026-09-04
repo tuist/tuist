@@ -151,10 +151,53 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp parse_xcresult(xcresult_path, root_dir) do
     :telemetry.span([:tuist, :processor, :xcresult, :parse], %{}, fn ->
-      result = XCResultNIF.parse(xcresult_path, root_dir)
+      result =
+        xcresult_path
+        |> XCResultNIF.parse(root_dir)
+        |> normalize_parse_error(xcresult_path)
+
       status = if match?({:ok, _}, result), do: :ok, else: :error
       {result, %{status: status}}
     end)
+  end
+
+  # The NIF reports a failure as a JSON blob whose message embeds the
+  # absolute bundle path, which carries both a `System.tmp_dir!()` directory
+  # named with an `:erlang.unique_integer` and the customer's own bundle
+  # filename. Both are unique per job, so Sentry fingerprints every failure
+  # as a brand new issue: the fleet-wide parse stall on 2026-08-25 arrived
+  # as fifteen separate "new issue" alerts, each looking like a harmless
+  # one-off, rather than one issue with a rate worth paging on.
+  #
+  # Collapse the volatile path out of the term Oban reports so the grouping
+  # is stable, and log the original so the path stays one query away.
+  defp normalize_parse_error({:ok, _} = result, _xcresult_path), do: result
+
+  defp normalize_parse_error({:error, reason}, xcresult_path) do
+    message = parse_error_message(reason)
+    Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
+    {:error, stable_parse_error(message, xcresult_path)}
+  end
+
+  defp parse_error_message(reason) when is_binary(reason) do
+    case JSON.decode(reason) do
+      {:ok, %{"error" => message}} when is_binary(message) -> message
+      _ -> reason
+    end
+  end
+
+  defp parse_error_message(reason), do: inspect(reason)
+
+  # A dedicated atom rather than a sanitized string: the timeout is the one
+  # failure mode with its own alert, and an atom is what a queue-consumer
+  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
+  # replaces are a compile-time constant in the NIF, not information.
+  defp stable_parse_error(message, xcresult_path) do
+    if String.starts_with?(message, "xcresult parsing timed out") do
+      :parse_timeout
+    else
+      {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
+    end
   end
 
   defp read_quarantined_tests(xcresult_path) do
@@ -314,25 +357,50 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp find_xcresult(temp_dir) do
-    case temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first() do
-      # Some archives extract directly to bundle contents without a wrapping
-      # `.xcresult` directory (e.g. AppleArchive payloads compressed without
-      # the base directory preserved). Treat the temp dir as the bundle when
-      # `Info.plist` is present at its root.
-      nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")) do
-          temp_dir
-        else
-          Logger.error(
-            "xcresult bundle not found after extraction in #{temp_dir}: " <>
-              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
-          )
+    # Three shapes to accept, in the order they appear in practice:
+    #   1. `<temp_dir>/**/*.xcresult` — the CLI archived with `preservesBaseDirectory: true`
+    #      and the source bundle was named with a `.xcresult` suffix.
+    #   2. `<temp_dir>/Info.plist` — the archive was written without preserving a base
+    #      directory, so bundle contents extract at the temp-dir root.
+    #   3. `<temp_dir>/<any name>/Info.plist` — the CLI archived with
+    #      `preservesBaseDirectory: true` but the source bundle's directory name did not
+    #      end in `.xcresult`. Xcode 26 stopped creating the `result-bundle` →
+    #      `result-bundle.xcresult` symlink for `-resultBundlePath` targets without an
+    #      extension, so a per-scheme run writes to `result-bundle-<Scheme>/` and the
+    #      CLI archives that exact directory. Info.plist inside a first-level subdir is
+    #      enough to identify it — the file uniquely marks a populated xcresult bundle.
+    with nil <- xcresult_wrapped(temp_dir),
+         nil <- xcresult_at_root(temp_dir),
+         nil <- xcresult_in_nested_dir(temp_dir) do
+      Logger.error(
+        "xcresult bundle not found after extraction in #{temp_dir}: " <>
+          "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+      )
 
-          nil
-        end
+      nil
+    end
+  end
 
-      path ->
-        path
+  defp xcresult_wrapped(temp_dir) do
+    temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first()
+  end
+
+  defp xcresult_at_root(temp_dir) do
+    if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+  end
+
+  defp xcresult_in_nested_dir(temp_dir) do
+    case File.ls(temp_dir) do
+      {:ok, entries} ->
+        Enum.find_value(entries, fn entry ->
+          candidate = Path.join(temp_dir, entry)
+
+          if File.dir?(candidate) and File.exists?(Path.join(candidate, "Info.plist")),
+            do: candidate
+        end)
+
+      _ ->
+        nil
     end
   end
 

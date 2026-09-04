@@ -29,4 +29,17 @@ defmodule Tuist.Marketing.Changelog.Entry do
       description: attrs["description"]
     )
   end
+
+  def image_source(%__MODULE__{body: body}) do
+    case Floki.parse_fragment(body) do
+      {:ok, document} ->
+        document
+        |> Floki.find("img[src]")
+        |> Floki.attribute("src")
+        |> List.first()
+
+      {:error, _reason} ->
+        nil
+    end
+  end
 end

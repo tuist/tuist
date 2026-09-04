@@ -139,9 +139,10 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["resolve"]
         )
 
+        let environment = manifestEnvironment ?? environmentVariables()
         printOutput ?
-            try await commandRunner().runAndPrint(arguments: command) :
-            try await commandRunner().runAndWait(arguments: command)
+            try await commandRunner().runAndPrint(arguments: command, environment: environment) :
+            try await commandRunner().runAndWait(arguments: command, environment: environment)
     }
 
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
@@ -161,9 +162,10 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["update"]
         )
 
+        let environment = manifestEnvironment ?? environmentVariables()
         printOutput ?
-            try await commandRunner().runAndPrint(arguments: command) :
-            try await commandRunner().runAndWait(arguments: command)
+            try await commandRunner().runAndPrint(arguments: command, environment: environment) :
+            try await commandRunner().runAndWait(arguments: command, environment: environment)
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: Version) async throws {
@@ -300,7 +302,12 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         }
 
         request.quiet = request.quiet || !printOutput
+        request.manifestEnvironment = manifestEnvironment
         return request
+    }
+
+    private var manifestEnvironment: [String: String]? {
+        PackageManifestEnvironment.filtered(environmentVariables())
     }
 
     private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {

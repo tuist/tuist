@@ -103,11 +103,15 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision the provisioner would render for `account` in
-  the given region, folding in any dynamic inputs (such as enrolled self-hosted
-  peers) that must trigger a re-apply when they change.
+  Returns the manifest revision the provisioner would render for `server` in the
+  given region, folding in any dynamic input (an enrolled self-hosted peer, the
+  account's plan, the disk footprint the instance was built with) that must
+  trigger a re-apply when it changes.
+
+  Takes the server rather than the account because some of those inputs are
+  properties of the instance rather than of its account.
   """
-  @callback manifest_revision(Account.t(), Regions.t()) :: String.t() | nil
+  @callback manifest_revision(Server.t(), Regions.t()) :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
@@ -120,6 +124,16 @@ defmodule Tuist.Kura.Provisioner do
   """
   @callback caught_up?(ref :: String.t(), Regions.t()) ::
               {:ok, boolean()} | {:error, term()}
+
+  @doc """
+  The rollout-health aggregate the backing platform publishes for the
+  server's workload, or `{:ok, nil}` when the resource exists but has not
+  published one yet (old controller, no pods sampled). Consumed by
+  `Tuist.Kura.Rollouts` as the health authority for the progressive
+  rollout gate; never on the cache hot path.
+  """
+  @callback rollout_health(ref :: String.t(), Regions.t()) ::
+              {:ok, map() | nil} | {:error, term()}
 
   ## Convenience dispatchers
 
@@ -184,7 +198,7 @@ defmodule Tuist.Kura.Provisioner do
   @doc "Calls `manifest_revision/2` on the region's provisioner."
   def manifest_revision(%Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      {:ok, region.provisioner.manifest_revision(server.account, region)}
+      {:ok, region.provisioner.manifest_revision(server, region)}
     end
   end
 
@@ -192,6 +206,13 @@ defmodule Tuist.Kura.Provisioner do
   def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.caught_up?(ref, region)
+    end
+  end
+
+  @doc "Calls `rollout_health/2` on the region's provisioner."
+  def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.rollout_health(ref, region)
     end
   end
 end

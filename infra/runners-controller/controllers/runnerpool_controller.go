@@ -26,6 +26,7 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
 // runnerPoolFinalizer gates RunnerPool deletion on a graceful drain
@@ -46,6 +47,34 @@ const drainEligibleLabel = "tuist.dev/drain-eligible"
 // spec.rollout.maxConcurrentPercent.
 const defaultRollMaxConcurrentPercent = 5
 
+// Guest heartbeat, published on macOS Pods by tart-kubelet from the
+// per-VM status share (see publishRunnerHeartbeat in
+// infra/tart-kubelet/internal/podagent). This controller never sees the
+// beat itself — the file lives on the Mac host — so these keys are the
+// whole interface, and the writer keeps a matching pair of constants.
+const (
+	guestHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	guestHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
+
+	// guestHeartbeatStatePolling is the state a guest reports while it is
+	// in its warm-standby loop. The other state a guest publishes,
+	// `claimed`, needs no constant here: everything that is not polling
+	// is not warm capacity.
+	guestHeartbeatStatePolling = "polling"
+)
+
+// guestHeartbeatStaleAfter is how long a `polling` beat stays good.
+//
+// It has to clear the whole publish chain, not just the guest's own
+// cadence: the guest beats every couple of seconds, but tart-kubelet
+// observes it on a 30s reconcile and throttles republishing an advancing
+// timestamp to once a minute. A healthy Pod's published beat can
+// therefore trail reality by ~90s, and this leaves better than 3x that
+// as headroom. Detection is correspondingly unhurried — a wedged guest
+// leaves warm capacity within about five minutes — which is the right
+// trade for a signal whose false positives cost a reaped healthy runner.
+const guestHeartbeatStaleAfter = 5 * time.Minute
+
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
 // RunnerAssignment intermediate). When a Pod hits a terminal
@@ -53,7 +82,18 @@ const defaultRollMaxConcurrentPercent = 5
 // the previous Pod freed.
 type RunnerPoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+
+	// APIReader is an uncached reader. The reservation path confirms the
+	// fleet-wide reservation limit through it, because the informer
+	// cache can lag a taint written moments earlier by another pool's
+	// reconcile. Optional: falls back to the cached client when unset.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+
+	// SessionsClient closes a Pod's billing session immediately before
+	// the reap deletes it — see reapRunner for why the ordering matters.
+	// nil disables reporting; the reap itself still runs.
+	SessionsClient *sessions.Client
 
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
@@ -111,7 +151,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -137,6 +177,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// finish their single-shot job. Only then is the finalizer
 	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
 	if !pool.DeletionTimestamp.IsZero() {
+		// Before the drain, hand back any host this pool was holding.
+		// reconcileDelete returns without reaching reconcileReservation,
+		// and once the CR is gone nothing can match the taint's value,
+		// so the host would be tainted out of the fleet permanently.
+		if err := r.ReleaseReservationsForPool(ctx, pool); err != nil {
+			logger.Error(err, "release node reservation for a deleting pool; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 		return r.reconcileDelete(ctx, pool)
 	}
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
@@ -181,6 +229,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pods.Items = survivors
 	if cordonReaped > 0 {
 		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
+	}
+
+	// Node reservation. Runs after the drain reap so a Pod already
+	// retired above is not counted as an occupant a reservation must
+	// wait on, and before the accounting below because retiring another
+	// pool's idle Pod here changes what this fleet has free. Failures are
+	// logged and skipped rather than returned: a reservation is an
+	// optimization for a starved shape, and a fleet that cannot take one
+	// must still converge its Pods.
+	if err := r.reconcileReservation(ctx, pool, pods.Items); err != nil {
+		logger.Error(err, "reconcile node reservation; will retry next tick")
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
@@ -253,6 +312,52 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		if terminationTimedOut(p, r.now()) {
+			// A force delete cannot bypass a finalizer: the Delete succeeds as
+			// a no-op on an already-deleting Pod and the object stays, so
+			// retrying every reconcile spins forever and inflates the counter.
+			// A finalizer this controller does not own may also still be doing
+			// real work — tart-kubelet tears the guest VM down under
+			// tart-kubelet.tuist.dev/vm-cleanup — so leave it to its owner
+			// while that owner can still run.
+			//
+			// Unless the node is gone. Then the cleanup can never run and
+			// never needs to: the VM went with the host, and the finalizer is
+			// pinning an object whose only effect now is to keep this branch
+			// firing. One such Pod sat deleting for nine days.
+			nodeGone := r.nodeMissing(ctx, p.Spec.NodeName)
+			if len(p.Finalizers) > 0 && !nodeGone {
+				logger.V(1).Info("stuck terminating runner pod is finalizer-pinned; leaving it to its owner",
+					"pod", p.Name,
+					"node", p.Spec.NodeName,
+					"finalizers", p.Finalizers,
+					"deletingFor", r.now().Sub(p.DeletionTimestamp.Time).String(),
+				)
+				continue
+			}
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("force reap runner pod kubelet did not finish terminating",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"deletingFor", r.now().Sub(p.DeletionTimestamp.Time).String(),
+				"nodeConditions", nodeConditions,
+				"clearingFinalizers", p.Finalizers,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodTerminationStuck",
+					"Pod has been terminating for %s without kubelet completing it; dropping the object to release node %s. The sandbox may still be running there; node conditions: %s",
+					r.now().Sub(p.DeletionTimestamp.Time).Truncate(time.Second), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordStuckTermination(pool.Name)
+			if err := r.forceReapRunner(ctx, p, nodeGone); err != nil {
+				logger.Error(err, "force reap stuck terminating runner pod; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 			phaseReplicas.remove(p)
@@ -428,6 +533,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if admissionBlocked {
 				reason := admission.blockedReason
 				if reason == "" {
+					reason = admission.limitedBy
+				}
+				if reason == "" {
 					reason = "fleet_cap"
 				}
 				metrics.RecordAdmissionBlocked(pool.Name, reason)
@@ -437,7 +545,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"creating", createLimit,
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
+					"awaitingPlacement", admission.awaitingPlacement,
+					"perNode", admission.perNode,
 					"cap", admission.cap,
+					"fleetCap", admission.fleetCap,
+					"poolCap", admission.poolCap,
 					"healthyNodes", admission.healthyNodes,
 				)
 			}
@@ -602,9 +714,72 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 // Called for both terminal Pods (Succeeded/Failed → natural
 // turnover) and stale Pending Pods (Pod-template rollout →
 // recycle on the current template). The cleanup contract is the same.
+//
+// The Pod's billing session is closed BEFORE the Delete, and that
+// ordering is the whole point. `PodLifecycleReconciler` also reports,
+// on the terminal-phase transition, but it runs in a separate workqueue
+// woken by the same watch event with no ordering against this one — so
+// under load the reap got there first and the Pod was gone before the
+// report was attempted. That race closed 22% of runner sessions never:
+// 264 of 1185 on 2026-08-14, holding on every fleet and every working
+// day back to at least 2026-07-07. A grace period does not help, since
+// a Pod already in a terminal phase has no live containers to wait for
+// and is removed in milliseconds.
+//
+// Doing it here removes the race rather than compensating for it: one
+// goroutine, report then delete. The other reconciler's report stays as
+// the faster path (it fires on the phase transition, ahead of the reap)
+// and the two are idempotent, MIN-biased on the server, so a double
+// report cannot extend a billed window.
 func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
+	r.reportStopped(ctx, pod)
+
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
+	}
+	return nil
+}
+
+// forceReapRunner drops a Pod the kubelet will not finish terminating. The
+// ordinary reap issues a plain Delete, which is a no-op on a Pod that already
+// carries a deletionTimestamp, so dropping the object is the only way to hand
+// its node's CPU and memory back to the scheduler.
+//
+// The sandbox can outlive the object: a force delete does not reach the stuck
+// shim, so the QEMU process may keep running and the node is then oversubscribed
+// against what the scheduler believes. That is still the better trade — the
+// alternative is capacity reserved forever for a VM doing no work — but it is
+// why the caller logs the node and raises an Event: a node that produces these
+// repeatedly wants draining, not another force delete.
+//
+// `clearFinalizers` additionally strips the Pod's finalizers. Reserve it for a
+// Pod whose node is gone: a finalizer whose owner still exists may be doing
+// real cleanup, and removing it out from under them leaks whatever it was
+// releasing.
+func (r *RunnerPoolReconciler) forceReapRunner(ctx context.Context, pod *corev1.Pod, clearFinalizers bool) error {
+	r.reportStopped(ctx, pod)
+
+	// Grace period 0 does not bypass a finalizer; only removing it does. The
+	// caller decides when that is safe, which is when the finalizer's owner is
+	// gone with its node and can never run again.
+	if clearFinalizers && len(pod.Finalizers) > 0 {
+		patched := pod.DeepCopy()
+		patched.Finalizers = nil
+		if err := r.Patch(ctx, patched, client.MergeFrom(pod)); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("clear finalizers on pod %s: %w", pod.Name, err)
+		}
+	}
+	if err := r.Delete(ctx, pod, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("force delete pod %s: %w", pod.Name, err)
 	}
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -625,6 +800,34 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 // once Pod.DeletionTimestamp is set.
 func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
 	return r.reapRunner(ctx, pod)
+}
+
+// reportStopped closes the Pod's billing session before the Pod is
+// deleted. Best-effort by design: a Pod we cannot report must still be
+// reaped, or a Tuist-server outage would leave terminal Pods and their
+// ServiceAccounts accumulating in the namespace — which is what this
+// reap exists to prevent, and a worse failure than a late close.
+// `PodReconciliationWorker` is the level-triggered backstop for
+// whatever this drops, and it resolves a better `ended_at` than we
+// could here (the job's real completion) when it does.
+//
+// nil client disables reporting, matching how the pod-lifecycle
+// reconciler is only wired when the sessions URL is configured.
+func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Pod) {
+	if r.SessionsClient == nil {
+		return
+	}
+
+	endedAt := podEndedAt(pod, r.now())
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, endedAt); err != nil {
+		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+		return
+	}
+	// Logged for the same reason as the pod-lifecycle reconciler's
+	// report, and tagged so the two are distinguishable: the reconcilers
+	// race for the same Pod, and which one lands decides whether the
+	// report happens before or after the Pod is deleted.
+	log.FromContext(ctx).Info("reported pod stopped", "pod", pod.Name, "endedAt", endedAt, "source", "reap")
 }
 
 type podPhaseReplicaCounts struct {
@@ -754,11 +957,63 @@ func isIdle(pod *corev1.Pod) bool {
 //
 // So Linux asks whether the poller is *actively running*, which is only
 // true once the Pod has a node and kubelet has started the container.
+//
+// Running is necessary on darwin but not sufficient, which is why the
+// guest heartbeat is consulted on top of it. A macOS Pod's phase and
+// Ready condition are synthesized by tart-kubelet from "the VM process
+// is alive and has an IP" — it runs no container probes — so a guest
+// whose dispatch poller died reads 1/1 Running for the rest of the VM's
+// life. Nothing bounds that life either: warm standby is deliberately
+// unbounded, and in practice a macOS runner is recycled only when its
+// SA token expires around the 8h mark. Without the heartbeat such a Pod
+// is indistinguishable from a healthy warm one and is counted as
+// capacity for hours, which is the same inversion the paragraph above
+// describes — a pool reporting idle Pods sitting on queued work.
 func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 	if pool.Spec.OS == "darwin" {
-		return pod.Status.Phase == corev1.PodRunning
+		return pod.Status.Phase == corev1.PodRunning && guestPolling(pod, time.Now())
 	}
 	return pollerRunning(pod)
+}
+
+// guestPolling reads the beat tart-kubelet publishes from the macOS
+// guest's status share (see publishRunnerHeartbeat there) and reports
+// whether the guest is still in its warm-standby loop.
+//
+// A Pod carrying no beat at all is *not* treated as dead. The host only
+// publishes one when it can see the guest — a pool with the cache-volume
+// feature off has no status share to read, and a runner image from
+// before the guest wrote a beat produces none either. Reading absence as
+// dead would drop every such Pod out of warm capacity at once, which
+// besides being wrong is the shape that stalls rolls fleet-wide:
+// isWarmCapacity also decides what counts against the roll's
+// availability budget. So absence means "no signal" and the Pod keeps
+// its former benefit of the doubt; only a beat that exists and has gone
+// stale withdraws it.
+//
+// `claimed` is not stale-checked. The guest beats it once as it takes a
+// job and then blocks running that job, so its age says nothing about
+// health — the state itself says the Pod is no longer warm, and it says
+// so without depending on the server's best-effort owner label landing.
+func guestPolling(pod *corev1.Pod, now time.Time) bool {
+	// Empty counts as absent, not as a state: the writer only ever
+	// publishes a state it validated, so a blank one reached the Pod some
+	// other way and is not evidence about the guest.
+	state := pod.Annotations[guestHeartbeatStateAnnotation]
+	if state == "" {
+		return true
+	}
+	if state != guestHeartbeatStatePolling {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, pod.Annotations[guestHeartbeatAtAnnotation])
+	if err != nil {
+		// State published without a readable timestamp. Nothing to age
+		// the beat against, so this falls back to the no-signal reading
+		// rather than condemning the Pod on a malformed annotation.
+		return true
+	}
+	return now.Sub(at) < guestHeartbeatStaleAfter
 }
 
 // pollerRunning reports whether the Linux `poller` init container is

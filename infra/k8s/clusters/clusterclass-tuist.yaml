@@ -146,10 +146,16 @@ spec:
           #
           # The risk this accepts is a drain that never finishes holding
           # the roll open. That is deliberately handled by making it loud
-          # rather than by capping it: "Worker node pool stuck mid-rollout"
-          # in `infra/helm/k8s-monitoring/alerts.md` fires on
-          # `upToDateReplicas < spec.replicas`, which covers a stalled
-          # drain and the all-hosts-claimed wedge alike.
+          # rather than by capping it: "Worker pool has a Machine it
+          # cannot delete" in `infra/helm/k8s-monitoring/alerts.md` fires
+          # on `status.replicas > spec.replicas`.
+          #
+          # Not `upToDateReplicas < spec.replicas`: that is the sibling
+          # "stuck mid-rollout" rule, and it covers the all-hosts-claimed
+          # wedge only. A roll blocked purely on deletion has already
+          # produced every up-to-date Machine it needs, so up-to-date
+          # equals spec and that rule stays quiet. tuist-md-processor sat
+          # in exactly that blind spot for 14 days from 2026-07-31.
           nodeDrainTimeoutSeconds: 0
         healthCheck:
           checks:
@@ -169,6 +175,72 @@ spec:
               # Operator-paced provisioning means we don't want
               # auto-remediation chewing through Robot reinstalls if a
               # box is briefly NotReady. Operator investigates instead.
+              unhealthyInRange: "[0-0]"
+      # Stateful bare-metal pool: ClickHouse today, and the place other
+      # carefully scheduled stateful workloads can join once its headroom is
+      # measured. Templates live in `bare-metal-stateful.yaml`, which also
+      # explains why this cannot share `bare-metal-worker`'s templates
+      # (disk layout, RAID level, and no Kata).
+      - class: stateful-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-stateful-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            name: tuist-stateful-machinetemplate
+        rollout:
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              # Delete-then-reprovision, for the same reason as
+              # `bare-metal-worker`: hosts are pre-ordered, so at steady
+              # state every HBM is claimed and a surge Machine has nowhere
+              # to land. caph parks it `NoAvailableHost`, `maxUnavailable: 0`
+              # then never permits deleting an old Machine, and the freed
+              # host that would unblock it never appears.
+              #
+              # The cost here is different from the runner pool's, and
+              # worth stating: rolling a stateful node destroys its local
+              # PV, because the reinstall wipes `/data`. The replica comes
+              # back empty and refills from its peer, roughly four hours
+              # for a production-sized copy over a 1 Gbit/s uplink. So a
+              # template change to this class is a real operation, not a
+              # routine roll, and it must never run against both replicas
+              # at once. `maxUnavailable: 1` plus the ClickHouse
+              # PodDisruptionBudget is what keeps that true.
+              maxSurge: 0
+              maxUnavailable: 1
+        deletion:
+          # Finite, unlike the runner pool's unbounded drain. A ClickHouse
+          # pod here is bound to a local PV pinned to this node, so it
+          # cannot be rescheduled anywhere: waiting longer does not let it
+          # land elsewhere, it only holds the roll open. Availability
+          # during the drain is the PodDisruptionBudget's job, not this
+          # timeout's.
+          nodeDrainTimeoutSeconds: 600
+        healthCheck:
+          checks:
+            # rescue → installimage → reboot → cloud-init → kubeadm join
+            # takes 8-15 minutes on this hardware, against ~2 for a cloud VM.
+            nodeStartupTimeoutSeconds: 1800
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 600
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 600
+          remediation:
+            triggerIf:
+              # Never auto-remediate. On the runner pool this avoids
+              # chewing through Robot reinstalls; here the stakes are
+              # higher, because remediation reinstalls the host and
+              # destroys a database replica. A NotReady stateful node is
+              # something an operator looks at.
               unhealthyInRange: "[0-0]"
   variables:
     - name: clusterEndpointHost
@@ -334,6 +406,37 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Software RAID level installimage builds on `stateful-worker` hosts.
+    # It is a variable rather than a constant because the pool spans two
+    # disk counts and installimage reads the level against the whole disk
+    # set: SWRAIDLEVEL 1 on a four-disk box is a FOUR-WAY MIRROR, so a
+    # 4x3.84 TB EX131-2 installs with 3.84 TB usable instead of 7.68 TB.
+    #
+    #   two-disk hosts (AX42 non-production)  -> 1  (mirror, the default)
+    #   four-disk hosts (EX131 production)    -> 10 (stripe of mirrors)
+    #
+    # Set it on the Cluster next to `bareMetalCluster`, and set it BEFORE
+    # the host is claimed: the layout is fixed at install, so changing it
+    # afterwards means a reinstall and a replica rebuild from the peer.
+    # Do not set 0: caph rewrites RAID 0 to 1 in the installimage wrapper.
+    #
+    # EVERY Cluster CR must declare this explicitly, including the ones with
+    # no stateful pool. A defaulted variable a Cluster does not declare is
+    # appended to the live `spec.topology.variables` by the topology
+    # controller in ALPHABETICAL order, while `kubectl diff` appends it after
+    # the declared ones; the two orders then disagree on every subsequent
+    # run and the post-apply drift check in `mgmt-cluster-apply.yml` can
+    # never converge. That is what turned the merge of #12799 red. The three
+    # older defaulted variables hid the problem by happening to sort after
+    # the declared ones already. Any future variable with a `default` needs
+    # the same treatment in the same change.
+    - name: statefulRaidLevel
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: integer
+          default: 1
+          enum: [1, 10]
     # apiserver --kubelet-preferred-address-types order. Default keeps Hetzner
     # nodes on ExternalIP; envs with cross-cloud nodes (Scaleway Elastic Metal /
     # macOS PN) that report no ExternalIP and an unresolvable Hostname set this
@@ -549,11 +652,30 @@ spec:
               machineDeploymentClass:
                 names:
                   - bare-metal-worker
+                  - stateful-worker
           jsonPatches:
             - op: add
               path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
               valueFrom:
                 variable: bareMetalCluster
+    # Software RAID level for the stateful pool. See the `statefulRaidLevel`
+    # variable for why this is per-cluster. Always applied where the class is
+    # used; at the default of 1 it renders exactly what the template already
+    # carries, so it is a no-op until a cluster asks for 10.
+    - name: HetznerBareMetalMachineTemplateStatefulRaidLevel
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - stateful-worker
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/installImage/swraidLevel"
+              valueFrom:
+                variable: statefulRaidLevel
     # Rebuilds the apiserver extraArgs array (CAPI ClusterClass patches can't
     # index array elements) with kubelet-preferred-address-types set from the
     # per-cluster variable. No-op while the variable equals the template

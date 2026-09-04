@@ -20,6 +20,26 @@ defmodule Tuist.ClickHouseCapabilitiesTest do
     def query(_statement), do: {:error, %Ch.Error{code: 210, message: "connection refused"}}
   end
 
+  defmodule ModernRepo do
+    @moduledoc false
+    def query(_statement), do: {:ok, %{rows: [["26.1.2.11"]]}}
+  end
+
+  defmodule LegacyRepo do
+    @moduledoc false
+    def query(_statement), do: {:ok, %{rows: [["25.7.7.68"]]}}
+  end
+
+  defmodule RebuiltRepo do
+    @moduledoc false
+    def query(_statement), do: {:ok, %{rows: [["25.3.6.10034.altinitystable"]]}}
+  end
+
+  defmodule UnsupportedRepo do
+    @moduledoc false
+    def query(_statement), do: {:ok, %{rows: [["24.8.14.39"]]}}
+  end
+
   describe "serial_ids_supported?/1" do
     test "is true when the server has coordination configured" do
       assert ClickHouseCapabilities.serial_ids_supported?(KeeperRepo)
@@ -56,6 +76,48 @@ defmodule Tuist.ClickHouseCapabilitiesTest do
 
       assert ClickHouseCapabilities.use_serial_ids?(KeeperRepo)
       refute ClickHouseCapabilities.use_serial_ids?(KeeperlessRepo)
+    end
+  end
+
+  describe "server_version/1" do
+    test "reads the running server's version" do
+      assert ClickHouseCapabilities.server_version(ModernRepo) == [26, 1, 2, 11]
+    end
+
+    test "stops at the first component a rebuilt distribution appends" do
+      assert ClickHouseCapabilities.server_version(RebuiltRepo) == [25, 3, 6, 10_034]
+    end
+
+    test "raises rather than guessing when the server cannot answer" do
+      assert_raise RuntimeError, ~r/Could not determine/, fn ->
+        ClickHouseCapabilities.server_version(UnreachableRepo)
+      end
+    end
+  end
+
+  describe "insert_select_deduplication_settings/1" do
+    test "asks for deduplication when the server can enforce it" do
+      assert ClickHouseCapabilities.insert_select_deduplication_settings(ModernRepo) ==
+               [deduplicate_insert_select: "force_enable"]
+    end
+
+    test "is empty on a server that predates the setting, which deduplicates anyway" do
+      assert ClickHouseCapabilities.insert_select_deduplication_settings(LegacyRepo) == []
+      assert ClickHouseCapabilities.insert_select_deduplication_settings(RebuiltRepo) == []
+    end
+  end
+
+  describe "assert_supported_version!/1" do
+    test "passes on servers within the supported range" do
+      assert ClickHouseCapabilities.assert_supported_version!(ModernRepo) == :ok
+      assert ClickHouseCapabilities.assert_supported_version!(LegacyRepo) == :ok
+      assert ClickHouseCapabilities.assert_supported_version!(RebuiltRepo) == :ok
+    end
+
+    test "raises on a server below the floor, naming the version it found" do
+      assert_raise RuntimeError, ~r/ClickHouse 24\.8\.14\.39 is older than the minimum/, fn ->
+        ClickHouseCapabilities.assert_supported_version!(UnsupportedRepo)
+      end
     end
   end
 end

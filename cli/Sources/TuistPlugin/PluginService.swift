@@ -238,6 +238,7 @@ public struct PluginService: PluginServicing {
                 releaseUrl: releaseUrl
             )
         }
+        await fileSystem.markCacheEntryUsed(at: pluginCacheDirectory)
     }
 
     private func pluginCacheDirectory(

@@ -4,10 +4,12 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Origins
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
   alias Tuist.Xcode
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -15,9 +17,11 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEvent
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -452,7 +456,8 @@ defmodule TuistWeb.API.AnalyticsController do
     responses: %{
       ok: {"The run was created", "application/json", CommandEvent},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error}
+      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -524,6 +529,15 @@ defmodule TuistWeb.API.AnalyticsController do
         test_run_id: test_run_id
       })
 
+    # Where the account's cache traffic comes from, counted once per run that
+    # used the cache. This is the unit placement thresholds are expressed in:
+    # endpoint resolutions are cached by the client for an hour and refreshed
+    # by an idle launch agent, so counting those would let both biases move
+    # servers.
+    if cache_run?(cache_metadata, body_params) do
+      Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
+    end
+
     xcode_graph = Map.get(body_params, :xcode_graph)
 
     if not is_nil(xcode_graph) do
@@ -569,6 +583,13 @@ defmodule TuistWeb.API.AnalyticsController do
       url: url,
       test_run_url: test_run_url
     })
+  end
+
+  # Cacheable targets or a resolved endpoint both put the cache in the run's
+  # path. A run with neither says nothing about where cache traffic wants to be
+  # served, so it does not vote.
+  defp cache_run?(cache_metadata, body_params) do
+    cache_metadata.cacheable_targets != [] or Map.get(body_params, :cache_endpoint, "") != ""
   end
 
   defp cache_metadata(params) do
@@ -685,6 +706,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -712,8 +734,13 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key, selected_project.account)
-      json(conn, %{status: "success", data: %{upload_id: upload_id}})
+      case Storage.multipart_start(object_key, selected_project.account) do
+        {:ok, upload_id} ->
+          json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 
@@ -745,6 +772,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -806,6 +834,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -824,19 +853,22 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      :ok =
-        Storage.multipart_complete_upload(
-          object_key,
-          upload_id,
-          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-            {part_number, etag}
-          end),
-          selected_project.account
-        )
+      case Storage.multipart_complete_upload(
+             object_key,
+             upload_id,
+             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+               {part_number, etag}
+             end),
+             selected_project.account
+           ) do
+        :ok ->
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
 
-      conn
-      |> put_status(:no_content)
-      |> json(%{})
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 
@@ -866,6 +898,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -906,6 +939,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -951,6 +985,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -995,6 +1030,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -1038,6 +1074,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )

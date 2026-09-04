@@ -9,13 +9,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
+- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps + `patches/`, applied to rules_rs's pinned rules_rust); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
@@ -43,10 +43,17 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
+- When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
+  `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That
+  dashboard is meant to cover every `kura_*` family the runtime exports, so an unlisted metric is
+  effectively invisible to whoever is debugging next. Add the panel to the row for its subsystem, and
+  put the operational interpretation in the panel description rather than in the Prometheus HELP text.
+  Note that counters scrape with a doubled suffix (a counter registered as `foo_total` is served as
+  `foo_total_total`) — panels must query the scraped name, not the name in the source.
 
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:
 - Keep changes backward and forward compatible across one version skew. New nodes must interoperate with old nodes on the peer replication and membership protocols, and clients must keep working against either version. Prefer additive, negotiated changes (for example, offering HTTP/2 while still accepting HTTP/1) over flag-day switches.
-- Never change the on-disk segment/blob format or the replication wire format in a way that an old peer cannot read. Segment and blob files are **append-only and reclaimed by unlink, never truncated**; code that maps them (`src/mmap.rs`) depends on this invariant for memory safety (truncation would SIGBUS live mappings). Do not introduce in-place rewrites or `set_len`/`ftruncate` on those files without revisiting the mmap serving path.
+- Never change the on-disk segment/blob format or the replication wire format in a way that an old peer cannot read. Segment and blob files are logically append-only and reclaimed by unlink, never truncated. Active segments may receive reserved, non-overlapping positioned writes without the operating system's append flag. A failed or cancelled reservation may leave a bounded hole, but writers must never overwrite a committed range, reuse an uncertain tail offset, or truncate the file. Rotation takes the exclusive segment barrier before publishing a new active segment. Memory-mapped serving remains safe because manifests expose only fully written committed ranges and existing mappings may observe file growth; truncation could crash a process through a live mapping. Do not introduce in-place rewrites or `set_len`/`ftruncate` on those files without revisiting `src/mmap.rs` and the reservation, synchronization, and rotation protocol.
 - Node-local optimizations (caching, mmap serving, readahead) must degrade gracefully to a known-good path and must not alter response bytes or headers, so a half-rolled fleet stays consistent.
 - New dependencies must build in the release image (`Dockerfile`) without new system requirements, and config/limit changes must ship with matching Helm values in `ops/` so a rollout does not depend on out-of-band manual steps.

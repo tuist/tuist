@@ -83,7 +83,7 @@ enum PackageResolver {
         let data: Data?
     }
 
-    private static func resolveWithSwiftPackageManagerProcess(
+    static func resolveWithSwiftPackageManagerProcess(
         packageDir: URL,
         scratchDir: URL?,
         cacheDir: URL,
@@ -93,14 +93,27 @@ enum PackageResolver {
         scmToRegistryTransformation: SCMToRegistryTransformation,
         useExistingResolvedFile: Bool,
         writeResolvedFile: Bool,
+        forceResolvedVersions: Bool = false,
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
-        let snapshot =
+        // `swift package resolve` also reads pins from
+        // `<scratch>/workspace-state.json` when Package.resolved is missing,
+        // so a stale workspace state silently pins the resolve at whatever
+        // the previous install had checked out — the exact scenario `update`
+        // exists to escape. Clear both together and let SwiftPM rewrite each
+        // from the fresh solver output.
+        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
+            .appendingPathComponent("workspace-state.json")
+        let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
+        let workspaceStateSnapshot =
+            !useExistingResolvedFile
+                ? try await snapshotResolvedFile(at: workspaceStatePath) : nil
         if !useExistingResolvedFile {
             try? await fileSystem.removePath(resolvedPath)
+            try? await fileSystem.removePath(workspaceStatePath)
         }
 
         do {
@@ -113,22 +126,67 @@ enum PackageResolver {
                     registryConfigurationPath: registryConfigurationPath,
                     defaultRegistryURL: defaultRegistryURL,
                     disableSandbox: disableSandbox,
-                    scmToRegistryTransformation: scmToRegistryTransformation
+                    scmToRegistryTransformation: scmToRegistryTransformation,
+                    forceResolvedVersions: forceResolvedVersions
                 ),
                 workingDirectory: packageDir,
+                customEnvironment: Environment.manifestValues,
                 forwardOutput: forwardOutput
             )
-            let resolved = try await ResolvedFile.read(packageDir: packageDir)
-            if !writeResolvedFile, let snapshot {
-                try await restoreResolvedFile(snapshot, at: resolvedPath)
+            let resolvedPathExists = try await fileSystem.exists(resolvedPath.absolutePath)
+            let resolved = resolvedPathExists
+                ? try await ResolvedFile.read(packageDir: packageDir)
+                : ResolvedPins(originHash: nil, pins: [], version: 3)
+            if !writeResolvedFile, let resolvedSnapshot {
+                try await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+                if let workspaceStateSnapshot {
+                    try await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
+                }
             }
             return resolved
         } catch {
-            if let snapshot {
-                try? await restoreResolvedFile(snapshot, at: resolvedPath)
+            if let resolvedSnapshot {
+                try? await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+            }
+            if let workspaceStateSnapshot {
+                try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
         }
+    }
+
+    /// Returns true when SwifterPM cannot restore every pinned dependency from
+    /// its own source cache. In that case native SwiftPM is the shortest
+    /// correct path: it is already responsible for fetching each missing pin.
+    static func shouldUseNativeColdPath(packageDir: URL, cacheRoot: URL) async throws -> Bool {
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        guard try await fileSystem.exists(resolvedPath.absolutePath) else {
+            return true
+        }
+
+        let pins = try await ResolvedFile.read(packageDir: packageDir).pins
+        guard pins.allSatisfy({
+            PinKind.isSourceControl($0.kind)
+                || PinKind.isRegistry($0.kind)
+                || $0.kind == "fileSystem"
+        })
+        else {
+            return false
+        }
+
+        for pin in pins {
+            // A registry source path includes the archive checksum, which is
+            // only available after a registry request. Do not make that extra
+            // request just to probe the cache on a cold installation.
+            guard PinKind.isSourceControl(pin.kind) else {
+                return true
+            }
+            let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
+            guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {
+                return true
+            }
+        }
+        return false
     }
 
     private static func swiftPackageResolveArguments(
@@ -138,7 +196,8 @@ enum PackageResolver {
         registryConfigurationPath: URL?,
         defaultRegistryURL: String?,
         disableSandbox: Bool,
-        scmToRegistryTransformation: SCMToRegistryTransformation
+        scmToRegistryTransformation: SCMToRegistryTransformation,
+        forceResolvedVersions: Bool = false
     ) -> [String] {
         var arguments = [
             "package",
@@ -171,6 +230,9 @@ enum PackageResolver {
             arguments.append("--use-registry-identity-for-scm")
         case .replaceSCMWithRegistry:
             arguments.append("--replace-scm-with-registry")
+        }
+        if forceResolvedVersions {
+            arguments.append("--force-resolved-versions")
         }
         arguments.append("resolve")
         return arguments
@@ -308,7 +370,12 @@ enum PackageResolver {
             disableSandbox: disableSandbox,
             scmToRegistryTransformation: scmToRegistryTransformation
         ) + ["--force-resolved-versions"]
-        try await SystemProcess.run("swift", arguments, workingDirectory: packageDir)
+        try await SystemProcess.run(
+            "swift",
+            arguments,
+            workingDirectory: packageDir,
+            customEnvironment: Environment.manifestValues
+        )
     }
 
     private static func normalizeLoadedResolvedFile(

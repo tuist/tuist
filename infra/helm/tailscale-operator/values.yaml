@@ -56,13 +56,45 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
-  # Human kubectl access does NOT flow through the operator's API
-  # server proxy anymore — that path was replaced by Pomerium per
-  # env (`infra/helm/pomerium/`) which gives us Google OIDC auth +
-  # per-request impersonation via tuist-ops's PolicyController. The
-  # apiServerProxyConfig knob is intentionally absent here; if it's
-  # ever needed again, re-add it with mode/allowImpersonation set
-  # to "false" as the default and opt in per env.
+  # Kubernetes API server proxy — human kubectl straight over the
+  # tailnet, no browser and no gateway hostname. OFF by default.
+  #
+  # Canary and production keep routing human kubectl through
+  # Pomerium per env (`infra/helm/pomerium/`): Google Workspace OIDC
+  # for authentication, plus a per-request impersonation decision in
+  # tuist-ops's PolicyController that HAS to run per request because
+  # it reads the live JIT elevation row.
+  #
+  # STAGING opts in — see values-staging.yaml. Staging's write tier
+  # is standing access rather than a per-request elevation
+  # (`TuistOps.JIT.Policy.always_write_env?/1`), so there is no
+  # per-request decision left for Pomerium to make there, and the
+  # tailnet already authenticates every one of us through the same
+  # Google Workspace SSO. The tier comes from
+  # `tailscale.com/cap/kubernetes` grants in
+  # infra/tailscale/acls.json instead of from PolicyController.
+  #
+  # `mode: "true"` runs the proxy in-process on the operator's own
+  # tailnet node, so it answers on the operator's MagicDNS name
+  # (`operatorConfig.hostname` above) — no extra ProxyGroup.
+  #
+  # CAUTION, and the reason this stays off for canary/production:
+  # `mode: "true"` renders the upstream `tailscale-auth-proxy`
+  # ClusterRole, which grants UNRESTRICTED `impersonate` on users
+  # AND groups. That is deliberately wider than the Pomerium
+  # sidecar's grant, which pins group impersonation to a
+  # `resourceNames` allowlist so nothing in its trust chain can ask
+  # for `system:masters` (see
+  # infra/helm/pomerium/templates/rbac.yaml). The upstream chart
+  # renders that role off `mode` alone — `allowImpersonation:
+  # "false"` does NOT suppress it, and a same-name override from
+  # this wrapper would collide inside the release — so the only
+  # lever we have is which envs turn `mode` on. Accepted for
+  # staging; do not enable for canary or production without solving
+  # that first.
+  apiServerProxyConfig:
+    mode: "false"
+    allowImpersonation: "false"
 
 # Connector CR — the operator-managed `tailscaled` subnet router
 # that announces the cluster's reachability to the tailnet's

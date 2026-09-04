@@ -20,31 +20,31 @@ defmodule Tuist.Runners do
       flag** (`Tuist.FeatureFlags.runners_enabled?/1`). Independent
       Linux and macOS vCPU/RAM budgets protect shared capacity from
       a single account consuming every runner.
-    * **Two-store split for the workflow_job lifecycle.** Postgres
-      `runner_claims` is the thin OLTP table — one row per
-      currently-claimed workflow_job, used for atomic claim (`INSERT
-      … ON CONFLICT DO NOTHING` on the PK). ClickHouse `runner_jobs`
-      is the customer-facing view + history — `queued`, `claimed`,
-      `running`, `completed` state transitions recorded as RMT
-      INSERTs. Every PG write is
-      paired with a CH INSERT so the customer surfaces stay in
-      sync; CH is never queried for OLTP correctness.
+    * **Postgres is the workflow_job lifecycle store.** One
+      `runner_workflow_jobs` row per job (`Tuist.Runners.WorkflowJobs`,
+      guarded compare-and-set transitions) next to the thin
+      `runner_claims` claim lock — claim and lifecycle state commit in
+      the same transaction. ClickHouse `runner_jobs` is the
+      analytics/history replica fed by the transition outbox; it is
+      never queried for OLTP correctness.
 
   Claim flow:
 
-      1. pick_queued from CH (candidate selection)
-      2. Claims.attempt/5 — atomic resource check + PG INSERT,
-         lost-race-safe by PK
-      3. Jobs.record_claimed/3 — CH state for customer visibility
+      1. pick_queued from the Postgres lifecycle table
+      2. Claims.attempt/5 — atomic resource check + claim INSERT +
+         lifecycle row queued → claimed, lost-race-safe by PK
+      3. Jobs.record_claimed/3 — completion guard + observability
       4. mint JIT
-      5. Jobs.record_running/2 — CH state once mint succeeds
+      5. Claims.mark_running/2 + Jobs.record_running/2 once mint
+         succeeds
       6. return 200 + JIT to the polling Pod
 
   On `workflow_job.completed`: Claims.delete + Jobs.complete.
 
-  Recovery: `StaleClaimsWorker` deletes PG claims older than 5
-  minutes and re-INSERTs `queued` state into CH so the next poll
-  can pick the workflow_job up again.
+  Recovery: `StaleClaimsWorker` releases claims older than 5
+  minutes; `Claims.release/2` re-queues the lifecycle row in the
+  same transaction so the next poll can pick the workflow_job up
+  again.
 
   ## Who releases a claim, and why there is a backstop
 
@@ -54,26 +54,29 @@ defmodule Tuist.Runners do
   arrive:
 
     * `workflow_job.completed` webhook, keyed on the executing
-      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      `runner_name` (`Claims.complete_by_runner_name/3`). Releases
       nothing when GitHub reports no runner, e.g. a job cancelled while
       queued, or one GitHub placed on a sibling runner.
     * The controller's pod-stopped POST
       (`Claims.release_by_pod_name/1`). Skipped entirely when the
       reaper deletes the Pod before the lifecycle reconciler observes
       it ending.
-    * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`.
-    * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`.
+    * `StaleClaimsWorker`, keyed on the claim's `lifecycle_state`.
+    * `OrphanedRunnersWorker`, keyed on the lifecycle row's `status`.
 
-  Those last two are keyed on *different stores*, and the stores can
-  disagree, so a claim can be invisible to both at once — Postgres
-  `running` dodges the `claimed` sweep while ClickHouse `claimed`
-  dodges the `running` sweep. Production held claims stranded that way
-  for over ten days, silently consuming an account's budget.
+  Those last two are keyed on *different columns* that historically
+  lived in different stores which could disagree, leaving a claim
+  invisible to both sweeps at once — production held claims stranded
+  that way for over ten days, silently consuming an account's budget.
+  Both columns now live in Postgres and move transactionally, but the
+  sweeps still cover different failure classes (stuck mid-mint vs
+  runner never registered).
 
-  `PodClaimReconciliationWorker` is the level-triggered backstop and
-  the only path that does not infer: it compares claims against the
-  Pods that actually exist and releases the ones whose Pod is gone,
-  because a claim is capacity held by a Pod. Prefer fixing a leak there
+  `PodReconciliationWorker` is the level-triggered backstop and
+  the only path that does not infer: it compares claims and open
+  sessions against the Pods that actually exist, releasing or closing
+  the ones whose Pod is gone, because both are capacity held by a Pod
+  and neither survives the Pod. Prefer fixing a leak there
   over adding a fifth edge-keyed sweep; every one of those closes a
   slice and leaves a new blind spot at the intersections.
 
@@ -586,9 +589,11 @@ defmodule Tuist.Runners do
     {dispatchable, withheld} =
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
+          headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+
           dispatchable =
             Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+              acc + min(count, Map.get(headrooms, account_id, 0))
             end)
 
           {dispatchable, raw - dispatchable}
@@ -657,9 +662,12 @@ defmodule Tuist.Runners do
     end
   end
 
+  # The excluded workflow_job list starts empty: a queued lifecycle
+  # row cannot carry a live claim (the claim transaction transitions
+  # it to `claimed`), so there is no cross-store lag to defend
+  # against. It only accumulates jobs this poll already lost a claim
+  # race for.
   defp claim_and_serve(namespace, sa_name, fleet_name, node_name) do
-    excluded_workflow_job_ids = Claims.workflow_job_ids_for_fleet(fleet_name)
-
     claim_and_serve(
       namespace,
       sa_name,
@@ -667,7 +675,7 @@ defmodule Tuist.Runners do
       node_name,
       [],
       [],
-      excluded_workflow_job_ids,
+      [],
       @max_claim_attempts_per_dispatch
     )
   end
@@ -739,6 +747,10 @@ defmodule Tuist.Runners do
   end
 
   defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
+    # The machine shape the claim was admitted under rides along to
+    # `serve_claim/2`, which freezes it onto the billing session.
+    context = Map.put(context, :resources, resources)
+
     candidate.workflow_job_id
     |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
     |> handle_claim_attempt(context)
@@ -1025,8 +1037,14 @@ defmodule Tuist.Runners do
       sa_name: sa_name,
       fleet_name: fleet_name,
       candidate: candidate,
+      resources: resources,
       affinity_outcome: affinity_outcome
     } = context
+
+    # Already resolved upstream for cache-volume affinity, so recording it on
+    # the session costs nothing and is the only chance to capture it: the Pod
+    # carrying this mapping is reaped when the job ends.
+    node_name = Map.get(context, :node_name)
 
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
@@ -1039,7 +1057,7 @@ defmodule Tuist.Runners do
              :ok <- stamp_owner_label(namespace, pod_name, account),
              {:ok, jit, runner_name} <-
                mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels),
-             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
+             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
           # the account's shared cache. Determine trust fail-closed — any
@@ -1070,7 +1088,11 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id,
             account_id: candidate.account_id,
             fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             pod_name: pod_name,
+            node_name: node_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),
             workflow_name: Map.get(candidate, :workflow_name, ""),
@@ -1124,7 +1146,7 @@ defmodule Tuist.Runners do
   # `Jobs.record_running` can raise on ClickHouse connectivity
   # failures (Tuist.IngestRepo is :async by default but the
   # underlying connection pool surfaces hard errors). A raise
-  # after `Claims.mark_running/2` would leave PG in `running`
+  # after `Claims.mark_running/3` would leave PG in `running`
   # (which `Claims.list_stale/1` skips), the cap consumed
   # forever, and the runner stranded because no JIT ever
   # reached the VM. Catch it, surface as `{:error, _}` so the
@@ -1161,33 +1183,25 @@ defmodule Tuist.Runners do
   #   * CH fails → leave PG alone; the stale-worker will both
   #     drop the PG row AND re-INSERT `queued` to CH on its
   #     normal recovery path.
+  # `Claims.release/2` re-queues the lifecycle row in the same
+  # transaction as the claim delete, so a failed dispatch either
+  # fully returns the job to the queue or leaves the claim intact
+  # for the stale-claims worker — never a half-released state.
   defp release_safely(candidate, claim, reason) do
-    Jobs.record_queued(candidate)
-  rescue
-    e ->
-      Logger.warning("runners: record_queued failed; leaving PG claim for stale-worker",
-        workflow_job_id: candidate.workflow_job_id,
-        original_reason: inspect(reason),
-        ch_error: Exception.message(e)
-      )
+    case Claims.release(candidate.workflow_job_id, claim.claimed_at) do
+      :ok ->
+        :ok
 
-      :ok
-  else
-    :ok ->
-      case Claims.release(candidate.workflow_job_id, claim.claimed_at) do
-        :ok ->
-          :ok
+      {:error, :stale_claim} ->
+        # Stale-claims worker already released this row and
+        # something else re-claimed it; leave it alone.
+        Logger.warning("runners: release skipped (claim went stale)",
+          workflow_job_id: candidate.workflow_job_id,
+          original_reason: inspect(reason)
+        )
 
-        {:error, :stale_claim} ->
-          # Stale-claims worker already released this row and
-          # something else re-claimed it; leave it alone.
-          Logger.warning("runners: release skipped (claim went stale)",
-            workflow_job_id: candidate.workflow_job_id,
-            original_reason: inspect(reason)
-          )
-
-          :ok
-      end
+        :ok
+    end
   end
 
   # The owner label gates dispatch egress (see the @owner_label_stamp_attempts
@@ -1321,6 +1335,11 @@ defmodule Tuist.Runners do
     # between hosted and self-hosted runs. The runner images
     # create a `runner` user with the corresponding HOME on each
     # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    #
+    # Linux Pods share this directory with the dockerd sidecar so
+    # `jobs.<id>.container` jobs work; the mount path is `workPath`
+    # in `infra/runners-controller/internal/podtemplate`, and the two
+    # have to move together.
     work_folder =
       if "macOS" in runner_labels do
         "/Users/runner/work"

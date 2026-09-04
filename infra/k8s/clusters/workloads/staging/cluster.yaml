@@ -59,6 +59,12 @@ spec:
       # (`tuist-bm-staging-…`).
       - name: bareMetalCluster
         value: staging
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
       # Insert InternalIP ahead of Hostname so the apiserver can reach the
       # cross-cloud kura kubelets (Dedibox/Elastic Metal): they report no
       # ExternalIP and an unresolvable Hostname, so the default order lands on
@@ -127,41 +133,27 @@ spec:
               # OOM the egress gateway.
               - name: workerNodeTaints
                 value: tuist.dev/stable-egress=true:NoSchedule
-        # Linux runner pool on Hetzner Robot bare metal. Each
-        # claimable `HetznerBareMetalHost` CR (see
-        # `bare-metal-staging.yaml`) gets picked up by caph, which
-        # runs the rescue + installimage + cloud-init kubeadm-join
-        # flow to register the host as a worker Node. Each node ends
-        # up labeled `node.cluster.x-k8s.io/pool=runners-linux` +
-        # `tuist.dev/kata-runtime=true` and tainted
-        # `tuist.dev/runner-tier=bare-metal:NoSchedule`.
+        # Stateful bare-metal pool carrying staging's in-cluster ClickHouse
+        # (spec #73). One AX42-1 in FSN1, one replica plus one Keeper, on a
+        # local PV under /data.
         #
-        # Host count is operator-managed: order another
-        # `tuist-bm-staging-*` server in the Robot panel and bump
-        # `replicas:` here to grow capacity. Pod-level autoscaling
-        # in `values-managed-staging.yaml`'s
-        # `runnersFleetLinux.pools[].autoscaling` floats Pod counts
-        # within the slot ceiling each host provides.
-        - class: bare-metal-worker
-          name: runners-linux
-          failureDomain: fsn1
+        # Staging is where the `stateful-worker` class runs first: the
+        # installimage layout, the /data partition, the local PV and the
+        # taint all get exercised here before canary, and canary before
+        # production, the same cascade every deploy follows.
+        #
+        # `statefulRaidLevel` is left at its default of 1, which is correct
+        # for this two-disk box. A four-disk production host must override
+        # it to 10. See the variable's definition in `clusterclass-tuist.yaml`.
+        #
+        # PREREQ: the Robot server must be named `tuist-bm-staging-ch-1` so
+        # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
+        # stamped for this cluster. Unlike the in-house CAPI fleets, an
+        # unclaimable replica here does not wedge a Helm release: caph just
+        # parks the Machine as `NoAvailableHost` until a host appears.
+        - class: stateful-worker
+          name: md-clickhouse
+          replicas: 1
           metadata:
             labels:
-              node.cluster.x-k8s.io/pool: runners-linux
-              # Tell the cloud-provider service controller to skip
-              # these Nodes when building Hetzner LoadBalancer target
-              # lists. Two reasons:
-              #   1. They're not hcloud VMs — they have no
-              #      `providerID: hcloud://<int>` HCCM can parse. A
-              #      stale install once left a Node with
-              #      `hcloud://nocloud` and HCCM aborted the entire
-              #      Service reconcile on that one bad target,
-              #      bringing the ingress LB down with it.
-              #   2. Even with a correct `hcloud://bm-<n>` providerID,
-              #      bare-metal hosts run runner Pods only — routing
-              #      ingress traffic through them just bounces it
-              #      back into the cluster network.
-              # The label is honored by the upstream Kubernetes
-              # cloud-provider library (see `nodeIncluded()` in
-              # `cloud-provider/controllers/service`).
-              node.kubernetes.io/exclude-from-external-load-balancers: ""
+              node.cluster.x-k8s.io/pool: clickhouse

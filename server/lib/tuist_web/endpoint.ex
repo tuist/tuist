@@ -12,9 +12,15 @@ defmodule TuistWeb.Endpoint do
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
+  # Browser cookies are scoped to host and ignore the port, so every dev
+  # server on localhost otherwise shares one session cookie: loading a
+  # page on one port rewrites the session another port's form embedded
+  # its CSRF token into, and the next form post there fails as an
+  # invalid CSRF token. Dev derives the name from the port to give each
+  # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
     store: :cookie,
-    key: "_tuist_key",
+    key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
     same_site: "Lax"
   ]
@@ -93,6 +99,18 @@ defmodule TuistWeb.Endpoint do
   plug WebhookPlug,
     at: "/webhooks/gradle-cache",
     handler: TuistWeb.Webhooks.GradleCacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/reapi-cache",
+    handler: TuistWeb.Webhooks.ReapiCacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-invocations",
+    handler: TuistWeb.Webhooks.BazelInvocationsController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 

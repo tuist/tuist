@@ -56,6 +56,13 @@
             _ items: Set<CacheStorableItem>,
             cacheCategory: RemoteCacheCategory
         ) async throws -> [CacheItem: AbsolutePath]
+        /// Entries for `resolvedHashes` have already been handed to the caller, so a storage that
+        /// evicts to make room for what it fetches must not reclaim them.
+        func fetch(
+            _ items: Set<CacheStorableItem>,
+            cacheCategory: RemoteCacheCategory,
+            preserving resolvedHashes: Set<String>
+        ) async throws -> [CacheItem: AbsolutePath]
         func store(
             _ items: [CacheStorableItem: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
@@ -63,6 +70,15 @@
     }
 
     extension CacheStoring {
+        /// A storage that never evicts has nothing to preserve.
+        public func fetch(
+            _ items: Set<CacheStorableItem>,
+            cacheCategory: RemoteCacheCategory,
+            preserving _: Set<String>
+        ) async throws -> [CacheItem: AbsolutePath] {
+            try await fetch(items, cacheCategory: cacheCategory)
+        }
+
         public func fetch(
             _ targets: Set<CacheStorableTarget>,
             cacheCategory: RemoteCacheCategory

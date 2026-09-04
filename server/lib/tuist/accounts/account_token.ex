@@ -41,6 +41,7 @@ defmodule Tuist.Accounts.AccountToken do
       "project:runs:write"
     ],
     @mcp_scope => [
+      "account:runners:read",
       "project:admin:read",
       "project:cache:read",
       "project:previews:read",
@@ -59,6 +60,7 @@ defmodule Tuist.Accounts.AccountToken do
     "account:members:write",
     "account:registry:read",
     "account:registry:write",
+    "account:runners:read",
     "project:previews:read",
     "project:previews:write",
     "project:admin:read",
@@ -113,6 +115,9 @@ defmodule Tuist.Accounts.AccountToken do
   def ci_scope, do: @ci_scope
 
   def scim_scope, do: @scim_scope
+
+  @doc "The preset scope a credential needs to act through the MCP endpoint."
+  def mcp_scope, do: @mcp_scope
 
   def expand_scopes(scopes) do
     Enum.flat_map(scopes, fn scope ->

@@ -129,11 +129,20 @@
 
       & [data-part="trigger"] {
         align-items: center;
+        align-self: flex-start;
         gap: var(--noora-spacing-3);
         box-shadow: unset;
         background: unset;
         padding: unset;
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+        /* Noora's dark-theme hover rule is scoped to `html[data-theme]` and so
+           outranks the reset above, which would draw a button border around the
+           widget title. */
+        &:hover {
+          box-shadow: unset;
+          background: unset;
+        }
 
         & [data-part="label-wrapper"] {
           flex-grow: 0;
@@ -218,6 +227,10 @@
     width: 8px;
     height: 8px;
 
+    &[data-color="primary"] {
+      background-color: var(--noora-chart-primary);
+    }
+
     &[data-color="secondary"] {
       background-color: var(--noora-chart-secondary);
     }
@@ -228,6 +241,10 @@
 
     &[data-color="destructive"] {
       background-color: var(--noora-chart-destructive);
+    }
+
+    &[data-color="flaky"] {
+      background-color: var(--noora-chart-flaky);
     }
   }
 

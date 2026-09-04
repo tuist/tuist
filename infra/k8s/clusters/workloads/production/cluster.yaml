@@ -50,6 +50,12 @@ spec:
       # (`tuist-bm-production-…`).
       - name: bareMetalCluster
         value: production
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
       # Insert InternalIP so the apiserver can reach kubelets on nodes with no
       # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
       # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
@@ -183,31 +189,3 @@ spec:
         # kura-us-west fleets in the tuist chart (ovhFleets) and self-joined via
         # the CAPI provider — they are no longer Hetzner worker pools here, so the
         # region catalog reports no Hetzner location for them.
-        # Linux runner pool on Hetzner Robot bare metal. The
-        # `hetzner-robot-controller` reflects
-        # `tuist-bm-production-*` Robot servers into HBM CRs
-        # stamped `tuist.dev/cluster=production`; caph claims them
-        # through the patched HBMM hostSelector. Each node ends up
-        # labeled `node.cluster.x-k8s.io/pool=runners-linux` +
-        # `tuist.dev/kata-runtime=true` and tainted
-        # `tuist.dev/runner-tier=bare-metal:NoSchedule`.
-        #
-        # Host count is operator-managed: order another
-        # `tuist-bm-production-*` server in the Robot panel and
-        # bump `replicas:` here to grow capacity.
-        - class: bare-metal-worker
-          name: runners-linux
-          # Two pre-ordered AX162-R hosts (`tuist-bm-production-1` and
-          # `tuist-bm-production-2`) in FSN1. Each box hosts ~64 Kata-
-          # QEMU runner slots at the chart's 1 vCPU / 4 GB slot size;
-          # two boxes give ~128 runner slots + one host of HA headroom.
-          # Bump in lockstep with new Robot orders.
-          replicas: 2
-          failureDomain: fsn1
-          metadata:
-            labels:
-              node.cluster.x-k8s.io/pool: runners-linux
-              # See cluster-staging.yaml for the rationale — keeps
-              # bare-metal Nodes out of HCCM's LB target set so a
-              # bad providerID can't break the ingress.
-              node.kubernetes.io/exclude-from-external-load-balancers: ""

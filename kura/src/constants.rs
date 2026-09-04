@@ -49,6 +49,29 @@ pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
+// Outbox deliveries dispatched before the drain waits for one to finish, and
+// the only throughput knob the bulk lane has: the drain moves roughly this many
+// messages per per-delivery latency. Every artifact enqueues one message per
+// peer, so the artifact rate is this divided again by the peer count.
+//
+// `drain_metadata_batches` amortizes the metadata lane over far fewer requests,
+// but it stops at `OUTBOX_BULK_LANE_PREFIX` and takes only inline upserts, so
+// segment-backed artifacts reach a peer one delivery at a time. A runner-cache
+// workload is almost entirely those, which is why this bounds it.
+//
+// Per-delivery latency is dominated by body transfer, not by the round trip: a
+// write-primary replicating to two peers one region away runs at hundreds of
+// milliseconds per delivery, so the ceiling this sets has to be read against
+// ingest measured in tens of messages per second. A ceiling below ingest does
+// not shave the peak, it fills the outbox to `DEFAULT_OUTBOX_MAX_DEPTH` and
+// starts refusing public writes.
+//
+// The cost is per-delivery body residency: one `RESPONSE_STREAM_CHUNK_BYTES`
+// chunk for a segment-backed artifact, or up to
+// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one. That is a few MiB
+// times this number, which stays well inside the transient budget that bounds
+// concurrent writes.
+pub const OUTBOX_MAX_INFLIGHT: usize = 32;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;
@@ -95,8 +118,28 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+
+// Ceilings on one batched replication request. The metadata lane carries
+// inline artifacts (action-cache entries, small CAS objects) whose bodies run
+// to a few KiB, so a per-message request spends a whole round trip shipping
+// less than one MTU of payload: the drain is bound by messages per second
+// rather than bytes per second, orders of magnitude below the link. Batching
+// moves the bound back onto bytes. The item cap is what does that; the byte cap
+// only stops a run of unusually large inline bodies (up to
+// MAX_INLINE_REPLICATION_BODY_BYTES each) from assembling a request that has to
+// be buffered whole on both sides.
+pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
+// Batch rounds one pass may take before it hands control back to the
+// per-message drain. The batch pre-pass restarts its scan at the outbox head
+// after every round, so without a bound a target under sustained inflow keeps
+// producing batchable pairs and the pass never reaches the messages batching
+// declines — namespace deletes, and everything bound for a peer that predates
+// the batch route. Four rounds still moves thousands of messages before
+// yielding.
+pub const REPLICATION_BATCH_MAX_ROUNDS: usize = 4;
+pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
-pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 64 * 1024;
 pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;
 pub const RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES: usize = 16;
 
@@ -172,6 +215,59 @@ pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // on multi-million-entry nodes), blocking compaction of everything written
 // since it opened.
 pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
+// How many rows a CAS eviction scans between yields, counting BOTH the
+// segment-index rows and the blob-ref rows of every cascade the scan starts
+// against one shared budget. Per-scan budgets were the first attempt and do not
+// bound anything: the cascade counter restarts on each blob, so 255 artifacts
+// each cascading 200 reverse rows walks ~51,000 rows without either scan
+// reaching the stride. The scan is entirely synchronous RocksDB work (a manifest
+// read per artifact, plus a reverse-row prefix scan and an inline-bytes read and
+// decode per cascaded action-cache entry), so without a yield one eviction parks
+// a runtime worker for its whole duration. Smaller than the snapshot gate's stride because each row here costs
+// several reads rather than one cache hit.
+//
+// Note the different shape from `BACKFILL_INDEX_BUILD_CHUNK_ROWS` above, which
+// answers an overlapping problem the other way. That build chunks and reopens
+// so no iterator outlives a chunk; an eviction yields inside one long-lived
+// `iterator_cf` instead, which pins its implicit snapshot across every yield
+// and so holds it marginally longer than before. That is deliberate, for two
+// reasons. The cascade has to stage every delete into one atomic batch or an
+// entry is left pointing at a blob that is already gone, so resuming from a key
+// cursor is not available here. And the exposure is bounded by one segment's
+// artifact index, tens of thousands of rows, rather than the millions the
+// backfill build walks, so pinning a snapshot for it does not reach the
+// compaction-blocking scale that shaped the constant above. Revisit if segments
+// ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
+pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
+// Payload ceiling of one segment-eviction write batch, and so of how much
+// memtable a single eviction can pin at once.
+//
+// The comment above is still right that a blob and the action-cache entries
+// cascading off it must land in ONE atomic batch, or an entry is left pointing
+// at a blob that is already gone (#12152). It does not follow that two
+// different blobs must share a batch, and treating it as if it did is what
+// made one eviction stage its whole 512 MiB segment index plus every cascade
+// as a single write: ~130k deletes, ~20 MB of memtable, committed in one call
+// against a pool that is 32 MiB on managed instances. That saturated the pool
+// and stalled every writer inside RocksDB (#12556).
+//
+// So the batch is committed in chunks. Splitting inside a blob's cascade is
+// legal too, which is the part that is easy to get wrong: #12152's invariant is
+// ONE-DIRECTIONAL. It forbids an *entry* outliving its blob, not a blob
+// outliving its entries. `evict_segment` therefore commits a blob's cascaded
+// entries first and stages the blob's own rows only afterwards, so a chunk
+// boundary can fall anywhere without ever publishing a blob deletion ahead of
+// an entry that references it. Checking the budget only between blobs, as the
+// first version of this did, left the real ceiling at `budget + one blob's
+// entire cascade` — unbounded in exactly the dimension that saturated the pool,
+// since a common output blob is referenced by very many action results.
+//
+// 2 MiB of payload is roughly 4-6 MiB of memtable once tombstone overhead is
+// counted, which stays clear of even the 16 MiB floor the pool clamps to. The
+// commits are `sync = false`, so the extra ones cost a memtable insert and a
+// WAL append each, not an fsync. Keeping chunks small also keeps the copy in
+// `Store::commit_eviction_chunk` cheap.
+pub const SEGMENT_EVICTION_MAX_BATCH_BYTES: usize = 2 * 1024 * 1024;
 // Byte ceiling of one backfill bodies batch: the sum of body bytes one
 // `POST /_internal/backfill/bodies` response may carry, and the per-entry
 // oversized cutoff (entries larger than this route to the per-artifact

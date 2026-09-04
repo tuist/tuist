@@ -101,6 +101,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   for the CLI's LRU self-prune, reads the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  The host also stages its Kubernetes `node-name` there at VM create, which the
+  guest relays with its promote so the HEAD row records WHICH host published a
+  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
+  is gone minutes later while the Node name is what the
+  `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
+  unstaged name reports empty rather than falling back to the Pod name, since a
+  column holding two kinds of name identifies neither. Every value the guest takes
+  off the share is sanitised to its own alphabet and length before it reaches a
+  request body.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
@@ -238,6 +248,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   shell bridge while the single-shot runner VM is alive. It runs as root
   from a LaunchDaemon so terminal access does not depend on an unlocked
   Aqua session, then drops PTY child shells to the `runner` user.
+  `/tmp/tuist-runner-shell-agent.lock` keeps it a singleton, and both uids
+  share that one path, so probe the holder with `ps -p` and never with
+  `kill -0`: from `runner`, `kill -0` fails with EPERM against the live
+  root-owned daemon exactly as it fails with ESRCH against a dead pid.
+  An unreadable pid file or a refused `rm` means the lock is held, not
+  stale; clearing it there starts a second bridge against the same
+  dispatch URL and claim marker. `dispatch-poll.sh`'s
+  `shell_agent_lock_active` implements the same protocol and must stay in
+  step with it.
 - `/Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist` — the
   boot-time LaunchDaemon for the shell supervisor. `dispatch-poll.sh`
   still has a singleton-lock guarded fallback start path for older or
@@ -279,7 +298,7 @@ packer build runner.pkr.hcl
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger a two-job chain in
-  `release.yml`:
+  `server-production-deployment.yml`:
   1. `runner-image-build` is a matrix job; its `matrix.xcode` is
      read from `infra/runner-image/profiles.json` (the single source
      of truth) by `check-releases` and expanded via `fromJSON`. One
@@ -290,13 +309,14 @@ CI:
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
      fails, sibling builds abort so the chart pin doesn't move to a
      partially-published set.
-  2. `release-runner-image` (ubuntu) pins `runnersFleet.runnerImage`
-     to the default profile's immutable per-release tag
-     (`:macos-<profile>-<semver>` — constructed from the version, no
-     registry lookup), rewrites the managed-env values files that
-     already carry a pin, generates release notes / `CHANGELOG.md`,
-     uploads artifacts. Downstream tag + GitHub-Release jobs key off
-     this job's `result == 'success'`.
+  2. `release-runner-image` (ubuntu) renders the published image
+     list for the GitHub Release body from `profiles.json`, generates
+     release notes / `CHANGELOG.md`, and uploads artifacts. It
+     rewrites no values file: the `runner-image@<semver>` tag that
+     `tag-infra-releases` creates is what the chart's
+     `runnersFleet.runnerImageSemver` resolves to at deploy time.
+     Downstream tag + GitHub-Release jobs key off this job's
+     `result == 'success'`.
 
   Concurrency scales with builder count: 2 hosts publish 2 profiles
   in parallel, more hosts cut the wall-clock proportionally. No
@@ -347,23 +367,25 @@ Active profiles are the single source of truth in
 file lives under `infra/runner-image/**` — the component's only
 include path in `mise/tasks/release/components.json` — editing the
 list both reshapes the build matrix and triggers a runner-image
-release, with no `release.yml` edit. Unrelated `release.yml` churn no
-longer rebuilds the images.
+release, with no `server-production-deployment.yml` edit. Unrelated
+churn in that workflow no longer rebuilds the images.
 
 - **Active.** Rebuilt on every `release-runner-image` run (every
   `feat(runner-image)` / `fix(runner-image)` commit landing on
   `main`). Each adds ~30 min on a single builder; matrix-fanned across
   the fleet so adding a third builder lets you carry a third profile
   at the same wall-clock cost.
-- **Default profile.** The first matrix entry. The chart's
-  `runnersFleet.runnerImage` pin tracks its immutable
-  `:macos-<dashes>-<semver>` tag, so a new fleet rollout = put the
-  desired profile first.
+- **Default profile.** The first entry, by convention. Which
+  version `runs-on: tuist-macos` actually resolves to is the
+  catalog entry marked `default: true` in
+  `runnersFleet.xcodeVersions`, so moving the default means editing
+  both this list and that catalog.
 - **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
   that's been published in the past and still exists in GHCR. They
-  don't refresh on `release.yml` runs — customers can keep pinning
-  to them, but new runner-agent / dispatch-loop / launchd changes
-  only land in them when the operator explicitly refreshes via
+  don't refresh on `server-production-deployment.yml` runs —
+  customers can keep pinning to them, but new runner-agent /
+  dispatch-loop / launchd changes only land in them when the
+  operator explicitly refreshes via
 
       gh workflow run runner-image.yml -f xcode_version=26.X.Y
 
@@ -385,8 +407,9 @@ Bumping the Xcode customers see on their runners:
    additional entry (most common — gives customers it alongside the
    existing default), or put it first to make it the newest / default
    profile. **If you move the first entry, also bump
-   `release.yml`'s xcresult-processor `XCODE_VERSION` to match** —
-   that image must be at least as new as the newest runner profile.
+   `server-production-deployment.yml`'s xcresult-processor
+   `XCODE_VERSION` to match** — that image must be at least as new
+   as the newest runner profile.
    Also add the matching `runnersFleet.xcodeVersions` entry in
    `values-managed-common.yaml` so the fleet renders a pool for it.
    Commit with a `feat(runner-image): ...` message so check-releases
@@ -396,6 +419,34 @@ Bumping the Xcode customers see on their runners:
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
    dispatch path above stays available for a one-off refresh if
    security work needs to land there.
+
+### Betas enter as a channel
+
+Xcode betas sit in `profiles.json` like any other profile, but the
+entry is a **channel** (`27.0-beta`), not a beta (`27.0-beta-6`).
+Two things fall out of that, both wanted:
+
+- The base image `macos-xcode-image` publishes for a beta carries
+  both an exact tag and the channel tag, so moving a beta is a
+  rebuild of `:27-0-beta`. The entry here already points at it,
+  which makes a beta bump a zero-diff change: the next
+  runner-image release rebuilds against whatever the channel now
+  holds. Those fire every few days, comfortably inside Apple's
+  fortnightly beta cadence.
+- The channel is what customers' Runner Profiles store in
+  `xcode_version`. Retiring a catalog entry a profile still names
+  strands it on a RunnerPool that no longer renders, and a
+  stranded macOS profile queues its jobs forever rather than
+  failing them. A channel outlives the betas behind it, so that
+  never comes up.
+
+The cost is one more ~30 min bake per runner-image release, and
+`fail-fast: true` on the matrix means a beta base that cannot take
+the runner layer would abort its siblings. That layer is thin
+(runner agent plus launchd, ~2 min) and the risky Xcode work all
+happens in Layer 1, which fails in `macos-xcode-image` instead, so
+the exposure is small. Full runbook: "Promoting an Xcode beta" in
+[`../macos-xcode-image/AGENTS.md`](../macos-xcode-image/AGENTS.md).
 
 ## Profile tagging
 
@@ -456,6 +507,44 @@ customer-facing profile selection.
    cache-volume feature), which the host reports as
    `TartRunExited` rather than laundering tart's zero into a clean
    runner exit.
+
+   The exit code alone is not enough, because it does not separate
+   the two cases that matter: a runner that finished its job and a
+   runner that halted without ever taking one both report 0. So the
+   trap also publishes `runner.log` — `dispatch-poll.sh`'s own
+   output — into the same share, and tart-kubelet re-emits a bounded
+   tail of it to its own stdout before teardown deletes the share.
+   That stdout is already tailed by the host log shipper, so the
+   trail reaches Loki without the shipper having to discover
+   per-VM shares. Copied from the trap rather than `tee`d as the
+   script runs, so a still-running tee cannot flush a duplicate tail
+   after the copy. Same `status`-share dependency as `runner-rc`:
+   pools with cache volumes off keep the old behaviour of logging
+   only inside the guest, and a guest killed before its trap runs
+   publishes nothing — that case already arrives distinguishably as
+   `TartRunExited`.
+
+   Both of those describe a runner that *ended*. `runner-heartbeat`
+   in the same share covers the runner that does not: the poll loop
+   rewrites it every iteration with the state it is in (`polling`
+   while warm, `claimed` once it takes a job), and the file's mtime
+   is the beat. It exists because a macOS Pod's phase and Ready
+   condition are synthesized from "the VM process is alive and has
+   an IP" — tart-kubelet runs no container probes — so a guest whose
+   poller died reads 1/1 Running for the rest of the VM's life, and
+   nothing bounds that life: warm standby is deliberately unbounded
+   and in practice a warm macOS runner is recycled only when its SA
+   token expires around the 8h mark. tart-kubelet publishes the beat
+   as the `tuist.dev/runner-heartbeat-state` and
+   `tuist.dev/runner-heartbeat-at` Pod annotations and the
+   runners-controller stops counting a stale one as warm capacity.
+   `claimed` is written once and then never refreshed — from there
+   the script is blocked in `wait` on `run.sh` — so it is the state,
+   not the age, that marks the Pod busy; it also does so
+   independently of the server's best-effort owner label. Same
+   `status`-share dependency as the two above, and the absence is
+   read as "no signal" rather than "dead", so a pool with cache
+   volumes off keeps counting as capacity.
 
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`

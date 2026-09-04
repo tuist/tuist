@@ -113,8 +113,19 @@ const BLOB_STATUS_ATTEMPTS: usize = 3;
 // each pay the retry ladder and pile read load onto it; short enough to re-probe
 // for recovery several times within one build.
 const PRESSURE_BACKOFF_MS: u64 = 30_000;
+// The same idea for the PUBLICATION write path, which had no equivalent: every
+// publication paid `retry_call`'s full ladder on every shed, and that ladder
+// sleeps 200ms. A build publishing thousands of keys against a node shedding
+// writes therefore spent hundreds of milliseconds per publication asleep in a
+// publisher thread -- invisible in wall clock, because publications are
+// background work, and visible only as `write_duration` in the build report.
+//
+// Shorter than the read window because a publication's retry is not a caller
+// blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
+// a node that recovers is picked up on the next one rather than waited out.
+const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as u64)
@@ -146,6 +157,77 @@ fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, 
     Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
 }
 
+/// `retry_call` for a publication's write RPCs, with the ladder gated on a
+/// per-`Remote` breaker.
+///
+/// The ladder exists for a node that is briefly unavailable. It is the wrong
+/// answer for one that is deliberately shedding writes under load: the sleep
+/// buys nothing (the outbox is full for as long as it is full), it costs a
+/// publisher thread 200ms it could have spent on a publication that would
+/// succeed, and re-issuing adds load to the node that is already saying it has
+/// too much. So once a shed survives the ladder, the next publications make one
+/// fail-fast attempt for `WRITE_PRESSURE_BACKOFF_MS`.
+///
+/// Failing fast is safe here in a way it would not be on the read path: a
+/// publication's record is durable on disk and is deleted only once the
+/// publication succeeds, so a refusal is retried by the next sweep rather than
+/// lost. The one thing that must not happen is reporting it as published.
+fn retry_write<T>(
+    breaker: &AtomicU64,
+    mut op: impl FnMut() -> Result<T, tonic::Status>,
+) -> Result<T, tonic::Status> {
+    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) { 1 } else { ATTEMPTS };
+    for attempt in 0..attempts {
+        if attempt > 1 {
+            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
+        }
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < attempts => continue,
+            Err(status) => {
+                // Only a shed arms the breaker. An unreachable node
+                // (UNAVAILABLE) or a dropped connection is transient and
+                // unrelated to load, and failing publications fast for 5s
+                // because one connection blipped would turn a reconnect into a
+                // window of skipped publications.
+                if status.code() == tonic::Code::ResourceExhausted {
+                    arm_write_pressure_backoff(breaker);
+                }
+                return Err(status);
+            }
+        }
+    }
+    Err(tonic::Status::unknown("retry attempts exhausted"))
+}
+
+/// Opens a fresh fail-fast window, logging the transition once. Same
+/// compare-exchange discipline as `arm_pressure_backoff`: eight publisher
+/// threads race the same `Remote`, and a plain load-then-store would let every
+/// one of them arm and log.
+fn arm_write_pressure_backoff(breaker: &AtomicU64) {
+    let now = now_ms();
+    let mut current = breaker.load(Ordering::Relaxed);
+    loop {
+        if current > now {
+            return;
+        }
+        match breaker.compare_exchange_weak(
+            current,
+            now + WRITE_PRESSURE_BACKOFF_MS,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(observed) => current = observed,
+        }
+    }
+    crate::log_line(&format!(
+        "publish: server shedding writes under load; failing publications fast \
+         for {}s (their records are kept and the next sweep retries)",
+        WRITE_PRESSURE_BACKOFF_MS / 1000
+    ));
+}
+
 /// Async counterpart of `retry_call`, for calls issued from within a tokio task
 /// where blocking is not allowed. `op` is re-invoked (returning a fresh future)
 /// per attempt.
@@ -174,6 +256,39 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
         s.push_str(&format!("{b:02x}"));
     }
     s
+}
+
+/// kura marks a refusal the caller can act on, rather than one that is
+/// transient, with this metadata. gRPC has no payment-required code, so the
+/// status itself is an ordinary permission denial and the reason travels beside
+/// it.
+const REFUSAL_REASON_KEY: &str = "tuist-refusal-reason";
+const REFUSAL_REASON_PAYMENT_REQUIRED: &str = "payment_required";
+
+static PAYMENT_REQUIRED_REPORTED: std::sync::Once = std::sync::Once::new();
+
+fn is_payment_required(status: &tonic::Status) -> bool {
+    status
+        .metadata()
+        .get(REFUSAL_REASON_KEY)
+        .and_then(|reason| reason.to_str().ok())
+        == Some(REFUSAL_REASON_PAYMENT_REQUIRED)
+}
+
+/// Reported once for the life of the process, which is one build: the lookup it
+/// answers runs per compilation, so saying this per lookup would bury it. The
+/// caller still treats the refusal as a miss, so the build finishes uncached
+/// rather than failing.
+fn note_payment_required(status: &tonic::Status) {
+    if !is_payment_required(status) {
+        return;
+    }
+
+    PAYMENT_REQUIRED_REPORTED.call_once(|| {
+        let message = status.message().to_owned();
+        crate::log_line(&format!("cache refused: {message}"));
+        eprintln!("warning: {message} Builds continue without the remote cache.");
+    });
 }
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
@@ -234,6 +349,16 @@ pub struct Remote {
     // server-sent Internal), so once tripped we fail fast until it may have
     // recovered. 0 means healthy.
     pressure_backoff_until_ms: AtomicU64,
+    // The publication write path's own breaker. Separate from the read one
+    // because the two are shed independently: kura sheds WRITES when its
+    // outbox is at its cap while reads keep being served, and arming the read
+    // breaker on that would fail-fast cache hits that were never in trouble.
+    write_pressure_backoff_until_ms: AtomicU64,
+    // Publications this `Remote` refused to attempt because it was inside that
+    // window. Without it a build report cannot tell a `write_duration` that is
+    // flat because publishing is healthy from one that is flat because almost
+    // nothing was published.
+    shed_writes: AtomicU64,
 }
 
 fn retryable(status: &tonic::Status) -> bool {
@@ -420,7 +545,30 @@ impl Remote {
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
             pressure_backoff_until_ms: AtomicU64::new(0),
+            write_pressure_backoff_until_ms: AtomicU64::new(0),
+            shed_writes: AtomicU64::new(0),
         })
+    }
+
+    /// Whether this `Remote` is inside a window in which the server was last
+    /// seen shedding publication writes.
+    ///
+    /// The publication path asks BEFORE it does any work, not just before each
+    /// write RPC: a shedding node fails the write at the end either way, so
+    /// probing the action cache, walking the value closure and asking which
+    /// blobs are missing are three round trips and a pile of local reads spent
+    /// to arrive at a refusal that is already known.
+    pub fn shedding_writes(&self) -> bool {
+        now_ms() < self.write_pressure_backoff_until_ms.load(Ordering::Relaxed)
+    }
+
+    /// Counts a publication skipped because `shedding_writes` was true.
+    pub fn record_shed_write(&self) {
+        self.shed_writes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn shed_writes(&self) -> u64 {
+        self.shed_writes.load(Ordering::Relaxed)
     }
 
     /// The `authorization: Bearer <token>` header, or `None` when the endpoint
@@ -596,7 +744,10 @@ impl Remote {
                     Ok(Some(manifest))
                 }
                 Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
-                Err(status) => Err(format!("get_action: {status}")),
+                Err(status) => {
+                    note_payment_required(&status);
+                    Err(format!("get_action: {status}"))
+                }
             }
         })();
         self.get_stats.record(started.elapsed());
@@ -642,7 +793,10 @@ impl Remote {
                 .map(|file| file.contents)
                 .filter(|contents| !contents.is_empty())),
             Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
-            Err(status) => Err(format!("get_snapshot: {status}")),
+            Err(status) => {
+                    note_payment_required(&status);
+                    Err(format!("get_snapshot: {status}"))
+                }
         }
     }
 
@@ -797,13 +951,26 @@ impl Remote {
                     requests: chunk,
                     ..Default::default()
                 };
-                let response = retry_call(|| {
+                let response = retry_write(&self.write_pressure_backoff_until_ms, || {
                     runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
                     if let Some(status) = entry.status {
                         if status.code != 0 {
+                            // A shed can arrive either way, and only the RPC-level
+                            // one goes through `retry_write`: kura refuses the whole
+                            // call when its outbox is already at its cap, but a call
+                            // that exhausts capacity mid-request comes back OK with
+                            // the refusal on the individual blob. Both mean the same
+                            // thing about the node, so both must arm the breaker.
+                            // Without this the per-blob shape left every later
+                            // publication paying a probe, a closure walk and a
+                            // missing-blob query to reach a refusal already known,
+                            // which is most of what the breaker exists to stop.
+                            if status.code == tonic::Code::ResourceExhausted as i32 {
+                                arm_write_pressure_backoff(&self.write_pressure_backoff_until_ms);
+                            }
                             return Err(format!("batch_update blob rejected: {}", status.message));
                         }
                     }
@@ -844,7 +1011,7 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
-            retry_call(|| {
+            retry_write(&self.write_pressure_backoff_until_ms, || {
                 // The trunk rides the write too: kura keeps trunk-baseline
                 // keys sticky against feature-branch republishes.
                 let mut request = self.authed_with(
@@ -941,6 +1108,25 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn recognises_a_refusal_the_caller_can_act_on() {
+        let mut status = tonic::Status::permission_denied("upgrade to Tuist Pro");
+        status.metadata_mut().insert(
+            super::REFUSAL_REASON_KEY,
+            tonic::metadata::MetadataValue::from_static(super::REFUSAL_REASON_PAYMENT_REQUIRED),
+        );
+
+        assert!(super::is_payment_required(&status));
+    }
+
+    // A node that is merely unreachable, or a credential that genuinely lacks
+    // access, must not be reported as a billing problem.
+    #[test]
+    fn does_not_mistake_an_ordinary_refusal_for_an_exhausted_plan() {
+        assert!(!super::is_payment_required(&tonic::Status::permission_denied("nope")));
+        assert!(!super::is_payment_required(&tonic::Status::unavailable("node down")));
+    }
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::{reapi_instance, retryable, retryable_blob_status};

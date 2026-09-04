@@ -45,6 +45,13 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
     public func run(
         directory: String?
     ) async throws {
+        try await run(directory: directory, buildInsights: true)
+    }
+
+    public func run(
+        directory: String?,
+        buildInsights: Bool
+    ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -79,21 +86,21 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
 
         let credentialHelperPath = try await createCredentialHelperScriptIfNeeded()
 
-        let bazelrcPath = directoryPath.appending(component: ".bazelrc.tuist")
-        let bazelrcContent = """
-        build --remote_cache=\(endpoint.url)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
-        build --credential_helper=\(endpoint.host)=\(credentialHelperPath.pathString)
-        build --remote_instance_name=\(projectHandle)
-
-        """
+        let bazelrcPath = directoryPath.appending(component: BazelrcFile.name)
+        let bazelrcContent = BazelrcFile.render(
+            endpoint: endpoint,
+            accountHandle: accountHandle,
+            projectHandle: projectHandle,
+            credentialHelperPath: credentialHelperPath,
+            buildInsights: buildInsights
+        )
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
 
         AlertController.current.success(
             .alert(
                 "Generated \(bazelrcPath.pathString)",
                 takeaways: [
-                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache",
+                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache\(buildInsights ? " and invocation insights" : "")",
                 ]
             )
         )

@@ -6,6 +6,7 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -124,6 +125,7 @@ defmodule TuistWeb.API.TestsController do
            required: [:test_runs, :pagination_metadata]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
@@ -296,6 +298,17 @@ defmodule TuistWeb.API.TestsController do
            shard_plan_id: %Schema{
              type: :string,
              description: "The shard plan ID if this test run is part of a sharded execution."
+           },
+           only_test_identifiers: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state."
+           },
+           skip_test_identifiers: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "The tests the caller asked this run to exclude."
            },
            shard_index: %Schema{
              type: :integer,
@@ -515,6 +528,7 @@ defmodule TuistWeb.API.TestsController do
       },
       unauthorized: {"You need to be authenticated to create a test run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error},
       service_unavailable: {"The test run could not be scheduled for processing", "application/json", Error}
@@ -712,7 +726,8 @@ defmodule TuistWeb.API.TestsController do
            ]
          }},
       not_found: {"Test run not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -791,7 +806,9 @@ defmodule TuistWeb.API.TestsController do
           build_run_id: Map.get(params, :build_run_id),
           gradle_build_id: Map.get(params, :gradle_build_id),
           shard_plan_id: Map.get(params, :shard_plan_id),
-          shard_index: Map.get(params, :shard_index)
+          shard_index: Map.get(params, :shard_index),
+          only_test_identifiers: Map.get(params, :only_test_identifiers, []),
+          skip_test_identifiers: Map.get(params, :skip_test_identifiers, [])
         })
     end
   end

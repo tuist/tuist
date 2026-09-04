@@ -184,6 +184,14 @@ config:
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production
+    # Successful request completions are deterministically sampled by request
+    # identifier. Slow and failed requests remain eligible for warnings.
+    requestLogSampleRate: 0.0
+    # Set to 0 to disable slow-request warnings.
+    slowRequestThresholdMs: 30000
+    # Bounds repeated warning classes to one event per interval. Set to 0 to
+    # disable rate limiting.
+    warningLogIntervalMs: 60000
   discovery:
     enabled: true
 
@@ -199,9 +207,10 @@ extraEnvFrom: []
 extraVolumes: []
 extraVolumeMounts: []
 
-# Cache authorization against a Tuist server. The JWT verification key and the
-# control-plane credentials are secrets, so they come in through extraEnv or
-# extraEnvFrom as KURA_AUTH_JWT_SECRET and KURA_CONTROL_PLANE_CLIENT_ID /
+# Cache authorization against a Tuist server. The verification key and the
+# control-plane credentials come in through extraEnv or extraEnvFrom as
+# KURA_AUTH_JWT_PUBLIC_KEY (or KURA_AUTH_JWT_SECRET, where the node and the
+# server are the same trust boundary) and KURA_CONTROL_PLANE_CLIENT_ID /
 # KURA_CONTROL_PLANE_CLIENT_SECRET.
 auth:
   enabled: false

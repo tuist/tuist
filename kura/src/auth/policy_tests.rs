@@ -21,6 +21,9 @@ use jsonwebtoken::Algorithm;
 use serde_json::{Map, Value, json};
 
 use super::config::AuthConfig;
+use super::tuist::test_keys::{
+    PUBLIC_KEY as CACHE_TOKEN_PUBLIC_KEY, ROTATED_SIGNING_KEY, SIGNING_KEY,
+};
 use super::tuist::{IntrospectionCredentials, JwtVerifier};
 use super::{AccessDecision, AuthEngine, DenyDecision, RequestContext, SharedAuth};
 use crate::metrics::Metrics;
@@ -88,7 +91,7 @@ fn engine_pointing_at_with_timeout(
         request_timeout: Duration::from_millis(request_timeout_ms),
         verifier: Some(JwtVerifier {
             algorithm: Algorithm::HS512,
-            secret: GUARDIAN_SECRET.into(),
+            keys: JwtVerifier::secret_keys(GUARDIAN_SECRET),
             issuer: Some("tuist".into()),
             audiences: Vec::new(),
         }),
@@ -127,18 +130,13 @@ fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
 fn ctx() -> RequestContext {
     RequestContext {
         transport: "http".into(),
-        route: "/api/cache/gradle/{cache_key}".into(),
         method: "GET".into(),
         operation: "artifact.read".into(),
         server_tenant_id: "acme".into(),
         tenant_id: None,
         namespace_id: None,
-        producer: Some("gradle".into()),
-        artifact_key: None,
-        artifact_hash: None,
+        authorization: None,
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
-        status_code: None,
     }
 }
 
@@ -311,8 +309,6 @@ async fn allows_namespace_only_grpc_requests_for_bazel() {
 
     let mut context = ctx();
     context.transport = "grpc".into();
-    context.route =
-        "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
     context.method = "RPC".into();
     context.tenant_id = None;
     context.namespace_id = Some("bazel".into());
@@ -854,8 +850,8 @@ async fn authorizes_case_insensitively_like_current_cache_nodes() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context.query.insert("account_handle".into(), "ACME".into());
-    context.query.insert("project_handle".into(), "IOS".into());
+    context.tenant_id = Some("ACME".into());
+    context.namespace_id = Some("IOS".into());
 
     let decision = engine.evaluate_access(&context).await;
     assert!(matches!(decision, AccessDecision::Allow));
@@ -889,10 +885,8 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context
-        .query
-        .insert("account_handle".into(), "someone-else".into());
-    context.query.insert("project_handle".into(), "ios".into());
+    context.tenant_id = Some("someone-else".into());
+    context.namespace_id = Some("ios".into());
 
     let deny = expect_deny(engine.evaluate_access(&context).await);
     assert_eq!(deny.status, 403);
@@ -1207,7 +1201,7 @@ async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_
             request_timeout: Duration::from_millis(4000),
             verifier: Some(JwtVerifier {
                 algorithm: Algorithm::HS512,
-                secret: GUARDIAN_SECRET.into(),
+                keys: JwtVerifier::secret_keys(GUARDIAN_SECRET),
                 issuer: Some("tuist".into()),
                 audiences: Vec::new(),
             }),
@@ -1236,6 +1230,113 @@ async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_
                 && line.contains("result=\"unavailable\"")),
         "expected an unavailable authenticate decision, got:\n{rendered}"
     );
+}
+
+/// A node given the public half of the cache-token keypair: it reads the tokens
+/// the server signs and cannot mint one.
+fn engine_verifying_cache_tokens(base_url: &str) -> SharedAuth {
+    engine(AuthConfig {
+        base_url: base_url.to_owned(),
+        connect_timeout: Duration::from_millis(500),
+        request_timeout: Duration::from_millis(4000),
+        verifier: Some(JwtVerifier {
+            algorithm: Algorithm::ES256,
+            keys: JwtVerifier::public_keys(CACHE_TOKEN_PUBLIC_KEY)
+                .expect("a readable cache-token public key"),
+            issuer: Some("tuist".into()),
+            audiences: Vec::new(),
+        }),
+        introspection: Some(introspection_credentials()),
+        cache_max_entries: 1000,
+    })
+}
+
+fn cache_token(signing_key: &str) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::ES256),
+        &json!({
+            "sub": "1",
+            "iss": "tuist",
+            "typ": "cache",
+            "exp": 4_000_000_000u64,
+            "scopes": ["account_cache_read"],
+            "cache_grants": { "project": { "write": ["acme/ios"] } },
+        }),
+        &jsonwebtoken::EncodingKey::from_ec_pem(signing_key.as_bytes())
+            .expect("a readable cache-token signing key"),
+    )
+    .expect("a signed cache token")
+}
+
+fn project_request(authorization: &str) -> RequestContext {
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context.authorization = Some(authorization.to_owned());
+    context
+}
+
+// The whole point of handing a node a key: a token it can read is answered
+// where it lands, and the control plane never enters the serving path.
+#[tokio::test]
+async fn a_cache_token_the_node_can_read_never_reaches_the_server() {
+    let asked = Arc::new(AtomicBool::new(false));
+    let asked_by_handler = asked.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            asked_by_handler.store(true, Ordering::SeqCst);
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+
+    let decision = engine
+        .evaluate_access(&project_request(&format!(
+            "Bearer {}",
+            cache_token(SIGNING_KEY)
+        )))
+        .await;
+
+    assert!(matches!(decision, AccessDecision::Allow));
+    assert!(
+        !asked.load(Ordering::SeqCst),
+        "the server was asked about a token the node could read for itself"
+    );
+}
+
+// The rollout hazard this shape exists to avoid. A key that cannot read a token
+// is not a verdict on it: the node asks the server exactly as it did before it
+// held any key. A node handed the wrong material therefore loses the saving and
+// keeps the answers, rather than refusing every tenant on it at once — which
+// would then replay under the engine's refusal window.
+#[tokio::test]
+async fn a_token_the_configured_key_cannot_read_falls_back_to_the_server() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+
+    // Signed with another algorithm entirely, and signed with the right
+    // algorithm under a key this node was not given: a stale rotation.
+    for token in [guardian_jwt(json!({})), cache_token(ROTATED_SIGNING_KEY)] {
+        let decision = engine
+            .evaluate_access(&project_request(&format!("Bearer {token}")))
+            .await;
+
+        assert!(matches!(decision, AccessDecision::Allow));
+    }
 }
 
 fn expect_deny(decision: AccessDecision) -> DenyDecision {
@@ -1670,12 +1771,8 @@ async fn a_credential_inside_the_verifier_leeway_still_reaches_the_backend() {
     }
 }
 
-// Some routes name their target in the query rather than the path, which is
-// the form the README documents. Both have to reach the same answer: keyed on
-// the raw context fields the query form left them unset, so two projects
-// looked identical and the first one's answer served the second.
 #[tokio::test]
-async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() {
+async fn resolved_targets_are_authorized_independently() {
     let base = spawn_tuist_auth_mock(
         |_headers, _payload| {
             (
@@ -1687,18 +1784,7 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
     )
     .await;
 
-    let query_form = |project: &str| {
-        let mut context = ctx();
-        context
-            .headers
-            .insert("authorization".into(), "Bearer opaque-token".into());
-        context.query.insert("account_handle".into(), "acme".into());
-        context
-            .query
-            .insert("project_handle".into(), project.into());
-        context
-    };
-    let path_form = |project: &str| {
+    let resolved_context = |project: &str| {
         let mut context = ctx();
         context
             .headers
@@ -1708,21 +1794,16 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
         context
     };
 
-    for form in [
-        &query_form as &dyn Fn(&str) -> RequestContext,
-        &path_form as &dyn Fn(&str) -> RequestContext,
-    ] {
-        let engine = engine_pointing_at(&base, false);
+    let engine = engine_pointing_at(&base, false);
 
-        assert!(matches!(
-            engine.evaluate_access(&form("ios")).await,
-            AccessDecision::Allow
-        ));
+    assert!(matches!(
+        engine.evaluate_access(&resolved_context("ios")).await,
+        AccessDecision::Allow
+    ));
 
-        let deny = expect_deny(engine.evaluate_access(&form("android")).await);
-        assert_eq!(deny.status, 403);
-        assert!(deny.message.contains("acme/android"));
-    }
+    let deny = expect_deny(engine.evaluate_access(&resolved_context("android")).await);
+    assert_eq!(deny.status, 403);
+    assert!(deny.message.contains("acme/android"));
 }
 
 // The fast path is one lookup: the entry is the answer, and nothing behind it

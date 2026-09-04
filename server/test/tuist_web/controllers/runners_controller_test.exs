@@ -483,6 +483,25 @@ defmodule TuistWeb.RunnersControllerTest do
                |> json_response(200)
     end
 
+    test "drops a node name that is not a well-formed Node name", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      # Attribution must never cost a promote: the body comes from a VM running
+      # customer job code, and the column is a varchar(255), so an over-long or
+      # otherwise malformed name reads as unreported instead of raising on insert.
+      stub(Runners, :report_volume_head, fn 77, "", ^digest, 0, nil -> {:ok, 1} end)
+
+      for name <- [String.duplicate("n", 400), "node 1", ~s(a","tree_digest":"x), 42, nil] do
+        assert %{"generation" => 1} =
+                 conn
+                 |> post("/api/internal/runners/volume-head", %{
+                   "tree_digest" => digest,
+                   "base_generation" => 0,
+                   "node_name" => name
+                 })
+                 |> json_response(200)
+      end
+    end
+
     test "reads a non-string unverifiable digest as no report", %{conn: conn} do
       digest = String.duplicate("a", 40)
       stub(Runners, :report_volume_head, fn 77, _node, ^digest, 0, nil -> {:ok, 1} end)

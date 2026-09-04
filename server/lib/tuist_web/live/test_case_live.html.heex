@@ -54,7 +54,30 @@
       </div>
     </div>
     <div data-part="actions">
+      <.badge
+        :if={!@can_update_test_case}
+        label={state_label(@test_case_detail.state || "enabled")}
+        color={state_color(@test_case_detail.state || "enabled")}
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name={state_icon(@test_case_detail.state || "enabled")} />
+        </:icon>
+      </.badge>
+      <.badge
+        :if={!@can_update_test_case and @test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Flaky")}
+        color="warning"
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name="alert_triangle" />
+        </:icon>
+      </.badge>
       <.dropdown
+        :if={@can_update_test_case}
         id="test-case-state-dropdown"
         label={state_label(@test_case_detail.state || "enabled")}
       >
@@ -90,7 +113,7 @@
         </.dropdown_item>
       </.dropdown>
       <.button
-        :if={@test_case_detail.is_flaky}
+        :if={@can_update_test_case and @test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}
         variant="secondary"
         size="medium"
@@ -101,7 +124,7 @@
         </:icon_left>
       </.button>
       <.button
-        :if={!@test_case_detail.is_flaky}
+        :if={@can_update_test_case and !@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Mark as flaky")}
         variant="secondary"
         size="medium"
@@ -141,9 +164,9 @@
 
   <.card
     :if={@selected_tab == "overview"}
-    title={dgettext("dashboard_tests", "Summary")}
+    title={dgettext("dashboard_tests", "Analytics")}
     icon="chart_arcs"
-    data-part="test-case-details"
+    data-part="analytics"
   >
     <:actions>
       <.date_picker
@@ -194,72 +217,146 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <.card_section data-part="test-case-details-section">
-      <div data-part="summary-main">
-        <div data-part="metadata-grid">
-          <div data-part="metadata-row">
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Last Status")}</div>
-              <.badge
-                :if={@test_case_detail.last_status == "success"}
-                label={dgettext("dashboard_tests", "Passed")}
-                color="success"
-                style="fill"
-                size="large"
-              />
-              <.badge
-                :if={@test_case_detail.last_status == "failure"}
-                label={dgettext("dashboard_tests", "Failed")}
-                color="destructive"
-                style="fill"
-                size="large"
-              />
-              <.badge
-                :if={@test_case_detail.last_status == "skipped"}
-                label={dgettext("dashboard_tests", "Skipped")}
-                color="warning"
-                style="fill"
-                size="large"
-              />
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Last run duration")}</div>
-              <span data-part="value">
-                <.history />
-                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  @test_case_detail.last_duration
-                )}
-              </span>
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Last ran at")}</div>
-              <span data-part="value">
-                {Tuist.Utilities.DateFormatter.format_with_timezone(
-                  @test_case_detail.last_ran_at,
-                  @user_timezone
-                )}
-              </span>
-            </div>
-          </div>
-        </div>
+    <.card_section data-part="analytics-body">
+      <div data-part="analytics-main">
         <div data-part="widgets">
           <.widget
-            loading={!@flakiness_rate.ok?}
+            loading={!@analytics.ok?}
+            title={
+              case @selected_runs_type do
+                "failed" -> dgettext("dashboard_tests", "Failed test case runs")
+                "flaky" -> dgettext("dashboard_tests", "Flaky test case runs")
+                _ -> dgettext("dashboard_tests", "Test case runs")
+              end
+            }
+            legend_color={
+              case @selected_runs_type do
+                "failed" -> "destructive"
+                "flaky" -> "flaky"
+                _ -> "primary"
+              end
+            }
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Number of times this test case has been executed in the selected period."
+              )
+            }
+            value={
+              if @analytics.ok? do
+                format_number(
+                  case @selected_runs_type do
+                    "failed" -> @analytics.result.outcome_counts.failed
+                    "flaky" -> @analytics.result.outcome_counts.flaky
+                    _ -> @analytics.result.total_count
+                  end
+                )
+              end
+            }
+            id="widget-test-case-runs"
+            phx_click="select_widget"
+            phx_value_widget="test_case_runs"
+            selected={@analytics_selected_widget == "test_case_runs"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  runs_count(@previous_analytics.result, @selected_runs_type),
+                  runs_count(@analytics.result, @selected_runs_type)
+                )
+              end
+            }
+            trend_type={if @selected_runs_type == "total", do: :neutral, else: :inverse}
+            trend_label={@analytics_trend_label}
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
+          >
+            <:select>
+              <.dropdown_item
+                value="total"
+                phx-click="select_runs_type"
+                phx-value-type="total"
+                data-selected={@selected_runs_type == "total"}
+              >
+                <div data-part="breakdown-item">
+                  <div data-part="dot" data-color="primary"></div>
+                  <span data-part="label">{dgettext("dashboard_tests", "All")}</span>
+                  <span data-part="separator">-</span>
+                  <span data-part="value">
+                    {if @analytics.ok?,
+                      do: format_number(@analytics.result.total_count),
+                      else: dgettext("dashboard_tests", "N/A")}
+                  </span>
+                </div>
+              </.dropdown_item>
+              <.dropdown_item
+                value="failed"
+                phx-click="select_runs_type"
+                phx-value-type="failed"
+                data-selected={@selected_runs_type == "failed"}
+              >
+                <div data-part="breakdown-item">
+                  <div data-part="dot" data-color="destructive"></div>
+                  <span data-part="label">{dgettext("dashboard_tests", "Failed")}</span>
+                  <span data-part="separator">-</span>
+                  <span data-part="value">
+                    {if @analytics.ok?,
+                      do: format_number(@analytics.result.outcome_counts.failed),
+                      else: dgettext("dashboard_tests", "N/A")}
+                  </span>
+                </div>
+              </.dropdown_item>
+              <.dropdown_item
+                value="flaky"
+                phx-click="select_runs_type"
+                phx-value-type="flaky"
+                data-selected={@selected_runs_type == "flaky"}
+              >
+                <div data-part="breakdown-item">
+                  <div data-part="dot" data-color="flaky"></div>
+                  <span data-part="label">{dgettext("dashboard_tests", "Flaky")}</span>
+                  <span data-part="separator">-</span>
+                  <span data-part="value">
+                    {if @analytics.ok?,
+                      do: format_number(@analytics.result.outcome_counts.flaky),
+                      else: dgettext("dashboard_tests", "N/A")}
+                  </span>
+                </div>
+              </.dropdown_item>
+            </:select>
+          </.widget>
+          <.widget
+            loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
+            legend_color="flaky"
             description={
               dgettext(
                 "dashboard_tests",
                 "Percentage of test runs that were flaky in the selected period."
               )
             }
-            value={if @flakiness_rate.ok?, do: "#{@flakiness_rate.result}%"}
+            value={if @analytics.ok?, do: "#{flakiness_rate(@analytics.result)}%"}
             id="widget-flakiness-rate"
+            phx_click="select_widget"
+            phx_value_widget="flakiness_rate"
+            selected={@analytics_selected_widget == "flakiness_rate"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  flakiness_rate(@previous_analytics.result),
+                  flakiness_rate(@analytics.result)
+                )
+              end
+            }
+            trend_type={:inverse}
+            trend_label={@analytics_trend_label}
             empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.widget
             loading={!@reliability.ok?}
             title={dgettext("dashboard_tests", "Test reliability")}
+            legend_color="tertiary"
             description={
               dgettext(
                 "dashboard_tests",
@@ -271,95 +368,403 @@
               if @reliability.ok? && @reliability.result, do: format_percent(@reliability.result)
             }
             id="widget-test-reliability"
+            phx_click="select_widget"
+            phx_value_widget="reliability"
+            selected={@analytics_selected_widget == "reliability"}
+            trend_value={
+              if @reliability.ok? and @previous_reliability.ok? and
+                   not is_nil(@reliability.result) and not is_nil(@previous_reliability.result) do
+                Analytics.trend(
+                  previous_value: @previous_reliability.result,
+                  current_value: @reliability.result
+                )
+              end
+            }
+            trend_type={:regular}
+            trend_label={@analytics_trend_label}
             empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
-          <.widget
+          <.percentile_dropdown_widget
             loading={!@analytics.ok?}
-            title={dgettext("dashboard_tests", "Test case runs")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Number of times this test case has been executed in the selected period."
-              )
+            title={
+              case @selected_duration_type do
+                "p99" -> dgettext("dashboard_tests", "p99 test case run duration")
+                "p90" -> dgettext("dashboard_tests", "p90 test case run duration")
+                "p50" -> dgettext("dashboard_tests", "p50 test case run duration")
+                _ -> dgettext("dashboard_tests", "Avg. test case run duration")
+              end
             }
-            value={if @analytics.ok?, do: format_number(@analytics.result.total_count)}
-            id="widget-test-case-runs"
-            empty={@analytics.ok? && @analytics.result.total_count == 0}
-          />
-          <.widget
-            loading={!@analytics.ok?}
-            title={dgettext("dashboard_tests", "Failed test case runs")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Number of times this test case has failed in the selected period."
-              )
+            legend_color={
+              case @selected_duration_type do
+                "p99" -> "p99"
+                "p90" -> "p90"
+                "p50" -> "p50"
+                _ -> "secondary"
+              end
             }
-            value={if @analytics.ok?, do: format_number(@analytics.result.failed_count)}
-            id="widget-failed-test-case-runs"
-            empty={@analytics.ok? && @analytics.result.total_count == 0}
-          />
-          <.widget
-            loading={!@analytics.ok?}
-            title={dgettext("dashboard_tests", "Avg. test case run duration")}
             description={
               dgettext(
                 "dashboard_tests",
-                "Average duration of this test case across the runs in the selected period."
+                "Duration of this test case across the runs in the selected period."
               )
             }
             value={
               if @analytics.ok?,
                 do:
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    @analytics.result.avg_duration
+                    case @selected_duration_type do
+                      "p99" -> @analytics.result.p99_duration
+                      "p90" -> @analytics.result.p90_duration
+                      "p50" -> @analytics.result.p50_duration
+                      _ -> @analytics.result.avg_duration
+                    end
                   )
             }
+            metrics={
+              if @analytics.ok? do
+                %{
+                  avg:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.avg_duration
+                    ),
+                  p99:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p99_duration
+                    ),
+                  p90:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p90_duration
+                    ),
+                  p50:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p50_duration
+                    )
+                }
+              end
+            }
+            selected_type={@selected_duration_type}
+            event_name="select_duration_type"
             id="widget-avg-duration"
+            phx_click="select_widget"
+            phx_value_widget="duration"
+            selected={@analytics_selected_widget == "duration"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  duration(@previous_analytics.result, @selected_duration_type),
+                  duration(@analytics.result, @selected_duration_type)
+                )
+              end
+            }
+            trend_type={:inverse}
+            trend_label={@analytics_trend_label}
             empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
         </div>
-      </div>
-
-      <div
-        :if={Enum.any?(@overview_history_events)}
-        data-part="overview-history"
-      >
-        <div data-part="overview-history-title">
-          {dgettext("dashboard_tests", "Test history")}
+        <div :if={!@series.ok?} data-part="analytics-chart">
+          <.skeleton_chart />
         </div>
-        <div data-part="overview-history-timeline">
-          <div
-            :for={event <- @overview_history_events}
-            data-part="overview-history-item"
-          >
-            <div data-part="overview-history-icon" data-color={event_color(event.event_type)}>
-              <.icon name={event_icon(event.event_type)} />
+        <div :if={@series.ok? and charted?(@series.result)} data-part="analytics-chart">
+          <.chart
+            :if={@analytics_selected_widget == "test_case_runs"}
+            id="test-case-runs-chart"
+            type="bar"
+            stacked
+            extra_options={
+              %{
+                legend: %{
+                  left: "left",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-secondary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "60%",
+                  top: "10%"
+                },
+                xAxis: %{
+                  type: "category",
+                  data: @series.result.dates,
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@series.result.dates),
+                      List.last(@series.result.dates)
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}"
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: "{value}", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "{value}"}
+                  end
+              }
+            }
+            series={
+              for segment <- run_segments(@series.result) do
+                %{
+                  color: segment.color,
+                  data: segment.data,
+                  name: segment.name,
+                  type: "bar"
+                }
+              end
+            }
+            y_axis_min={0}
+          />
+          <.chart
+            :if={@analytics_selected_widget not in ["test_case_runs", "duration"]}
+            id="test-case-analytics-chart"
+            type="line"
+            extra_options={
+              %{
+                legend: %{show: false},
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@series.result.dates),
+                      List.last(@series.result.dates)
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis:
+                  Map.merge(
+                    %{
+                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter:
+                          selected_chart(@analytics_selected_widget, @series.result).formatter
+                      }
+                    },
+                    selected_chart(@analytics_selected_widget, @series.result).y_axis
+                  ),
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{
+                      valueFormat:
+                        selected_chart(@analytics_selected_widget, @series.result).formatter,
+                      dateFormat: "hour"
+                    }
+                  else
+                    %{
+                      valueFormat:
+                        selected_chart(@analytics_selected_widget, @series.result).formatter
+                    }
+                  end
+              }
+            }
+            series={[
+              %{
+                color: selected_chart(@analytics_selected_widget, @series.result).color,
+                data:
+                  chart_points(
+                    @series.result.dates,
+                    selected_chart(@analytics_selected_widget, @series.result).values
+                  ),
+                name: selected_chart(@analytics_selected_widget, @series.result).name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                connectNulls: true
+              }
+            ]}
+            y_axis_min={0}
+          />
+          <.chart
+            :if={@analytics_selected_widget == "duration"}
+            id="test-case-duration-chart"
+            type="line"
+            extra_options={
+              %{
+                legend: %{
+                  left: "left",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-secondary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "60%",
+                  top: "10%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      List.first(@series.result.dates),
+                      List.last(@series.result.dates)
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatMilliseconds"
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "fn:formatMilliseconds"}
+                  end
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data: chart_points(@series.result.dates, @series.result.duration.values),
+                name: dgettext("dashboard_tests", "Average"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                connectNulls: true
+              },
+              %{
+                color: "var:noora-chart-p99",
+                data: chart_points(@series.result.dates, @series.result.duration.p99_values),
+                name: dgettext("dashboard_tests", "p99"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                connectNulls: true
+              },
+              %{
+                color: "var:noora-chart-p90",
+                data: chart_points(@series.result.dates, @series.result.duration.p90_values),
+                name: dgettext("dashboard_tests", "p90"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                connectNulls: true
+              },
+              %{
+                color: "var:noora-chart-p50",
+                data: chart_points(@series.result.dates, @series.result.duration.p50_values),
+                name: dgettext("dashboard_tests", "p50"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                connectNulls: true
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+        <div
+          :if={@series.ok? and not charted?(@series.result)}
+          data-part="analytics-chart-empty"
+        >
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+          <span data-part="title">
+            {dgettext("dashboard_tests", "No runs in this period")}
+          </span>
+        </div>
+      </div>
+      <div :if={Enum.any?(@overview_history_events)} data-part="analytics-history">
+        <div data-part="title">{dgettext("dashboard_tests", "Test history")}</div>
+        <div data-part="timeline">
+          <div :for={event <- @overview_history_events} data-part="timeline-item">
+            <div data-part="marker">
+              <div data-part="icon" data-color={event_color(event.event_type)}>
+                <.icon name={event_icon(event.event_type)} />
+              </div>
             </div>
-            <div data-part="overview-history-content">
-              <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
-              <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">
+            <div data-part="content">
+              <div data-part="headline">
+                <span data-part="item-title">{event_title(event.event_type)}</span>
+                <.relative_time_with_tooltip
+                  id={"overview-history-event-#{event.id}-time-tooltip"}
+                  part="item-time"
+                  time={event.inserted_at}
+                  timezone={@user_timezone}
+                />
+              </div>
+              <span :if={format_event_subtitle(event)} data-part="item-subtitle">
                 {format_event_subtitle(event)}
               </span>
             </div>
-            <.relative_time_with_tooltip
-              id={"overview-history-event-#{event.id}-time-tooltip"}
-              part="overview-history-time"
-              time={event.inserted_at}
-              timezone={@user_timezone}
-            />
           </div>
         </div>
-        <div :if={@overview_history_has_more} data-part="overview-history-footer">
-          <.button
-            label={dgettext("dashboard_tests", "View more")}
-            variant="secondary"
-            size="small"
-            patch={"?#{Query.put(@uri.query, "tab", "history")}"}
-          />
-        </div>
+        <.button
+          :if={@overview_history_has_more}
+          label={dgettext("dashboard_tests", "View more")}
+          variant="secondary"
+          size="small"
+          patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+        />
       </div>
     </.card_section>
   </.card>

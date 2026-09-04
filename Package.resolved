@@ -1,5 +1,5 @@
 {
-  "originHash" : "16c29ce833f01572bc6afd554ec70177e2bd993c456ced7d61924a7705268d9f",
+  "originHash" : "55a682e76daa9e8811c8d1d4f59f7b71d06fb1b1d544defb38241917d31a020b",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -187,7 +187,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/apple/swift-protobuf",
       "state" : {
-        "version" : "1.35.1"
+        "version" : "1.38.1"
       }
     },
     {
@@ -461,7 +461,16 @@
       "location" : "",
       "originalLocation" : "https://github.com/p-x9/machokit",
       "state" : {
-        "version" : "0.46.1"
+        "version" : "0.52.2"
+      }
+    },
+    {
+      "identity" : "p-x9.objectarchivekit",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/p-x9/ObjectArchiveKit.git",
+      "state" : {
+        "version" : "0.5.0"
       }
     },
     {
@@ -703,7 +712,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.7.22"
+        "version" : "0.7.96"
       }
     },
     {
@@ -719,7 +728,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.14.0"
+        "version" : "9.16.0"
       }
     },
     {

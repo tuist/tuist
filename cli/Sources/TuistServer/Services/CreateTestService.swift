@@ -29,7 +29,9 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -82,7 +84,9 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -242,9 +246,11 @@ import TuistHTTP
                             is_ci: isCI,
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
+                            only_test_identifiers: onlyTestIdentifiers,
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
                             shard_plan_id: shardPlanId,
+                            skip_test_identifiers: skipTestIdentifiers,
                             status: status,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
@@ -264,6 +270,10 @@ import TuistHTTP
                 case let .json(error):
                     throw CreateTestServiceError.forbidden(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode, _):
                 throw CreateTestServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):

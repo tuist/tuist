@@ -50,7 +50,7 @@ defmodule Tuist.Ingestion.Buffer do
        max_buffer_size: max_buffer_size,
        retained_buffer_size: max(retained_buffer_size, max_buffer_size),
        flush_interval_ms: flush_interval_ms,
-       user_memory_retries: Keyword.get(opts, :user_memory_retries, 1),
+       memory_retries: Keyword.get(opts, :memory_retries, 1),
        sync_writes?: Keyword.get(opts, :sync_writes, sync_writes?()),
        flush_deferred?: false
      }}
@@ -196,7 +196,7 @@ defmodule Tuist.Ingestion.Buffer do
       insert_sql: insert_sql,
       header: header,
       name: name,
-      user_memory_retries: user_memory_retries
+      memory_retries: memory_retries
     } = state
 
     case buffer do
@@ -212,7 +212,7 @@ defmodule Tuist.Ingestion.Buffer do
 
         flush_result =
           Tuist.ClickHouseRetry.with_result_retry(operation,
-            user_memory_retries: user_memory_retries
+            memory_retries: memory_retries
           )
 
         case flush_result do
@@ -236,7 +236,7 @@ defmodule Tuist.Ingestion.Buffer do
   end
 
   defp retryable_flush_error?(error) do
-    Tuist.ClickHouseRetry.user_memory_limit_error?(error) or
+    Tuist.ClickHouseRetry.memory_limit_error?(error) or
       is_struct(error, Mint.TransportError) or
       is_struct(error, DBConnection.ConnectionError)
   end

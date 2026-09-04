@@ -20,14 +20,14 @@ use crate::auth::{Access, DenyDecision, RequestContext};
 /// needs it. Resolving it per consumer is how the cache key and the policy came
 /// to disagree about which project a request named.
 #[derive(Clone, Debug)]
-pub struct ResolvedRequest {
-    pub target: RequestTarget,
+pub struct ResolvedRequest<'a> {
+    pub target: RequestTarget<'a>,
     pub action: Action,
 }
 
 /// The credential check comes first: a request carrying none is refused for
 /// that before its target matters.
-pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDecision> {
+pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest<'_>, DenyDecision> {
     if authorization_header(ctx).is_none() {
         return Err(DenyDecision {
             status: 401,
@@ -42,7 +42,7 @@ pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDeci
 }
 
 /// The 403 a target refusal answers with.
-pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
+pub fn refusal(request: &ResolvedRequest<'_>) -> DenyDecision {
     DenyDecision {
         status: 403,
         message: format!(
@@ -50,6 +50,18 @@ pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
             request.target.scope.key(),
             request.target.identifier,
             request.action.key()
+        ),
+    }
+}
+
+/// The 402 an account whose free tier is exhausted answers with. Distinct from
+/// `refusal` because the caller can act on this one.
+pub fn payment_required(request: &ResolvedRequest<'_>) -> DenyDecision {
+    DenyDecision {
+        status: 402,
+        message: format!(
+            "The account '{}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'.",
+            request.target.account
         ),
     }
 }
@@ -79,7 +91,11 @@ pub enum Authentication {
 
 impl Authentication {
     fn unavailable(reason: &str) -> Self {
-        warn!("authentication backend unavailable: {reason}");
+        warn!(
+            event.name = "kura.auth.backend_unavailable",
+            error.reason = reason,
+            "authentication backend unavailable"
+        );
         Self::Unavailable(DenyDecision {
             status: 503,
             message: "Authentication backend unavailable".into(),
@@ -121,11 +137,15 @@ fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
     Some((expires_at, now))
 }
 
-fn authorization_header(ctx: &RequestContext) -> Option<&str> {
-    ctx.headers
-        .get("authorization")
-        .or_else(|| ctx.headers.get("Authorization"))
-        .map(String::as_str)
+pub(super) fn authorization_header(ctx: &RequestContext) -> Option<&str> {
+    ctx.authorization
+        .as_deref()
+        .or_else(|| {
+            ctx.headers
+                .get("authorization")
+                .or_else(|| ctx.headers.get("Authorization"))
+                .map(String::as_str)
+        })
         .filter(|header| !header.is_empty())
 }
 
@@ -170,7 +190,7 @@ fn project_handles(body: &Value) -> Vec<String> {
 pub async fn authenticate(
     backend: &TuistBackend,
     ctx: &RequestContext,
-    request: &ResolvedRequest,
+    request: &ResolvedRequest<'_>,
 ) -> Authentication {
     let Some(authorization) = authorization_header(ctx) else {
         return Authentication::Access(Access::Invalid);
@@ -221,11 +241,20 @@ pub async fn authenticate(
 /// server for.
 fn from_verified_claims(
     claims: &Value,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Option<Access> {
     let level = CacheGrants::from_body(claims).level(target);
     if level >= required {
+        return Some(level);
+    }
+
+    // Terminal, not inconclusive. The level is deliberately below `Read` so it
+    // grants nothing, which means the check above rejects it exactly as it
+    // rejects a credential the grants do not cover. Falling through would send
+    // the caller to introspection, and a cache token is not an API credential
+    // there, so the answer would come back 401 and the reason would be lost.
+    if level == Access::PaymentRequired {
         return Some(level);
     }
 
@@ -247,7 +276,7 @@ async fn via_introspection(
     backend: &TuistBackend,
     token: &str,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Authentication {
     let response = match backend.introspect(token).await {
@@ -269,6 +298,13 @@ async fn via_introspection(
         // may predate the project. The legacy route still answers for those,
         // and the level introspection did establish travels along so a route
         // that cannot widen it does not erase it either.
+        // Terminal here for the same reason it is terminal on locally verified
+        // claims: it sits below `Read`, so it would otherwise read as a level
+        // that simply did not reach far enough and send the caller on again.
+        if level == Access::PaymentRequired {
+            return Authentication::Access(level);
+        }
+
         if level < required && target.scope == Scope::Project {
             return via_cache_access(backend, authorization, target, level).await;
         }
@@ -288,7 +324,7 @@ async fn via_introspection(
 async fn via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     floor: Access,
 ) -> Authentication {
     let response = match backend.cache_access(authorization).await {
@@ -303,7 +339,13 @@ async fn via_cache_access(
                 .any(|project| project == &target.identifier);
             // A handle carries no action, so it answers as both, exactly what
             // it authorized on its own.
-            let level = if covered { Access::ReadWrite } else { floor };
+            let level = if covered {
+                Access::ReadWrite
+            } else if CacheGrants::from_body(&response.body).payment_required_for(target) {
+                Access::PaymentRequired
+            } else {
+                floor
+            };
             Authentication::Access(level)
         }
         401 => Authentication::Access(Access::Invalid),
@@ -313,6 +355,56 @@ async fn via_cache_access(
 
 #[cfg(test)]
 mod tests {
+
+    // An unscoped cache token carries no grant for the project, so the level
+    // check reads it as a level that did not reach far enough and would send the
+    // caller to introspection, where a cache token is not an API credential: the
+    // answer comes back 401 and the reason for the refusal is lost.
+    #[test]
+    fn an_exhausted_plan_on_a_cache_token_is_terminal_without_a_round_trip() {
+        let claims = serde_json::json!({
+            "cache_grants": {
+                "account": { "read": [], "write": [] },
+                "project": { "read": [], "write": [] }
+            },
+            "cache_payment_required": ["acme"]
+        });
+        let target = RequestTarget {
+            scope: Scope::Project,
+            account: "acme".into(),
+            namespace: Some("ios".into()),
+            identifier: "acme/ios".into(),
+        };
+
+        assert_eq!(
+            from_verified_claims(&claims, &target, Access::Read),
+            Some(Access::PaymentRequired)
+        );
+        assert_eq!(
+            from_verified_claims(&claims, &target, Access::ReadWrite),
+            Some(Access::PaymentRequired)
+        );
+    }
+
+    // A credential that simply does not reach the project must still fall
+    // through to the routes that can answer for it.
+    #[test]
+    fn a_token_that_simply_does_not_reach_stays_inconclusive() {
+        let claims = serde_json::json!({
+            "cache_grants": {
+                "account": { "read": [], "write": [] },
+                "project": { "read": [], "write": [] }
+            }
+        });
+        let target = RequestTarget {
+            scope: Scope::Project,
+            account: "acme".into(),
+            namespace: Some("ios".into()),
+            identifier: "acme/ios".into(),
+        };
+
+        assert_eq!(from_verified_claims(&claims, &target, Access::Read), None);
+    }
     use std::collections::BTreeMap;
 
     use serde_json::json;
@@ -322,22 +414,17 @@ mod tests {
     fn ctx() -> RequestContext {
         RequestContext {
             transport: "http".into(),
-            route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),
             operation: "artifact.read".into(),
             server_tenant_id: "acme".into(),
             tenant_id: Some("acme".into()),
             namespace_id: Some("ios".into()),
-            producer: None,
-            artifact_key: None,
-            artifact_hash: None,
+            authorization: None,
             headers: BTreeMap::new(),
-            query: BTreeMap::new(),
-            status_code: None,
         }
     }
 
-    fn target_of(ctx: &RequestContext) -> RequestTarget {
+    fn target_of(ctx: &RequestContext) -> RequestTarget<'_> {
         request_target(ctx).expect("a resolvable target")
     }
 
@@ -409,7 +496,8 @@ mod tests {
     fn falls_back_to_bare_handles_only_for_tokens_that_predate_scopes() {
         let legacy = json!({ "sub": "user", "projects": ["ACME/iOS"] });
         let scoped = json!({ "sub": "user", "scopes": [], "projects": ["ACME/iOS"] });
-        let target = target_of(&ctx());
+        let context = ctx();
+        let target = target_of(&context);
 
         assert_eq!(
             from_verified_claims(&legacy, &target, Access::Read),

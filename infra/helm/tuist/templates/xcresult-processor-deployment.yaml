@@ -181,6 +181,17 @@ spec:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-secret-key
             {{- end }}
+            # Per-Pod identity for error reports and Oban bookkeeping.
+            # Every VM booted from the Tart image carries the image's
+            # hostname, and the release runs with distribution disabled
+            # (no POD_IP reaches rel/env.sh.eex through the tart-kubelet
+            # env mount), so both Sentry's default server_name and Oban's
+            # `attempted_by` fall back to that one shared string and
+            # collapse the fleet into a single identity.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             {{- if .Values.xcresultProcessor.tailscale.enabled }}
             # Per-VM tailnet identity. tailscale-up.sh inside the VM
             # reads TAILSCALE_AUTH_KEY at boot and joins the tailnet

@@ -70,7 +70,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       trigger_config: %{
         "threshold" => 10,
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -83,7 +83,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
     assert log =~ "Skipping automation alert #{automation.id}"
-    assert log =~ "rolling trigger windows must be between 1 and 75"
+    assert log =~ "rolling trigger windows must be between 1 and 1000"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -126,8 +126,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [affected_id], all: [affected_id]}
     end)
 
-    expect(Automations, :list_active_alert_events, fn id, [^affected_id] ->
-      assert id == automation.id
+    expect(Automations, :list_active_alert_events, fn alert, [^affected_id] ->
+      assert alert.id == automation.id
       []
     end)
 
@@ -168,9 +168,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [], all: test_case_ids}
     end)
 
-    expect(Automations, :list_active_alert_events, 2, fn id, [test_case_id] ->
-      assert id == automation.id
-      send(test_pid, {:checked_active_test_case_id, test_case_id})
+    expect(Automations, :list_active_alert_events, fn alert, test_case_ids ->
+      assert alert.id == automation.id
+      send(test_pid, {:checked_active_test_case_ids, test_case_ids})
       []
     end)
 
@@ -181,8 +181,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert_receive {:evaluated_test_case_id, ^first_id}
     assert_receive {:evaluated_test_case_id, ^second_id}
-    assert_receive {:checked_active_test_case_id, ^first_id}
-    assert_receive {:checked_active_test_case_id, ^second_id}
+    assert_receive {:checked_active_test_case_ids, [^first_id, ^second_id]}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:02Z]
@@ -378,7 +377,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         "threshold" => 20,
         "comparison" => "gte",
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -396,8 +395,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{valid_alert.id => [], second_valid_alert.id => []}
     end)
 
-    expect(Automations, :list_active_alert_events, 2, fn alert_id, [^test_case_id] ->
-      assert alert_id in [valid_alert.id, second_valid_alert.id]
+    expect(Automations, :list_active_alert_events, 2, fn alert, [^test_case_id] ->
+      assert alert.id in [valid_alert.id, second_valid_alert.id]
       []
     end)
 
@@ -437,9 +436,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [], all: chunk}
     end)
 
-    expect(Automations, :list_active_alert_events, 5, fn id, chunk ->
-      assert id == automation.id
-      send(test_pid, {:active_events_chunk_size, length(chunk)})
+    expect(Automations, :list_active_alert_events, fn alert, ids ->
+      assert alert.id == automation.id
+      send(test_pid, {:active_events_size, length(ids)})
       []
     end)
 
@@ -453,11 +452,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1}
+    # The monitor still reads a range at a time so ClickHouse can prune between
+    # ranges, but the ledger is read once for their union rather than per range.
+    assert_receive {:active_events_size, 4001}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]
@@ -771,7 +768,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
+  test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =
@@ -1174,5 +1171,78 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       },
       Map.new(overrides)
     )
+  end
+
+  test "a default-branch-scoped alert does not recover a test case it cannot measure" do
+    # The classic shape this guards: a quarantined test whose work moved onto
+    # pull-request branches. It has no default-branch runs left, so a scoped
+    # alert cannot measure it and it falls out of the triggered set. That is
+    # missing data, not the condition clearing, and recovering on it would
+    # un-quarantine a test nothing has re-proven.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"},
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    unmeasurable_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _automation -> %{triggered: []} end)
+
+    expect(FlakyTestsMonitor, :measurable_test_case_ids, fn _automation, [^unmeasurable_id] -> [] end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{
+          test_case_id: unmeasurable_id,
+          triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+        }
+      ]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "a default-branch-scoped alert still recovers a test case it can measure" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"},
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _automation -> %{triggered: []} end)
+
+    expect(FlakyTestsMonitor, :measurable_test_case_ids, fn _automation, [^recovered_id] -> [recovered_id] end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{
+          test_case_id: recovered_id,
+          triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+        }
+      ]
+    end)
+
+    expected_entity = %{type: :test_case, id: recovered_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.recovery_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
   end
 end

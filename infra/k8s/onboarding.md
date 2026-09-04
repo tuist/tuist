@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
+Stand up a new Tuist workload cluster (staging / canary / production / preview / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -12,37 +12,33 @@ If you just want to **read** an existing cluster (the day-to-day case — `kubec
 
 ## Engineer read access (Pomerium kubeconfig)
 
-Every engineer's Google Workspace identity already carries `view`-tier read access to all three workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+Every engineer's Google Workspace identity already carries `view`-tier read access to the three production-like workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, staging is writable, canary/production writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
 
-`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
+`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. On **canary and production**, mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack. **Staging carries the `edit` tier for everyone all the time** — it needs no elevation, and `/elevate staging` is rejected as a no-op.
 
 ### Setup
 
-1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`.
-2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Each env needs its own gateway host in the exec `args`, so there's one user per env. Production's host is `kube-prod`, not `kube-production`.
+**Staging goes over the tailnet; canary and production go through Pomerium.** Staging's write tier is standing access rather than a per-request elevation, so there is no per-request decision left for a browser gateway to make there — being on the tailnet is the whole authentication, and the impersonated tier comes from the `tailscale.com/cap/kubernetes` grants in [`infra/tailscale/acls.json`](../tailscale/acls.json). Canary and production still need the gateway, because their tier depends on a live JIT elevation row that a static tailnet ACL cannot express.
+
+1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`. It is only needed for canary and production.
+2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Staging has no `user` entry at all: the tailnet connection is the credential. Canary and production each need their own gateway host in the exec `args`, so there is one user per env. Production's host is `kube-prod`, not `kube-production`.
 
    ```yaml
    clusters:
      - name: tuist-k8s-staging
-       cluster: { server: https://kube-staging.tuist.dev }
+       cluster: { server: https://tuist-k8s-staging.taild6d7bb.ts.net }
      - name: tuist-k8s-canary
        cluster: { server: https://kube-canary.tuist.dev }
      - name: tuist-k8s-production
        cluster: { server: https://kube-prod.tuist.dev }
    contexts:
      - name: tuist-k8s-staging
-       context: { cluster: tuist-k8s-staging, user: pomerium-staging }
+       context: { cluster: tuist-k8s-staging }
      - name: tuist-k8s-canary
        context: { cluster: tuist-k8s-canary, user: pomerium-canary }
      - name: tuist-k8s-production
        context: { cluster: tuist-k8s-production, user: pomerium-production }
    users:
-     - name: pomerium-staging
-       user:
-         exec:
-           apiVersion: client.authentication.k8s.io/v1beta1
-           command: pomerium-cli
-           args: ["k8s", "exec-credential", "https://kube-staging.tuist.dev"]
      - name: pomerium-canary
        user:
          exec:
@@ -57,11 +53,15 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
            args: ["k8s", "exec-credential", "https://kube-prod.tuist.dev"]
    ```
 
-3. Verify (a browser opens once per env for the Google login):
+   `tailscale configure kubeconfig tuist-k8s-staging` writes the staging entry for you if you would rather not paste it. The host is the staging operator's own MagicDNS name (`operatorConfig.hostname` in [`values-staging.yaml`](../helm/tailscale-operator/values-staging.yaml)), and its certificate is a normal publicly-trusted MagicDNS cert, so no CA data is needed.
+
+3. Verify. Staging answers immediately as long as you are on the tailnet; canary and production each open a browser once for the Google login.
 
    ```bash
    kubectl --context tuist-k8s-staging get pods -A
    ```
+
+   Getting `dial tcp: no such host` on staging means you are off the tailnet — `tailscale status` first. There is no browser fallback on this path; `https://kube-staging.tuist.dev` still works through Pomerium if you need one.
 
 > **This is not the admin kubeconfig.** The cluster-admin kubeconfigs in the `tuist-k8s-<env>` 1Password vaults bypass Pomerium and impersonation entirely; they're break-glass only and gated behind 1Password biometric on purpose. Don't reach for them for routine reads, and never have an agent fetch one. See [Workload-cluster incident recovery](#workload-cluster-incident-recovery).
 
@@ -77,7 +77,7 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview and pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -136,7 +136,7 @@ kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-previe
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test.
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + a final ingress smoke test. Non-pentest clusters also receive the shared Cloudflare origin TLS Secret; pentest uses separate certificate-manager-issued host certificates instead.
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
@@ -317,7 +317,7 @@ Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura
 
 Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
 
-Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, refreshes the `tuistrocks@tuist.dev` test user's password, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
+Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
 ### 8.1 Wildcard domain record and certificate
 
@@ -427,7 +427,51 @@ gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 
 The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the path that runs `helm uninstall`. The platform chart's `preview-janitor` CronJob follows at minute 20 and deletes expired preview `KuraInstance` resources and namespaces if the external sweep did not finish the cleanup.
 
-## 9. Teardown
+## 9. Dedicated pentest cluster
+
+`tuist-pentest` is a separate workload cluster for an authorized security
+assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
+Hetzner project, but does not share Kubernetes resources with any other
+environment. Its topology is three control-plane nodes and two general workers.
+It deliberately contains no Kura, runner, or Mac worker pools.
+
+Before applying `cluster-pentest.yaml`, create a `tuist-k8s-pentest`
+1Password vault with the pentest-only `TUIST_LICENSE_KEY` and a service-account
+token scoped only to that vault. Keep the service-account item identifier out
+of the repository, then bootstrap the cluster with:
+
+```bash
+PENTEST_OP_TOKEN_ID=<private-service-account-item-id> \
+  mise run k8s:bootstrap-workload tuist-pentest pentest
+```
+
+Use the standard deployment credential process with the application namespace
+set to `tuist-pentest`, then put the generated kubeconfig in the `server-k8s-pentest` GitHub
+Environment. That Environment also needs `PENTEST_USER_EMAIL` and
+`PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
+
+After bootstrap, run the **Pentest Platform Reconcile** workflow. It installs
+the cluster platform required by the application.
+
+Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
+scheduled cleanup removes the application namespace after that time. Extending
+an engagement means re-deploying with a later timestamp.
+
+When the engagement ends, first remove
+`infra/k8s/clusters/cluster-pentest.yaml` in a reviewed change and merge it.
+Then run **Pentest Cluster Retirement** from `main`, typing
+`retire-tuist-pentest` as its confirmation. The workflow uses the protected
+management-cluster environment to delete the workload `Cluster` resource and
+wait for its managed infrastructure to disappear. Removing the source manifest
+first prevents a later management-cluster reconciliation from recreating it.
+Cluster retirement is deliberately manual because it permanently removes the
+control plane and any remaining persistent volumes.
+
+## 10. Teardown
+
+For `tuist-pentest`, use the **Pentest Cluster Retirement** workflow described
+above instead of the command below. It verifies that the source manifest is no
+longer on `main` before deleting the `Cluster` resource.
 
 ```bash
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>

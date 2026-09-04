@@ -1,0 +1,54 @@
+name: Install Mix dependencies
+description: Run `mix deps.get` with github.com fetches authenticated so they don't share the anonymous per-IP rate limit.
+
+inputs:
+  working-directory:
+    description: Directory of the Mix project whose dependencies are fetched
+    required: true
+  github-token:
+    description: GitHub token used to authenticate github.com git fetches
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # `mix deps.get` fetches the `github:` / `git:` dependencies in mix.exs
+    # over anonymous https, which GitHub rate limits per source IP. The whole
+    # Linux runner fleet egresses from two bare-metal hosts, so that budget is
+    # shared across every job in the repo and, once crossed, the next
+    # dependency fetch fails with either `GitHub is temporarily limiting some
+    # unauthenticated downloads` or, on a runner that has no tty, a credential
+    # prompt (`could not read Username for 'https://github.com'`). It is
+    # intermittent by nature: the repos and pinned SHAs are public and fetch
+    # fine from an unthrottled address.
+    #
+    # The token goes in as an `extraheader` rather than as userinfo in a
+    # `url.<base>.insteadOf` rewrite: git only sends userinfo credentials
+    # after a 401 challenge, and a public repo answers `info/refs` with a 200,
+    # so a rewritten URL never authenticates anything and the fetch still
+    # spends the anonymous budget. `extraheader` rides on the first request.
+    #
+    # It is passed through `GIT_CONFIG_*` for this command only, not written
+    # to the global config: `http.extraHeader` accumulates across config
+    # levels, so a global entry would stack with the one `actions/checkout`
+    # writes into the repo config and github.com would answer every git
+    # command in the checkout with a 400.
+    - name: Install Mix dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_DEP_TOKEN: ${{ inputs.github-token || github.token }}
+      run: |
+        if [ -z "${GH_DEP_TOKEN}" ]; then
+          echo "::warning::No GitHub token available; dependency fetches stay anonymous."
+          mix deps.get
+          exit 0
+        fi
+
+        auth_header="$(printf 'x-access-token:%s' "${GH_DEP_TOKEN}" | base64 | tr -d '\n')"
+        echo "::add-mask::${auth_header}"
+        GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}" \
+          mix deps.get

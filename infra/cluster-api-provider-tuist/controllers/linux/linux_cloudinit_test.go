@@ -306,3 +306,201 @@ func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndStatic(t *testing.T) {
 		t.Fatalf("expected no PN-VLAN setup when no VLAN is set, got:\n%s", instance)
 	}
 }
+
+// Project quotas are the only per-account boundary on these shared cache boxes,
+// and XFS takes quota accounting at MOUNT time; a remount cannot add it. So the
+// enablement has to run before the kubelet-root bind, which would otherwise pin
+// /data busy and leave the box joined with quotas off until its next reboot.
+func TestBootstrapScriptEnablesDataProjectQuotaBeforeAnyDataBind(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh",
+	})
+
+	quotaIdx := strings.Index(script, "bash "+dataProjectQuotaPath)
+	if quotaIdx < 0 {
+		t.Fatalf("expected the self-join to run %s, got:\n%s", dataProjectQuotaPath, script)
+	}
+	kubeletBindIdx := strings.Index(script, "mount --bind /data/kubelet /var/lib/kubelet")
+	localPathBindIdx := strings.Index(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner")
+	if kubeletBindIdx < 0 || localPathBindIdx < 0 {
+		t.Fatalf("expected both /data bind-mounts in the SSH form, got:\n%s", script)
+	}
+	if quotaIdx > kubeletBindIdx || quotaIdx > localPathBindIdx {
+		t.Fatalf("project-quota setup at %d must precede the /data binds (kubelet=%d, local-path=%d), got:\n%s",
+			quotaIdx, kubeletBindIdx, localPathBindIdx, script)
+	}
+}
+
+// A box whose /data cannot carry project quotas must not join. It would look
+// healthy while being exactly what this exists to prevent: cache directories
+// with no per-account ceiling on a filesystem several tenants share, where one
+// account filling it evicts every other tenant on the box.
+func TestDataProjectQuotaScriptFailsClosed(t *testing.T) {
+	if !strings.Contains(dataProjectQuotaScript, `if [ "$fstype" != xfs ]`) {
+		t.Fatalf("expected the script to reject a non-xfs /data, got:\n%s", dataProjectQuotaScript)
+	}
+	// Two exits: a /data that is not xfs at all, and one that came back from the
+	// remount without quota accounting on.
+	if got := strings.Count(dataProjectQuotaScript, "exit 1"); got < 3 {
+		t.Fatalf("expected the script to abort on every unenforceable path, found %d exit 1", got)
+	}
+	// A single-filesystem box has no /data for cache directories to land on, so
+	// there is nothing to enforce and the join proceeds.
+	if !strings.Contains(dataProjectQuotaScript, `mountpoint -q "$data" || exit 0`) {
+		t.Fatalf("expected a no-op on boxes without a separate /data, got:\n%s", dataProjectQuotaScript)
+	}
+}
+
+// The provisioner's per-volume quota hooks shell out to xfs_quota on the host,
+// so the package has to be there before the first cache PVC is provisioned.
+func TestBootstrapInstallsXFSTools(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	if !strings.Contains(script, "containerd xfsprogs") {
+		t.Fatalf("expected xfsprogs in the bootstrap apt install, got:\n%s", script)
+	}
+}
+
+// cacheFleetTaints is what every cache fleet template stamps on its boxes, and
+// what tells the self-join that tenant volumes will land on this /data.
+func cacheFleetTaints() []corev1.Taint {
+	return []corev1.Taint{{Key: kuraCacheTaintKey, Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+}
+
+// A runner box has no tenant volumes on /data, so the image-store quota bounds
+// nothing there and only adds a ceiling that nothing can clear: XFS reports a
+// blown project quota as ENOSPC, and the kubelet's image GC keys on the
+// FILESYSTEM's free space, which on an 828 GiB /data is nowhere near a
+// threshold. A runner Pod's whole writable layer lives in that store, so the
+// quota is reached by ordinary CI and the box then fails every job it accepts
+// until it is drained.
+func TestContainerdQuotaSkippedOnFleetsWithoutCacheVolumes(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "runner-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", KataRuntime: true,
+		Taints: []corev1.Taint{{Key: "tuist.dev/runner-tier", Value: "bare-metal", Effect: corev1.TaintEffectNoSchedule}},
+	})
+
+	if strings.Contains(script, containerdQuotaPath) {
+		t.Fatalf("expected no image-store quota on a fleet with no cache volumes, got:\n%s", script)
+	}
+	// The relocation itself must stay: the image store still belongs on the big
+	// disk rather than the ~20G root, quota or not.
+	if !strings.Contains(script, "mkdir -p /data/containerd") {
+		t.Fatalf("expected the image-store relocation to survive, got:\n%s", script)
+	}
+}
+
+// The image store is the one consumer of /data that is not a tenant, and it is
+// otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
+// nearly full, so on a box whose tenants are light containerd can grow into the
+// headroom their quotas were written against and starve them below their own
+// ceilings. Its quota can only be applied after the store has been relocated
+// onto /data (the directory has to exist to carry a project) and after apt has
+// installed xfsprogs.
+func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", Taints: cacheFleetTaints(),
+	})
+
+	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
+	if quotaIdx < 0 {
+		t.Fatalf("expected the self-join to run %s, got:\n%s", containerdQuotaPath, script)
+	}
+	aptIdx := strings.Index(script, "containerd xfsprogs")
+	relocateIdx := strings.Index(script, "mkdir -p /data/containerd")
+	if aptIdx < 0 || relocateIdx < 0 {
+		t.Fatalf("expected the apt install and the image-store relocation, got:\n%s", script)
+	}
+	if quotaIdx < aptIdx || quotaIdx < relocateIdx {
+		t.Fatalf("containerd quota at %d must follow apt (%d) and the relocation (%d), got:\n%s",
+			quotaIdx, aptIdx, relocateIdx, script)
+	}
+}
+
+// Unlike the /data mount setup, a failed image-store quota must NOT fail the
+// join. Every tenant on the box is bounded either way; what is lost is defence
+// in depth on the shared pool, which is the state the box was in before.
+func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34", Taints: cacheFleetTaints()})
+	line := "bash " + containerdQuotaPath + " || echo"
+	if !strings.Contains(script, line) {
+		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)
+	}
+}
+
+// The reserved project id must stay clear of the range the provisioner hook
+// hashes volume directories into, or the image store and a cache volume would
+// share one ceiling.
+func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
+	// The hook computes `crc % 16000000 + 1000`, so volumes occupy [1000, 16000999].
+	if containerdProjectID <= 0 || containerdProjectID >= 1000 {
+		t.Fatalf("containerd project id = %d, want a reserved id below the volume range", containerdProjectID)
+	}
+	if !strings.Contains(containerdQuotaScript, "bhard=$bytes") || strings.Contains(containerdQuotaScript, "ihard=") {
+		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
+	}
+}
+
+// TestRenderLinux_KataRuntime pins both halves of the runner-fleet opt-in: a box
+// that asked for kata gets the runtime AND the label the kata-qemu RuntimeClass
+// selects on, and a box that did not gets neither. The negative half is the one
+// that matters operationally — the four Kura cache fleets share this renderer,
+// and silently handing them a kata download plus a containerd runtime block is a
+// change to a live cache node's runtime for no reason.
+func TestRenderLinux_KataRuntime(t *testing.T) {
+	opts := linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-ovh-fleet-runners-linux-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	}
+
+	optsKata := opts
+	optsKata.KataRuntime = true
+	withKata := renderLinuxBootstrapScript(optsKata)
+
+	for _, want := range []string{
+		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
+		"katacontainers.io/kata-runtime=true",
+		"tuist.dev/kata-runtime=true",
+		// Set on the handler itself: the earlier rewrite only touches what the
+		// generated default emitted, and this block is appended after it.
+		"SystemdCgroup = true",
+	} {
+		if !strings.Contains(withKata, want) {
+			t.Errorf("kata-enabled render is missing %q", want)
+		}
+	}
+
+	// The handler is registered under containerd's v3 config syntax, so a box
+	// whose containerd still emits v2 would accept the join and then fail every
+	// kata Pod. The guard has to abort the join instead.
+	if !strings.Contains(withKata, "grep -q '^version = 3' /etc/containerd/config.toml") {
+		t.Errorf("kata-enabled render must refuse to join a box whose containerd config is not version 3")
+	}
+
+	// Appending twice on a re-bootstrap would give containerd a duplicate
+	// runtime table, so the append is guarded.
+	if !strings.Contains(withKata, `grep -q "runtimes.kata-qemu" /etc/containerd/config.toml ||`) {
+		t.Errorf("the kata containerd block must be appended idempotently")
+	}
+
+	// Ordering: the handler has to be registered before containerd restarts,
+	// or kubelet talks to a containerd that has never seen it.
+	kataIdx := strings.Index(withKata, "runtimes.kata-qemu")
+	restartIdx := strings.Index(withKata, "systemctl restart containerd")
+	if kataIdx < 0 || restartIdx < 0 || kataIdx > restartIdx {
+		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
+	}
+
+	// Cache fleets: nothing kata anywhere, including the node labels.
+	withoutKata := renderLinuxBootstrapScript(opts)
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime"} {
+		if strings.Contains(withoutKata, unwanted) {
+			t.Errorf("cache-fleet render must not contain %q", unwanted)
+		}
+	}
+}

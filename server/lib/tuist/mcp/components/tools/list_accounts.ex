@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListAccounts do
   use Tuist.MCP.Tool,
     name: "list_accounts",
     title: "List Accounts",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{},
@@ -38,7 +39,7 @@ defmodule Tuist.MCP.Components.Tools.ListAccounts do
 
   @impl EMCP.Tool
   def description do
-    "List personal and organization account handles available to the authenticated user. Call this before create_project when the account handle is unknown."
+    "List personal and organization account handles available to the authenticated user. Use when the account handle for a project is unknown."
   end
 
   def execute(%{assigns: %{current_user: user}}, _args) do

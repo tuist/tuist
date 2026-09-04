@@ -4,7 +4,7 @@
 
 + (NSString *)playerName
 {
-    return @"PlayerView";
+    return [SWIFTPM_MODULE_BUNDLE bundlePath];
 }
 
 @end

@@ -9,17 +9,20 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use moka::Expiry;
-use moka::future::Cache;
 use moka::policy::EvictionPolicy;
-use serde::Serialize;
+use moka::{future::Cache as AsyncCache, sync::Cache};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+use tracing::{Instrument, field};
 
 use super::config::AuthConfig;
 use super::policy::{self, Authentication};
 use super::tuist::TuistBackend;
 use crate::auth::{Access, AccessDecision, DenyDecision, RequestContext};
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    telemetry::{record_trace_context, trace_export_active},
+};
 
 pub type SharedAuth = Arc<AuthEngine>;
 
@@ -107,6 +110,16 @@ impl<K> Expiry<K, AccessEntry> for EntryExpiry {
     }
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct CredentialKey([u8; 32]);
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct EntryKey {
+    credential: CredentialKey,
+    scope: crate::auth::target::Scope,
+    identifier: String,
+}
+
 /// What the engine answers a request with. Uncached — the entry above is the
 /// cached thing, and an answer is worked out from it per request.
 enum Outcome {
@@ -139,13 +152,14 @@ impl Outcome {
 fn settle(
     entry: Option<&AccessEntry>,
     required: Access,
-    request: &policy::ResolvedRequest,
+    request: &policy::ResolvedRequest<'_>,
     now: Instant,
 ) -> Option<Outcome> {
     let entry = entry?;
     match entry.access {
         Access::Invalid => Some(Outcome::Refuse(policy::invalid_credential())),
         Access::Refused => Some(Outcome::Refuse(policy::refusal(request))),
+        Access::PaymentRequired => Some(Outcome::Refuse(policy::payment_required(request))),
         level if level >= required => entry.serves(now).then_some(Outcome::Allow),
         _ => entry
             .settles_refusals(now)
@@ -154,9 +168,12 @@ fn settle(
 }
 
 /// The answer a fresh evaluation gives the request that paid for it.
-fn respond(access: Access, required: Access, request: &policy::ResolvedRequest) -> Outcome {
+fn respond(access: Access, required: Access, request: &policy::ResolvedRequest<'_>) -> Outcome {
     if access == Access::Invalid {
         return Outcome::Refuse(policy::invalid_credential());
+    }
+    if access == Access::PaymentRequired {
+        return Outcome::Refuse(policy::payment_required(request));
     }
     if access >= required {
         Outcome::Allow
@@ -169,7 +186,7 @@ fn respond(access: Access, required: Access, request: &policy::ResolvedRequest) 
 /// until the credential's own expiry or the ceiling, whichever comes first.
 fn entry_lifetime(access: Access, expiry: Option<Duration>) -> Duration {
     match access {
-        Access::Invalid | Access::Refused => REFUSAL_TTL,
+        Access::Invalid | Access::Refused | Access::PaymentRequired => REFUSAL_TTL,
         _ => expiry.map_or(CONFIRMED_TTL, |left| left.min(CONFIRMED_TTL)),
     }
 }
@@ -186,20 +203,20 @@ pub struct AuthEngine {
     /// One entry per credential and target: the access level the last
     /// evaluation settled. Everything else below is what it takes to fill this
     /// in and to void it.
-    entries: Cache<String, AccessEntry>,
+    entries: Cache<EntryKey, AccessEntry>,
     /// One lock per entry key, so exactly one request asks the backend a given
     /// question at a time.
-    consultations: Cache<String, Arc<Mutex<()>>>,
+    consultations: AsyncCache<EntryKey, Arc<Mutex<()>>>,
     /// When a credential was last reported invalid. A 401 is about the
     /// credential, not one target, and there is no way to enumerate a
     /// credential's entries — so they are voided by comparison instead: an
     /// entry evaluated before the marker is dead. The marker lives as long as
     /// the longest entry can, so nothing written before it can outlive it.
-    revocations: Cache<String, Instant>,
+    revocations: Cache<CredentialKey, Instant>,
     /// Credentials whose last consultation could not reach the backend.
     /// Presence holds the next attempt off, so an outage costs one probe per
     /// credential per backoff window rather than one per cold target.
-    unreachable: Cache<String, ()>,
+    unreachable: Cache<CredentialKey, ()>,
     metrics: Metrics,
 }
 
@@ -233,7 +250,7 @@ impl AuthEngine {
                 .eviction_policy(EvictionPolicy::lru())
                 .expire_after(EntryExpiry)
                 .build(),
-            consultations: Cache::builder()
+            consultations: AsyncCache::builder()
                 .max_capacity(config.cache_max_entries as u64)
                 .eviction_policy(EvictionPolicy::lru())
                 .time_to_idle(UNAVAILABLE_BACKOFF * 20)
@@ -263,7 +280,7 @@ impl AuthEngine {
             Err(deny) => return AccessDecision::Deny(deny),
         };
         let required = Access::required(&request.action);
-        let credential_key = fingerprint(&credentials(ctx));
+        let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
         let entry_key = entry_key(&credential_key, &request.target);
 
         let start = Instant::now();
@@ -278,12 +295,12 @@ impl AuthEngine {
     async fn answer(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
         required: Access,
-        credential_key: String,
-        entry_key: String,
+        credential_key: CredentialKey,
+        entry_key: EntryKey,
     ) -> Outcome {
-        let held = self.valid_entry(&entry_key, &credential_key).await;
+        let held = self.valid_entry(&entry_key, &credential_key);
         if let Some(outcome) = settle(held.as_ref(), required, request, Instant::now()) {
             self.metrics.record_auth_cache("access", "hit");
             return outcome;
@@ -298,15 +315,15 @@ impl AuthEngine {
     async fn consult(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
         required: Access,
-        credential_key: String,
-        entry_key: String,
+        credential_key: CredentialKey,
+        entry_key: EntryKey,
         held: Option<AccessEntry>,
     ) -> Outcome {
         // A backend that just failed to answer is left alone for a moment,
         // whoever is asking about whatever target.
-        if self.unreachable.get(&credential_key).await.is_some() {
+        if self.unreachable.get(&credential_key).is_some() {
             return self.without_backend(required, held.as_ref());
         }
 
@@ -333,7 +350,7 @@ impl AuthEngine {
         };
 
         // Whoever held the lock before us may have just written the answer.
-        let held = self.valid_entry(&entry_key, &credential_key).await;
+        let held = self.valid_entry(&entry_key, &credential_key);
         if let Some(outcome) = settle(held.as_ref(), required, request, Instant::now()) {
             self.metrics.record_auth_cache("access", "hit");
             return outcome;
@@ -349,18 +366,16 @@ impl AuthEngine {
                     // is finished with it, not only this target's. The marker
                     // is written first, so the entry stored below survives its
                     // own revocation check.
-                    self.revocations
-                        .insert(credential_key, Instant::now())
-                        .await;
+                    self.revocations.insert(credential_key, Instant::now());
                 }
-                self.remember(entry_key, access, ctx).await;
+                self.remember(entry_key, access, ctx);
                 respond(access, required, request)
             }
             // Cheap to re-derive — no round trip reached the backend — so
             // caching it buys nothing.
             Authentication::Deny(deny) => Outcome::Refuse(deny),
             Authentication::Unavailable(_) => {
-                self.unreachable.insert(credential_key, ()).await;
+                self.unreachable.insert(credential_key, ());
                 self.without_backend(required, held.as_ref())
             }
         }
@@ -377,7 +392,7 @@ impl AuthEngine {
         Outcome::Unavailable(unreachable_deny())
     }
 
-    async fn remember(&self, entry_key: String, access: Access, ctx: &RequestContext) {
+    fn remember(&self, entry_key: EntryKey, access: Access, ctx: &RequestContext) {
         let lifetime = entry_lifetime(access, policy::credential_expiry(ctx));
         // A credential already past its own expiry is answered this once,
         // because the backend just vouched for it, but holding it would only
@@ -387,25 +402,27 @@ impl AuthEngine {
         }
 
         let now = Instant::now();
-        self.entries
-            .insert(
-                entry_key,
-                AccessEntry {
-                    access,
-                    evaluated_at: now,
-                    serve_until: now + REVALIDATE_AFTER,
-                    settled_until: now + REFUSAL_TTL,
-                    lifetime,
-                },
-            )
-            .await;
+        self.entries.insert(
+            entry_key,
+            AccessEntry {
+                access,
+                evaluated_at: now,
+                serve_until: now + REVALIDATE_AFTER,
+                settled_until: now + REFUSAL_TTL,
+                lifetime,
+            },
+        );
     }
 
     /// The entry for this key, unless the credential has been reported invalid
     /// since it was written.
-    async fn valid_entry(&self, entry_key: &str, credential_key: &str) -> Option<AccessEntry> {
-        let entry = self.entries.get(entry_key).await?;
-        if let Some(revoked_at) = self.revocations.get(credential_key).await
+    fn valid_entry(
+        &self,
+        entry_key: &EntryKey,
+        credential_key: &CredentialKey,
+    ) -> Option<AccessEntry> {
+        let entry = self.entries.get(entry_key)?;
+        if let Some(revoked_at) = self.revocations.get(credential_key)
             && entry.evaluated_at < revoked_at
         {
             return None;
@@ -416,10 +433,26 @@ impl AuthEngine {
     async fn evaluate_policy(
         &self,
         ctx: &RequestContext,
-        request: &policy::ResolvedRequest,
+        request: &policy::ResolvedRequest<'_>,
     ) -> Authentication {
         let start = Instant::now();
-        let result = policy::authenticate(&self.backend, ctx, request).await;
+        let authenticate_span = if trace_export_active() {
+            let span = tracing::info_span!(
+                "kura.auth.authenticate",
+                kura.auth.cache = "miss",
+                kura.auth.result = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
+            );
+            record_trace_context(&span);
+            span
+        } else {
+            tracing::Span::none()
+        };
+        let result = policy::authenticate(&self.backend, ctx, request)
+            .instrument(authenticate_span.clone())
+            .await;
+        authenticate_span.record("kura.auth.result", result_label(&result));
         self.metrics
             .record_auth_decision("authenticate", result_label(&result), start.elapsed());
         result
@@ -445,7 +478,7 @@ impl AuthEngine {
         ctx: &RequestContext,
     ) -> tokio::sync::OwnedMutexGuard<()> {
         let request = policy::resolve_request(ctx).expect("a resolvable request");
-        let credential_key = fingerprint(&credentials(ctx));
+        let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
         self.consultations
             .get_with(entry_key(&credential_key, &request.target), async {
                 Arc::new(Mutex::new(()))
@@ -459,9 +492,9 @@ impl AuthEngine {
     /// backend again, standing in for the seconds a test cannot wait.
     #[cfg(test)]
     pub(crate) async fn clear_unavailable_backoff(&self, ctx: &RequestContext) {
-        self.unreachable
-            .invalidate(&fingerprint(&credentials(ctx)))
-            .await;
+        self.unreachable.invalidate(&fingerprint(
+            policy::authorization_header(ctx).unwrap_or_default(),
+        ));
     }
 
     /// Ages the entry for this request's target so the next request has to go
@@ -470,22 +503,20 @@ impl AuthEngine {
     #[cfg(test)]
     pub(crate) async fn expire_serving_deadline(&self, ctx: &RequestContext) {
         let request = policy::resolve_request(ctx).expect("a resolvable request");
-        let credential_key = fingerprint(&credentials(ctx));
+        let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
         let key = entry_key(&credential_key, &request.target);
 
-        if let Some(entry) = self.entries.get(&key).await {
+        if let Some(entry) = self.entries.get(&key) {
             let now = Instant::now();
             let just_passed = now.checked_sub(Duration::from_secs(1)).unwrap_or(now);
-            self.entries
-                .insert(
-                    key,
-                    AccessEntry {
-                        serve_until: just_passed,
-                        settled_until: just_passed,
-                        ..entry
-                    },
-                )
-                .await;
+            self.entries.insert(
+                key,
+                AccessEntry {
+                    serve_until: just_passed,
+                    settled_until: just_passed,
+                    ..entry
+                },
+            );
         }
     }
 }
@@ -510,27 +541,19 @@ fn result_label(result: &Authentication) -> &'static str {
 ///
 /// Injective by construction: the fingerprint is fixed-width and the scope is
 /// from a closed set, so the identifier can carry anything.
-fn entry_key(credential_key: &str, target: &crate::auth::target::RequestTarget) -> String {
-    format!(
-        "{credential_key}:{}:{}",
-        target.scope.key(),
-        target.identifier
-    )
+fn entry_key(
+    credential_key: &CredentialKey,
+    target: &crate::auth::target::RequestTarget<'_>,
+) -> EntryKey {
+    EntryKey {
+        credential: *credential_key,
+        scope: target.scope,
+        identifier: target.identifier.to_string(),
+    }
 }
 
-fn credentials(ctx: &RequestContext) -> String {
-    ctx.headers
-        .get("authorization")
-        .or_else(|| ctx.headers.get("Authorization"))
-        .cloned()
-        .unwrap_or_default()
-}
-
-fn fingerprint<T: Serialize>(value: &T) -> String {
-    let encoded = serde_json::to_vec(value).unwrap_or_default();
-    let mut hasher = Sha256::new();
-    hasher.update(&encoded);
-    format!("{:x}", hasher.finalize())
+fn fingerprint(value: &str) -> CredentialKey {
+    CredentialKey(Sha256::digest(value.as_bytes()).into())
 }
 
 #[cfg(test)]
@@ -538,7 +561,64 @@ mod tests {
     use super::*;
     use crate::auth::target::{Action, RequestTarget, Scope};
 
-    fn request() -> policy::ResolvedRequest {
+    async fn measure_cache_lookup(
+        legacy: bool,
+        legacy_entries: AsyncCache<String, AccessEntry>,
+        legacy_revocations: AsyncCache<String, Instant>,
+        entries: Cache<EntryKey, AccessEntry>,
+        revocations: Cache<CredentialKey, Instant>,
+        authorization: Arc<str>,
+        target: Arc<RequestTarget<'static>>,
+    ) -> f64 {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 100_000;
+
+        let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS + 1));
+        let mut workers = tokio::task::JoinSet::new();
+        for _ in 0..WORKERS {
+            let legacy_entries = legacy_entries.clone();
+            let legacy_revocations = legacy_revocations.clone();
+            let entries = entries.clone();
+            let revocations = revocations.clone();
+            let authorization = authorization.clone();
+            let target = target.clone();
+            let barrier = barrier.clone();
+            workers.spawn(async move {
+                barrier.wait().await;
+                for _ in 0..ITERATIONS_PER_WORKER {
+                    if legacy {
+                        let credential = authorization.to_string();
+                        let encoded =
+                            serde_json::to_vec(&credential).expect("serialize credential");
+                        let credential_key = format!("{:x}", Sha256::digest(&encoded));
+                        let entry_key = format!(
+                            "{credential_key}:{}:{}",
+                            target.scope.key(),
+                            target.identifier
+                        );
+                        let entry = legacy_entries.get(&entry_key).await;
+                        let revoked = legacy_revocations.get(&credential_key).await;
+                        std::hint::black_box((entry, revoked));
+                    } else {
+                        let credential_key = fingerprint(&authorization);
+                        let entry_key = entry_key(&credential_key, &target);
+                        let entry = entries.get(&entry_key);
+                        let revoked = revocations.get(&credential_key);
+                        std::hint::black_box((entry, revoked));
+                    }
+                }
+            });
+        }
+
+        barrier.wait().await;
+        let started_at = Instant::now();
+        while let Some(result) = workers.join_next().await {
+            result.expect("lookup worker");
+        }
+        (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+    }
+
+    fn request() -> policy::ResolvedRequest<'static> {
         policy::ResolvedRequest {
             target: RequestTarget {
                 scope: Scope::Project,
@@ -607,6 +687,39 @@ mod tests {
         // level knows nothing about, so the request goes back to it.
         let held = aged(held);
         assert!(settle(Some(&held), Access::ReadWrite, &request(), Instant::now()).is_none());
+    }
+
+    // A blocked account reaches the node as absence from the grants, which is
+    // indistinguishable from never having had access. Answering 403 sends the
+    // caller after a permissions problem they do not have.
+    #[test]
+    fn an_exhausted_plan_answers_with_its_own_status() {
+        let Some(Outcome::Refuse(deny)) = settle(
+            Some(&entry(Access::PaymentRequired)),
+            Access::Read,
+            &request(),
+            Instant::now(),
+        ) else {
+            panic!("expected the plan refusal to replay");
+        };
+        assert_eq!(deny.status, 402);
+        assert!(deny.message.contains("Tuist Pro"));
+
+        // And on a fresh evaluation, not only a replayed one.
+        let Outcome::Refuse(fresh) = respond(Access::PaymentRequired, Access::Read, &request())
+        else {
+            panic!("expected a fresh plan refusal");
+        };
+        assert_eq!(fresh.status, 402);
+    }
+
+    // It grants nothing, so a write must not slip through on the ordering that
+    // places it above `Refused`.
+    #[test]
+    fn an_exhausted_plan_grants_no_action() {
+        assert!(Access::PaymentRequired < Access::Read);
+        assert!(Access::PaymentRequired < Access::ReadWrite);
+        assert!(Access::PaymentRequired > Access::Refused);
     }
 
     #[test]
@@ -711,9 +824,154 @@ mod tests {
             identifier: "acme".into(),
         };
 
-        assert_eq!(entry_key("cred", &ios), entry_key("cred", &ios));
-        assert_ne!(entry_key("cred", &ios), entry_key("cred", &android));
-        assert_ne!(entry_key("cred", &ios), entry_key("other", &ios));
-        assert_ne!(entry_key("cred", &account), entry_key("cred", &ios));
+        let credential = fingerprint("cred");
+        let other = fingerprint("other");
+        assert_eq!(entry_key(&credential, &ios), entry_key(&credential, &ios));
+        assert_ne!(
+            entry_key(&credential, &ios),
+            entry_key(&credential, &android)
+        );
+        assert_ne!(entry_key(&credential, &ios), entry_key(&other, &ios));
+        assert_ne!(
+            entry_key(&credential, &account),
+            entry_key(&credential, &ios)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn authorization_cache_lookup_benchmark() {
+        const SAMPLES: usize = 6;
+
+        let authorization: Arc<str> = format!("Bearer {}", "credential".repeat(96)).into();
+        let target = Arc::new(request().target);
+        let held = entry(Access::ReadWrite);
+
+        let encoded = serde_json::to_vec(&authorization.as_ref()).expect("serialize credential");
+        let legacy_credential_key = format!("{:x}", Sha256::digest(&encoded));
+        let legacy_entry_key = format!(
+            "{legacy_credential_key}:{}:{}",
+            target.scope.key(),
+            target.identifier
+        );
+        let legacy_entries = AsyncCache::builder()
+            .max_capacity(1_000)
+            .eviction_policy(EvictionPolicy::lru())
+            .expire_after(EntryExpiry)
+            .build();
+        legacy_entries.insert(legacy_entry_key, held.clone()).await;
+        let legacy_revocations = AsyncCache::builder()
+            .max_capacity(1_000)
+            .eviction_policy(EvictionPolicy::lru())
+            .time_to_live(CONFIRMED_TTL)
+            .build();
+
+        let credential_key = fingerprint(&authorization);
+        let entries = Cache::builder()
+            .max_capacity(1_000)
+            .eviction_policy(EvictionPolicy::lru())
+            .expire_after(EntryExpiry)
+            .build();
+        entries.insert(entry_key(&credential_key, &target), held);
+        let revocations = Cache::builder()
+            .max_capacity(1_000)
+            .eviction_policy(EvictionPolicy::lru())
+            .time_to_live(CONFIRMED_TTL)
+            .build();
+        assert!(
+            entries.get(&entry_key(&credential_key, &target)).is_some(),
+            "the typed key must resolve the stored entry"
+        );
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let arguments = || {
+                (
+                    legacy_entries.clone(),
+                    legacy_revocations.clone(),
+                    entries.clone(),
+                    revocations.clone(),
+                    authorization.clone(),
+                    target.clone(),
+                )
+            };
+            let (baseline, candidate) = if sample % 2 == 0 {
+                let (old_entries, old_revocations, entries, revocations, authorization, target) =
+                    arguments();
+                let baseline = measure_cache_lookup(
+                    true,
+                    old_entries,
+                    old_revocations,
+                    entries,
+                    revocations,
+                    authorization,
+                    target,
+                )
+                .await;
+                let (old_entries, old_revocations, entries, revocations, authorization, target) =
+                    arguments();
+                let candidate = measure_cache_lookup(
+                    false,
+                    old_entries,
+                    old_revocations,
+                    entries,
+                    revocations,
+                    authorization,
+                    target,
+                )
+                .await;
+                (baseline, candidate)
+            } else {
+                let (old_entries, old_revocations, entries, revocations, authorization, target) =
+                    arguments();
+                let candidate = measure_cache_lookup(
+                    false,
+                    old_entries,
+                    old_revocations,
+                    entries,
+                    revocations,
+                    authorization,
+                    target,
+                )
+                .await;
+                let (old_entries, old_revocations, entries, revocations, authorization, target) =
+                    arguments();
+                let baseline = measure_cache_lookup(
+                    true,
+                    old_entries,
+                    old_revocations,
+                    entries,
+                    revocations,
+                    authorization,
+                    target,
+                )
+                .await;
+                (baseline, candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC auth_cache_lookup_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC auth_cache_lookup_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC auth_cache_lookup_speedup_ratio={:.6}",
+            speedups[median]
+        );
     }
 }

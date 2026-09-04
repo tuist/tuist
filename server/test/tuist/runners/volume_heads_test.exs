@@ -3,6 +3,8 @@ defmodule Tuist.Runners.VolumeHeadsTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Repo
+  alias Tuist.Runners.VolumeHead
   alias Tuist.Runners.VolumeHeads
 
   describe "get_head/2" do
@@ -23,6 +25,28 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert {:ok, 1} = VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
 
       assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "records the publishing host on every path that writes the row" do
+      account = account_fixture()
+
+      # The publishing host is the only record of WHERE a generation came from,
+      # and it is what identifies the host still holding a master when a HEAD
+      # turns out to be one nothing can reproduce. Asserted on all three writes:
+      # the first establish, an ordinary fast-forward, and the retirement of an
+      # unverifiable lineage.
+      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+      assert published_by(account.id) == "mac-01"
+
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
+      assert published_by(account.id) == "mac-02"
+
+      assert {:ok, 3} =
+               VolumeHeads.bump_head(account.id, "mac-03", "digest-c", 0, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "digest-b"
+               )
+
+      assert published_by(account.id) == "mac-03"
     end
 
     test "rejects a cold promote (base 0) when a HEAD already exists" do
@@ -232,5 +256,12 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert VolumeHeads.fast_forward_viable?(account.id, -1)
       assert VolumeHeads.fast_forward_viable?(nil, 0)
     end
+  end
+
+  # The row's attribution field. Read straight from the table because get_head/2
+  # projects only the generation and digest that dispatch consumes, and widening
+  # that projection for a test would make it part of the contract.
+  defp published_by(account_id) do
+    Repo.get_by!(VolumeHead, account_id: account_id, volume_name: VolumeHeads.reserved_tuist_cache()).node_name
   end
 end

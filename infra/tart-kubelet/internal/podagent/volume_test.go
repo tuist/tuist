@@ -993,6 +993,30 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
 	}
 
+	// A retention pass that reclaims a leaked result bundle changes the digest, so
+	// the job that cleaned the image reports dirty and the smaller master is the
+	// one that gets promoted. Runs is not a subtree any job WRITES on purpose,
+	// which is exactly why it has to be covered: if it were left out, a job whose
+	// only change is the reclaim would report clean and the host would discard the
+	// cleaned image, so the leak would outlive every job that fixed it.
+	runs := filepath.Join(root, cacheHomeSubdir, "Runs")
+	if err := os.MkdirAll(filepath.Join(runs, "leaked-run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withLeak, err := inventoryDigest(root)
+	if err != nil {
+		t.Fatalf("inventoryDigest: %v", err)
+	}
+	if withLeak == got {
+		t.Fatal("a leaked run bundle did not change the digest; retention that reclaims it would report clean")
+	}
+	if err := os.RemoveAll(filepath.Join(runs, "leaked-run")); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed, _ := inventoryDigest(root); reclaimed != got {
+		t.Fatalf("reclaiming the run did not restore the digest: %q != %q", reclaimed, got)
+	}
+
 	// The folded CAS store's per-file (relpath, size) inventory enters the digest:
 	// a compile-only job (binary subtree unchanged) that only grew the CAS still
 	// changes the digest → promotes. Lines match the guest's find/stat pipeline —
@@ -1313,6 +1337,27 @@ func TestCacheImageSplit(t *testing.T) {
 	}
 	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 10*gib {
 		t.Fatalf("staged budget = %d; want 10 GiB", got)
+	}
+}
+
+func TestWriteNodeName(t *testing.T) {
+	dir := t.TempDir()
+
+	// No status share (cache volume feature off) and an unknown Node name are
+	// both no-ops rather than errors: the attribution field just stays empty.
+	writeNodeName("", "mini-1")
+	writeNodeName(dir, "")
+	if _, err := os.Stat(filepath.Join(dir, nodeNameFile)); !os.IsNotExist(err) {
+		t.Fatalf("empty node name should not stage a file")
+	}
+
+	writeNodeName(dir, "tuist-tuist-runners-fleet-mndbc-c22td")
+	raw, err := os.ReadFile(filepath.Join(dir, nodeNameFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "tuist-tuist-runners-fleet-mndbc-c22td" {
+		t.Fatalf("staged node name = %q; want the Node name verbatim", raw)
 	}
 }
 

@@ -73,6 +73,10 @@ env:
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  # Jobs are ephemeral and persist .build with actions/cache. Keep Tuist metadata
+  # outside the per-account runner cache volume so a saturated warm cache cannot
+  # prevent authentication before the job starts.
+  TUIST_XDG_CACHE_HOME: /tmp/tuist-cache
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
 
@@ -339,6 +343,41 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours. Forks skip this: they do not check out the EE submodule, so the
+      # suite that needs the plugin is not in the scheme there.
+      - uses: jdx/mise-action@v4.0.1
+        if: github.event.pull_request.head.repo.fork != true
+        env:
+          # The rust pin lives in cas-plugin/mise.toml and has no lockfile entry,
+          # so this workflow's MISE_LOCKED=1 refuses to install it. Every other
+          # workflow that builds the plugin installs this toolchain unlocked.
+          MISE_LOCKED: 0
+        with:
+          version: ${{ env.MISE_VERSION }}
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      - uses: Swatinem/rust-cache@v2
+        if: github.event.pull_request.head.repo.fork != true
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        if: github.event.pull_request.head.repo.fork != true
+        working-directory: cas-plugin
+        env:
+          MISE_LOCKED: 0
+        # No GITHUB_ENV export: `xcodebuild test-without-building` runs the test
+        # bundle with the environment captured into the xctestrun at build time,
+        # so a variable exported here never reaches the test process. The suite
+        # resolves both binaries from this path in the source tree instead.
+        run: mise run build
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -348,8 +387,13 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
+      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
+      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
+      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
+      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}

@@ -9,7 +9,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which release.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which server-production-deployment.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -18,7 +18,7 @@
     },
     {
       "customType": "regex",
-      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which server-production-deployment.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"

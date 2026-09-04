@@ -174,7 +174,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   defp create_flaky_test_case(project, name, opts) do
     test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
 
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
     ran_at = Keyword.get(opts, :ran_at, NaiveDateTime.add(NaiveDateTime.utc_now(), -60))
 

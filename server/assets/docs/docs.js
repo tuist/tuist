@@ -10,6 +10,7 @@ import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
 import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 import { copyTextToClipboard } from "../shared/js/clipboard.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 import "./docs.css";
 
@@ -56,6 +57,35 @@ function closeMobileSidebar() {
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
 }
 
+function closeMobileNav({ restoreFocus = false } = {}) {
+  document.body.removeAttribute("data-mobile-nav-open");
+  document.getElementById("docs-mobile-nav")?.removeAttribute("data-open");
+  const trigger = document.getElementById("docs-nav-mobile-menu");
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) trigger?.focus();
+}
+
+// Capture phase, so the nested language dropdown is still open when we look:
+// the first Escape belongs to it, and only a later one closes the menu itself.
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key !== "Escape") return;
+    const nav = document.getElementById("docs-mobile-nav");
+    if (!nav?.hasAttribute("data-open")) return;
+    if (nav.querySelector('[data-part="content"][data-state="open"]')) return;
+    closeMobileNav({ restoreFocus: true });
+  },
+  { capture: true },
+);
+
+// page-loading-stop also fires for the initial join, which can land after the
+// reader has already opened the menu, so only a real navigation closes it.
+function maybeCloseMobileNavForNavigation({ kind, to } = {}) {
+  if (!to || kind === "initial") return;
+  closeMobileNav();
+}
+
 function maybeScrollToTopForNavigation({ kind, to } = {}) {
   if (!to || kind === "initial") return;
 
@@ -75,16 +105,13 @@ window.addEventListener("phx:page-loading-stop", (info) => {
   topbar.hide();
   maybeScrollToTopForNavigation(info.detail);
   closeMobileSidebar();
+  maybeCloseMobileNavForNavigation(info.detail);
   initDocsSearch();
 });
 
 liveSocket.connect();
 
-window.addEventListener("phx:navigate", () => {
-  if (globalThis.analytics.enabled) {
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 window.liveSocket = liveSocket;
 

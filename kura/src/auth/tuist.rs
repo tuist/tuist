@@ -4,10 +4,15 @@
 use std::time::{Duration, Instant};
 
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, header::HeaderMap};
 use serde_json::{Value, json};
+use tracing::{Instrument, field};
 
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    request_observability::{REQUEST_ID_HEADER, current_request},
+    telemetry::{inject_current_trace_context, record_trace_context, trace_export_active},
+};
 
 /// How far past its own `exp` a credential is still taken as current, matching
 /// jsonwebtoken's own default. It absorbs the clock skew between the issuer and
@@ -17,7 +22,10 @@ pub const EXPIRY_LEEWAY: Duration = Duration::from_secs(60);
 #[derive(Clone, Debug)]
 pub struct JwtVerifier {
     pub algorithm: Algorithm,
-    pub secret: String,
+    /// What the token is read with. More than one only while a key is being
+    /// rotated: the server and the nodes roll independently, so for a window
+    /// both keys are in use and a token is tried against each.
+    pub keys: Vec<DecodingKey>,
     pub issuer: Option<String>,
     pub audiences: Vec<String>,
 }
@@ -28,12 +36,37 @@ impl JwtVerifier {
             "HS256" => Ok(Algorithm::HS256),
             "HS384" => Ok(Algorithm::HS384),
             "HS512" => Ok(Algorithm::HS512),
+            "ES256" => Ok(Algorithm::ES256),
             other => Err(format!("unsupported JWT algorithm '{other}'")),
         }
     }
 
+    /// A shared secret verifies and signs alike, so a node holding one could
+    /// mint the tokens it verifies. Only a deployment whose nodes and server
+    /// are the same trust boundary should use this.
+    pub fn secret_keys(secret: &str) -> Vec<DecodingKey> {
+        vec![DecodingKey::from_secret(secret.as_bytes())]
+    }
+
+    /// The public halves of the cache-token keypair, as one or more
+    /// concatenated PEM blocks. A node given these can read a cache token and
+    /// cannot mint one, which is what lets an internet-facing node hold them.
+    pub fn public_keys(bundle: &str) -> Result<Vec<DecodingKey>, String> {
+        let keys = pem_blocks(bundle)
+            .iter()
+            .map(|block| {
+                DecodingKey::from_ec_pem(block.as_bytes())
+                    .map_err(|error| format!("JWT public key is not a readable PEM: {error}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if keys.is_empty() {
+            return Err("JWT public key contains no PEM block".into());
+        }
+        Ok(keys)
+    }
+
     pub fn verify(&self, token: &str) -> Result<Value, String> {
-        let key = DecodingKey::from_secret(self.secret.as_bytes());
         let mut validation = Validation::new(self.algorithm);
         // Pinned rather than inherited from jsonwebtoken's default, because the
         // policy refuses a credential past its expiry before asking the server
@@ -53,10 +86,69 @@ impl JwtVerifier {
             validation.set_audience(&audiences);
         }
 
-        decode::<Value>(token, &key, &validation)
-            .map(|token| token.claims)
-            .map_err(|error| format!("JWT verification failed: {error}"))
+        // The first key that reads the token answers. A key that does not is
+        // not a verdict on the token, so the last failure is only reported
+        // once every key has been tried.
+        let mut failure = None;
+        for key in &self.keys {
+            match decode::<Value>(token, key, &validation) {
+                Ok(token) => return Ok(token.claims),
+                Err(error) => failure = Some(error),
+            }
+        }
+
+        Err(match failure {
+            Some(error) => format!("JWT verification failed: {error}"),
+            None => "JWT verification failed: no key is configured".into(),
+        })
     }
+}
+
+/// Splits a PEM bundle into its blocks. Concatenation is how a rotation
+/// publishes the next key alongside the current one through a single value.
+fn pem_blocks(bundle: &str) -> Vec<String> {
+    bundle
+        .split("-----BEGIN")
+        .skip(1)
+        .map(|block| format!("-----BEGIN{}", block.trim_end()))
+        .collect()
+}
+
+/// A throwaway pair, and its rotation successor. Shared with the policy
+/// tests so both sign with the same key the verifier is given.
+#[cfg(test)]
+pub(crate) mod test_keys {
+    // A throwaway pair, and its rotation successor. Fixed rather than generated
+    // so a failure is about the code under test.
+    pub(crate) const SIGNING_KEY: &str = "\
+    -----BEGIN PRIVATE KEY-----
+    MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgiZOW2KwtxzHEuc6N
+    M9Tn1vhXrMIJ4A4ND5S708b5sNKhRANCAAR49ecP/fwb8LDSXBb33jquLIwO3Q7c
+    hQxqtQyHuT+BDLvd8598RL76YWLq0ddUa+kzlasiak5gz4CZPPRl/JQr
+    -----END PRIVATE KEY-----
+    ";
+
+    pub(crate) const PUBLIC_KEY: &str = "\
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEePXnD/38G/Cw0lwW9946riyMDt0O
+    3IUMarUMh7k/gQy73fOffES++mFi6tHXVGvpM5WrImpOYM+AmTz0ZfyUKw==
+    -----END PUBLIC KEY-----
+    ";
+
+    pub(crate) const ROTATED_SIGNING_KEY: &str = "\
+    -----BEGIN PRIVATE KEY-----
+    MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1pleNy6ZhrdrUQIW
+    MTDQBwPmgY9S4qEwoDYrRXEdjkahRANCAAReoaVWopRByBUayj4u2l7zYUSEUvKL
+    No1ZGehfODZohf4vw4hxHRHOWuwsN3Y444f/4qZQQA6HQtLBaziX9QVk
+    -----END PRIVATE KEY-----
+    ";
+
+    pub(crate) const ROTATED_PUBLIC_KEY: &str = "\
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXqGlVqKUQcgVGso+Ltpe82FEhFLy
+    izaNWRnoXzg2aIX+L8OIcR0RzlrsLDd2OOOH/+KmUEAOh0LSwWs4l/UFZA==
+    -----END PUBLIC KEY-----
+    ";
 }
 
 /// Credentials for the introspection endpoint. Absent when the node was not
@@ -108,10 +200,26 @@ impl TuistBackend {
 
     /// Tokens Tuist signs carry their grants, so most requests never touch the
     /// network. `None` when this node holds no verification key.
+    ///
+    /// A key that cannot read the token is reported rather than only returned:
+    /// the policy falls back to the server on it, so a node given the wrong key
+    /// keeps answering correctly and would otherwise announce nothing at all.
     pub fn verify_token(&self, token: &str) -> Option<Result<Value, String>> {
-        self.verifier
-            .as_ref()
-            .map(|verifier| verifier.verify(token))
+        let verifier = self.verifier.as_ref()?;
+
+        let start = Instant::now();
+        let result = verifier.verify(token);
+        self.metrics.record_auth_decision(
+            "verify",
+            if result.is_ok() {
+                "readable"
+            } else {
+                "unreadable"
+            },
+            start.elapsed(),
+        );
+
+        Some(result)
     }
 
     pub fn introspection_configured(&self) -> bool {
@@ -162,9 +270,27 @@ impl TuistBackend {
         let url = format!("{}{path}", self.base_url.trim_end_matches('/'));
 
         let mut attempt = 0;
-        let response = loop {
+        let (response, request_span) = loop {
             attempt += 1;
             let start = Instant::now();
+
+            let request_span = if trace_export_active() {
+                let span = tracing::info_span!(
+                    "kura.auth.backend_request",
+                    http.request.method = %method,
+                    http.route = route,
+                    server.address = %self.base_url,
+                    kura.request.attempt = attempt,
+                    http.response.status_code = field::Empty,
+                    kura.auth.result = field::Empty,
+                    trace_id = field::Empty,
+                    span_id = field::Empty,
+                );
+                record_trace_context(&span);
+                span
+            } else {
+                tracing::Span::none()
+            };
 
             let mut builder = self.client.request(method.clone(), &url);
             for (name, value) in headers {
@@ -174,8 +300,19 @@ impl TuistBackend {
                 builder = builder.json(body);
             }
 
-            match builder.send().await {
+            let mut propagated_headers = HeaderMap::new();
+            if let Some(context) = current_request() {
+                builder = builder.header(REQUEST_ID_HEADER, context.request_id());
+            }
+            if trace_export_active() {
+                let _entered = request_span.enter();
+                inject_current_trace_context(&mut propagated_headers);
+            }
+            builder = builder.headers(propagated_headers);
+
+            match builder.send().instrument(request_span.clone()).await {
                 Ok(response) => {
+                    request_span.record("http.response.status_code", response.status().as_u16());
                     self.metrics.record_auth_backend(
                         route,
                         "ok",
@@ -183,9 +320,10 @@ impl TuistBackend {
                         "none",
                         start.elapsed(),
                     );
-                    break response;
+                    break (response, request_span);
                 }
                 Err(error) => {
+                    request_span.record("kura.auth.result", "error");
                     let error_kind = classify_reqwest_error(&error);
                     self.metrics.record_auth_backend(
                         route,
@@ -209,10 +347,20 @@ impl TuistBackend {
         };
 
         let status = response.status().as_u16();
-        let body = response
+        let body = match response
             .json::<Value>()
+            .instrument(request_span.clone())
             .await
-            .map_err(|error| format!("Tuist {route} returned invalid JSON: {error}"))?;
+        {
+            Ok(body) => {
+                request_span.record("kura.auth.result", "ok");
+                body
+            }
+            Err(error) => {
+                request_span.record("kura.auth.result", "decode_error");
+                return Err(format!("Tuist {route} returned invalid JSON: {error}"));
+            }
+        };
 
         Ok(Response { status, body })
     }
@@ -281,4 +429,196 @@ fn format_reqwest_error(error: &reqwest::Error) -> String {
         source = cause.source();
     }
     chain.join(": ")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use axum::{Json, Router, routing::get};
+    use jsonwebtoken::{EncodingKey, Header, encode};
+
+    use super::test_keys::*;
+    use serde_json::json;
+
+    use super::*;
+
+    fn cache_token(signing_key: &str) -> String {
+        encode(
+            &Header::new(Algorithm::ES256),
+            &json!({
+                "sub": "1",
+                "iss": "tuist",
+                "typ": "cache",
+                "exp": 4_000_000_000u64,
+                "cache_grants": { "project": { "write": ["acme/ios"] } },
+            }),
+            &EncodingKey::from_ec_pem(signing_key.as_bytes()).expect("a readable signing key"),
+        )
+        .expect("a signed cache token")
+    }
+
+    fn verifier(bundle: &str) -> JwtVerifier {
+        JwtVerifier {
+            algorithm: Algorithm::ES256,
+            keys: JwtVerifier::public_keys(bundle).expect("a readable public key"),
+            issuer: Some("tuist".into()),
+            audiences: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn reads_a_token_the_public_half_answers_for() {
+        let claims = verifier(PUBLIC_KEY)
+            .verify(&cache_token(SIGNING_KEY))
+            .expect("the token to verify");
+
+        assert_eq!(claims["cache_grants"]["project"]["write"][0], "acme/ios");
+    }
+
+    // The point of the bundle: the server and the nodes roll independently, so
+    // for a window tokens signed by either key are in flight.
+    #[test]
+    fn reads_a_token_signed_by_either_key_while_one_is_being_rotated() {
+        let bundle = format!("{PUBLIC_KEY}{ROTATED_PUBLIC_KEY}");
+
+        for signing_key in [SIGNING_KEY, ROTATED_SIGNING_KEY] {
+            assert!(verifier(&bundle).verify(&cache_token(signing_key)).is_ok());
+        }
+    }
+
+    // The node holds only public halves, so it cannot mint what it reads, and a
+    // token signed by anything else is simply not readable here.
+    #[test]
+    fn does_not_read_a_token_signed_by_a_key_it_does_not_hold() {
+        assert!(
+            verifier(PUBLIC_KEY)
+                .verify(&cache_token(ROTATED_SIGNING_KEY))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn splits_a_bundle_into_the_keys_it_carries() {
+        assert_eq!(pem_blocks(PUBLIC_KEY).len(), 1);
+        assert_eq!(
+            pem_blocks(&format!("{PUBLIC_KEY}\n{ROTATED_PUBLIC_KEY}")).len(),
+            2
+        );
+        assert!(pem_blocks("   ").is_empty());
+    }
+
+    // A value that carries no key is not configuration, and a node that took it
+    // as one would hold a verifier that can never read anything.
+    #[test]
+    fn refuses_a_bundle_that_carries_no_key() {
+        assert!(JwtVerifier::public_keys("not a pem").is_err());
+        assert!(JwtVerifier::public_keys("").is_err());
+    }
+
+    #[tokio::test]
+    async fn forwards_the_current_request_id_to_tuist() {
+        let captured = Arc::new(Mutex::new(None));
+        let router = Router::new().route(
+            "/api/cache/access",
+            get({
+                let captured = captured.clone();
+                move |headers: axum::http::HeaderMap| {
+                    let captured = captured.clone();
+                    async move {
+                        *captured.lock().expect("capture lock") = headers
+                            .get(REQUEST_ID_HEADER)
+                            .and_then(|value| value.to_str().ok())
+                            .map(ToOwned::to_owned);
+                        Json(json!({ "projects": [] }))
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("capture listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("capture listener should have an address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("capture server should run");
+        });
+        let backend = TuistBackend::new(
+            format!("http://{address}"),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            None,
+            Metrics::new("test".into(), "test".into()),
+        )
+        .expect("backend should initialize");
+        let context = crate::request_observability::RequestContext::new(
+            Instant::now(),
+            "request-123".into(),
+            "GET".into(),
+            "/api/cache/module/{id}".into(),
+            crate::request_observability::RequestLogPolicy {
+                sample_rate: 0.0,
+                slow_request_threshold: Duration::from_secs(30),
+                warning_log_interval: Duration::from_secs(60),
+            },
+            tracing::Span::none(),
+        );
+
+        crate::request_observability::scope_request(context, backend.cache_access("Bearer test"))
+            .await
+            .expect("cache access should succeed");
+
+        assert_eq!(
+            captured.lock().expect("capture lock").as_deref(),
+            Some("request-123")
+        );
+        server.abort();
+    }
+
+    // Minted by the server's own signer rather than by this crate, so the two
+    // stacks stay pinned to the same ES256 encoding: JWS wants a raw r||s
+    // signature and a DER one would verify nowhere. It also pins the grant
+    // shape the server writes against the parser that reads it back.
+    #[test]
+    fn reads_a_token_the_server_itself_minted() {
+        const SERVER_PUBLIC_KEY: &str = "\
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEizhQjBYwbIf85hZQXluHGaPPeiH2
+6NMcqWG9Bf1oo5kJHChifcdQYTD58jcmnefL63lVG/MTYPO6dCQe3a/XgQ==
+-----END PUBLIC KEY-----
+";
+        // Expires in 2126, so it does not rot.
+        const SERVER_MINTED_TOKEN: &str = concat!(
+            "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdCIsImNhY2hlX2dyYW50",
+            "cyI6eyJhY2NvdW50Ijp7InJlYWQiOltdLCJ3cml0ZSI6W119LCJwcm9qZWN0Ijp7InJlYWQiOl",
+            "siYWNtZS9pb3MiXSwid3JpdGUiOlsiYWNtZS9pb3MiXX19LCJleHAiOjQ5NDA4NDU2NTksImlh",
+            "dCI6MTc4NzI0NTY1OSwiaXNzIjoidHVpc3QiLCJqdGkiOiIwYjcxN2ZkNy1iODNhLTQ5YWUtOT",
+            "cyZS02NjcyMThlM2E3NjciLCJuYmYiOjE3ODcyNDU2NTgsInN1YiI6IjEiLCJ0eXAiOiJjYWNo",
+            "ZSJ9.YJfvgZ-aa7SB5zMbvoyqxON20YJrea-z7NEzIltV6a-PE6h59q9fZa8db_MFibyjHpc4",
+            "Mc0ECaR46oM4LXG2Cg"
+        );
+
+        let verifier = JwtVerifier {
+            algorithm: Algorithm::ES256,
+            keys: JwtVerifier::public_keys(SERVER_PUBLIC_KEY).expect("a readable public key"),
+            issuer: Some("tuist".into()),
+            audiences: vec!["tuist".into()],
+        };
+
+        let claims = verifier
+            .verify(SERVER_MINTED_TOKEN)
+            .expect("the server's own token to verify");
+
+        assert_eq!(claims["typ"], "cache");
+        assert_eq!(
+            crate::auth::grants::CacheGrants::from_body(&claims)
+                .project
+                .write,
+            ["acme/ios"]
+        );
+    }
 }

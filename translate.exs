@@ -391,6 +391,161 @@ defmodule L10n.Lock do
   end
 end
 
+defmodule L10n.Catalog do
+  @moduledoc """
+  Diffs and merges Gettext catalogs so a run only translates what is missing.
+
+  A `.pot` msgid *is* the English source string, so a reworded string arrives as
+  a new key rather than a mutation of an existing one. That makes "what still
+  needs translating" a plain set difference against the `.po` already on disk,
+  and lets a run send a handful of entries instead of regenerating a catalog.
+
+  Every function here is pure, so the incremental behaviour is testable without
+  reaching a model.
+  """
+
+  @nplurals %{
+    "es" => 2,
+    "ja" => 1,
+    "ka" => 2,
+    "ko" => 1,
+    "ru" => 3,
+    "yue_Hant" => 1,
+    "zh_Hans" => 1,
+    "zh_Hant" => 1
+  }
+
+  @doc "Parses `.po`/`.pot` content."
+  def parse(content), do: Expo.PO.parse_string(content)
+
+  @doc "Number of plural forms for `locale`."
+  def nplurals(locale), do: Map.get(@nplurals, locale, 2)
+
+  @doc """
+  Identity of a message inside a catalog: its optional context, its source
+  string, and its plural source string.
+  """
+  def key(message) do
+    {
+      flatten(Map.get(message, :msgctxt)),
+      flatten(Map.get(message, :msgid)),
+      flatten(Map.get(message, :msgid_plural))
+    }
+  end
+
+  @doc "Indexes messages by `key/1`."
+  def index(messages), do: Map.new(messages, &{key(&1), &1})
+
+  @doc "True when every plural form of the message carries a translation."
+  def translated?(%{msgstr: msgstr}) when is_map(msgstr) do
+    msgstr != %{} and Enum.all?(msgstr, fn {_index, value} -> present?(value) end)
+  end
+
+  def translated?(%{msgstr: msgstr}), do: present?(msgstr)
+  def translated?(_message), do: false
+
+  @doc """
+  The messages in `pot_messages` that `existing` does not already translate.
+  """
+  def untranslated(pot_messages, existing) do
+    Enum.reject(pot_messages, fn message ->
+      case Map.fetch(existing, key(message)) do
+        {:ok, current} -> translated?(current)
+        :error -> false
+      end
+    end)
+  end
+
+  @doc """
+  Serializes `messages` as a standalone `.pot` fragment to send to the model.
+  """
+  def fragment(messages) do
+    %Expo.Messages{headers: [], messages: Enum.map(messages, &blank(&1, 2))}
+    |> Expo.PO.compose()
+    |> IO.iodata_to_binary()
+  end
+
+  @doc """
+  Rebuilds the full catalog for `locale` from `pot`, taking each translation
+  from `fresh` when the model just produced one and from `existing` otherwise.
+
+  Structure, references, flags and comments always come from `pot`, so a merge
+  also refreshes metadata that drifted since the last run.
+  """
+  def merge(%Expo.Messages{} = pot, existing, fresh, locale, plural_forms) do
+    messages =
+      Enum.map(pot.messages, fn message ->
+        translation = Map.get(fresh, key(message)) || Map.get(existing, key(message))
+        apply_translation(message, translation, locale)
+      end)
+
+    %Expo.Messages{
+      pot
+      | headers: headers(locale, plural_forms),
+        messages: messages,
+        top_comments: []
+    }
+  end
+
+  @doc "The `.po` header block for `locale`."
+  def headers(locale, plural_forms) do
+    [
+      "",
+      "Language: #{locale}\n",
+      "MIME-Version: 1.0\n",
+      "Content-Type: text/plain; charset=UTF-8\n",
+      "Content-Transfer-Encoding: 8bit\n",
+      "Plural-Forms: #{plural_forms}\n"
+    ]
+  end
+
+  defp apply_translation(message, nil, locale), do: blank(message, nplurals(locale))
+
+  defp apply_translation(message, translation, locale) do
+    source = Map.get(translation, :msgstr)
+
+    cond do
+      is_map(Map.get(message, :msgstr)) ->
+        %{message | msgstr: plural_msgstr(source, nplurals(locale))}
+
+      is_list(source) and present?(source) ->
+        %{message | msgstr: source}
+
+      true ->
+        blank(message, nplurals(locale))
+    end
+  end
+
+  defp plural_msgstr(source, count) when is_map(source) do
+    Map.new(0..(count - 1), fn index -> {index, Map.get(source, index, [""])} end)
+  end
+
+  defp plural_msgstr(source, count) when is_list(source) do
+    Map.new(0..(count - 1), fn
+      0 -> {0, source}
+      index -> {index, source}
+    end)
+  end
+
+  defp plural_msgstr(_source, count), do: Map.new(0..(count - 1), &{&1, [""]})
+
+  defp blank(message, count) do
+    if is_map(Map.get(message, :msgstr)) do
+      %{message | msgstr: Map.new(0..(count - 1), &{&1, [""]})}
+    else
+      %{message | msgstr: [""]}
+    end
+  end
+
+  defp flatten(nil), do: nil
+  defp flatten(value) when is_binary(value), do: value
+  defp flatten(value) when is_list(value), do: IO.iodata_to_binary(value)
+
+  defp present?(value) when is_list(value), do: value |> IO.iodata_to_binary() |> present?()
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(_value), do: false
+end
+
 defmodule L10n.Translator do
   @moduledoc """
   Translates .pot files to target locales using an LLM via req_llm.
@@ -405,6 +560,7 @@ defmodule L10n.Translator do
   @base_retry_delay_ms 1_000
   @retryable_statuses [429, 500, 502, 503, 504]
   @retryable_transport_reasons [:closed, :timeout, :econnrefused, :econnreset]
+  @batch_size 40
 
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
@@ -422,9 +578,10 @@ defmodule L10n.Translator do
   Resolves a model string into a req_llm-compatible model reference.
 
   Handles `"ollama:model_name"` by configuring a local OpenAI-compatible
-  endpoint at `localhost:11434`. All other model strings (e.g.,
-  `"anthropic:claude-sonnet-4-6"`, `"openai:gpt-4.1"`) are passed through
-  directly to req_llm.
+  endpoint at `localhost:11434`, and `"hive:profile_name"` by configuring
+  Hive's OpenAI-compatible chat-completions endpoint. All other model strings
+  (e.g., `"anthropic:claude-sonnet-4-6"`, `"openai:gpt-4.1"`) are passed
+  through directly to req_llm.
   """
   def resolve_model(model_string) do
     case String.split(model_string, ":", parts: 2) do
@@ -437,40 +594,49 @@ defmodule L10n.Translator do
           base_url: "http://localhost:11434/v1"
         })
 
+      ["hive", profile_name] ->
+        ReqLLM.put_key(:openai_api_key, System.fetch_env!("HIVE_INFERENCE_API_KEY"))
+
+        ReqLLM.model!(%{
+          provider: :openai,
+          id: profile_name,
+          base_url:
+            System.get_env("HIVE_INFERENCE_BASE_URL", "https://hive.tuist.dev/inference/v1"),
+          extra: %{wire: %{protocol: "openai_chat"}}
+        })
+
       _ ->
         model_string
     end
   end
 
   @doc """
-  Translates a single .pot file content to the given locale.
+  Translates one batch of still-untranslated messages for a locale.
 
-  Constructs a system prompt with translation rules and L10N.md context,
-  sends the full .pot content as the user message, and returns the
-  translated .po file content as a string.
+  The batch is serialized as a `.pot` fragment, so the model only ever sees the
+  entries that need work: a commit that adds three strings sends three entries
+  instead of regenerating the catalog. The reply is parsed back into an index
+  keyed by `L10n.Catalog.key/1`, and any entry the model drops simply stays
+  untranslated and is picked up by the next run.
   """
-  def translate(pot_content, locale, language, context_body, locale_override, model, timeout) do
+  def translate_batch(messages, locale, language, context_body, locale_override, model, timeout) do
     plural_forms = Map.get(@plural_forms, locale, "nplurals=2; plural=n != 1;")
 
     system_prompt = """
     You are a professional translator specializing in software localization.
-    You translate Gettext PO template files from English to #{language} (#{locale}).
+    You translate Gettext PO entries from English to #{language} (#{locale}).
 
-    Output ONLY a valid Gettext .po file. No markdown fences, no explanation, no preamble.
+    Output ONLY valid Gettext PO entries. No markdown fences, no explanation, no
+    preamble, and no PO header entry.
 
     Rules:
-    1. The first entry must be the PO header with this exact metadata:
-       - Language: #{locale}
-       - MIME-Version: 1.0
-       - Content-Type: text/plain; charset=UTF-8
-       - Content-Transfer-Encoding: 8bit
-       - Plural-Forms: #{plural_forms}
+    1. Return exactly one entry for every entry you are given, in the same order.
     2. Preserve all msgid values exactly as they appear in the source.
     3. Translate each msgid into the corresponding msgstr for #{language}.
     4. Preserve all Elixir interpolation variables like %{name} exactly as-is in the translation.
     5. Preserve all HTML tags exactly as-is in the translation.
     6. Preserve all comment lines (lines starting with #) from the source.
-    7. For plural forms (msgid_plural), provide the correct number of msgstr[N] entries for #{language}.
+    7. For plural forms (msgid_plural), provide exactly #{L10n.Catalog.nplurals(locale)} msgstr[N] entries for #{language} (#{plural_forms}).
     8. Do not translate proper nouns, brand names, or technical terms unless the context instructs otherwise.
     9. Do not add the fuzzy flag to any translations.
     10. Do not wrap long lines - keep each msgstr on a single line or use the same multi-line format as the source.
@@ -481,53 +647,67 @@ defmodule L10n.Translator do
     """
 
     user_prompt = """
-    Translate the following .pot file to #{language} (#{locale}):
+    Translate the following #{length(messages)} PO entries to #{language} (#{locale}):
 
-    #{pot_content}
+    #{L10n.Catalog.fragment(messages)}
     """
 
     import ReqLLM.Context
 
-    messages = [
-      system(system_prompt),
-      user(user_prompt)
-    ]
-
-    resolved_model = resolve_model(model)
-
-    case generate_text_with_retries(resolved_model, messages, timeout, locale) do
-      {:ok, response} ->
-        text =
-          response
-          |> ReqLLM.Response.text()
-          |> String.trim()
-          |> String.replace(~r/^```[a-z]*\n/, "")
-          |> String.replace(~r/\n```$/, "")
-          |> String.trim()
-
-        {:ok, text}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, response} <-
+           generate_text_with_retries(
+             resolve_model(model),
+             [system(system_prompt), user(user_prompt)],
+             timeout,
+             locale,
+             String.starts_with?(model, "hive:")
+           ) do
+      response
+      |> ReqLLM.Response.text()
+      |> String.trim()
+      |> String.replace(~r/^```[a-z]*\n/, "")
+      |> String.replace(~r/\n```$/, "")
+      |> String.trim()
+      |> L10n.Catalog.parse()
+      |> case do
+        {:ok, parsed} -> {:ok, L10n.Catalog.index(parsed.messages)}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
-  def generate_text_with_retries(resolved_model, messages, timeout, locale, attempt \\ 1) do
+  def generate_text_with_retries(
+        resolved_model,
+        messages,
+        timeout,
+        locale,
+        stream?,
+        attempt \\ 1
+      ) do
     opts =
       resolved_model
       |> token_limit_option()
       |> Keyword.put(:receive_timeout, timeout)
 
-    case ReqLLM.generate_text(resolved_model, messages, opts) do
+    result =
+      if stream? do
+        with {:ok, response} <- ReqLLM.stream_text(resolved_model, messages, opts) do
+          ReqLLM.StreamResponse.to_response(response)
+        end
+      else
+        ReqLLM.generate_text(resolved_model, messages, opts)
+      end
+
+    case result do
       {:ok, response} ->
         {:ok, response}
 
       {:error, error} ->
-        handle_retry(error, resolved_model, messages, timeout, locale, attempt)
+        handle_retry(error, resolved_model, messages, timeout, locale, stream?, attempt)
     end
   end
 
-  defp handle_retry(error, resolved_model, messages, timeout, locale, attempt) do
+  defp handle_retry(error, resolved_model, messages, timeout, locale, stream?, attempt) do
     case retry_delay_ms(error, attempt) do
       nil ->
         {:error, Exception.message(error)}
@@ -538,7 +718,14 @@ defmodule L10n.Translator do
         )
 
         Process.sleep(delay)
-        generate_text_with_retries(resolved_model, messages, timeout, locale, attempt + 1)
+        generate_text_with_retries(
+          resolved_model,
+          messages,
+          timeout,
+          locale,
+          stream?,
+          attempt + 1
+        )
     end
   end
 
@@ -643,35 +830,39 @@ defmodule L10n.Translator do
         if not force and not L10n.Lock.stale?(lock_path, hash) do
           {:skipped, locale}
         else
+          po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
+          output_path = Path.join([l10n_dir, target["path"], po_filename])
+
           try do
-            with {:ok, po_content} <-
-                   translate(
-                     pot_content,
-                     locale,
-                     language,
-                     context_body,
-                     locale_override,
-                     model,
-                     request_timeout
-                   ),
-                 :ok <- L10n.Validator.validate(po_content) do
-              po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
-              output_path = Path.join([l10n_dir, target["path"], po_filename])
-              output_path |> Path.dirname() |> File.mkdir_p!()
-              File.write!(output_path, po_content <> "\n")
+            case translate_catalog(
+                   pot_content,
+                   output_path,
+                   locale,
+                   language,
+                   context_body,
+                   locale_override,
+                   model,
+                   request_timeout,
+                   force,
+                   Keyword.get(opts, :batch_fn, &translate_batch/7)
+                 ) do
+              {:ok, :complete} ->
+                L10n.Lock.write!(lock_path, %{
+                  hash: hash,
+                  model: model,
+                  source_file: pot_relative_path,
+                  source_hash: source_hash,
+                  context_files: context_files,
+                  locale_override_files: locale_override_files
+                })
 
-              L10n.Lock.write!(lock_path, %{
-                hash: hash,
-                model: model,
-                source_file: pot_relative_path,
-                source_hash: source_hash,
-                context_files: context_files,
-                locale_override_files: locale_override_files
-              })
+                {:translated, locale}
 
-              {:translated, locale}
-            else
-              {:error, reason} -> {:error, locale, reason}
+              {:ok, {:partial, reason}} ->
+                {:error, locale, reason}
+
+              {:error, reason} ->
+                {:error, locale, reason}
             end
           rescue
             e -> {:error, locale, Exception.message(e)}
@@ -694,6 +885,92 @@ defmodule L10n.Translator do
         {:error, target["locale"], inspect(reason)}
     end)
   end
+
+  # Translates only the entries `output_path` is still missing, then rewrites it.
+  #
+  # The merged catalog is written even when some batches fail, so a run that is
+  # cancelled or rate-limited part-way still banks its progress and the next run
+  # only picks up what is left. The lock is advanced solely when every entry is
+  # translated, so partial progress never reads as up to date.
+  #
+  # Editing the L10N.md context therefore no longer retranslates a whole catalog:
+  # it re-locks against the new context and translates whatever is missing. Use
+  # `--force` to re-apply changed context rules to entries already translated.
+  defp translate_catalog(
+         pot_content,
+         output_path,
+         locale,
+         language,
+         context_body,
+         locale_override,
+         model,
+         timeout,
+         force,
+         batch_fn
+       ) do
+    plural_forms = Map.get(@plural_forms, locale, "nplurals=2; plural=n != 1;")
+
+    with {:ok, pot} <- L10n.Catalog.parse(pot_content) do
+      existing = read_catalog(output_path)
+      baseline = if force, do: %{}, else: existing
+      pending = L10n.Catalog.untranslated(pot.messages, baseline)
+
+      {fresh, errors} =
+        translate_batches(
+          pending,
+          locale,
+          language,
+          context_body,
+          locale_override,
+          model,
+          timeout,
+          batch_fn
+        )
+
+      merged = L10n.Catalog.merge(pot, existing, fresh, locale, plural_forms)
+      content = merged |> Expo.PO.compose() |> IO.iodata_to_binary()
+
+      with :ok <- L10n.Validator.validate(content) do
+        output_path |> Path.dirname() |> File.mkdir_p!()
+        File.write!(output_path, content)
+
+        missing = Enum.count(merged.messages, &(not L10n.Catalog.translated?(&1)))
+
+        cond do
+          errors != [] -> {:ok, {:partial, Enum.join(errors, "; ")}}
+          missing > 0 -> {:ok, {:partial, "#{missing} entries left untranslated"}}
+          true -> {:ok, :complete}
+        end
+      end
+    end
+  end
+
+  defp translate_batches([], _locale, _language, _context, _override, _model, _timeout, _fun) do
+    {%{}, []}
+  end
+
+  defp translate_batches(pending, locale, language, context, override, model, timeout, fun) do
+    pending
+    |> Enum.chunk_every(@batch_size)
+    |> Enum.reduce({%{}, []}, fn batch, {translated, errors} ->
+      case fun.(batch, locale, language, context, override, model, timeout) do
+        {:ok, index} -> {Map.merge(translated, index), errors}
+        {:error, reason} -> {translated, errors ++ [describe(reason)]}
+      end
+    end)
+  end
+
+  defp read_catalog(path) do
+    with {:ok, content} <- File.read(path),
+         {:ok, catalog} <- L10n.Catalog.parse(content) do
+      L10n.Catalog.index(catalog.messages)
+    else
+      _error -> %{}
+    end
+  end
+
+  defp describe(reason) when is_binary(reason), do: reason
+  defp describe(reason), do: inspect(reason)
 end
 
 defmodule L10n.Validator do
@@ -1673,4 +1950,8 @@ defmodule L10n.CLI do
   end
 end
 
-L10n.CLI.run(System.argv())
+# Loading this file defines the modules; the pipeline only runs when the file is
+# executed directly, so `translate_test.exs` can require it without translating.
+if System.get_env("L10N_SKIP_CLI") != "1" do
+  L10n.CLI.run(System.argv())
+end

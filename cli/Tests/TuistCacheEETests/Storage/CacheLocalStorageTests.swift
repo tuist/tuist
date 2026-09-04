@@ -5,6 +5,9 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistServer
 
 @testable import TuistCacheEE
 @testable import TuistSupport
@@ -404,6 +407,137 @@ struct CacheLocalStorageTests {
         #expect(result.count == 1)
         #expect(result.first?.name == "Test")
         #expect(result.first?.hash == hash)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func store_evictsLeastRecentlyUsedEntriesToStayWithinTheByteBudget() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1500000"
+
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+        let staleEntry = binariesDirectory.appending(component: "stale")
+        try await fileSystem.makeDirectory(at: staleEntry)
+        FileManager.default.createFile(
+            atPath: staleEntry.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        let artifact = temporaryDirectory.appending(components: "build", "New.xcframework")
+        try await fileSystem.makeDirectory(at: artifact)
+        FileManager.default.createFile(
+            atPath: artifact.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).sign(.any).willReturn()
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        // When: the incoming artifact leaves 0.5 MB of the budget, which the stale entry exceeds.
+        let got = try await subject.store(
+            [.init(name: "New", hash: "new"): [artifact]],
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.count == 1)
+        #expect(!(try await fileSystem.exists(staleEntry)))
+        #expect(try await fileSystem.exists(binariesDirectory.appending(components: "new", "New.xcframework")))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func store_admitsOnlyTheArtifactsThatFitTheByteBudget() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "2500000"
+
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        // Macro artifacts are executables rather than bundles, so this also covers a batch whose
+        // size only counts if a regular file measures as itself.
+        var items: [CacheStorableItem: [AbsolutePath]] = [:]
+        for index in 0 ..< 3 {
+            let macro = temporaryDirectory.appending(component: "Target\(index).macro")
+            FileManager.default.createFile(
+                atPath: macro.pathString,
+                contents: Data(repeating: 0x41, count: 1_000_000)
+            )
+            items[.init(name: "Target\(index)", hash: "hash\(index)")] = [macro]
+        }
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).sign(.any).willReturn()
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        // When: three 1 MB artifacts against the module cache's 2.25 MB share of the 2.5 MB budget.
+        let got = try await subject.store(items, cacheCategory: .binaries)
+
+        // Then: the batch is admitted a fitting subset at a time rather than written whole.
+        #expect(got.count == 2)
+        let entries = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
+        #expect(entries.count == 2)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func store_keepsTheRemoteUploadWhenTheLocalCacheIsFull() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let volume = try TinyVolume.attached()
+        defer { volume.detach() }
+
+        let binariesDirectory = volume.mountPoint.appending(component: "Binaries")
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        let artifact = temporaryDirectory.appending(components: "build", "Big.xcframework")
+        try await fileSystem.makeDirectory(at: artifact)
+        FileManager.default.createFile(
+            atPath: artifact.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 5_000_000)
+        )
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).sign(.any).willReturn()
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        // When
+        let got = try await subject.store(
+            [.init(name: "Big", hash: "hash"): [artifact]],
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty)
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash"))))
     }
 
     @Test(.inTemporaryDirectory)

@@ -305,9 +305,13 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 
 	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
-	// re-applied each reconcile so a kubelet re-register can't strand it.
-	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
-		return ctrl.Result{}, err
+	// re-applied each reconcile so a kubelet re-register can't strand it. A zero
+	// budget leaves the node alone here: the helper would withdraw the capacity,
+	// which only the OVH kind opts into.
+	if machine.Spec.EgressBudgetMbps > 0 {
+		if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Same idea for memory: cache pods run with a ceiling above their floor, so
@@ -409,14 +413,28 @@ func (r *DediboxMachineReconciler) reconcileReleaseReinstall(ctx context.Context
 
 	serverID := uint64(machine.Status.ServerID)
 	if machine.Annotations[dediboxReleaseReinstallStartedAnnotation] != "true" {
-		if err := r.reinstallToPool(ctx, machine); err != nil {
-			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
-			return ctrl.Result{}, false, err
+		err := r.reinstallToPool(ctx, machine)
+		switch {
+		case err == nil:
+			r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
+			logger.Info("started Dedibox reinstall on release", "id", machine.Status.ServerID)
+		case r.dediboxInstallAlreadyInFlight(ctx, machine):
+			// An install already running IS the state this release is driving the
+			// box to, so adopt it rather than retrying a POST Dedibox will keep
+			// rejecting for the whole install. Seeing it running also satisfies
+			// the observation the completion gate below waits for, so a `done`
+			// read later belongs to this install and not to the one that put the
+			// box into service.
+			machine.Annotations[dediboxReleaseReinstallObservedAnnotation] = "true"
+			r.event(machine, "ReleasedToPool", "Dedibox server %d is already being reinstalled; releasing without queueing a second install", machine.Status.ServerID)
+			logger.Info("release found a Dedibox install already in flight", "id", machine.Status.ServerID)
+		default:
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (retrying in %s)", err, dediboxInstallPollInterval)
+			logger.Error(err, "reinstall Dedibox box on release", "id", machine.Status.ServerID)
+			return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
 		}
 		machine.Annotations[dediboxReleaseReinstallStartedAnnotation] = "true"
 		machine.Status.Phase = "Reinstalling"
-		r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
-		logger.Info("started Dedibox reinstall on release", "id", machine.Status.ServerID)
 		return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
 	}
 
@@ -443,6 +461,34 @@ func (r *DediboxMachineReconciler) reconcileReleaseReinstall(ctx context.Context
 	r.event(machine, "ReleasedToPool", "Reinstalled Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
 	logger.Info("Dedibox release reinstall completed", "id", machine.Status.ServerID)
 	return ctrl.Result{}, true, nil
+}
+
+// dediboxInstallAlreadyInFlight reports whether the box already has an install
+// running, which makes a rejected release reinstall a completed release rather
+// than a failure to retry.
+//
+// Unlike OVH, whose API names the collision (Client::BadRequest::TaskAlreadyExists
+// with the queued task's type), Dedibox answers a rejected install with a bare
+// HTTP status and a free-form message, so there is no error class worth keying
+// on. The box's own install status is the readable signal, and it is the same
+// one the poll below already trusts to decide the release is finished.
+//
+// A box is only adopted once its install reports done, so an install running at
+// release time was started after adoption: by this Machine before a restart lost
+// the finalizer patch, or by a sibling that claimed the same box. What it cannot
+// confirm is that the running install carries this fleet's key and OS — Dedibox
+// exposes a status, not the install's parameters — so an operator reinstalling a
+// held box out of band is accepted too. That already breaks the Machine, and it
+// leaves a box that fails to self-join on its next claim rather than one that
+// joins wrong.
+func (r *DediboxMachineReconciler) dediboxInstallAlreadyInFlight(ctx context.Context, machine *infrav1.DediboxMachine) bool {
+	state, err := r.DediboxClient.InstallState(ctx, machine.Status.Zone, uint64(machine.Status.ServerID))
+	if err != nil {
+		log.FromContext(ctx).Error(err, "read Dedibox install state to classify a rejected release reinstall",
+			"id", machine.Status.ServerID)
+		return false
+	}
+	return state == dedibox.InstallRunning
 }
 
 // reinstallToPool wipes the adopted box back to a clean Ubuntu install with the

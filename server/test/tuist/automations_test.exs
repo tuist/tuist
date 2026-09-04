@@ -7,9 +7,11 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Alerts.Revision
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
   alias Tuist.Tests
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -18,9 +20,29 @@ defmodule Tuist.AutomationsTest do
     test "returns automations for the given project ordered by insertion time" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
-      first = AutomationsFixtures.automation_alert_fixture(project: project, name: "first")
+      inserted_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      first =
+        [project: project, name: "first"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: inserted_at)
+        |> Repo.update!()
+
       _other = AutomationsFixtures.automation_alert_fixture(project: other_project)
-      second = AutomationsFixtures.automation_alert_fixture(project: project, name: "second")
+
+      second =
+        [project: project, name: "second"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: DateTime.add(inserted_at, 1, :second))
+        |> Repo.update!()
+
+      # `inserted_at` is second-precision and the UUIDv7 that breaks the tie is
+      # random within a millisecond, so the two have to sit on separate seconds
+      # for insertion order to be what decides the result.
+      Repo.update_all(
+        from(a in Alert, where: a.id == ^first.id),
+        set: [inserted_at: DateTime.add(second.inserted_at, -1, :second)]
+      )
 
       ids = project.id |> Automations.list_alerts() |> Enum.map(& &1.id)
       assert ids == [first.id, second.id]
@@ -97,6 +119,151 @@ defmodule Tuist.AutomationsTest do
 
       assert updated.baseline_established_at == automation.baseline_established_at
       assert updated.baseline_generation == automation.baseline_generation
+    end
+  end
+
+  describe "alert revisions" do
+    test "records creation and configuration edits with the actor and source" do
+      project = ProjectsFixtures.project_fixture()
+      actor = AccountsFixtures.user_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        name: "Quarantine flaky tests",
+        monitor_type: "flakiness_rate",
+        trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 50},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      }
+
+      assert {:ok, automation} =
+               Automations.create_alert(attrs, actor: actor, source: "dashboard")
+
+      assert {:ok, _updated} =
+               Automations.update_alert(
+                 automation,
+                 %{
+                   name: "Auto-quarantine flaky tests",
+                   trigger_actions: [
+                     %{"type" => "change_state", "state" => "muted"},
+                     %{
+                       "type" => "send_slack",
+                       "channel" => "test-infra",
+                       "message" => "A test was quarantined",
+                       "webhook_url_encrypted" => "secret"
+                     }
+                   ]
+                 },
+                 actor: actor,
+                 source: "dashboard"
+               )
+
+      # Both revisions land in the same second, and the UUIDv7 that breaks the
+      # tie is random within a millisecond, so the creation is pushed back for
+      # "newest first" to mean the update.
+      update_inserted_at =
+        automation.id
+        |> Automations.list_alert_revisions()
+        |> Enum.find(&(&1.event == "updated"))
+        |> Map.fetch!(:inserted_at)
+
+      Repo.update_all(
+        from(r in Revision, where: r.automation_alert_id == ^automation.id and r.event == "created"),
+        set: [inserted_at: DateTime.add(update_inserted_at, -1, :second)]
+      )
+
+      assert [updated_revision, created_revision] = Automations.list_alert_revisions(automation.id)
+      assert updated_revision.event == "updated"
+      assert updated_revision.actor.id == actor.id
+      assert updated_revision.source == "dashboard"
+
+      assert updated_revision.changes["name"] == %{
+               "from" => "Quarantine flaky tests",
+               "to" => "Auto-quarantine flaky tests"
+             }
+
+      refute get_in(updated_revision.snapshot, ["trigger_actions", Access.at(1), "webhook_url_encrypted"])
+      assert created_revision.event == "created"
+
+      assert [newest_revision] = Automations.list_alert_revisions(automation.id, limit: 1)
+      assert newest_revision.id == updated_revision.id
+
+      assert [oldest_revision] =
+               Automations.list_alert_revisions(automation.id, limit: 1, before: newest_revision)
+
+      assert oldest_revision.id == created_revision.id
+    end
+
+    test "does not record a revision when configuration is unchanged" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      revisions_before = Automations.list_alert_revisions(automation.id)
+
+      assert {:ok, _automation} = Automations.update_alert(automation, %{name: automation.name})
+
+      assert Automations.list_alert_revisions(automation.id) == revisions_before
+    end
+
+    test "records redacted webhook updates" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          trigger_actions: [
+            %{
+              "type" => "send_slack",
+              "channel" => "test-infra",
+              "message" => "A test was quarantined",
+              "webhook_url_encrypted" => "old-webhook"
+            }
+          ]
+        )
+
+      assert {:ok, _updated} =
+               Automations.update_alert(automation, %{
+                 trigger_actions: [
+                   %{
+                     "type" => "send_slack",
+                     "channel" => "test-infra",
+                     "message" => "A test was quarantined",
+                     "webhook_url_encrypted" => "new-webhook"
+                   }
+                 ]
+               })
+
+      # The creation revision shares a second with the update, and the UUIDv7
+      # that breaks the tie is random within a millisecond, so the update is
+      # picked by its event rather than by position.
+      updated_revision =
+        automation.id |> Automations.list_alert_revisions() |> Enum.find(&(&1.event == "updated"))
+
+      assert %{"trigger_actions" => %{"from" => [before_action], "to" => [after_action]}} = updated_revision.changes
+      refute Map.has_key?(before_action, "webhook_url_encrypted")
+      refute Map.has_key?(after_action, "webhook_url_encrypted")
+      assert before_action["webhook_url_digest"] != after_action["webhook_url_digest"]
+    end
+
+    test "returns a revision error when the actor no longer exists" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:error, :revision} =
+               Automations.create_alert(
+                 %{
+                   project_id: project.id,
+                   name: "Quarantine flaky tests",
+                   monitor_type: "flakiness_rate",
+                   trigger_config: %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
+                   trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+                 },
+                 actor_id: -1
+               )
+
+      assert [] = Automations.list_alerts(project.id)
+    end
+
+    test "rolls back an update when the actor no longer exists" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:error, :revision} = Automations.update_alert(automation, %{enabled: false}, actor_id: -1)
+
+      assert {:ok, unchanged} = Automations.get_alert(automation.id)
+      assert unchanged.enabled
     end
   end
 

@@ -41,6 +41,21 @@ registry:
 server:
   replicaCount: 1
 
+  kuraCapacityAdmission:
+    enabled: true
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; canary's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -57,6 +72,40 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
+      # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
+      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
+      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # machine-minute.
+      #
+      # The 100 included minutes must stay in step with the free
+      # allowance: this Price decides what is charged, and
+      # TUIST_RUNNER_FREE_MONTHLY_MINUTES decides when dispatch stops.
+      # This env sets neither, so both come from the 100-minute default
+      # in `Tuist.Runners.Allowance`. Overriding one without the other
+      # either cuts accounts off before they can be charged or charges
+      # them after they were cut off.
+      #
+      # Tiers are in raw meter units rather than minutes because Stripe
+      # refuses `tiers` and `transform_quantity` together, so an invoice
+      # line reads in milliseconds. The dashboard renders minutes.
+      #
+      # Linux stays reporting-only: its Meter exists and receives usage,
+      # but with no agreed rate there is no Price to point at, and an
+      # empty id means no subscription can carry a Linux runner item, so
+      # nothing can be charged for it.
+      #
+      # An account is only actually billed once it is off a runner trial.
+      # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
+      # reaches an environment, so every account with runner access is on
+      # a trial first.
+      #
+      # Never blank an id that has already gone live: a plan change would
+      # then stop recognising that subscription item as a runner item and
+      # delete it, taking the cycle's accrued usage with it. Pause billing
+      # by removing the item, not by emptying this map.
+      runners:
+        runner_linux_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
       air:
         usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
         flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
@@ -66,12 +115,6 @@ server:
       enterprise:
         flat_monthly: ["price_1S7y0PQ9gGM5W1ag9rjNl7FP"]
         flat_yearly: []
-
-  # Canary runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
-  config:
-    posthog:
-      enabled: false
 
   autoscaling:
     enabled: false
@@ -91,6 +134,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  bazelEvents:
+    enabled: true
+    host: build-canary.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
   # alongside the live pod on the 2-worker canary nodepool. Steady-state
@@ -149,6 +197,46 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
+    - name: TUIST_KURA_AIR_REGION
+      # Air is funded on the ca-east OVH validation box, as on staging.
+      # Without this the default names us-east, which this environment does not
+      # serve, so every Air account resolved into a region the lifecycle loop
+      # never iterates and no instance was ever provisioned.
+      value: ca-east
+    - name: TUIST_KURA_AIR_REGIONS
+      # Both public regions carry an Air budget, matching staging, so
+      # traffic-driven placement is observable rather than collapsing onto a
+      # single funded region.
+      value: ca-east,eu-central
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Every account this environment provisions comes from an acceptance
+      # test run, and a test account never builds again. On the production
+      # 90-day default none of them are ever reclaimed, so each cascade run
+      # leaves its instances behind and the namespace grows without bound:
+      # kura went from 5 pods to 61 in six hours on 2026-09-03, saturating
+      # local-path storage and adding ~9.7k active series. A one-day window
+      # with no tracking grace reclaims a run's accounts by the next day,
+      # matching staging.
+      #
+      # The `tuist` account above takes cache demand on every cascade run, so
+      # it stays live through the working week and cold-returns after a quiet
+      # weekend, which is the same path staging exercises.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # The production default is @daily, which would leave an instance
+      # eligible for up to another day against the one-day window above.
+      # Hourly closes that to an hour; staging's */5 buys nothing here, where
+      # nobody is watching a single instance through its cycle.
+      value: "0 * * * *"
+    # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
+    # This environment's rollouts run expedited, so the value only shapes
+    # interim-paced ordering here; kept aligned with production.
+    - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
+      value: tuist
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -229,6 +317,13 @@ kuraController:
     externalSecret:
       enabled: true
       item: kura-sentry
+
+# Only the shared mesh cache pools are listed. The runner-cache pool
+# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
+# and its traffic is node-local runner reads that must not be shaped.
+egressTreeAgent:
+  enabled: true
+  nodePools: [kura-dedibox, kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Matches the cluster's general-purpose
@@ -327,6 +422,10 @@ processor:
 swiftRegistrySync:
   enabled: true
   syncAllowlist: alamofire/alamofire
+  # See values-managed-production.yaml for why the mirror authenticates as the
+  # App. Canary's installation is smaller, so its budget is the 5,000/hour
+  # floor rather than production's 12,500, which is ample for a single package.
+  githubAppInstallation: tuist
   # Terminate-then-replace, for the same reason as `registry.strategy` above.
   # This is a pure Oban consumer, so the gap only defers queue work: the jobs
   # stay in Postgres and the replacement Pod picks them up.
@@ -398,7 +497,8 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
+    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:
     externalSecrets:
@@ -432,7 +532,8 @@ ovhFleet:
     datacenter: bhs
     os: ubuntu_24.04
     # Node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
-    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    # tuist.dev/egress-mbps so ca-east's 25-Mbps-floor pods bin-pack
+    # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   externalSecrets:
     item: OVH_API
@@ -440,6 +541,68 @@ ovhFleet:
   sshExternalSecret:
     enabled: true
     item: OVH_FLEET_SSH
+
+# Additional OVH fleets (ovh-fleets.yaml), sharing this env's OVH_API +
+# OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
+# fleet.
+ovhFleets:
+  # Canary half of the OVH Linux runner move: production is going to RISE-L in
+  # Gravelines (see values-managed-production.yaml), and this is the box that
+  # exercises the integration in front of it. RISE-S rather than RISE-L on
+  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
+  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
+  # third of the cost. Canary does not need production throughput; it needs to
+  # run the production integration.
+  #
+  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
+  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
+  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
+  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
+  # does not need production throughput, it needs to exercise the production
+  # integration.
+  #
+  # The one thing this shape cannot rehearse is the private link: RISE-S has no
+  # vRack option, where RISE-L carries 1 Gbit/s.
+  runners-linux:
+    enabled: true
+    # MUST equal the number of boxes prepped and marked for this env. Too high
+    # parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing with nothing
+    # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
+    # then this number.
+    replicas: 1
+    # The OVHcloud entity holding the account, not the box's geography: the RISE
+    # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
+    # fleet must share one value, because the reconciler resolves a single
+    # OVH_ENDPOINT for all of them.
+    endpoint: ovh-us
+    # The pool the Linux Runner Profiles select on.
+    nodePool: runners-linux
+    machine:
+      adoptDisplayNamePrefix: tuist-runners-ovh-canary
+      # Case-insensitive substring of the box's commercialRange, which the
+      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
+      # matches without depending on how the CPU suffix is spelled on the server
+      # object. A value matching nothing adopts nothing, silently.
+      offer: rise-s
+      # Prefix-matched, so any gra* datacenter.
+      datacenter: gra
+      os: ubuntu_24.04
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. This makes the self-join
+      # install kata and apply that label. Without it the box joins Ready and
+      # every runner Pod stays unschedulable.
+      kataRuntime: true
+      # Runner Pods tolerate this taint; nothing else does.
+      nodeTaints:
+        - key: tuist.dev/runner-tier
+          value: bare-metal
+          effect: NoSchedule
+      # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
+      # pod bin-packing, and no cache pod runs here.
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
@@ -526,11 +689,19 @@ runnersFleet:
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the `hostCount` slot budget
+  # fleet allocator, which apportions the fleet's guest-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
+    # Warm floor stays 0. The floors are drawn against the fleet's
+    # guest-slot budget, and a beta pool holding a warm slot parks a
+    # whole host for traffic that is by definition experimental.
+    "27.0-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
     "26.6":
       autoscaling:
         enabled: true
@@ -594,7 +765,9 @@ runnersFleetLinux:
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
-  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # `:runner_linux_shapes` in `server/config/config.exs`, minus the
+  # 64 GB ceiling shape: this env's AX42-U host has 64 GB total, so the
+  # shape would render a pool that can never place a Pod. Long-tail
   # shapes scale to zero; the default shape keeps a warm floor since it
   # absorbs `tuist-default` + `linux` default-profile traffic.
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.

@@ -1,12 +1,12 @@
 # Platform-level values for the Tuist-managed Kubernetes cluster.
 # This chart is installed once per cluster (staging / production), not per app release.
 #
-# Install:
-#   helm dependency update infra/helm/platform
-#   helm upgrade --install platform infra/helm/platform \
-#     -n platform --create-namespace \
-#     --set cloudflare.apiTokenSecret.create=false \
-#     --set cloudflare.email=ops@tuist.dev
+# Managed-cluster install:
+#   mise -C infra run k8s:install-platform <workload-kubeconfig> <cluster-name>
+#
+# The task reconciles cert-manager custom resource definitions before Helm
+# renders this chart. Do not use a direct Helm install to bootstrap a fresh
+# managed cluster.
 #
 # The Cloudflare API token is expected in a pre-existing Secret in the platform
 # namespace (see infra/k8s/onboarding.md for the bootstrap commands).
@@ -40,9 +40,17 @@ ingressCertificate:
 
 cert-manager:
   enabled: true
-  installCRDs: true
+  # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
+  # them outside the release prevents Helm from trying to adopt CRDs created
+  # during a recovery bootstrap.
+  installCRDs: false
+  crds:
+    enabled: false
   prometheus:
     enabled: true
+  extraArgs:
+    - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+    - --dns01-recursive-nameservers-only
 
 ingress-nginx:
   enabled: true
@@ -75,6 +83,18 @@ ingress-nginx:
       compute-full-forwarded-for: "true"
       upstream-keepalive-connections: "0"
       upstream-keepalive-timeout: "10"
+    # The address of the edge that opened this connection, which the
+    # application needs and cannot otherwise see. With PROXY protocol,
+    # $remote_addr is the CDN edge the load balancer declared, but the
+    # forwarded-for chain nginx builds ends in $realip_remote_addr — the
+    # load balancer itself — so the edge address exists here and reaches
+    # nothing downstream. Everything that reads it must treat it as
+    # authoritative only from a private peer: the load balancer holds a
+    # public address, so a client can reach the origin directly, and
+    # proxy_set_header overwriting any inbound value is what makes this
+    # unforgeable rather than a header anyone can assert.
+    proxySetHeaders:
+      X-Tuist-Edge-Address: "$remote_addr"
     metrics:
       enabled: true
       service:
@@ -117,6 +137,24 @@ kura-eu-central-ingress-nginx:
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
       upstream-keepalive-timeout: "10"
+      # Refuse the handshake for a name this gateway does not serve, rather
+      # than answering it from the default backend.
+      #
+      # A cache client resolves a name once and then holds the connection: a
+      # gRPC channel re-resolves only when the connection fails, never when a
+      # request fails. So a 404 from the default backend is the worst possible
+      # answer — it arrives on a healthy connection, which reads as "the server
+      # is fine, your request was not", and the client stays pinned to a region
+      # that has stopped serving it. Bazel and the CAS plugin retry into it;
+      # the Gradle cache reads a 404 as a plain cache miss, so it degrades to
+      # nothing cached and reports no error at all.
+      #
+      # Rejecting at TLS makes it a connection failure, which is the one thing
+      # every client already handles: re-resolve and reconnect, landing on
+      # whichever region now serves the name. This is what makes a name moving
+      # between regions safe for clients holding a stale answer, and it costs
+      # nothing when the name is served here.
+      ssl-reject-handshake: "true"
       # HTTP/2 request-body flow control. nginx's 64KB default window caps
       # every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
       # alike) at ~window/RTT — ~310KB/s from a 193ms-RTT client. Both knobs
@@ -184,6 +222,28 @@ kura-us-west-ingress-nginx:
     ingressClassResource:
       name: kura-us-west
       controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Asia Pacific Southeast (Singapore). Off by default like every other kura
+# gateway; the environments that serve the region turn it on.
+kura-ap-southeast-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ap-southeast-ingress-nginx-leader
+    ingressClass: kura-ap-southeast
+    ingressClassResource:
+      name: kura-ap-southeast
+      controllerValue: k8s.io/kura-ap-southeast-ingress-nginx
     publishService:
       enabled: true
     service:

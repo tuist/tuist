@@ -240,6 +240,10 @@ export default defineConfig({
                 link: "/security/secure-development-and-operations/vulnerability-scanning-policy",
               },
               {
+                text: "Logging and monitoring policy",
+                link: "/security/secure-development-and-operations/logging-and-monitoring-policy",
+              },
+              {
                 text: "Operations security policy",
                 link: "/pdfs/security/secure-development-and-operations/operations-security-policy-bsi.pdf",
               },
@@ -282,6 +286,10 @@ export default defineConfig({
               {
                 text: "Data management policy",
                 link: "/pdfs/security/business-continuity-and-data-protection/data-management-policy-bsi.pdf",
+              },
+              {
+                text: "Data labelling policy",
+                link: "/security/business-continuity-and-data-protection/data-labelling-policy",
               },
             ],
           },

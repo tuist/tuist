@@ -30,6 +30,7 @@ use tuist_cas_plugin::token::TokenProvider;
 // token::TokenProvider::refresh_if_expiring).
 const TOKEN_REFRESH_LEAD: std::time::Duration = std::time::Duration::from_secs(25);
 
+
 /// `--drain <cas-path> [--timeout-ms <n>]`: ask the RUNNING proxy whether every
 /// publication it holds for that CAS path has reached the remote, and wait for
 /// it. The caller is a runner VM's teardown, deciding whether the cache image
@@ -156,6 +157,7 @@ fn main() {
         proxy.enforce_cache_bounds();
         proxy.reclaim_idle();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
+        proxy.refresh_endpoint();
         proxy.refresh_snapshots();
         proxy.refresh_view_keys();
         let stats = proxy.stats_line();

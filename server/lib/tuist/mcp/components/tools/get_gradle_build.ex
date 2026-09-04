@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   use Tuist.MCP.Tool,
     name: "get_gradle_build",
     title: "Get Gradle Build",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "build_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the Gradle build run."
+          "description" => "The ID of the Gradle build run, or a Tuist dashboard URL."
         }
       },
       "required" => ["build_run_id"]
@@ -30,6 +31,15 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "git_ref" => %{"type" => "string"},
         "root_project_name" => %{"type" => "string"},
         "requested_tasks" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"],
+          "additionalProperties" => false
+        },
         "tasks_local_hit_count" => %{"type" => "integer"},
         "tasks_remote_hit_count" => %{"type" => "integer"},
         "tasks_up_to_date_count" => %{"type" => "integer"},
@@ -53,6 +63,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "git_ref",
         "root_project_name",
         "requested_tasks",
+        "custom_metadata",
         "tasks_local_hit_count",
         "tasks_remote_hit_count",
         "tasks_up_to_date_count",
@@ -77,7 +88,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       "Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
 
   def execute(conn, args) do
-    build_run_id = Map.get(args, "build_run_id")
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
     with {:ok, build, _project} <-
            MCPTool.load_and_authorize(
@@ -100,6 +111,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          git_ref: build.git_ref,
          root_project_name: build.root_project_name,
          requested_tasks: build.requested_tasks,
+         custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
          tasks_local_hit_count: build.tasks_local_hit_count,
          tasks_remote_hit_count: build.tasks_remote_hit_count,
          tasks_up_to_date_count: build.tasks_up_to_date_count,

@@ -90,6 +90,7 @@ func main() {
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
+		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
 		cacheVolumeMasterCapGiB      int
 		cacheVolumeCASGiB            int
@@ -262,9 +263,16 @@ func main() {
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
-		"Max concurrent Pods on each Mac mini. Capped at 2 by Apple's macOS SLA "+
-			"(no more than two simultaneous virtualized macOS instances per host); "+
-			"Tart refuses to start a third VM.")
+		"Max concurrent Pods on each Mac mini. Counts EVERY Pod on the Node, not just Tart-VM Pods: "+
+			"host-system DaemonSets that ignore the macOS taint (hcloud-csi-node) permanently hold a slot, "+
+			"so this is (guests + system Pods + churn headroom). Apple's macOS SLA caps the GUEST count at 2 "+
+			"and Tart refuses to start a third VM, so the SLA is enforced at the virtualization layer "+
+			"regardless of this value. Overridable per Machine via spec.maxPods for heterogeneous fleets.")
+	flag.IntVar(&tartKubeletGuestCapacity, "tartkubelet-guest-capacity", 1,
+		"How many Tart guests each Mac mini is expected to run concurrently, when the Machine does not "+
+			"set spec.guestCapacity. Sizes the per-guest host resources (the VNC relay port range and the "+
+			"disk-pressure goldens floor); it does not itself create or cap capacity, which comes from "+
+			"HostCPU/HostMemoryMB and Tart's own SLA enforcement. 1 preserves one-guest-per-host.")
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
@@ -564,6 +572,7 @@ func main() {
 		Kubeconfig:                    kubeconfigBuilder,
 		TartKubeletBinarySHA:          binarySHA,
 		FleetConfig:                   fleetConfig,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		VMCachePNName:                 vmCachePNName,
 		VPC:                           vpcClient,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),

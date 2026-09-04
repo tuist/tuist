@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview), reconciled by our own
+(staging / canary / production / preview / pentest), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -21,8 +21,14 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 clusters/
 ├── README.md                  this file
 ├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass  (mgmt-cluster-apply.yml)
-├── bare-metal.yaml            bare-metal templates           (mgmt-cluster-apply.yml)
+├── bare-metal.yaml            runner substrate: bare-metal-worker class
+│                              (Kata, whole-disk root)        (mgmt-cluster-apply.yml)
+├── bare-metal-stateful.yaml   stateful substrate: stateful-worker class
+│                              (separate /data, no Kata, per-cluster RAID;
+│                              carries ClickHouse)            (mgmt-cluster-apply.yml)
+├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
 ├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
+├── cluster-pentest.yaml       isolated pentest Cluster CR    (mgmt-cluster-apply.yml)
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
@@ -41,11 +47,14 @@ Two mechanisms apply these manifests, split deliberately (see
   `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
   scoped never to prune a `Cluster` object. This is the source of truth
   for the staging / canary / production and hive / once / atlas topologies.
-- **`mgmt-cluster-apply.yml`** keeps the immutable `clusterclass-tuist.yaml`
-  and `bare-metal*.yaml` templates (whose delete-and-apply fallback for
-  `field is immutable` a plain Kustomization can't reproduce) plus the
-  preview `Cluster` CR (its replicas are mutated out-of-band by the
-  preview workflows). Flux never sees these files.
+- **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
+  path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
+  templates (whose delete-and-apply fallback for `field is immutable` a plain
+  Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
+  glob without touching the workflow), `machinedrainrules.yaml`, and the
+  `cluster-preview.yaml` (replicas mutated out-of-band by the preview
+  workflows) and `cluster-pentest.yaml` (isolated security-assessment) CRs.
+  Flux never sees these files.
 
 Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
 (`infra/k8s/cluster-production.yaml`). Keep each `workloads/<tenant>/cluster.yaml`
@@ -56,10 +65,17 @@ the tenant-repo copies are then retired to a pointer.
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 4× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
+| `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
+
+`tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
+It intentionally has no Kura, runner, Mac, processor, or stable-egress pools.
+When the engagement ends, remove its manifest in a reviewed change, then run
+the **Pentest Cluster Retirement** workflow to delete the Cluster resource and
+its managed infrastructure.
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

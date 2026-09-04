@@ -85,13 +85,15 @@ paths:
   /api/cache/cas/{id}:
     get:
       callbacks: {}
-      operationId: downloadCASArtifact
+      operationId: downloadXcodeArtifact
       parameters:
         - description: The artifact identifier
           in: path
           name: id
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -100,6 +102,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -107,6 +111,24 @@ paths:
           in: query
           name: project_handle
           required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+          in: header
+          name: range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+          in: header
+          name: if-range
+          required: false
           schema:
             type: string
             x-struct:
@@ -116,18 +138,37 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content
-        '400':
+        '206':
           content:
-            application/json:
+            application/octet-stream: {}
+          description: The requested range of the artifact
+          headers:
+            content-range:
+              description: The range served, as `bytes <first>-<last>/<total>`
               schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            etag:
+              description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -140,18 +181,54 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Artifact not found
-      summary: Download a CAS artifact
+        '416':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The requested range lies entirely outside the artifact
+          headers:
+            content-range:
+              description: The artifact's length, as `bytes */<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Download a Xcode cache artifact
       tags:
-        - CAS
+        - Xcode
     post:
       callbacks: {}
-      operationId: saveCASArtifact
+      operationId: saveXcodeArtifact
       parameters:
         - description: The artifact identifier
           in: path
           name: id
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -160,6 +237,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -168,29 +247,31 @@ paths:
           name: project_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
       requestBody:
         content:
           application/octet-stream: {}
-        description: The CAS artifact data
+        description: The Xcode cache artifact data
         required: true
       responses:
         '204':
           description: Upload successful
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
         '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -209,15 +290,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Request body exceeded allowed size
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
         '500':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Failed to persist artifact
-      summary: Save a CAS artifact
+      summary: Save a Xcode cache artifact
       tags:
-        - CAS
+        - Xcode
   /api/cache/clean:
     delete:
       callbacks: {}
@@ -228,6 +315,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -236,6 +325,8 @@ paths:
           name: project_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -248,12 +339,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
         '500':
           content:
             application/json:
@@ -263,6 +366,197 @@ paths:
       summary: Clean all cache artifacts for a project
       tags:
         - Clean
+  /api/cache/gradle/{cache_key}:
+    get:
+      callbacks: {}
+      operationId: downloadGradleArtifact
+      parameters:
+        - description: The Gradle build cache key (hash)
+          in: path
+          name: cache_key
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Download a Gradle build cache artifact
+      tags:
+        - Gradle
+    put:
+      callbacks: {}
+      operationId: saveGradleArtifact
+      parameters:
+        - description: The Gradle build cache key (hash)
+          in: path
+          name: cache_key
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes received against this value to reject truncated uploads, so chunked transfer encoding (no Content-Length) is not accepted on this endpoint.'
+          in: header
+          name: content-length
+          required: true
+          schema:
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The Gradle build cache artifact data
+        required: true
+      responses:
+        '200':
+          description: Upload successful (artifact existed)
+        '201':
+          description: Upload successful (new artifact)
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body was truncated before reaching the declared Content-Length
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '408':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body read timed out
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body exceeded allowed size
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid or missing request parameters (e.g., missing Content-Length header)
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Failed to persist artifact
+      summary: Save a Gradle build cache artifact
+      tags:
+        - Gradle
   /api/cache/keyvalue:
     put:
       callbacks: {}
@@ -331,6 +625,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
       summary: Put a key-value entry
       tags:
         - KeyValue
@@ -382,12 +682,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '404':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Entry not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a key-value entry
       tags:
         - KeyValue
@@ -442,6 +762,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -520,6 +846,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -563,6 +895,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -571,6 +905,8 @@ paths:
           name: project_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -579,6 +915,8 @@ paths:
           name: hash
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -587,6 +925,8 @@ paths:
           name: name
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -595,6 +935,8 @@ paths:
           name: cache_category
           required: false
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -605,24 +947,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/StartMultipartUploadResponse'
           description: Upload started
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
         '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
       summary: Start a multipart module cache upload
       tags:
         - ModuleCache
@@ -644,6 +992,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -652,6 +1002,8 @@ paths:
           name: project_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -660,6 +1012,8 @@ paths:
           name: hash
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -668,12 +1022,32 @@ paths:
           name: name
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
         - description: Cache category (builds)
           in: query
           name: cache_category
+          required: false
+          schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
+            type: string
+            x-struct:
+            x-validate:
+        - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+          in: header
+          name: range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+          in: header
+          name: if-range
           required: false
           schema:
             type: string
@@ -684,18 +1058,37 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content
-        '400':
+        '206':
           content:
-            application/json:
+            application/octet-stream: {}
+          description: The requested range of the artifact
+          headers:
+            content-range:
+              description: The range served, as `bytes <first>-<last>/<total>`
               schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            etag:
+              description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -708,6 +1101,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Artifact not found
+        '416':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The requested range lies entirely outside the artifact
+          headers:
+            content-range:
+              description: The artifact's length, as `bytes */<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Download a module cache artifact
       tags:
         - ModuleCache
@@ -728,6 +1155,8 @@ paths:
           name: account_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -736,6 +1165,8 @@ paths:
           name: project_handle
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -744,6 +1175,8 @@ paths:
           name: hash
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -752,6 +1185,8 @@ paths:
           name: name
           required: true
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
@@ -760,24 +1195,26 @@ paths:
           name: cache_category
           required: false
           schema:
+            minLength: 1
+            pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
             x-struct:
             x-validate:
       responses:
         '204':
           description: Artifact exists
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
         '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -790,12 +1227,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Artifact not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
       summary: Check if a module cache artifact exists
       tags:
         - ModuleCache
 security:
   - authorization: []
 servers:
-  - url: http://localhost:8087
+  - url: http://localhost:8189
     variables: {}
 tags: []

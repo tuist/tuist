@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Tool do
   @moduledoc false
 
+  alias Tuist.Accounts
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
@@ -20,14 +21,20 @@ defmodule Tuist.MCP.Tool do
           quote do
             @impl EMCP.Tool
             def call(conn, args) do
-              Tuist.MCP.Tool.call_with_project(
-                conn,
-                args,
-                unquote(action),
-                unquote(category),
-                &execute/3,
-                __MODULE__
-              )
+              case Tuist.MCP.Tool.validate_input(__MODULE__, args) do
+                :ok ->
+                  Tuist.MCP.Tool.call_with_project(
+                    conn,
+                    args,
+                    unquote(action),
+                    unquote(category),
+                    &execute/3,
+                    __MODULE__
+                  )
+
+                {:error, message} ->
+                  EMCP.Tool.error(message)
+              end
             end
           end
 
@@ -35,7 +42,10 @@ defmodule Tuist.MCP.Tool do
           quote do
             @impl EMCP.Tool
             def call(conn, args) do
-              Tuist.MCP.Tool.respond(execute(conn, args), __MODULE__)
+              case Tuist.MCP.Tool.validate_input(__MODULE__, args) do
+                :ok -> Tuist.MCP.Tool.respond(execute(conn, args), __MODULE__)
+                {:error, message} -> EMCP.Tool.error(message)
+              end
             end
           end
       end
@@ -45,13 +55,20 @@ defmodule Tuist.MCP.Tool do
 
       @mcp_tool_name Keyword.fetch!(unquote(opts), :name)
       @mcp_tool_schema Keyword.fetch!(unquote(opts), :schema)
+      @mcp_tool_resolved_input_schema ExJsonSchema.Schema.resolve(@mcp_tool_schema)
       @mcp_tool_output_schema Tuist.MCP.Tool.validate_output_schema!(
                                 @mcp_tool_name,
                                 Keyword.fetch!(unquote(opts), :output_schema)
                               )
       @mcp_tool_resolved_output_schema ExJsonSchema.Schema.resolve(@mcp_tool_output_schema)
       @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
-      @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
+      # Required rather than defaulted. A tool author who says nothing is exactly
+      # the case this cannot guess at, and guessing "read-only" hands every
+      # client that trusts the annotation a write tool wearing a safe label —
+      # the annotation is advisory in the protocol, but proxies and agent
+      # harnesses gate on it. Failing to compile puts the decision in front of
+      # the person introducing the risk, while it is still cheap to make.
+      @mcp_tool_read_only_hint Keyword.fetch!(unquote(opts), :read_only_hint)
       @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
       @mcp_tool_destructive_hint Keyword.get(unquote(opts), :destructive_hint, false)
 
@@ -60,6 +77,8 @@ defmodule Tuist.MCP.Tool do
 
       @impl EMCP.Tool
       def input_schema, do: @mcp_tool_schema
+
+      def resolved_input_schema, do: @mcp_tool_resolved_input_schema
 
       def output_schema, do: @mcp_tool_output_schema
 
@@ -86,6 +105,15 @@ defmodule Tuist.MCP.Tool do
   def respond({:ok, data}, module), do: json_response(data, module)
   def respond({:error, message}, _module) when is_binary(message), do: EMCP.Tool.error(message)
   def respond({:error, other}, _module), do: EMCP.Tool.error(inspect(other))
+
+  def validate_input(module, arguments) when is_map(arguments) do
+    case ExJsonSchema.Validator.validate(module.resolved_input_schema(), arguments) do
+      :ok -> :ok
+      {:error, _errors} -> {:error, "Arguments do not match the tool schema."}
+    end
+  end
+
+  def validate_input(_module, _arguments), do: {:error, "Arguments do not match the tool schema."}
 
   def call_with_project(conn, args, action, category, execute_fn, module) do
     case resolve_and_authorize_project(args, conn.assigns, action, category) do
@@ -125,6 +153,26 @@ defmodule Tuist.MCP.Tool do
 
   def resolve_and_authorize_project(_arguments, _assigns, _action, _category) do
     {:error, "Provide account_handle and project_handle."}
+  end
+
+  def resolve_and_authorize_account(%{"account_handle" => account_handle}, assigns, action, category)
+      when is_binary(account_handle) do
+    case Accounts.get_account_by_handle(account_handle) do
+      nil -> {:error, "Account not found: #{account_handle}"}
+      account -> authorize_account(assigns, account, action, category)
+    end
+  end
+
+  def resolve_and_authorize_account(_arguments, _assigns, _action, _category) do
+    {:error, "Provide account_handle."}
+  end
+
+  def authorize_account(assigns, account, action, category) do
+    if Authorization.authorize_request(assigns, action, account, category) do
+      {:ok, account}
+    else
+      {:error, "You do not have access to account: #{account.name}"}
+    end
   end
 
   def authenticated_subject(assigns) when is_map(assigns) do
@@ -195,6 +243,45 @@ defmodule Tuist.MCP.Tool do
       "additionalProperties" => false
     }
   end
+
+  @doc """
+  Normalises an id argument that a caller may have pasted as a Tuist dashboard URL.
+
+  Takes the last non-empty path segment of anything that parses as an absolute URL,
+  and passes every other value through untouched so the caller's own lookup still
+  rejects it. Working on the last segment rather than per-resource routes is what
+  makes one helper cover build runs, test runs, test cases, bundles, cache runs,
+  generations and Gradle builds.
+
+  The host is deliberately not checked against `Tuist.Environment.app_url/2`. A
+  dashboard URL reaches a self-hosted instance under its own domain, and a
+  hosted one through whatever proxy or custom domain the account browses it by,
+  so a host check would reject the URLs users actually have. It buys no
+  authorization either: the extracted id is loaded and authorized exactly as a
+  bare id is, and a URL pointing anywhere else simply yields an id that is not
+  found.
+
+  This lives here rather than in the domain lookups because those are also
+  called from API controllers and LiveViews, where a URL is not a valid id.
+  """
+  def resource_id(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host, path: path} when is_binary(scheme) and is_binary(host) ->
+        path
+        |> to_string()
+        |> String.split("/", trim: true)
+        |> List.last()
+        |> case do
+          nil -> value
+          segment -> segment
+        end
+
+      _ ->
+        value
+    end
+  end
+
+  def resource_id(value), do: value
 
   @max_page_size 100
   @default_page_size 20
@@ -272,10 +359,35 @@ defmodule Tuist.MCP.Tool do
   end
 
   defp authorize_project(assigns, project, action, category, message \\ "You do not have access to this resource.") do
-    if Authorization.authorize(authenticated_subject(assigns), action, project, category) do
+    if Authorization.authorize_request(assigns, action, project, category) do
       :ok
     else
-      {:error, message}
+      {:error, denial_message(message, project)}
     end
+  end
+
+  # A caller refused for want of an operator grant cannot act on that without
+  # knowing which account to request one for, and a tool call names a record
+  # rather than an account. Naming the owner here is what lets a client turn
+  # the refusal into a next step instead of a dead end.
+  #
+  # The shape is a contract, not prose: `Tuist.MCP.ToolTest` pins it, and
+  # Atlas parses it to build a pre-filled access request. Change the wording
+  # and that client stops recognising it — it fails closed, to a refusal with
+  # no link, but it does fail.
+  #
+  # This tells a caller who cannot read the record which account owns it. They
+  # are an authenticated Tuist user, and the handle is the name they would ask
+  # for access to by, so the disclosure is the point rather than a leak.
+  defp denial_message(message, %{account: %{name: handle}}) when is_binary(handle) do
+    ~s(#{end_sentence(message)} It belongs to the account "#{handle}".)
+  end
+
+  # An unloaded association would render as a struct rather than a handle, so
+  # say nothing rather than something wrong.
+  defp denial_message(message, _project), do: message
+
+  defp end_sentence(message) do
+    if String.ends_with?(message, [".", "!", "?"]), do: message, else: message <> "."
   end
 end

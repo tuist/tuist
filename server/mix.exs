@@ -14,6 +14,7 @@ defmodule Tuist.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: compilers(Mix.env()),
+      phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,8 +35,8 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Boundary verifies a large module graph and makes content edits slow in dev.
-  defp compilers(:dev), do: Mix.compilers()
-  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
+  defp compilers(:dev), do: [:phoenix_live_view] ++ Mix.compilers()
+  defp compilers(_env), do: [:phoenix_live_view, :boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -49,7 +50,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:html2markdown, "~> 0.3.1"},
@@ -89,8 +90,8 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.20"},
-      {:oban_web, "~> 2.11"},
+      {:oban, "~> 2.21.0"},
+      {:oban_web, "~> 2.12"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
@@ -158,7 +159,13 @@ defmodule Tuist.MixProject do
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:x509, "~> 0.9"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      # Upstream has no Hex release carrying the commits we depend on, so this
+      # tracks git. Pinned to an explicit ref rather than `branch: "master"`:
+      # master is 180+ commits ahead and includes a resource-indicator
+      # (RFC 8707) rewrite of the token schema and refresh grant, so moving
+      # forward has to be a deliberate, reviewed step with the matching
+      # migration, not a side effect of `mix deps.update`.
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
@@ -166,10 +173,10 @@ defmodule Tuist.MixProject do
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:mdex, "~> 0.13.3"},
+      {:mdex_katex, "~> 0.2.1"},
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},

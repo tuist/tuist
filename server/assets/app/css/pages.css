@@ -17,6 +17,8 @@
 @import "./pages/gradle_builds.css";
 @import "./pages/gradle_cache.css";
 @import "./pages/gradle_overview.css";
+@import "./pages/bazel_invocations.css";
+@import "./pages/bazel_overview.css";
 @import "./pages/integrations.css";
 @import "./pages/module_cache.css";
 @import "./pages/members.css";
@@ -27,6 +29,7 @@
 @import "./pages/ops/accounts.css";
 @import "./pages/ops/cache.css";
 @import "./pages/ops/database.css";
+@import "./pages/ops/kura.css";
 @import "./pages/ops/registry.css";
 @import "./pages/project_automations.css";
 @import "./pages/project_bundle_settings.css";

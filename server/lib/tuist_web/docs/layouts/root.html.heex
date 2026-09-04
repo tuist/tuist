@@ -64,8 +64,26 @@
     />
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
-    <TuistWeb.LayoutComponents.head_plain_script current_user={assigns[:current_user]} {assigns} />
+    <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <script
+      :for={
+        structured_data <-
+          TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns)
+      }
+      nonce={get_csp_nonce()}
+      type="application/ld+json"
+    >
+      <%= raw structured_data %>
+    </script>
+    <%!-- Points agents at the Markdown source of this page, which is otherwise
+          only reachable by guessing the URL. --%>
+    <link
+      :if={not is_nil(assigns[:head_markdown_path])}
+      rel="alternate"
+      type="text/markdown"
+      href={Tuist.Environment.app_url(path: assigns[:head_markdown_path])}
+    />
     <meta property="og:locale" content={@locale} />
     <link
       :for={lang <- TuistWeb.Marketing.Localization.languages()}
@@ -171,6 +189,14 @@
           >
             <.brand_bluesky />
           </.neutral_button>
+          <.neutral_button
+            size="large"
+            href="https://x.com/tuistdev"
+            target="_blank"
+            aria-label="X"
+          >
+            <.brand_x />
+          </.neutral_button>
         </div>
         <.theme_toggle id="docs-theme-toggle" label={dgettext("docs", "Toggle theme")} />
         <.button
@@ -219,19 +245,92 @@
           <.icon name="search" />
         </.neutral_button>
         <.neutral_button
+          id="docs-nav-mobile-menu"
           size="large"
-          aria-label={dgettext("docs", "Toggle sidebar")}
+          aria-label={dgettext("docs", "Open menu")}
           aria-expanded="false"
-          aria-controls="docs-sidebar"
-          phx-click={
-            JS.toggle_attribute({"data-sidebar-open", ""}, to: "body")
-            |> JS.toggle_attribute({"data-mobile-open", ""}, to: "#docs-sidebar")
-          }
+          aria-controls="docs-mobile-nav"
+          phx-click={open_mobile_nav()}
         >
           <.icon name="menu" />
         </.neutral_button>
       </div>
     </nav>
+    <div
+      id="docs-mobile-nav"
+      role="dialog"
+      aria-modal="true"
+      aria-label={dgettext("docs", "Main navigation")}
+    >
+      <div data-part="navbar">
+        <.link
+          navigate={docs_path("/#{@locale}")}
+          data-part="logo-link"
+          phx-click={close_mobile_nav()}
+        >
+          <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+          <span data-part="logo-divider"></span>
+          <span data-part="logo-text">Docs</span>
+        </.link>
+        <div data-part="actions">
+          <.button
+            :if={is_nil(assigns[:current_user])}
+            label={dgettext("docs", "Log in")}
+            variant="primary"
+            size="large"
+            href={~p"/docs/login?#{%{return_to: @current_path}}"}
+          />
+          <.account_dropdown
+            :if={not is_nil(assigns[:current_user])}
+            id="docs-mobile-nav-account-dropdown"
+            avatar_size="small"
+            current_user={@current_user}
+            log_out_return_to={@current_path}
+            primary_action="dashboard"
+            show_theme_switcher={false}
+          />
+          <.neutral_button
+            size="large"
+            aria-label={dgettext("docs", "Close menu")}
+            phx-click={close_mobile_nav()}
+          >
+            <.icon name="close" />
+          </.neutral_button>
+        </div>
+      </div>
+      <nav data-part="items" aria-label={dgettext("docs", "Documentation sections")}>
+        <%= for {section, index} <- Enum.with_index(mobile_nav_sections(@locale)) do %>
+          <.line_divider :if={index > 0} />
+          <.link href={section.href} data-part="item">{section.label}</.link>
+        <% end %>
+        <.line_divider />
+        <.inline_dropdown
+          id="docs-mobile-nav-language-selector"
+          size="large"
+          label={language_name(@locale)}
+        >
+          <.dropdown_item
+            :for={lang <- TuistWeb.Marketing.Localization.languages()}
+            label={lang.native}
+            value={lang.code}
+            navigate={localized_docs_href(@current_path, lang.code)}
+          />
+        </.inline_dropdown>
+        <%= for social <- mobile_nav_socials() do %>
+          <.line_divider />
+          <.link
+            href={social.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="item"
+            data-compact
+          >
+            <.icon name={social.icon} />
+            <span>{social.label}</span>
+          </.link>
+        <% end %>
+      </nav>
+    </div>
     <div id="docs-mobile-menu-bar" role="toolbar" aria-label={dgettext("docs", "Page navigation")}>
       <button
         type="button"

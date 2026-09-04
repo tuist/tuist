@@ -109,6 +109,14 @@
             #expect(casErrorIsBackendHealthy(SaveCacheCASServiceError.contentTooLarge("too big")))
         }
 
+        @Test func classifies_backpressure_as_a_failure_so_the_breaker_stops_asking() {
+            #expect(
+                casErrorIsBackendHealthy(
+                    LoadCacheCASServiceError.rateLimited("shed", retryAfterSeconds: 3)
+                ) == false
+            )
+        }
+
         @Test func classifies_server_and_transport_errors_as_unavailable() {
             #expect(casErrorIsBackendHealthy(LoadCacheCASServiceError.unknownError(503)) == false)
             #expect(casErrorIsBackendHealthy(LoadCacheCASServiceError.unauthorized("nope")) == false)

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     error::Error,
     pin::Pin,
     task::{Context, Poll},
@@ -20,6 +21,7 @@ use crate::{
         FOREGROUND_STAGING_WINDOW_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
     },
     memory::{MemoryController, MemoryPressure},
+    metrics::GrpcWriteAdmissionMetrics,
     state::SharedState,
 };
 
@@ -27,14 +29,26 @@ type BoxError = Box<dyn Error + Send + Sync + 'static>;
 type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
 pub(super) const BYTESTREAM_WRITE_PATH: &str = "/google.bytestream.ByteStream/Write";
+pub(super) const BYTESTREAM_READ_PATH: &str = "/google.bytestream.ByteStream/Read";
+const BYTESTREAM_QUERY_WRITE_STATUS_PATH: &str = "/google.bytestream.ByteStream/QueryWriteStatus";
+const CAPABILITIES_GET_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+const ACTION_CACHE_GET_PATH: &str = "/build.bazel.remote.execution.v2.ActionCache/GetActionResult";
 pub(super) const ACTION_CACHE_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
+const CAS_FIND_MISSING_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs";
 pub(super) const CAS_BATCH_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs";
+const CAS_BATCH_READ_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs";
+const CAS_GET_TREE_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree";
+pub(super) const BUILD_EVENT_STREAM_PATH: &str =
+    "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
-    metrics: crate::metrics::Metrics,
+    metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
 }
 
 struct GrpcWriteReservation {
@@ -43,6 +57,10 @@ struct GrpcWriteReservation {
     decode_structural_high_water_bytes: u64,
     stream_staging_bytes: u64,
     decode_copy_multiplier: u64,
+    /// The node's whole transient budget, captured once so the staging window
+    /// can be bounded by it. A window wider than the budget it is admitted
+    /// against can never be granted, however idle the node is.
+    transient_capacity_bytes: u64,
 }
 
 impl GrpcWriteReservation {
@@ -59,6 +77,7 @@ impl GrpcWriteReservation {
             decode_structural_high_water_bytes: 0,
             stream_staging_bytes: 0,
             decode_copy_multiplier: decode_copy_multiplier.max(1),
+            transient_capacity_bytes: memory.transient_capacity_bytes(),
         })
     }
 
@@ -89,23 +108,43 @@ impl GrpcWriteReservation {
     }
 
     fn try_configure_staging(&mut self, declared_or_max_bytes: u64) -> Result<FileCachePolicy, ()> {
-        let staging_bytes = declared_or_max_bytes
-            .min(FOREGROUND_STAGING_WINDOW_BYTES)
-            .saturating_mul(2);
-        let requested_bytes = self
+        // Staging charges source plus destination -- the incoming bytes and the
+        // segment range they are copied into are both resident while the copy
+        // runs -- so the window costs twice itself. Bound the window by half the
+        // transient budget before doubling, the way `reserve_foreground_staging`
+        // does on the non-gRPC path: an unbounded window asks for a flat 32 MiB
+        // on every write of a full window or more, which a node whose whole
+        // budget is smaller than that can never grant, at any concurrency. That
+        // turns a small instance into one that refuses large blobs outright
+        // rather than staging them in narrower passes.
+        // The decode buffers are already reserved by the time the handler
+        // configures staging -- the codec grows them as it starts each message,
+        // and the first chunk carries the resource name this is derived from --
+        // so the window is bounded by what is left of the budget, not by the
+        // whole of it. Halving what remains keeps source plus destination
+        // inside it.
+        let decode_bytes = self
             .stream_message_high_water_bytes
             .saturating_mul(self.decode_copy_multiplier)
-            .saturating_add(self.decode_structural_high_water_bytes)
-            .saturating_add(staging_bytes);
+            .saturating_add(self.decode_structural_high_water_bytes);
+        let staging_budget_bytes = self.transient_capacity_bytes.saturating_sub(decode_bytes);
+        let desired_window_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
+        let window_bytes = desired_window_bytes.min(staging_budget_bytes.saturating_div(2));
+        let window_was_clamped = window_bytes < desired_window_bytes;
+        let staging_bytes = window_bytes.saturating_mul(2);
+        let requested_bytes = decode_bytes.saturating_add(staging_bytes);
         self.file_cache.try_resize(requested_bytes)?;
         self.stream_staging_bytes = staging_bytes;
-        let policy = if declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
-            FileCachePolicy::Bounded
-        } else {
-            FileCachePolicy::Foreground {
-                reservation_bytes: requested_bytes,
-            }
-        };
+        // A clamped window holds less than the upload will move, so completed
+        // ranges have to be released as it goes rather than at the end.
+        let policy =
+            if window_was_clamped || declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
+                FileCachePolicy::Bounded
+            } else {
+                FileCachePolicy::Foreground {
+                    reservation_bytes: requested_bytes,
+                }
+            };
         self.file_cache.set_policy(policy);
         Ok(policy)
     }
@@ -115,7 +154,7 @@ impl GrpcWriteAdmission {
     pub(super) fn new(
         memory: &MemoryController,
         decode_copy_multiplier: u64,
-        metrics: crate::metrics::Metrics,
+        metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
     ) -> Result<Self, ()> {
         Ok(Self {
             reservation: std::sync::Arc::new(std::sync::Mutex::new(GrpcWriteReservation::new(
@@ -138,8 +177,7 @@ impl GrpcWriteAdmission {
         reservation
             .try_grow_decode(encoded_message_bytes, decoded_structural_bytes)
             .map_err(|_| {
-                self.metrics
-                    .record_memory_action("grpc_write_decode_admission_rejected");
+                self.metrics.record_decode_rejected();
                 Status::resource_exhausted(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
@@ -157,8 +195,7 @@ impl GrpcWriteAdmission {
         reservation
             .try_configure_staging(declared_or_max_bytes)
             .map_err(|_| {
-                self.metrics
-                    .record_memory_action("bytestream_staging_admission_rejected");
+                self.metrics.record_staging_rejected();
                 Status::resource_exhausted(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
@@ -232,7 +269,9 @@ impl GrpcWriteAdmissionBody {
             return Ok(());
         };
         let shape = match self.policy {
-            GrpcWriteShapePolicy::ByteStream => DecodeShape::default(),
+            GrpcWriteShapePolicy::ByteStream | GrpcWriteShapePolicy::BuildEventStream => {
+                DecodeShape::default()
+            }
             GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
             GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
         };
@@ -358,7 +397,10 @@ pub(super) async fn reject_overloaded_grpc_writes(
 pub(super) fn is_reapi_write_path(path: &str) -> bool {
     matches!(
         path,
-        BYTESTREAM_WRITE_PATH | ACTION_CACHE_UPDATE_PATH | CAS_BATCH_UPDATE_PATH
+        BYTESTREAM_WRITE_PATH
+            | ACTION_CACHE_UPDATE_PATH
+            | CAS_BATCH_UPDATE_PATH
+            | BUILD_EVENT_STREAM_PATH
     )
 }
 
@@ -374,7 +416,7 @@ pub(super) async fn admit_grpc_write_decode(
     let admission = match GrpcWriteAdmission::new(
         &state.memory,
         policy.decode_copy_multiplier(),
-        state.metrics.clone(),
+        state.metrics.grpc_write_admission_metrics(),
     ) {
         Ok(admission) => admission,
         Err(()) => {
@@ -395,6 +437,7 @@ pub(super) fn grpc_write_shape_policy(path: &str) -> Option<GrpcWriteShapePolicy
         BYTESTREAM_WRITE_PATH => Some(GrpcWriteShapePolicy::ByteStream),
         CAS_BATCH_UPDATE_PATH => Some(GrpcWriteShapePolicy::BatchUpdate),
         ACTION_CACHE_UPDATE_PATH => Some(GrpcWriteShapePolicy::ActionUpdate),
+        BUILD_EVENT_STREAM_PATH => Some(GrpcWriteShapePolicy::BuildEventStream),
         _ => None,
     }
 }
@@ -446,8 +489,9 @@ where
 
     fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
         let started_at = Instant::now();
-        let route = request.uri().path().to_owned();
-        let guard = self.state.start_grpc_request();
+        let route = grpc_accounting_route(request.uri().path());
+        let guard = (request.uri().path() != BUILD_EVENT_STREAM_PATH)
+            .then(|| self.state.start_grpc_request());
         let state = self.state.clone();
         let future = self.inner.call(request);
         Box::pin(async move {
@@ -472,9 +516,201 @@ where
     }
 }
 
+fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
+    match path {
+        BYTESTREAM_READ_PATH => Cow::Borrowed(BYTESTREAM_READ_PATH),
+        BYTESTREAM_WRITE_PATH => Cow::Borrowed(BYTESTREAM_WRITE_PATH),
+        BYTESTREAM_QUERY_WRITE_STATUS_PATH => Cow::Borrowed(BYTESTREAM_QUERY_WRITE_STATUS_PATH),
+        CAPABILITIES_GET_PATH => Cow::Borrowed(CAPABILITIES_GET_PATH),
+        ACTION_CACHE_GET_PATH => Cow::Borrowed(ACTION_CACHE_GET_PATH),
+        ACTION_CACHE_UPDATE_PATH => Cow::Borrowed(ACTION_CACHE_UPDATE_PATH),
+        CAS_FIND_MISSING_PATH => Cow::Borrowed(CAS_FIND_MISSING_PATH),
+        CAS_BATCH_UPDATE_PATH => Cow::Borrowed(CAS_BATCH_UPDATE_PATH),
+        CAS_BATCH_READ_PATH => Cow::Borrowed(CAS_BATCH_READ_PATH),
+        CAS_GET_TREE_PATH => Cow::Borrowed(CAS_GET_TREE_PATH),
+        path => Cow::Owned(path.to_owned()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn write_admission_narrow_metric_clone_benchmark() {
+        const ITERATIONS: usize = 200_000;
+        const SAMPLES: usize = 8;
+
+        let measure = |narrow: bool| {
+            let metrics = crate::metrics::Metrics::new("benchmark".into(), "benchmark".into());
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if narrow {
+                    std::hint::black_box(metrics.grpc_write_admission_metrics());
+                } else {
+                    std::hint::black_box(metrics.clone());
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC write_admission_metrics_clone_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC write_admission_metrics_clone_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC write_admission_metrics_clone_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    fn bytestream_accounting_routes_are_borrowed() {
+        for route in [
+            BYTESTREAM_READ_PATH,
+            BYTESTREAM_WRITE_PATH,
+            BYTESTREAM_QUERY_WRITE_STATUS_PATH,
+            CAPABILITIES_GET_PATH,
+            ACTION_CACHE_GET_PATH,
+            ACTION_CACHE_UPDATE_PATH,
+            CAS_FIND_MISSING_PATH,
+            CAS_BATCH_UPDATE_PATH,
+            CAS_BATCH_READ_PATH,
+            CAS_GET_TREE_PATH,
+        ] {
+            assert!(matches!(grpc_accounting_route(route), Cow::Borrowed(_)));
+        }
+        assert!(matches!(grpc_accounting_route("/unknown"), Cow::Owned(_)));
+    }
+
+    // The remote-execution shed has to reach `kura_capacity_sheds_total`, the
+    // counter operators are told to reach for before the per-subsystem ones.
+    // It answers RESOURCE_EXHAUSTED rather than an HTTP status, so nothing else
+    // in the shed taxonomy would show a node turning writes away.
+    #[test]
+    fn a_shed_write_is_counted_as_a_capacity_shed() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            64 * mebibyte,
+            96 * mebibyte,
+        );
+        memory.observe(mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+        // Far past the whole transient budget, so admission must refuse it.
+        admission
+            .try_grow_decode(memory.transient_capacity_bytes() * 2, 0)
+            .expect_err("a message larger than the budget must be shed");
+
+        let rendered = metrics.render();
+        assert!(
+            rendered
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("reapi_write_decode")
+                    && !line.ends_with(" 0")),
+            "the write shed did not reach kura_capacity_sheds_total"
+        );
+    }
+
+    // A node whose whole transient budget is smaller than two full staging
+    // windows must still accept a large blob. Before the window was bounded by
+    // the budget, a write of one window or more asked for a flat 32 MiB and a
+    // 32 MiB node refused every one of them at concurrency one -- not under
+    // load, but always.
+    #[test]
+    fn a_large_write_fits_a_budget_smaller_than_two_staging_windows() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        // Watermarks chosen so the transient budget lands at 32 MiB, the pool a
+        // 176 MiB memory floor fits to.
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            64 * mebibyte,
+            96 * mebibyte,
+        );
+        memory.observe(mebibyte);
+        assert_eq!(memory.transient_capacity_bytes(), 32 * mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+        // The codec reserves the first chunk's decode buffers before the
+        // handler reaches staging, so staging sees a budget already spent into.
+        admission
+            .try_grow_decode(256 * 1024, 0)
+            .expect("the first chunk's decode buffers should fit");
+        let policy = admission
+            .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
+            .expect("a full-window write must be admitted on a 32 MiB budget");
+        // Bounded, not Foreground: the window is narrower than the upload, so
+        // completed ranges are released as it goes.
+        assert_eq!(policy, FileCachePolicy::Bounded);
+        assert!(
+            memory.transient_reserved_bytes() <= memory.transient_capacity_bytes(),
+            "staging reserved {} of a {} budget",
+            memory.transient_reserved_bytes(),
+            memory.transient_capacity_bytes()
+        );
+    }
+
+    // The clamp must not shrink a window the budget can afford, or every node
+    // large enough to stage at full width would start dropping page cache it
+    // had room to keep.
+    #[test]
+    fn a_budget_with_room_keeps_the_full_staging_window() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            1024 * mebibyte,
+            256 * mebibyte,
+            512 * mebibyte,
+        );
+        memory.observe(mebibyte);
+        assert!(memory.transient_capacity_bytes() >= 2 * FOREGROUND_STAGING_WINDOW_BYTES);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+        admission
+            .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
+            .expect("a full-window write fits a budget with room");
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            2 * FOREGROUND_STAGING_WINDOW_BYTES,
+            "an unclamped window still charges source plus destination"
+        );
+    }
 
     #[test]
     fn streaming_reservation_expands_before_the_next_message() {
@@ -488,7 +724,7 @@ mod tests {
         );
         memory.observe(32 * mebibyte);
 
-        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
         admission
             .try_grow_decode(mebibyte, 0)
@@ -524,8 +760,8 @@ mod tests {
             FileCachePolicy::Bounded
         );
 
-        let second =
-            GrpcWriteAdmission::new(&memory, 2, metrics).expect("zero-byte admission should fit");
+        let second = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("zero-byte admission should fit");
         assert!(
             second.try_grow_decode(64 * mebibyte, 0).is_err(),
             "a second decoder must be rejected before it can allocate"

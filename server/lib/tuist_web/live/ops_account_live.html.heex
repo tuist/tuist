@@ -1,4 +1,20 @@
 <div id="ops-account">
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :error)}
+    id="ops-account-flash-error"
+    type="secondary"
+    status="error"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :error)}
+  />
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :info)}
+    id="ops-account-flash-info"
+    type="secondary"
+    status="success"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :info)}
+  />
   <div data-part="header">
     <h1 data-part="title">{@account.name}</h1>
     <p data-part="subtitle">
@@ -19,6 +35,20 @@
             style="light-fill"
           />
         </:col>
+        <:col :let={server} label={dgettext("dashboard", "Claim")}>
+          <.text_cell label={
+            Kura.instance_storage_claim(server, @kura_account_claim) ||
+              dgettext("dashboard", "None")
+          } />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Egress floor / ceiling")}>
+          <.text_cell label={
+            case egress_for_region(@kura_egress_regions, server.region) do
+              nil -> dgettext("dashboard", "Unshaped")
+              region -> egress_pair_label(region.effective)
+            end
+          } />
+        </:col>
         <:col :let={server} label={dgettext("dashboard", "URL")}>
           <.text_cell label={server.url || dgettext("dashboard", "None")} />
         </:col>
@@ -38,6 +68,344 @@
           <% end %>
         </:col>
       </.table>
+    </.card_section>
+    <.card_section data-part="kura-placement-section">
+      <p data-part="kura-placement-description">
+        {dgettext(
+          "dashboard",
+          "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
+        )}
+      </p>
+      <.table
+        :if={@kura_placement_regions != []}
+        id="kura-placement-regions-table"
+        rows={@kura_placement_regions}
+      >
+        <:col :let={placement} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={placement.region} />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Role")}>
+          <.badge_cell
+            label={
+              case placement.role do
+                :primary -> dgettext("dashboard", "primary")
+                :secondary -> dgettext("dashboard", "secondary")
+              end
+            }
+            color={if placement.role == :primary, do: "success", else: "neutral"}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={
+              case placement.status do
+                :desired -> dgettext("dashboard", "serving")
+                :retiring -> dgettext("dashboard", "retiring")
+              end
+            }
+            color={if placement.status == :desired, do: "success", else: "attention"}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={placement} label={dgettext("dashboard", "Since")}>
+          <.text_cell label={Timex.from_now(placement.updated_at)} />
+        </:col>
+      </.table>
+      <p :if={@kura_placement_regions == []} data-part="kura-placement-empty">
+        {dgettext(
+          "dashboard",
+          "Placement has recorded nothing for this account; it is served from wherever its instances already are."
+        )}
+      </p>
+      <.table :if={@kura_traffic_mix != []} id="kura-traffic-mix-table" rows={@kura_traffic_mix}>
+        <:col :let={origin} label={dgettext("dashboard", "Traffic from")}>
+          <.text_cell label={origin.origin} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Nearest region")}>
+          <.text_cell label={origin.region} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Runs")}>
+          <.text_cell label={Integer.to_string(origin.run_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
+          <.text_cell label={Integer.to_string(origin.demand_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
+          <.text_cell label={Timex.from_now(origin.last_seen_on)} />
+        </:col>
+      </.table>
+      <p :if={@kura_traffic_mix == []} data-part="kura-traffic-mix-empty">
+        {dgettext(
+          "dashboard",
+          "No cache traffic has been attributed to this account in the last two weeks."
+        )}
+      </p>
+    </.card_section>
+    <.card_section :if={@kura_placement_proposal}>
+      <p data-part="kura-placement-proposal-summary">
+        {case @kura_placement_proposal.kind do
+          :relocate ->
+            dgettext(
+              "dashboard",
+              "Placement proposes moving this account from %{from} to %{to}.",
+              from: @kura_placement_proposal.from_region,
+              to: @kura_placement_proposal.to_region
+            )
+
+          :expand ->
+            dgettext("dashboard", "Placement proposes also serving this account from %{to}.",
+              to: @kura_placement_proposal.to_region
+            )
+
+          :retire ->
+            dgettext("dashboard", "Placement proposes giving up %{from} for this account.",
+              from: @kura_placement_proposal.from_region
+            )
+        end}
+      </p>
+      <p data-part="kura-placement-proposal-evidence">
+        {placement_history_reason(@kura_placement_proposal)}
+      </p>
+      <div data-part="actions">
+        <.button
+          type="button"
+          variant="primary"
+          phx-click="apply_kura_placement_proposal"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Apply the proposed placement? A new region starts empty and warms from its peers; a region being left keeps serving until the account is up elsewhere, then drains."
+            )
+          }
+          label={dgettext("dashboard", "Apply proposal")}
+        />
+        <.button
+          type="button"
+          variant="secondary"
+          phx-click="dismiss_kura_placement_proposal"
+          label={dgettext("dashboard", "Dismiss")}
+        />
+      </div>
+    </.card_section>
+    <.card_section :if={@kura_placement_history != []} data-part="kura-placement-history-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard", "Placement decisions")}</span>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "View more")}
+          size="small"
+          navigate={~p"/ops/accounts/#{@account.id}/kura/placement"}
+        />
+      </div>
+      <.table id="kura-placement-history-table" rows={@kura_placement_history}>
+        <:col :let={decision} label={dgettext("dashboard", "When")}>
+          <.text_cell label={Timex.from_now(decision.inserted_at)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Change")}>
+          <.text_cell label={placement_history_change(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
+          <% {label, color} = claim_history_outcome(decision) %>
+          <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "By")}>
+          <.text_cell label={placement_history_actor(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Why")}>
+          <.text_cell label={placement_history_reason(decision)} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.card_section :if={@kura_claim_proposal}>
+      <p data-part="kura-claim-proposal-summary">
+        {case @kura_claim_proposal.direction do
+          :grow ->
+            dgettext(
+              "dashboard",
+              "Sizing proposes growing the disk claim from %{current} to %{recommended}.",
+              current: @kura_claim_proposal.current_claim_size,
+              recommended: @kura_claim_proposal.recommended_claim_size
+            )
+
+          :shrink ->
+            dgettext(
+              "dashboard",
+              "Sizing proposes shrinking the disk claim from %{current} to %{recommended}.",
+              current: @kura_claim_proposal.current_claim_size,
+              recommended: @kura_claim_proposal.recommended_claim_size
+            )
+        end}
+      </p>
+      <p data-part="kura-claim-proposal-evidence">
+        {kura_claim_proposal_evidence(@kura_claim_proposal)}
+      </p>
+      <p data-part="kura-claim-proposal-basis">
+        {kura_claim_proposal_basis(@kura_claim_proposal)}
+      </p>
+      <div data-part="actions">
+        <.button
+          type="button"
+          variant="primary"
+          phx-click="apply_kura_claim_proposal"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Apply the proposed claim? Growing rebuilds volumes one replica at a time behind the standby; shrinking keeps the cache and evicts down."
+            )
+          }
+          label={dgettext("dashboard", "Apply proposal")}
+        />
+        <.button
+          type="button"
+          variant="secondary"
+          phx-click="dismiss_kura_claim_proposal"
+          label={dgettext("dashboard", "Dismiss")}
+        />
+      </div>
+    </.card_section>
+    <.card_section>
+      <p data-part="kura-storage-claim-description">
+        {dgettext(
+          "dashboard",
+          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+        )}
+      </p>
+      <p :if={@kura_sized_claim} data-part="kura-sized-claim">
+        {dgettext(
+          "dashboard",
+          "Automatic sizing set this account's claim to %{claim}.",
+          claim: @kura_sized_claim
+        )}
+      </p>
+      <.table :if={@kura_disk_usage != []} id="kura-disk-usage-table" rows={@kura_disk_usage}>
+        <:col :let={snapshot} label={dgettext("dashboard", "Pod")}>
+          <.text_cell label={snapshot.node_id} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={snapshot.region} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard", "Disk used")}>
+          <.text_cell label={kura_disk_usage_label(snapshot)} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard", "Segments")}>
+          <.text_cell label={Integer.to_string(snapshot.live_segment_count)} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard", "Reported")}>
+          <.text_cell label={Timex.from_now(snapshot.captured_at)} />
+        </:col>
+      </.table>
+      <p :if={@kura_disk_usage == []} data-part="kura-disk-usage-empty">
+        {dgettext("dashboard", "No pod has reported its disk in the last week.")}
+      </p>
+    </.card_section>
+    <.card_section :if={@kura_claim_history != []} data-part="kura-claim-history-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard", "Sizing decisions")}</span>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "View more")}
+          size="small"
+          navigate={~p"/ops/accounts/#{@account.id}/kura/sizing"}
+        />
+      </div>
+      <.table id="kura-claim-history-table" rows={@kura_claim_history}>
+        <:col :let={decision} label={dgettext("dashboard", "When")}>
+          <.text_cell label={Timex.from_now(decision.inserted_at)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Change")}>
+          <.text_cell label={kura_claim_history_change(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
+          <% {label, color} = claim_history_outcome(decision) %>
+          <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "By")}>
+          <.text_cell label={claim_history_actor(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={decision.region} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Why")}>
+          <.text_cell label={claim_history_reason(decision)} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.card_section :if={@kura_egress_regions != []}>
+      <p data-part="kura-egress-limits-description">
+        {dgettext(
+          "dashboard",
+          "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
+        )}
+      </p>
+      <.form
+        for={@kura_egress_form}
+        id="kura-egress-limits-form"
+        phx-submit="update_kura_egress_limits"
+      >
+        <.table id="account-kura-egress-table" rows={@kura_egress_regions}>
+          <:col :let={region} label={dgettext("dashboard", "Region")}>
+            <.text_cell label={region.display_name} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Now")}>
+            <.text_cell label={egress_pair_label(region.effective)} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Region default")}>
+            <.text_cell label={egress_pair_label(region.defaults)} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Node limit")}>
+            <.text_cell
+              label={node_budget_label(region.node_mbps)}
+              sublabel={egress_headroom_label(region.headroom)}
+            />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Floor override (Mbps)")}>
+            <div data-part="egress-input-cell">
+              <.text_input
+                field={region.form[:kura_egress_floor_mbps]}
+                input_type="number"
+                min={1}
+                max={egress_max_floor_mbps(region)}
+                placeholder={region.defaults.floor_mbps}
+              />
+            </div>
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Ceiling override (Mbps)")}>
+            <div data-part="egress-input-cell">
+              <.text_input
+                field={region.form[:kura_egress_burst_mbps]}
+                input_type="number"
+                min={1}
+                max={region.node_mbps}
+                placeholder={region.defaults.burst_mbps}
+              />
+            </div>
+          </:col>
+        </.table>
+        <.alert
+          :if={@kura_egress_result}
+          id="kura-egress-limits-result"
+          status={@kura_egress_result.status}
+          title={@kura_egress_result.title}
+        />
+        <div data-part="actions">
+          <%!-- data-confirm belongs on the button, never on the form:
+                phoenix_html's polyfill walks up from whatever was clicked and
+                confirms on the first ancestor carrying it, so on the form every
+                click into a field asks too. --%>
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save egress limits")}
+            data-confirm={
+              dgettext(
+                "dashboard",
+                "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
+              )
+            }
+          />
+        </div>
+      </.form>
     </.card_section>
   </.card>
 
@@ -102,6 +470,156 @@
           />
         </div>
       </.form>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Runner trial")} icon="hourglass">
+    <.card_section>
+      <p data-part="runner-trial-description">
+        {dgettext(
+          "dashboard",
+          "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
+        )}
+      </p>
+      <.alert
+        :if={@on_runner_trial}
+        id="runner-trial-active-alert"
+        size="large"
+        status="information"
+        title={dgettext("dashboard", "On a runner trial")}
+        description={
+          dgettext(
+            "dashboard",
+            "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
+          )
+        }
+      />
+      <div data-part="actions">
+        <.button
+          :if={not @on_runner_trial}
+          phx-click="start_runner_trial"
+          variant="primary"
+          label={dgettext("dashboard", "Start runner trial")}
+        />
+        <.button
+          :if={@on_runner_trial}
+          phx-click="cancel_runner_trial"
+          variant="destructive"
+          label={dgettext("dashboard", "Cancel runner trial")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Prepaid runner minutes")} icon="asset">
+    <.card_section>
+      <p data-part="prepaid-description">
+        {dgettext(
+          "dashboard",
+          "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
+        )}
+      </p>
+      <.alert
+        :if={not @has_subscription}
+        id="prepaid-no-subscription-alert"
+        size="large"
+        status="warning"
+        title={dgettext("dashboard", "No active subscription")}
+        description={
+          dgettext(
+            "dashboard",
+            "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
+          )
+        }
+      />
+      <.table
+        :if={@prepaid_balance}
+        id="prepaid-balance-table"
+        rows={@prepaid_balance.grants}
+      >
+        <:col :let={grant} label={dgettext("dashboard", "Source")}>
+          <.text_cell label={prepaid_grant_kind_label(grant.kind)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Minutes remaining")}>
+          <.text_cell label={format_number(grant.available_minutes)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Expires")}>
+          <.text_cell label={prepaid_expiry_label(grant.expires_at)} />
+        </:col>
+      </.table>
+      <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
+        {dgettext("dashboard", "This account has no prepaid runner minutes.")}
+      </p>
+      <.form
+        for={%{}}
+        id="prepaid-minutes-form"
+        phx-change="quote_prepaid_minutes"
+        phx-submit="set_prepaid_minutes"
+      >
+        <.text_input
+          id="prepaid-minutes-input"
+          name="minutes"
+          value={@prepaid_minutes_value}
+          input_type="number"
+          min={0}
+          label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
+        />
+        <dl :if={@prepaid_quote} data-part="prepaid-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Added to next invoice")}</dt>
+            <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Granted now")}</dt>
+            <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Set minutes")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Visibility")} icon="eye">
+    <.card_section>
+      <.table id="account-visibility-table" rows={[@account]}>
+        <:col :let={account} label={dgettext("dashboard", "Dashboards")}>
+          <.text_cell label={
+            if account.visibility == :public,
+              do: dgettext("dashboard", "Public"),
+              else: dgettext("dashboard", "Private")
+          } />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Signed-out visitors see")}>
+          <.text_cell label={
+            if account.visibility == :public,
+              do:
+                dgettext(
+                  "dashboard",
+                  "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
+                ),
+              else: dgettext("dashboard", "Nothing.")
+          } />
+        </:col>
+        <:col label={dgettext("dashboard", "Actions")}>
+          <div data-part="actions">
+            <.button
+              variant="secondary"
+              label={
+                if @account.visibility == :public,
+                  do: dgettext("dashboard", "Make private"),
+                  else: dgettext("dashboard", "Make public")
+              }
+              phx-click="toggle_visibility"
+            />
+          </div>
+        </:col>
+      </.table>
     </.card_section>
   </.card>
 
@@ -255,19 +773,6 @@
           value={prefill_address(@upgrade_target_customer, :country)}
         >
           <:item :for={{code, name} <- countries()} value={code} label={name} />
-        </.select>
-      </div>
-
-      <div class="select-field">
-        <.label label={dgettext("dashboard", "Billing cadence")} />
-        <.select
-          id="enterprise-cadence"
-          label={dgettext("dashboard", "Monthly")}
-          name="cadence"
-          value="monthly"
-        >
-          <:item value="monthly" label={dgettext("dashboard", "Monthly")} />
-          <:item value="yearly" label={dgettext("dashboard", "Yearly")} />
         </.select>
       </div>
     </form>

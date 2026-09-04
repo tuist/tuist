@@ -105,9 +105,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// One sessions client for both reconcilers: the pool reconciler
+	// closes a Pod's session immediately before reaping it, and the
+	// pod-lifecycle reconciler reports the earlier terminal transition.
+	// nil when unconfigured, which disables reporting on both.
+	var sessionsClient *sessions.Client
+	if sessionsURL != "" {
+		sessionsClient = sessions.NewClient(sessionsURL)
+	}
+
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
 		Scheme:              mgr.GetScheme(),
+		SessionsClient:      sessionsClient,
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
 		DindImage:           dindImage,
@@ -160,7 +171,7 @@ func main() {
 		if err := (&controllers.PodLifecycleReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
-			SessionsClient: sessions.NewClient(sessionsURL),
+			SessionsClient: sessionsClient,
 			Logs:           clientset,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup PodLifecycle reconciler")

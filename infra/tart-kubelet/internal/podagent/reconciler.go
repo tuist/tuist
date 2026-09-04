@@ -53,7 +53,29 @@ const (
 	vncRelayHostAnnotation      = "tuist.dev/vnc-relay-host"
 	vncRelayPortAnnotation      = "tuist.dev/vnc-relay-port"
 	vncRelayReadyAtAnnotation   = "tuist.dev/vnc-relay-ready-at"
+
+	// Guest liveness, published for the runners-controller: the state
+	// dispatch-poll.sh last reported and when it last reported it. The
+	// controller reads these to decide whether a darwin Pod is warm
+	// capacity it can actually dispatch to — see isWarmCapacity in
+	// infra/runners-controller. Their absence is meaningful and must
+	// stay that way: see publishRunnerHeartbeat.
+	runnerHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	runnerHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
 )
+
+// heartbeatRepublishInterval throttles how often an advancing beat is
+// written back to the API server. The guest beats every couple of
+// seconds and this reconciler runs every 30, so republishing on every
+// observation would mean a Pod write per Pod per reconcile, purely to
+// move a timestamp nobody reads at that resolution. A state change is
+// always published immediately; only the timestamp is throttled.
+//
+// The cost is staleness the consumer has to absorb: a healthy Pod's
+// published beat can lag the guest's real one by this interval plus a
+// reconcile period. The controller's staleness threshold is set well
+// above that sum.
+const heartbeatRepublishInterval = 60 * time.Second
 
 // Reconciler is the controller-runtime reconciler for Pods on this
 // Node. The cached client here is fine: the manager runs a single
@@ -96,7 +118,33 @@ type Reconciler struct {
 	VNCRelayHost string
 	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
 	// ephemeral port, matching the per-request relay default.
+	//
+	// When VNCRelayPortCount > 1 this is the BASE of a contiguous
+	// range rather than a single port.
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// a relay may bind. 0 or 1 means the single pinned port, which is
+	// the historical behaviour.
+	//
+	// A pinned port is a per-HOST resource but a relay is a per-POD
+	// one, so a host running more than one guest needs more than one
+	// port or the second guest's relay fails to bind and interactive
+	// sessions silently stop working on half the fleet. The range is
+	// walked in order and the first port that binds wins; the OS is
+	// the authority on what is free, so there is no allocation table
+	// to keep in sync with reality across restarts.
+	//
+	// Callers must declare every port in the range on whatever fronts
+	// the host (the per-Mac Tailscale egress Service). Downstream
+	// consumers already read the ACTUAL bound port out of the
+	// listener (writeVNCState) and republish it on the
+	// tuist.dev/vnc-relay-port Pod annotation, so nothing besides the
+	// bind needs to know which port a given Pod won.
+	//
+	// Ignored when VNCRelayPort is 0: an ephemeral relay has the whole
+	// ephemeral range and never collides.
+	VNCRelayPortCount int
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -290,6 +338,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// status share (and the guest's report in it) with it.
 			exitCode, exitReason := r.runnerTermination(entry, exitErr)
 			finishedAt := runnerFinishedAt(entry)
+			// Re-emit the guest's own log before deleteByKey takes the
+			// status share with it. This is tart-kubelet's durable stdout,
+			// which the host log shipper already tails, so the trail reaches
+			// Loki without the shipper needing to discover per-VM shares.
+			// Unconditional: exitCode does not discriminate here (a runner
+			// that halted without taking a job reports 0 exactly like a
+			// finished one), so gating on it would drop the cases worth
+			// keeping.
+			if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+				logger.Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+			}
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
@@ -342,6 +401,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.publishStatus(ctx, pod, status); err != nil {
 		logger.Error(err, "status update")
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+	if err := r.publishRunnerHeartbeat(ctx, pod); err != nil {
+		logger.Error(err, "publish runner heartbeat; will retry")
 	}
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
@@ -531,6 +593,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			// before the VM boots (the whole shared quota volume's free space
 			// would be the wrong, far-too-large budget over a virtio-fs share).
 			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.CASGiB)
+			// Stage this host's Node name too, so the promote report can say
+			// which host published the HEAD it advances to. Attribution only —
+			// nothing in the promote path reads it back.
+			writeNodeName(statusDir, r.NodeName)
 		} else {
 			statusDir = ""
 		}
@@ -852,16 +918,11 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	if entry.VNCForwarder == nil {
 		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
 		resolve := func() (string, error) { return target, nil }
-		listenPort := "0"
-		if r.VNCRelayPort > 0 {
-			listenPort = strconv.Itoa(r.VNCRelayPort)
-		}
-		listenAddr := net.JoinHostPort(r.NodeIP, listenPort)
 		allowed := r.ScrapeAllowedCIDRs
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
 		}
-		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, relayTokenHash, TCPForwarderOptions{AllowedCIDRs: allowed})
+		fw, listenAddr, err := r.bindVNCForwarder(resolve, vncInfo.Password, relayTokenHash, allowed)
 		if err != nil {
 			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 		}
@@ -870,6 +931,58 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	}
 
 	return r.writeVNCState(ctx, pod, entry, vncInfo)
+}
+
+// bindVNCForwarder starts the host-side relay on the first port of the
+// pinned range that is free, or on an ephemeral port when no range is
+// pinned. Returns the forwarder and the address it bound (or, on
+// failure, the last address attempted, so the caller's error names
+// something concrete).
+//
+// Walking the range instead of tracking allocations ourselves means a
+// relay leaked by a crashed process, a port taken by something else on
+// the host, and a sibling guest's live relay are all the same case: the
+// bind fails and we move on. There is no table that can disagree with
+// the kernel.
+func (r *Reconciler) bindVNCForwarder(
+	resolve func() (string, error),
+	password string,
+	relayTokenHash string,
+	allowed []*net.IPNet,
+) (*TCPForwarder, string, error) {
+	opts := TCPForwarderOptions{AllowedCIDRs: allowed}
+
+	if r.VNCRelayPort <= 0 {
+		listenAddr := net.JoinHostPort(r.NodeIP, "0")
+		fw, err := NewVNCForwarder(listenAddr, resolve, password, relayTokenHash, opts)
+		return fw, listenAddr, err
+	}
+
+	count := r.VNCRelayPortCount
+	if count < 1 {
+		count = 1
+	}
+
+	var (
+		lastErr  error
+		lastAddr string
+	)
+	for offset := 0; offset < count; offset++ {
+		port := r.VNCRelayPort + offset
+		if port > 65535 {
+			break
+		}
+		lastAddr = net.JoinHostPort(r.NodeIP, strconv.Itoa(port))
+		fw, err := NewVNCForwarder(lastAddr, resolve, password, relayTokenHash, opts)
+		if err == nil {
+			return fw, lastAddr, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no port in range %d-%d", r.VNCRelayPort, r.VNCRelayPort+count-1)
+	}
+	return nil, lastAddr, lastErr
 }
 
 func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
@@ -1235,6 +1348,12 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// and the only exit time there will ever be.
 		exitCode, exitReason := r.runnerTermination(entry, nil)
 		finishedAt := runnerFinishedAt(entry)
+		// Same reason as the terminal path: publish the guest's log while
+		// the share still exists. This path has even less to go on — there
+		// is no `tart run` error at all — so the log is the whole story.
+		if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+			log.FromContext(ctx).Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+		}
 		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so
@@ -1465,6 +1584,91 @@ func runnerFinishedAt(entry *Entry) metav1.Time {
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
+}
+
+// publishRunnerHeartbeat mirrors the guest's liveness beat onto the Pod so
+// the runners-controller can tell a warm runner from a Pod whose guest
+// stopped polling. Only the host can see it: the beat is a file in the
+// per-VM status share, and nothing off-Node can read that.
+//
+// Absence is load-bearing, in both directions:
+//
+//   - A Pod that has never carried these annotations is one this host
+//     cannot speak for — no status share (the cache-volume feature is
+//     off), or a runner image from before the guest wrote a beat. The
+//     controller treats that as no signal and keeps counting the Pod as
+//     capacity, so neither case can strand a fleet by making every Pod
+//     look dead.
+//   - Once published, they are never withdrawn. Clearing them on a read
+//     failure would turn exactly the state worth reporting — a guest that
+//     stopped beating — back into "no signal", which is the reading that
+//     fails open.
+//
+// Best-effort: a failed patch leaves the previous beat in place and the
+// next reconcile retries. Called after the status update rather than
+// before, so this patch cannot invalidate the resourceVersion that update
+// still needs.
+func (r *Reconciler) publishRunnerHeartbeat(ctx context.Context, pod *corev1.Pod) error {
+	if r.CachedClient == nil {
+		return nil
+	}
+	entry := r.Store.Get(pod.Namespace, pod.Name)
+	if entry == nil {
+		return nil
+	}
+	state, beatAt, ok := readRunnerHeartbeat(entry.VolumeStatusDir)
+	if !ok {
+		return nil
+	}
+	// UTC, so the published value is comparable wherever it is read and
+	// does not carry whatever offset the Mac host happens to be set to.
+	beatAt = beatAt.UTC()
+	// A beat dated ahead of the host reads as now. The guest cannot move
+	// this file's mtime forward on its own — virtio-fs stamps it host-side
+	// — but a clock step on the host can leave one behind, and publishing
+	// a future timestamp would make the Pod look fresh for as long as the
+	// skew lasts.
+	now := time.Now().UTC()
+	if beatAt.After(now) {
+		beatAt = now
+	}
+
+	published := pod.Annotations[runnerHeartbeatAtAnnotation]
+	if pod.Annotations[runnerHeartbeatStateAnnotation] == state {
+		// Same state: republish only once the timestamp has moved enough
+		// to be worth a write. An unparseable value republishes, which is
+		// how a hand-edited or truncated annotation heals.
+		//
+		// The window is bounded at both ends, and the lower bound is the
+		// one that is easy to miss. A host clock stepped backwards dates
+		// every subsequent beat BEFORE what is already on the Pod, so a
+		// bare "advanced less than the interval" test would suppress the
+		// write on a negative delta and go on suppressing it for the whole
+		// length of the rollback. The Pod would then carry a future-dated
+		// beat that the controller compares against its own rolled-back
+		// clock, which reads fresh no matter what the guest is doing —
+		// precisely the state this signal exists to detect. A backwards
+		// beat is new information, so it publishes; one write puts the
+		// annotation back on the host's timeline and the throttle resumes.
+		if at, err := time.Parse(time.RFC3339, published); err == nil {
+			if moved := beatAt.Sub(at); moved >= 0 && moved < heartbeatRepublishInterval {
+				return nil
+			}
+		}
+	}
+
+	patched := pod.DeepCopy()
+	annotations := patched.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[runnerHeartbeatStateAnnotation] = state
+	annotations[runnerHeartbeatAtAnnotation] = beatAt.Format(time.RFC3339)
+	patched.SetAnnotations(annotations)
+	if err := r.CachedClient.Patch(ctx, patched, client.MergeFrom(pod)); err != nil {
+		return fmt.Errorf("patch runner heartbeat for %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	return nil
 }
 
 // shouldAutomountSAToken mirrors kubelet's automount logic: the

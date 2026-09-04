@@ -32,6 +32,10 @@ pub enum Access {
     Invalid,
     /// The credential is valid but does not reach this target.
     Refused,
+    /// The credential would reach this target, but the account's plan has
+    /// exhausted its free tier. Ordered above `Refused` so the introspection
+    /// floor still only ever rises, and below `Read` so it grants nothing.
+    PaymentRequired,
     Read,
     ReadWrite,
 }
@@ -51,20 +55,15 @@ impl Access {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestContext {
     pub transport: String,
-    pub route: String,
     pub method: String,
     pub operation: String,
     pub server_tenant_id: String,
     pub tenant_id: Option<String>,
     pub namespace_id: Option<String>,
-    pub producer: Option<String>,
-    pub artifact_key: Option<String>,
-    pub artifact_hash: Option<String>,
+    #[serde(default)]
+    pub authorization: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    #[serde(default)]
-    pub query: BTreeMap<String, String>,
-    pub status_code: Option<u16>,
 }
 
 #[derive(Clone, Debug)]

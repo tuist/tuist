@@ -349,18 +349,34 @@ defmodule Tuist.CommandEvents do
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    beginning_of_month = Timex.beginning_of_month(date)
+    counted_from = usage_counted_from(account_id, date)
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
 
     ClickHouseRepo.one(
       from(c in Event,
         where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^beginning_of_month,
+        where: c.ran_at >= ^counted_from,
         where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
       )
     )
+  end
+
+  # An account's free tier can be reset mid-month, which moves the start of the
+  # counting window forward. A reset older than the current month is inert, so
+  # the window returns to the month boundary once the month rolls over.
+  defp usage_counted_from(account_id, date) do
+    beginning_of_month = Timex.beginning_of_month(date)
+
+    reset_at =
+      Repo.one(from(a in Account, where: a.id == ^account_id, select: a.free_tier_reset_at))
+
+    if is_nil(reset_at) or DateTime.before?(reset_at, beginning_of_month) do
+      beginning_of_month
+    else
+      reset_at
+    end
   end
 
   def delete_account_events(account_id) do
@@ -396,11 +412,7 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
+  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     from(p in Project,
       join: a in Account,
       on: p.account_id == a.id,
@@ -416,7 +428,7 @@ defmodule Tuist.CommandEvents do
         ClickHouseRepo.one(
           from(e in Event,
             where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+              e.ran_at >= ^period_start and e.ran_at < ^period_end and
                 e.project_id in ^project_ids,
             select:
               sum(

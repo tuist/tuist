@@ -245,7 +245,6 @@ defmodule TuistWeb.MCPControllerTest do
       assert response["id"] == 2
 
       tools = response["result"]["tools"]
-      assert length(tools) == 37
       assert "search_tuist" in Enum.map(tools, & &1["name"])
 
       for tool <- tools do

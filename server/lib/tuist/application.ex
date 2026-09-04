@@ -20,7 +20,9 @@ defmodule Tuist.Application do
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -44,7 +46,6 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
-    start_posthog()
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
@@ -62,21 +63,6 @@ defmodule Tuist.Application do
 
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
-  end
-
-  defp start_posthog do
-    if Environment.analytics_enabled?() do
-      case Application.start(:posthog) do
-        :ok ->
-          Logger.info("PostHog analytics started")
-
-        {:error, {:already_started, _}} ->
-          Logger.info("PostHog analytics already started")
-
-        {:error, reason} ->
-          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
-      end
-    end
   end
 
   defp start_telemetry do
@@ -323,6 +309,8 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+        Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
@@ -344,6 +332,8 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        Tuist.Kura.Demand,
+        Tuist.Kura.Origins,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
@@ -426,8 +416,15 @@ defmodule Tuist.Application do
   # user-data directory, so it is started only when hosted, and only in web
   # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
   # render/2 falls back to libvips.
+  #
+  # Test is excluded on top of those gates: `mise.toml` exports TUIST_HOSTED=1
+  # for the whole repo, so the suite would otherwise start the pool on CI
+  # runners that have no Chrome and hit the retry loop documented in
+  # `RuntimeChildren.open_graph_image_renderer/1`. The suite never needs it —
+  # `Tuist.OpenGraphImageRenderer` is stubbed through Mimic wherever a test
+  # exercises Open Graph rendering.
   defp open_graph_image_children do
-    if Environment.tuist_hosted?() do
+    if Environment.tuist_hosted?() and not Environment.test?() do
       RuntimeChildren.open_graph_image_renderer(Environment.mode())
     else
       []
@@ -530,21 +527,6 @@ defmodule Tuist.Application do
               ]
             ],
             size: 10,
-            count: 1,
-            protocols: [:http2, :http1],
-            start_pool_metrics?: true
-          ],
-          Environment.posthog_url() => [
-            conn_opts: [
-              log: true,
-              protocols: [:http2, :http1],
-              transport_opts: [
-                inet6: Environment.use_ipv6?() in ~w(true 1),
-                cacertfile: CAStore.file_path(),
-                verify: :verify_peer
-              ]
-            ],
-            size: 5,
             count: 1,
             protocols: [:http2, :http1],
             start_pool_metrics?: true

@@ -2,7 +2,7 @@ pub mod operation;
 pub mod outbox_message;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{IpAddr, SocketAddr},
     path::Path,
     sync::{
@@ -12,24 +12,27 @@ use std::{
     time::Duration,
 };
 
-use futures_util::stream::{self, StreamExt};
+use futures_util::stream::{self, FuturesUnordered, StreamExt};
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
     io::AsyncWriteExt,
     time::{Instant, sleep},
 };
-use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field, warn};
 
 use crate::{
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{
-        MAX_INLINE_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS, RESPONSE_STREAM_CHUNK_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, OUTBOX_MAX_INFLIGHT, REPLICATION_BATCH_MAX_BYTES,
+        REPLICATION_BATCH_MAX_ITEMS, REPLICATION_BATCH_MAX_ROUNDS, REPLICATION_RETRY_SECS,
+        RESPONSE_STREAM_CHUNK_BYTES,
     },
     failpoints::FailpointName,
+    http::{ReplicateBatchItemMeta, ReplicateBatchOutcomes, encode_replicate_batch_frame},
     state::SharedState,
+    store::{ArtifactReader, OUTBOX_BULK_LANE_PREFIX},
     telemetry::{inject_current_trace_context, record_trace_context},
     utils::{replication_target_label, url_encode},
 };
@@ -237,10 +240,10 @@ async fn outbox_task_loop(state: SharedState) {
         // buy nothing.
         //
         // The memory a pause could reclaim does not justify either case. The
-        // loop is serial and node-wide, so exactly one delivery is in flight
-        // regardless of peer count or backlog depth — a queued message costs
-        // RocksDB, not RAM — and it takes no transient reservation. That one
-        // delivery holds a single `SegmentReader` chunk (512 KiB) for a
+        // pass keeps at most `OUTBOX_MAX_INFLIGHT` deliveries in flight
+        // node-wide, regardless of peer count or backlog depth — a queued
+        // message costs RocksDB, not RAM — and takes no transient reservation.
+        // Each delivery holds a single `SegmentReader` chunk (512 KiB) for a
         // segment-backed artifact, or the whole value for an inline one,
         // bounded by MAX_INLINE_REPLICATION_BODY_BYTES.
         //
@@ -479,6 +482,308 @@ fn format_ip_for_url(ip: IpAddr) -> String {
     }
 }
 
+/// A batched delivery's verdict.
+enum BatchOutcome {
+    /// The peer answered. One flag per message in the batch, in order: true
+    /// means the peer is done with it (applied, or ignored as not newer) and
+    /// the outbox message may be cleared.
+    Resolved(Vec<bool>),
+    /// The peer does not serve the batch route, so this target stays on the
+    /// per-message path.
+    Unsupported,
+}
+
+/// Whether a message can ride a batch. Only the metadata lane's inline
+/// artifacts qualify: a segment-backed body streams and wants overlap rather
+/// than company, and namespace deletes are ordering-sensitive enough that they
+/// keep their own request.
+fn batchable_inline_upsert(message: &OutboxMessage) -> bool {
+    matches!(
+        &message.operation,
+        ReplicationOperation::UpsertArtifact { inline: true, .. }
+    )
+}
+
+/// Ships as many of `items` as fit one request to `target`.
+///
+/// Items the local node can no longer produce (manifest or inline bytes gone)
+/// resolve without being sent, matching the per-message path, which treats a
+/// missing manifest as delivered. Oversized inline bodies are left out
+/// entirely so the per-message path can purge them, which is the only place
+/// that logic lives.
+async fn replicate_batch(
+    state: &SharedState,
+    target: &str,
+    items: &[(Vec<u8>, OutboxMessage)],
+) -> Result<BatchOutcome, String> {
+    let mut resolved = vec![false; items.len()];
+    let mut sent_indices = Vec::new();
+    let mut body = Vec::new();
+
+    for (index, (_message_key, message)) in items.iter().enumerate() {
+        let ReplicationOperation::UpsertArtifact {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            artifact_id,
+            version_ms,
+            branch,
+            trunk,
+            ..
+        } = &message.operation
+        else {
+            continue;
+        };
+        let Some(manifest) = state.store.manifest(artifact_id)? else {
+            resolved[index] = true;
+            continue;
+        };
+        if manifest.size > MAX_INLINE_REPLICATION_BODY_BYTES {
+            continue;
+        }
+        let Some(bytes) = state.store.inline_bytes(artifact_id)? else {
+            resolved[index] = true;
+            continue;
+        };
+
+        let meta = ReplicateBatchItemMeta {
+            producer: producer.as_str().to_owned(),
+            namespace_id: namespace_id.clone(),
+            key: key.clone(),
+            content_type: content_type.clone(),
+            version_ms: *version_ms,
+            branch: branch.clone(),
+            trunk: trunk.clone(),
+        };
+        let meta_bytes = serde_json::to_vec(&meta)
+            .map_err(|error| format!("failed to encode replication batch meta: {error}"))?;
+        let frame = encode_replicate_batch_frame(&meta_bytes, &bytes)?;
+        // Stopping here rather than dropping the item leaves the remainder
+        // queued for the next round, so an unusually large run of inline
+        // bodies costs another request instead of an unbounded one.
+        if !body.is_empty() && (body.len() + frame.len()) as u64 > REPLICATION_BATCH_MAX_BYTES {
+            break;
+        }
+        body.extend_from_slice(&frame);
+        sent_indices.push(index);
+    }
+
+    if sent_indices.is_empty() {
+        return Ok(BatchOutcome::Resolved(resolved));
+    }
+
+    let url = format!("{target}/_internal/replicate/artifacts");
+    let request_span = tracing::info_span!(
+        "replication.request",
+        otel.name = "PUT /_internal/replicate/artifacts",
+        otel.kind = "client",
+        kura.operation = "upsert_artifact_batch",
+        http.request.method = "PUT",
+        url.full = %url,
+        peer.service = %replication_target_label(target),
+        kura.batch_items = sent_indices.len(),
+        http.response.status_code = field::Empty,
+        otel.status_code = field::Empty,
+        trace_id = field::Empty,
+        span_id = field::Empty,
+    );
+    record_trace_context(&request_span);
+    let response_span = request_span.clone();
+
+    async {
+        let mut headers = reqwest::header::HeaderMap::new();
+        inject_current_trace_context(&mut headers);
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+
+        // Charged before the send, the same budget the per-message path meters
+        // its body stream against. Batching made this the dominant replication
+        // path, so skipping it would let peer sync ignore the adaptive backoff
+        // that yields bandwidth to public cache traffic.
+        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            limiter.acquire(body.len()).await;
+        }
+
+        let response = state
+            .client()
+            .put(&url)
+            .headers(headers)
+            .body(body)
+            .send()
+            .await
+            .map_err(|error| format!("batched artifact replication request failed: {error:?}"))?;
+
+        response_span.record("http.response.status_code", response.status().as_u16());
+        // A peer that predates this route answers 404, and one that has the
+        // path but not the method answers 405. Neither is a failure of the
+        // messages: they go back through the per-message route.
+        if matches!(
+            response.status(),
+            reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
+        ) {
+            return Ok(BatchOutcome::Unsupported);
+        }
+        if response.status().is_server_error() {
+            response_span.record("otel.status_code", "ERROR");
+        }
+        let response = response
+            .error_for_status()
+            .map_err(|error| format!("batched artifact replication rejected: {error:?}"))?;
+        let outcomes: ReplicateBatchOutcomes = response
+            .json()
+            .await
+            .map_err(|error| format!("failed to decode replication batch outcomes: {error:?}"))?;
+        if outcomes.outcomes.len() != sent_indices.len() {
+            return Err(format!(
+                "peer answered {} outcomes for {} batched items",
+                outcomes.outcomes.len(),
+                sent_indices.len()
+            ));
+        }
+        for (index, outcome) in sent_indices.iter().zip(outcomes.outcomes) {
+            resolved[*index] = outcome != "error";
+        }
+        Ok(BatchOutcome::Resolved(resolved))
+    }
+    .instrument(request_span)
+    .await
+}
+
+/// Drains the metadata lane in per-target batches before the per-message pass.
+///
+/// The lane carries inline artifacts of a few KiB, so one request per message
+/// spends a whole round trip on less than an MTU of payload and the drain is
+/// bound by messages rather than bytes. Outbox keys are `{lane}-{time}-{uuid}`
+/// with no target in them, so messages for different peers interleave and a
+/// contiguous run is almost always length one; the scan therefore buckets by
+/// target across a window instead of grouping neighbours.
+///
+/// Anything this does not take (bulk bodies, namespace deletes, backed-off or
+/// departed targets, peers without the route) is left untouched for
+/// `process_outbox`, which remains the complete path.
+async fn drain_metadata_batches(
+    state: &SharedState,
+    current_targets: &BTreeSet<String>,
+) -> Result<(), String> {
+    for _round in 0..REPLICATION_BATCH_MAX_ROUNDS {
+        let mut buckets: BTreeMap<String, Vec<(Vec<u8>, OutboxMessage)>> = BTreeMap::new();
+        let mut after: Option<Vec<u8>> = None;
+        let mut scanned = 0usize;
+        let scan_cap = REPLICATION_BATCH_MAX_ITEMS.saturating_mul(4);
+
+        while let Some((message_key, message)) =
+            state.store.next_outbox_message(after.as_deref())?
+        {
+            if message_key.as_slice() >= OUTBOX_BULK_LANE_PREFIX.as_bytes() {
+                break;
+            }
+            after = Some(message_key.clone());
+            scanned += 1;
+            if scanned >= scan_cap {
+                break;
+            }
+            if !batchable_inline_upsert(&message)
+                || !current_targets.contains(&message.target)
+                || state.replication_batch_unsupported(&message.target).await
+                || state
+                    .replication_target_backed_off(&message.target, Instant::now())
+                    .await
+            {
+                continue;
+            }
+            let bucket = buckets.entry(message.target.clone()).or_default();
+            if bucket.len() < REPLICATION_BATCH_MAX_ITEMS {
+                bucket.push((message_key, message));
+            }
+        }
+
+        // A batch of one saves no round trip, so it goes through the
+        // per-message path with everything else this pass skipped.
+        buckets.retain(|_, items| items.len() > 1);
+        if buckets.is_empty() {
+            return Ok(());
+        }
+
+        // Bounded by the same ceiling as the per-message drain rather than by
+        // the bucket count: a scan window can hold hundreds of targets, and
+        // each delivery materializes its body before its first network await,
+        // so an unbounded fan-out is both a connection and a memory spike.
+        let results = stream::iter(buckets.into_iter().map(|(target, items)| async move {
+            let started_at = std::time::Instant::now();
+            let outcome = replicate_batch(state, &target, &items).await;
+            (target, items, outcome, started_at.elapsed())
+        }))
+        .buffer_unordered(OUTBOX_MAX_INFLIGHT)
+        .collect::<Vec<_>>()
+        .await;
+
+        let mut progressed = false;
+        for (target, items, outcome, elapsed) in results {
+            match outcome {
+                Ok(BatchOutcome::Unsupported) => {
+                    state.note_replication_batch_unsupported(&target).await;
+                }
+                Ok(BatchOutcome::Resolved(resolved)) => {
+                    state.note_replication_success(&target).await;
+                    // One batch is one replication request, so it records one
+                    // observation however many messages it carried.
+                    state
+                        .metrics
+                        .record_replication(&target, "upsert_artifact", "ok", elapsed);
+                    for ((message_key, _message), done) in items.iter().zip(resolved) {
+                        if done {
+                            state.store.delete_outbox_message(message_key)?;
+                            progressed = true;
+                        }
+                    }
+                }
+                Err(error) => {
+                    state
+                        .note_replication_failure(&target, Instant::now())
+                        .await;
+                    state
+                        .metrics
+                        .record_replication(&target, "upsert_artifact", "error", elapsed);
+                    warn!("batched replication to {target} failed: {error}");
+                }
+            }
+        }
+
+        // Every batch failed or resolved nothing; retrying the same scan would
+        // spin. The per-message pass and the next tick take it from here.
+        if !progressed {
+            return Ok(());
+        }
+    }
+
+    Ok(())
+}
+
+// Next message at or after the cursor that is not already in flight. The scan
+// rewinds to the head whenever a priority-lane message arrives, so it re-reaches
+// keys the pipeline is still delivering; skipping them keeps one message to one
+// delivery. The skip run is bounded by the in-flight limit.
+fn next_undispatched_message(
+    state: &SharedState,
+    after: Option<&[u8]>,
+    inflight_keys: &HashSet<Vec<u8>>,
+) -> Result<Option<(Vec<u8>, OutboxMessage)>, String> {
+    let mut cursor = after.map(<[u8]>::to_vec);
+    loop {
+        let Some((message_key, message)) = state.store.next_outbox_message(cursor.as_deref())?
+        else {
+            return Ok(None);
+        };
+        if !inflight_keys.contains(&message_key) {
+            return Ok(Some((message_key, message)));
+        }
+        cursor = Some(message_key);
+    }
+}
+
 // After a message is cleared, rewind the scan cursor to the outbox head if a
 // higher-priority metadata-lane message was enqueued mid-pass and now sorts
 // before it. Without this a fresh action-cache entry parks behind the rest of a
@@ -532,51 +837,103 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         !state.runtime.peer_view_pending() && state.initial_discovery_completed().await;
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
+    // The metadata lane goes first and goes batched. It carries the small
+    // inline artifacts, which is where per-message round trips dominate; what
+    // it leaves behind (bulk bodies, namespace deletes, targets it could not
+    // batch to) falls through to the per-message pass below.
+    drain_metadata_batches(state, &current_targets).await?;
+
+    // Deliveries are pipelined: up to `OUTBOX_MAX_INFLIGHT` are dispatched
+    // before the first completion is awaited. Awaiting each message in turn
+    // pinned a node's throughput to one delivery per round trip, which for a
+    // write-primary whose peers sit on another continent lands below the rate
+    // its own tenants write at. The queue then grows to `outbox_max_depth` and
+    // the depth gate starts refusing those writes, which the cache client does
+    // not retry.
+    //
+    // Out-of-order delivery is safe by construction: the apply side is
+    // last-writer-wins on `version_ms` (`Store::artifact_apply_outcome`), so a
+    // message landing after a newer one for the same key is ignored rather than
+    // resurrecting stale bytes.
+    let mut inflight = FuturesUnordered::new();
+    // Dispatched but unresolved keys. `rewind_to_priority_head` sends the scan
+    // back to the head mid-pass, so without this the same message could be
+    // dispatched twice concurrently and then deleted twice.
+    let mut inflight_keys: HashSet<Vec<u8>> = HashSet::new();
+    // Targets whose backoff has already been advanced during this pass. The
+    // pipeline dispatches a whole wave before it sees any result, so an
+    // unreachable peer returns one failure per in-flight message rather than
+    // one per attempt. Counting each of those would drive the exponential
+    // backoff to its ceiling on a single blip — eight failures reach the 60s
+    // clamp, where one attempt should have paused for two — and a peer that
+    // blinked would then be parked long enough to rebuild the backlog this
+    // pipelining exists to drain. One step per target per wave keeps the
+    // escalation on the same cadence as the serial drain: one per pass.
+    let mut backed_off_this_pass: HashSet<String> = HashSet::new();
     let mut after = None::<Vec<u8>>;
-    while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
-        after = Some(message_key.clone());
 
-        // Messages for a peer that left the mesh can never be delivered and
-        // would otherwise accumulate until the outbox depth cap sheds writes.
-        // The fetched peer view is authoritative and its removals are
-        // deliberate (the control plane withholds a peer only after a full
-        // staleness window of missed heartbeats), so messages for an absent
-        // control-plane-managed target are dropped immediately; a departed
-        // peer that later rejoins does so through a recovery re-enrollment,
-        // which arms a pass per peer in view, and those reconcile back to the
-        // backfill window — so the dropped deltas are recovered as long as the
-        // absence fits inside it. An empty target set means the node has no
-        // peer view at all (e.g. the control plane is unreachable), not that
-        // every peer
-        // left — never prune on it. The accepted trade-off: a mesh that
-        // legitimately shrinks to zero peers keeps its queued messages until
-        // a peer rejoins or the node restarts.
-        if prune_ready
-            && !current_targets.is_empty()
-            && !current_targets.contains(&message.target)
-            && !discovered_history.contains(&message.target)
-        {
-            state.store.delete_outbox_message(&message_key)?;
-            state.metrics.record_replication(
-                &message.target,
-                message.operation.name(),
-                "dropped_stale_target",
-                Duration::ZERO,
-            );
-            *dropped.entry(message.target.clone()).or_insert(0) += 1;
-            continue;
+    loop {
+        while inflight.len() < OUTBOX_MAX_INFLIGHT {
+            let Some((message_key, message)) =
+                next_undispatched_message(state, after.as_deref(), &inflight_keys)?
+            else {
+                break;
+            };
+            after = Some(message_key.clone());
+
+            // Messages for a peer that left the mesh can never be delivered and
+            // would otherwise accumulate until the outbox depth cap sheds writes.
+            // The fetched peer view is authoritative and its removals are
+            // deliberate (the control plane withholds a peer only after a full
+            // staleness window of missed heartbeats), so messages for an absent
+            // control-plane-managed target are dropped immediately; a departed
+            // peer that later rejoins does so through a recovery re-enrollment,
+            // which arms a pass per peer in view, and those reconcile back to the
+            // backfill window — so the dropped deltas are recovered as long as the
+            // absence fits inside it. An empty target set means the node has no
+            // peer view at all (e.g. the control plane is unreachable), not that
+            // every peer
+            // left — never prune on it. The accepted trade-off: a mesh that
+            // legitimately shrinks to zero peers keeps its queued messages until
+            // a peer rejoins or the node restarts.
+            if prune_ready
+                && !current_targets.is_empty()
+                && !current_targets.contains(&message.target)
+                && !discovered_history.contains(&message.target)
+            {
+                state.store.delete_outbox_message(&message_key)?;
+                state.metrics.record_replication(
+                    &message.target,
+                    message.operation.name(),
+                    "dropped_stale_target",
+                    Duration::ZERO,
+                );
+                *dropped.entry(message.target.clone()).or_insert(0) += 1;
+                continue;
+            }
+
+            if state
+                .replication_target_backed_off(&message.target, Instant::now())
+                .await
+            {
+                continue;
+            }
+
+            inflight_keys.insert(message_key.clone());
+            inflight.push(async move {
+                let started_at = std::time::Instant::now();
+                let result = replicate_message(state, &message).await;
+                (message_key, message, result, started_at.elapsed())
+            });
         }
 
-        if state
-            .replication_target_backed_off(&message.target, Instant::now())
-            .await
-        {
-            continue;
-        }
-
-        let started_at = std::time::Instant::now();
+        // Nothing dispatched and nothing left to dispatch: the outbox is drained
+        // for this pass.
+        let Some((message_key, message, result, elapsed)) = inflight.next().await else {
+            break;
+        };
+        inflight_keys.remove(&message_key);
         let operation_name = message.operation.name();
-        let result = replicate_message(state, &message).await;
 
         match result {
             Ok(ReplicationOutcome::DroppedOversized) => {
@@ -587,13 +944,14 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                     &message.target,
                     operation_name,
                     "dropped_oversized",
-                    started_at.elapsed(),
+                    elapsed,
                 );
                 state.store.delete_outbox_message(&message_key)?;
                 rewind_to_priority_head(state, &mut after).await?;
             }
             Ok(ReplicationOutcome::Delivered) => {
                 state.note_replication_success(&message.target).await;
+                backed_off_this_pass.remove(&message.target);
                 match state
                     .store
                     .hit_failpoint(FailpointName::BeforeDeleteOutboxMessageAfterSuccess)
@@ -604,7 +962,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             &message.target,
                             operation_name,
                             "ok",
-                            started_at.elapsed(),
+                            elapsed,
                         );
                         state.store.delete_outbox_message(&message_key)?;
                         rewind_to_priority_head(state, &mut after).await?;
@@ -614,22 +972,21 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             &message.target,
                             operation_name,
                             "error",
-                            started_at.elapsed(),
+                            elapsed,
                         );
                         warn!("replication to {} failed: {error}", message.target);
                     }
                 }
             }
             Err(error) => {
+                if backed_off_this_pass.insert(message.target.clone()) {
+                    state
+                        .note_replication_failure(&message.target, Instant::now())
+                        .await;
+                }
                 state
-                    .note_replication_failure(&message.target, Instant::now())
-                    .await;
-                state.metrics.record_replication(
-                    &message.target,
-                    operation_name,
-                    "error",
-                    started_at.elapsed(),
-                );
+                    .metrics
+                    .record_replication(&message.target, operation_name, "error", elapsed);
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
@@ -683,16 +1040,43 @@ impl UploadProgress {
 /// the shared replication limiter, marking `progress` for every chunk and once
 /// more when the stream terminates.
 ///
-/// Chunks are 512 KiB rather than `ReaderStream`'s 4 KiB default. A multi-GB
-/// artifact would otherwise take a bandwidth reservation hundreds of thousands
-/// of times, and the limiter is shared, so 4 KiB slivers queue behind other
-/// callers' 512 KiB reservations.
+/// Chunks are 512 KiB. A multi-GB artifact would otherwise take a bandwidth
+/// reservation hundreds of thousands of times, and the limiter is shared, so
+/// small slivers queue behind other callers' 512 KiB reservations. The owned
+/// segment-read allocation becomes the request-body chunk without an
+/// intermediate asynchronous-reader copy.
 ///
 /// The terminating mark is what gives the wait for the response a whole stall
 /// window instead of the last chunk's remainder: the receiver copies the staged
 /// body into a segment and fsyncs it under the node-wide segment write lock
 /// before it answers, and that tail scales with the artifact, not the network.
-fn upload_body_stream<R>(
+fn upload_body_stream(
+    reader: ArtifactReader,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    progress: Arc<UploadProgress>,
+) -> impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static {
+    let end_progress = progress.clone();
+    reader
+        .into_bytes_stream(RESPONSE_STREAM_CHUNK_BYTES)
+        .then(move |item| {
+            let bandwidth_limiter = bandwidth_limiter.clone();
+            let progress = progress.clone();
+            async move {
+                if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                    limiter.acquire(chunk.len()).await;
+                }
+                progress.mark();
+                item
+            }
+        })
+        .chain(
+            stream::once(async move { end_progress.mark() })
+                .filter_map(|()| std::future::ready(None)),
+        )
+}
+
+#[cfg(test)]
+fn copying_upload_body_stream<R>(
     reader: R,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     progress: Arc<UploadProgress>,
@@ -701,7 +1085,7 @@ where
     R: tokio::io::AsyncRead + Send + Unpin + 'static,
 {
     let end_progress = progress.clone();
-    ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES)
+    tokio_util::io::ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES)
         .then(move |item| {
             let bandwidth_limiter = bandwidth_limiter.clone();
             let progress = progress.clone();
@@ -986,17 +1370,13 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn the_end_of_the_body_stream_re_arms_the_stall_window() {
         let stall = Duration::from_millis(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
-        let directory = tempfile::tempdir().expect("temp dir should create");
-        let path = directory.path().join("artifact");
-        tokio::fs::write(&path, b"payload")
-            .await
-            .expect("artifact should write");
-        let file = tokio::fs::File::open(&path)
-            .await
-            .expect("artifact should open");
+        let reader = ArtifactReader::Inline {
+            bytes: bytes::Bytes::from_static(b"payload"),
+            offset: 0,
+        };
 
         let progress = Arc::new(UploadProgress::new());
-        let stream = upload_body_stream(file, None, progress.clone());
+        let stream = upload_body_stream(reader, None, progress.clone());
         tokio::pin!(stream);
 
         // Drain the body, then spend almost a whole window producing nothing —
@@ -1013,6 +1393,95 @@ mod tests {
         assert!(
             progress.idle() < stall,
             "the response wait must get a whole window, not the last chunk's remainder"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn replication_upload_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: futures_util::Stream<Item = std::io::Result<bytes::Bytes>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.expect("benchmark upload chunk");
+                std::hint::black_box(chunk.as_ptr());
+                read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("replication-upload-stream-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+        let reader = || {
+            ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline =
+                copying_upload_body_stream(reader(), None, Arc::new(UploadProgress::new()));
+            let candidate = upload_body_stream(reader(), None, Arc::new(UploadProgress::new()));
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC replication_upload_stream_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
         );
     }
 
@@ -1625,6 +2094,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_wave_of_failures_to_one_target_advances_its_backoff_once() {
+        // The pipeline dispatches a whole wave before it observes any result,
+        // so an unreachable peer answers one failure per in-flight message
+        // rather than one per attempt. Counting each of those would run the
+        // exponential backoff to its 60s ceiling on a single blip, parking a
+        // peer that merely blinked for long enough to rebuild a backlog. The
+        // wave must move the backoff one step, to the initial two seconds.
+        let local = test_context(|_| {}).await;
+        let unreachable = "http://127.0.0.1:1".to_string();
+
+        for index in 0..8 {
+            let key = format!("artifact-{index}");
+            local
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"payload",
+                )
+                .await
+                .expect("artifact should persist");
+            let artifact = local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", &key)
+                .await
+                .expect("artifact fetch should succeed")
+                .expect("artifact should exist");
+            local
+                .state
+                .store
+                .enqueue(OutboxMessage {
+                    target: unreachable.clone(),
+                    operation: ReplicationOperation::UpsertArtifact {
+                        producer: ArtifactProducer::Gradle,
+                        namespace_id: "ios".into(),
+                        key,
+                        content_type: "application/octet-stream".into(),
+                        artifact_id: artifact.artifact_id,
+                        version_ms: artifact.version_ms,
+                        inline: false,
+                        branch: None,
+                        trunk: None,
+                    },
+                })
+                .expect("upsert should enqueue");
+        }
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should not error on a failed peer");
+
+        assert!(
+            local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await,
+            "a failed replication target should be backed off"
+        );
+        assert!(
+            !local
+                .state
+                .replication_target_backed_off(
+                    &unreachable,
+                    Instant::now() + Duration::from_secs(5)
+                )
+                .await,
+            "one wave of failures escalated the backoff past its first step; \
+             the whole wave is one attempt, not one attempt per message"
+        );
+    }
+
+    #[tokio::test]
     async fn process_outbox_backs_off_unreachable_target() {
         let local = test_context(|_| {}).await;
         let unreachable = "http://127.0.0.1:1".to_string();
@@ -1944,6 +2489,401 @@ mod tests {
                 .expect("inline lookup should succeed")
                 .is_none(),
             "the oversized inline bytes must be reclaimed"
+        );
+    }
+
+    #[tokio::test]
+    async fn outbox_deliveries_overlap_across_messages() {
+        // The drain used to await each delivery before dispatching the next,
+        // which pinned throughput to one message per round trip however much
+        // bandwidth the node had. The peer here holds every request open for a
+        // fixed delay and records how many were open at once: a serial drain
+        // can never record more than one.
+        const MESSAGES: usize = 16;
+
+        let open = Arc::new(AtomicU64::new(0));
+        let peak = Arc::new(AtomicU64::new(0));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let open = open.clone();
+                let peak = peak.clone();
+                move || {
+                    let open = open.clone();
+                    let peak = peak.clone();
+                    async move {
+                        let now = open.fetch_add(1, Ordering::SeqCst) + 1;
+                        peak.fetch_max(now, Ordering::SeqCst);
+                        sleep(Duration::from_millis(150)).await;
+                        open.fetch_sub(1, Ordering::SeqCst);
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+
+        for index in 0..MESSAGES {
+            let manifest = ctx
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("artifact should persist");
+            enqueue_replication_for_artifact(&ctx.state, &manifest).await;
+        }
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "every delivered message must be cleared from the outbox"
+        );
+        let peak = peak.load(Ordering::SeqCst);
+        assert!(
+            peak > 1,
+            "deliveries never overlapped (peak in flight was {peak}); the drain is still serial"
+        );
+        assert!(
+            peak <= OUTBOX_MAX_INFLIGHT as u64,
+            "peak in flight was {peak}, above the {OUTBOX_MAX_INFLIGHT} the drain admits"
+        );
+    }
+
+    #[tokio::test]
+    async fn next_undispatched_message_skips_keys_already_in_flight() {
+        // `rewind_to_priority_head` sends the scan back to the head mid-pass,
+        // so it re-reaches keys the pipeline is still delivering. Handing one
+        // out twice would replicate it twice and delete it twice.
+        let ctx = test_context(|config| {
+            config.peers = vec!["http://127.0.0.1:4101".into()];
+        })
+        .await;
+
+        for index in 0..2 {
+            let manifest = ctx
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("artifact should persist");
+            enqueue_replication_for_artifact(&ctx.state, &manifest).await;
+        }
+
+        let queued = ctx
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(queued.len(), 2);
+        let head_key = queued[0].0.clone();
+
+        let mut inflight_keys = HashSet::new();
+        inflight_keys.insert(head_key.clone());
+
+        let (next_key, _message) = next_undispatched_message(&ctx.state, None, &inflight_keys)
+            .expect("scan should succeed")
+            .expect("the second message should still be dispatchable");
+        assert_ne!(
+            next_key, head_key,
+            "a message already in flight must not be handed out again"
+        );
+    }
+
+    /// Peer that serves the batch route, recording how many requests it took
+    /// and how many items each carried.
+    fn batching_peer(
+        requests: Arc<AtomicU64>,
+        items_seen: Arc<AtomicU64>,
+        fail_first_item: bool,
+    ) -> Router {
+        Router::new().route(
+            "/_internal/replicate/artifacts",
+            put(move |body: axum::body::Bytes| {
+                let requests = requests.clone();
+                let items_seen = items_seen.clone();
+                async move {
+                    requests.fetch_add(1, Ordering::SeqCst);
+                    let frames = crate::http::decode_replicate_batch_frames(&body)
+                        .expect("batch body should decode");
+                    items_seen.fetch_add(frames.len() as u64, Ordering::SeqCst);
+                    let outcomes = frames
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| {
+                            if fail_first_item && index == 0 {
+                                "error".to_owned()
+                            } else {
+                                "applied".to_owned()
+                            }
+                        })
+                        .collect();
+                    axum::Json(crate::http::ReplicateBatchOutcomes { outcomes })
+                }
+            }),
+        )
+    }
+
+    async fn enqueue_inline_artifacts(ctx: &TestContext, peer_url: &str, count: usize) {
+        for index in 0..count {
+            ctx.state
+                .store
+                .persist_inline_artifact_from_bytes_and_enqueue(
+                    ArtifactProducer::Xcode,
+                    "namespace",
+                    &format!("entry-{index}"),
+                    "application/octet-stream",
+                    b"action-cache-entry",
+                    std::slice::from_ref(&peer_url.to_owned()),
+                    None,
+                    None,
+                )
+                .await
+                .expect("inline artifact should persist");
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_lane_ships_as_one_batched_request() {
+        // The lane carries inline artifacts of a few KiB, so one request per
+        // message spends a whole round trip on less than an MTU of payload.
+        // Sixteen messages must cost one request, not sixteen.
+        let requests = Arc::new(AtomicU64::new(0));
+        let items_seen = Arc::new(AtomicU64::new(0));
+        let (peer_url, _server) =
+            spawn_server(batching_peer(requests.clone(), items_seen.clone(), false)).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 16).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert_eq!(
+            items_seen.load(Ordering::SeqCst),
+            16,
+            "every queued message should have been delivered"
+        );
+        assert_eq!(
+            requests.load(Ordering::SeqCst),
+            1,
+            "sixteen inline messages should cost one request, not one each"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "delivered messages must be cleared"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_peer_without_the_batch_route_falls_back_to_per_message() {
+        // Mixed-version meshes are the normal state mid-rollout: a peer that
+        // predates the batch route answers 404, and its messages must still
+        // drain through the per-artifact route rather than wedging.
+        let singles = Arc::new(AtomicU64::new(0));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let singles = singles.clone();
+                move || {
+                    let singles = singles.clone();
+                    async move {
+                        singles.fetch_add(1, Ordering::SeqCst);
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 4).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain against a peer without the batch route");
+
+        assert_eq!(
+            singles.load(Ordering::SeqCst),
+            4,
+            "each message should have gone through the per-artifact route"
+        );
+        assert!(
+            ctx.state.replication_batch_unsupported(&peer_url).await,
+            "the peer should be remembered as batch-less so later passes skip the probe"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "the fallback must still clear delivered messages"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_item_stays_queued_while_its_batch_mates_clear() {
+        // Per-item outcomes are the point of the response shape: one poison
+        // item must not strand everything batched with it, and must not be
+        // dropped either.
+        let requests = Arc::new(AtomicU64::new(0));
+        let items_seen = Arc::new(AtomicU64::new(0));
+        let (peer_url, _server) =
+            spawn_server(batching_peer(requests.clone(), items_seen.clone(), true)).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 5).await;
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        let queued = ctx
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(
+            queued.len(),
+            1,
+            "only the item the peer rejected should remain queued"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_namespace_delete_ships_in_the_same_pass_as_batched_messages() {
+        // The batch pre-pass restarts its scan at the outbox head after every
+        // round, and namespace deletes are never batchable. Without a bound on
+        // rounds, a target with a steady supply of batchable pairs keeps the
+        // pass inside the pre-pass and the per-message drain - the only thing
+        // that ships deletes, and the only path a peer without the batch route
+        // has - never runs.
+        let batches = Arc::new(AtomicU64::new(0));
+        let deletes = Arc::new(AtomicU64::new(0));
+        let app = Router::new()
+            .route(
+                "/_internal/replicate/artifacts",
+                put({
+                    let batches = batches.clone();
+                    move |body: axum::body::Bytes| {
+                        let batches = batches.clone();
+                        async move {
+                            batches.fetch_add(1, Ordering::SeqCst);
+                            let frames = crate::http::decode_replicate_batch_frames(&body)
+                                .expect("batch body should decode");
+                            let outcomes = frames
+                                .iter()
+                                .map(|_| "applied".to_owned())
+                                .collect::<Vec<_>>();
+                            axum::Json(crate::http::ReplicateBatchOutcomes { outcomes })
+                        }
+                    }
+                }),
+            )
+            .route(
+                "/_internal/replicate/namespace",
+                axum::routing::delete({
+                    let deletes = deletes.clone();
+                    move || {
+                        let deletes = deletes.clone();
+                        async move {
+                            deletes.fetch_add(1, Ordering::SeqCst);
+                            StatusCode::NO_CONTENT
+                        }
+                    }
+                }),
+            );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context({
+            let peer_url = peer_url.clone();
+            move |config| {
+                config.peers = vec![peer_url.clone()];
+            }
+        })
+        .await;
+        enqueue_inline_artifacts(&ctx, &peer_url, 6).await;
+        ctx.state
+            .store
+            .enqueue(OutboxMessage {
+                target: peer_url.clone(),
+                operation: ReplicationOperation::DeleteNamespace {
+                    namespace_id: "namespace".into(),
+                    version_ms: 900,
+                },
+            })
+            .expect("delete should enqueue");
+
+        process_outbox(&ctx.state)
+            .await
+            .expect("outbox should drain");
+
+        assert!(
+            batches.load(Ordering::SeqCst) >= 1,
+            "the inline messages should still have gone out batched"
+        );
+        assert_eq!(
+            deletes.load(Ordering::SeqCst),
+            1,
+            "the namespace delete must not be starved behind the batch pre-pass"
+        );
+        assert!(
+            ctx.state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "both lanes should have drained in one pass"
         );
     }
 }

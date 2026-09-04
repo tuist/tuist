@@ -1,0 +1,107 @@
+/* Vertical stack of radio cards for picking a policy, mirroring the account
+   cache page's upload-access selector. Every option carries a light border,
+   and the selected one is lifted with the primary border + purple surface. */
+.policy-options {
+  --policy-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+
+  & [data-part="policy-option"] {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+    box-sizing: border-box;
+    box-shadow: var(--noora-border-light-default);
+    border: 0;
+    border-radius: var(--noora-radius-4);
+    background: transparent;
+    padding: var(--noora-spacing-5);
+    min-width: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+
+    @media (hover: hover) {
+      &:hover {
+        background: var(--noora-surface-background-secondary);
+      }
+    }
+
+    &[data-selected="true"] {
+      box-shadow: var(--noora-button-border-primary);
+      background: var(--policy-selected-option-background);
+    }
+
+    /* Listed last so the focus ring wins over the selected border: both
+       selectors have equal specificity, so source order decides. */
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--noora-border-light-focus);
+    }
+  }
+
+  & [data-part="option-header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Circular radio control mirroring Noora's checkbox_control state tokens. */
+  & [data-part="control"] {
+    position: relative;
+    flex-shrink: 0;
+    transition:
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+    box-sizing: border-box;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-99);
+    background: var(--noora-choice-selector-uncheck-background);
+    width: 16px;
+    height: 16px;
+  }
+
+  & [data-part="policy-option"]:hover [data-part="control"] {
+    background: var(--noora-choice-selector-uncheck-background-hover);
+  }
+
+  & [data-part="policy-option"][data-selected="true"] [data-part="control"] {
+    box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
+    border: 1px solid var(--noora-purple-500);
+    background: var(--noora-choice-selector-check-background);
+  }
+
+  & [data-part="policy-option"][data-selected="true"] [data-part="control"]::after {
+    position: absolute;
+    margin: auto;
+    inset: 0;
+    border-radius: var(--noora-radius-99);
+    background: var(--noora-choice-selector-label);
+    width: 6px;
+    height: 6px;
+    content: "";
+  }
+
+  & [data-part="body"] {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  & [data-part="label"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+}

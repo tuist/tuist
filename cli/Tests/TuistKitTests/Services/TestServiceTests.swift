@@ -172,7 +172,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -737,9 +739,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(runsCacheDirectory)
 
         let firstResultBundlePath = runsCacheDirectory
-            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeOne")
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeOne.xcresult")
         let secondResultBundlePath = runsCacheDirectory
-            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeTwo")
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeTwo.xcresult")
 
         // When
         try await testRun(
@@ -3267,7 +3269,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let expectedResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: "run-id", Constants.resultBundleName)
+                .appending(components: "run-id", "\(Constants.resultBundleName).xcresult")
 
         given(generator)
             .generateWithGraph(path: .any, options: .any)
@@ -4255,7 +4257,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
-                    shardIndex: .any
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -5360,7 +5364,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5405,7 +5411,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -5666,6 +5674,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -5702,6 +5711,7 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -6616,6 +6626,34 @@ struct TestServiceSchemePlanningTests {
                 testTargets: [],
                 resultBundlePath: nil,
                 derivedDataPath: derivedDataPath
+            ),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_without_building_with_xctestrun_forwards_selected_test_targets() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: ["-xctestrun", "/tmp/Sample.xctestrun"]
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .testWithoutBuilding,
+                testTargets: [
+                    try TestIdentifier(target: "AppTests"),
+                    try TestIdentifier(target: "AppSnapshotTests"),
+                    try TestIdentifier(target: "FeatureTests"),
+                ],
+                resultBundlePath: nil,
+                derivedDataPath: nil
             ),
         ])
     }

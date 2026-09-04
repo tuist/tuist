@@ -52,7 +52,8 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  The capacity unit and per-Pod cost depend on OS:
+  The capacity unit is allocatable memory bytes on both platforms; only
+  what the per-Pod cost includes differs:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
@@ -66,10 +67,177 @@ independent workqueues:
     failures still use the independent per-pool target so a transient
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
-  - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
-    + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
-    mini under the Virtualization.framework SLA). The allocator
-    apportions the host budget across competing Xcode pools.
+  - macOS: budget = sum of allocatable memory across nodes labeled
+    `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
+    unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is
+    a Tart VM, not a sandboxed container). The quotient is the fleet's
+    guest-slot budget, which the allocator apportions across competing
+    Xcode pools.
+
+    No reserve fraction here, unlike Linux: `hostMemoryMB` is a number
+    the operator picks for tart-kubelet to advertise, already net of
+    what Apple's Virtualization.framework holds back, and macOS runs no
+    memory-requesting DaemonSets on these Nodes. Scaling it again would
+    double-count that reserve and strand a whole guest slot.
+
+    **Slots are not hosts.** One `tuist.dev/fleet` value can span
+    several MachineDeployments — that is how a mixed-SKU fleet is
+    expressed — so an M2-L advertising 14336 MB contributes one slot
+    while an M4-XL advertising 28672 MB contributes two. This is the
+    same division kube-scheduler performs when it places the Pod, which
+    is the point: the allocator agrees with the scheduler by
+    construction rather than via a second number kept in sync by hand.
+    Apple's SLA caps any single host at 2 guests and Tart enforces it.
+
+    **Shape placement caps.** The byte budget above answers "how much
+    fleet is there", which over-counts as soon as a shape does not fit
+    every host. A 12 vCPU / 28 GB guest fits only an M4-XL, yet a fleet
+    advertising 157696 MB divides to five such slots when two are real,
+    because the sum pools memory from M2-L hosts that cannot seat one at
+    all. It also cannot see CPU, which binds a guest whose memory-per-
+    vCPU is richer than its host's. So the autoscaler additionally
+    computes, per shape, the sum over Ready nodes of each node's OWN
+    `min(cpu, memory)` quotient, and `AllocateFleet` caps every pool
+    sharing that shape at it.
+
+    This has to be a shared cap rather than `maxReplicas`, because a
+    macOS shape renders one pool per Xcode version: five pools each
+    capped at the two M4-XL hosts compose to ten. Inside the cap, seats
+    go load first, then warm floor, then headroom, one Pod per pool per
+    round (so contenders do not both lose a seat) in name order (so the
+    split is stable across reconciles).
+
+    Both platforms. It was darwin-only until 2026-09-02, on the grounds
+    that kata pins memory and oversubscribes CPU so the byte budget was
+    already exact on a homogeneous Linux fleet. Neither half held.
+    `podtemplate` sets the runner container's CPU request equal to its
+    limit equal to the shape, so kube-scheduler bin-packs on the full
+    vCPU and a 16 vCPU Pod costing 16.25 with kata's overhead seats
+    exactly once on a 31-vCPU RISE-L, where the byte budget reads three.
+    And a fleet-wide byte sum cannot see per-node packing at all: six
+    `4vcpu-16gb` Pods fill 111 of a box's 117 GiB, so the leftovers add
+    up to budget that seats nothing. On 2026-09-02 the autoscaler
+    targeted 67 of that shape where 24 fit, and the excess held the
+    provisioning ceiling against every sibling.
+
+    The seat divisor is the *placement* shape (`placementShapeOf`): the
+    Pod's own request plus the RuntimeClass `podFixed` overhead the
+    scheduler charges at admission. `perPodCost` reads the same overhead
+    through the same helper, so the byte budget and the seat cap can
+    never disagree about what one Pod costs. Deriving the cap from live
+    node allocatable is also why no per-shape `maxReplicas` belongs in
+    values: that would be a second copy of this arithmetic, stale the
+    moment a box is added, lost, or re-SKU'd.
+
+    **Node reservation.** Runs on BOTH fleets. A shape needing more of a
+    host than any single smaller Pod does cannot accumulate the room on
+    its own. kube-scheduler does not hold its queue on an unschedulable
+    Pod, so each slot that frees is taken by the next smaller Pod that
+    fits, and the large Pod waits for a coincidence that a steady
+    trickle of small jobs prevents. The cross-pool reclaim does not help
+    either: it reclaims speculative warm capacity, and the Pod winning
+    the race is backed by real queued work, the one tier that never
+    yields.
+
+    On darwin the unit is guest slots: a 12 vCPU Pod needs both of an
+    M4-XL's. On linux it is memory: a 64 GiB shape costs 66.5 GiB (the
+    shape plus the kata RuntimeClass's 2.5 GiB podFixed), a third of an
+    AX162-R and over half of the OVH RISE-L the fleet is moving to, so
+    it needs a contiguous block that 8 and 16 GiB Pods keep carving up.
+    The linux drain is progressive rather than all-or-nothing — the
+    taint stops new Pods landing, running jobs finish and free their
+    memory, and the starved Pod is placed the moment its shape fits
+    rather than when the host is empty.
+
+    A reservation is never taken on a fleet with fewer than two healthy
+    hosts (`healthyNodes`). The taint is NoSchedule for every pool but
+    the reserving one, so on a single-host fleet it would stop dispatch
+    outright until it cleared. The granularity guard below does not
+    cover that case on linux — a 64 GiB shape is genuinely coarse even
+    on a lone host, so it passes — and the linux fleet is small enough
+    for one host to be a real configuration.
+
+    `fleetNodeSelector` addresses each platform's hosts by the labels
+    that platform's Pods select on (`tuist.dev/fleet` on darwin,
+    `node.cluster.x-k8s.io/pool` on linux, both paired with
+    `kubernetes.io/os`), so the reservation and the scheduler always
+    agree on which hosts a fleet has.
+
+    A reservation is only taken for a shape that is LARGE relative to
+    the fleet: this shape must get fewer seats on the candidate host
+    than the fleet's most granular shape does. That is exactly the case
+    where the seats it needs are the ones smaller Pods keep taking. On a
+    homogeneous fleet whose hosts hold one guest (the macOS side of
+    staging, canary) the test never passes, so the mechanism is inert
+    there — nothing can accumulate when the shape already fits a single
+    seat, and reserving a one-host fleet would take every pool out of
+    service until it cleared. Waiting is correct there, and the
+    allocator's cross-pool reclaim already arranges it.
+
+    When a qualifying Pod has sat unscheduled past `reservationGrace`
+    (2m), the RunnerPool reconciler taints one eligible host
+    `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
+    tolerates that key at its OWN pool's value, so the host stops
+    admitting everyone else while its seats accumulate. Running jobs are
+    waited out, never evicted; only idle Pods of other pools are
+    retired. The taint is removed when the Pod lands or after
+    `reservationTimeout` (15m), and at most one host is held per fleet
+    (`maxFleetReservations`; the count is taken over the pool's own
+    fleet nodes, so darwin and linux hold separate budgets), since a
+    reservation is capacity withdrawn from the small shapes while it
+    converges. On the production Linux fleet, a handful of bare-metal
+    boxes, one reservation is already a large share of it, which is why
+    the cap stays at one and why `healthyNodes` floors it.
+
+    A timed-out release rests the host for `reservationCooldown` (15m)
+    via a `tuist.dev/reservation-cooldown-until` annotation. Without it
+    the timeout does nothing: `starvedPod` measures a Pod's own age, so
+    the Pod that triggered the reservation is still far past the grace
+    period the moment the taint lifts, and the next reconcile would
+    re-reserve the same host immediately. The cooldown is on the NODE
+    rather than the pool because the host is what is being rested — a
+    pool blocked on one host stays free to reserve a different eligible
+    one. A release because the Pod landed sets no cooldown; it achieved
+    what it was for.
+
+    A dedicated taint, not a cordon: a cordoned node is indistinguishable
+    from one Cluster API is replacing, and `reapIdlePodsOnCordonedNodes`
+    would retire the reserved pool's own Pod the moment it landed and was
+    still warm-polling.
+
+    Three properties the taint being pool-named forces:
+
+      - **Orphans must be swept.** Only the pool named in a taint can
+        find and release its own reservation, so a deleted or renamed
+        pool would strand the host out of the fleet forever and keep its
+        reservation counting against `maxFleetReservations`. The delete
+        path releases explicitly (`reconcileDelete` returns before
+        reservation reconciliation), and every reconcile sweeps taints
+        naming a pool that no longer exists as a backstop.
+      - **The fleet limit is confirmed uncached.** `MaxConcurrentReconciles: 1`
+        serializes the workers but not their reads; the informer cache
+        can lag a taint another pool wrote moments ago. The one path that
+        takes the fleet's reservation re-reads nodes through the
+        `APIReader` before committing.
+      - **Node writes are optimistically locked.** Taints are a plain
+        list, so a merge patch replaces the whole array with the one
+        computed from our copy. Without a resourceVersion precondition a
+        taint added since the read — a kubelet pressure taint, Cluster
+        API's cordon, a sibling reservation — is silently dropped.
+
+    Candidate selection subtracts the pool's OWN Pods from a host's
+    usable seats. The reaper never retires own-pool Pods, so a host
+    already holding one cannot be cleared for a second; ranking on
+    occupancy alone made exactly that host look ideal, since its own idle
+    Pod counts as zero occupancy.
+
+    PriorityClass preemption cannot substitute. The scheduler picks
+    victims by priority, `spec.priority` is immutable after admission,
+    and a runner Pod becomes job-owning in place — so a priority high
+    enough to evict for the large Pod would also kill customer builds.
+    The signal that separates them (`isIdle`) reads init-container
+    status the scheduler never sees, which is why this lives in the
+    controller.
 
   Only nodes that report `Ready=True`, remain schedulable, and have no
   memory, disk, or process identifier pressure contribute to either
@@ -113,10 +281,53 @@ independent workqueues:
   gap, `RunnerPoolReconciler` counts every alive, unclaimed Pod whose
   dispatch poller has not started across sibling pools sharing
   the same operating system and `FleetSelector`. It creates only up to
-  `spec.provisioning.maxConcurrentPerFleetSelector` (default 4), using
-  the lowest sibling value so one mismatched pool cannot weaken the
-  fleet boundary. Excess demand remains a replica gap and is retried
-  every five seconds. macOS pools skip this gate.
+  the fleet ceiling, `spec.provisioning.maxConcurrentPerNode` (default
+  6) times the fleet's healthy node count, using the lowest sibling
+  per-node value so one mismatched pool cannot weaken the fleet
+  boundary. Excess demand remains a replica gap and is retried every
+  five seconds. macOS pools skip this gate.
+
+  The budget is per node because what it protects is per node: each host
+  runs its own kubelet and its own Kata runtime, and a simultaneous
+  sandbox-start burst overwhelms one of them, not the fleet. Expressed
+  fleet-wide it did the opposite of its job — adding hardware raised
+  capacity without raising start throughput, so the fleet could be
+  simultaneously idle and refusing work. Measured on 2026-09-03: 62 jobs
+  queued across the Linux pools, one node at 0% CPU and 0% memory and
+  two more near half, every pool refused with `reason="fleet_cap"`, and
+  raising the ceiling by hand filled the idle machines inside one
+  reconcile tick (`linux-4vcpu-16gb` went from 1 Pod to 18).
+
+  The per-node figure is what bounds how fast queued Linux work can
+  start: the fleet's fill rate is the ceiling divided by sandbox boot
+  time. Three per node was measured saturated on 2026-09-03, refusing
+  admission 737 times in ten minutes while the four hosts sat at 0-17%
+  CPU and 1-37% memory and boots completed in 82s to 3m37s with no start
+  timeouts, so both the hosts and the 300s budget had room. Hence 6.
+  `tuist_runners_pool_pod_start_timeouts_total{reason="poller_not_started"}`
+  is the signal that says whether there is still room: flat means boots
+  sit comfortably inside the timeout, rising means a host is already
+  being asked for more microVMs than it can start and a bigger budget
+  would only turn refusals into timeouts.
+
+  The node count is `summarizeFleetNodes`, so it already excludes
+  cordoned, NotReady and pressured nodes. That is deliberate and it is
+  what makes the documented remedy below — cordon a host that accepts
+  sandboxes it cannot start — take that host's share of the start budget
+  away with it, instead of leaving the ceiling inflated by a node
+  contributing nothing.
+
+  The field replaces `maxConcurrentPerFleetSelector`, which was a single
+  fleet-wide integer. Nothing reads the old name: structural-schema
+  pruning drops it from any CR that still carries it, including the
+  value patched onto production by hand during the 2026-09-03 incident.
+  No operator step is needed for the schema: `server-deployment.yml`
+  runs `kubectl apply -f crds/` before every helm upgrade, precisely
+  because helm skips `crds/` on upgrade, so the new schema lands with
+  the deploy. The Go default, the CRD default and the chart value are
+  still kept equal, so that a cluster whose schema has somehow not
+  caught up prunes `maxConcurrentPerNode` on the way in and lands on the
+  same figure through the accessor instead of an older one.
 
   The count deliberately includes Pods with no node. An unbound Pod is
   one the scheduler may bind at any moment, and nothing re-checks
@@ -126,6 +337,80 @@ independent workqueues:
   Scheduling gates do not help here either: a gate can be removed but
   never re-added, so a Pod that turns out to be unschedulable after
   ungating is back to holding a slot with no way to reclaim it.
+
+  A ceiling that scales with the fleet bounds how many sandboxes are
+  coming up across it, but not how many land on one host — this
+  controller does not place Pods, and steering them was tried and
+  dropped (see the per-node circuit breaker below). What it can bound is
+  how many are handed to the scheduler at once, and the Pods with no
+  node yet that the scheduler has *not* rejected are exactly the set
+  that can arrive on one kubelet together: kube-scheduler prefers the
+  least-allocated node, which on a fleet with an idle host means all of
+  them. So that set is capped at one node's budget, refused with
+  `reason="placement_burst"`. It costs nothing in steady state — those
+  Pods bind within a second or two, well inside the five-second tick —
+  and it makes a batch of creations converge on the ceiling over a few
+  ticks rather than landing as one burst.
+
+  So `placement_burst` on `tuist_runners_pool_admission_blocked_total` is
+  what a healthy ramp looks like, not a fault: a pool with a gap of 19
+  reports it on every tick until the gap closes. A *sustained* one with a
+  queue behind it means the Pods are not binding, which is the
+  unschedulable reap's territory. The same counter reports whichever term
+  actually capped the tick, not only outright refusals — that is what
+  `limitedBy` is for. Attributing a ramp to the ceiling would leave
+  `fleet_cap` meaning nothing.
+
+  A Pod the scheduler has already refused is excluded from that set,
+  though it still holds its slot in the ceiling. It is not about to
+  arrive anywhere; it binds one at a time as capacity frees. Counting it
+  would rebuild the 2026-09-02 starvation on the new gate, with a shape
+  no node can seat parking its Pods for a whole start timeout while
+  every sibling is refused behind them.
+
+  The ceiling is shared, so it is also divided. A pool's own share
+  (`poolCap`) is the fleet ceiling minus one for every sibling pool that
+  has a replica gap and nothing provisioning; it never drops below one.
+  A pool at its share is refused with `reason="pool_share"` even when
+  the fleet count is under the ceiling. Without this, the first pool to
+  fill the budget kept it: on 2026-09-02 `linux-4vcpu-16gb`, targeted
+  far above what the fleet seats, held all four slots with Pods
+  Pending on `Insufficient memory`, recreated each one the instant the
+  unschedulable reap released it, and `linux-2vcpu-8gb` was refused
+  creation for over an hour with 143 jobs queued. The fleet count is
+  still what bounds the burst; the share only decides who may top it
+  back up after a reap, so the reap that already existed becomes the
+  moment a starved sibling gets its slot, within one
+  `startTimeoutSeconds`.
+
+  The share has to be taken out of the ceiling siblings are measured
+  against, not just out of their own Pending counts. Bounding each pool
+  individually leaves nothing holding a slot open: several pools each
+  comfortably inside their own share still fill the ceiling between them,
+  and the fleet check refuses the starved pool before its reserved share
+  is ever read. On 2026-09-03 `linux-4vcpu-16gb` sat at zero Pods with
+  `pendingForPool: 0, poolCap: 4, gap: 19` — its whole share unused and
+  still blocked — while three siblings held 1, 1 and 2 of the four slots.
+  So a pool that is itself owed a slot measures against the full ceiling
+  (`fleetCap == cap`) and every other pool measures against the ceiling
+  minus the slots its starved siblings are owed, floored at one so a fleet
+  where everything is starved still makes progress one Pod at a time.
+
+  A Pod deleting for longer than its grace period plus five minutes is
+  force-deleted with a warning event. A Kata sandbox whose shim never
+  tears the VM down leaves the Pod Terminating with its containers still
+  `running`, and nothing else in the controller can see it: `isAlive`
+  excludes a deleting Pod, so it is neither a replica nor a provisioning
+  Pod, the pool reads as having a gap, the node reads as full, and the
+  two facts never meet. On 2026-09-03 two of four Linux runner nodes were
+  held this way for four hours, 94% reserved by Pods doing no work. The
+  ordinary reap cannot clear it — a plain `Delete` is a no-op on a Pod
+  that already carries a deletionTimestamp — so the object is dropped
+  outright. The sandbox can outlive the object, leaving the node
+  oversubscribed against what the scheduler believes, which is why the
+  reap logs the node and raises an Event: a node producing these
+  repeatedly wants draining, not another force delete. Watch
+  `tuist_runners_pool_stuck_terminations_total`.
 
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
@@ -176,6 +461,14 @@ independent workqueues:
   of that particular fault — any node that accepts Pods it cannot start
   reproduces it.
 
+  A per-node ceiling softens this without removing it. The dead Pods now
+  hold one node's budget rather than the whole fleet's, so siblings keep
+  creating on the healthy hosts instead of stopping dead; and cordoning
+  the broken node, still the remedy, now also removes its contribution
+  to the ceiling rather than leaving phantom budget behind. What has not
+  changed is that the replacement Pod keeps landing on the broken node,
+  so its share of the budget stays burnt until an operator intervenes.
+
   A per-node circuit breaker was built and then deliberately dropped:
   counting `poller_not_started` timeouts per node and steering new Pods
   away with a required `kubernetes.io/hostname NotIn` affinity. It works,
@@ -221,7 +514,18 @@ independent workqueues:
   `tuist_runners_pool_admission_blocked_total{pool,reason}`,
   `tuist_runners_fleet_ready_nodes{fleet_selector,operating_system}`,
   `tuist_runners_fleet_filtered_nodes{fleet_selector,operating_system,reason}`,
-  and `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`.
+  `tuist_runners_fleet_provisioning_ceiling{fleet_selector,operating_system}`,
+  `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`,
+  and `tuist_runners_pool_stuck_terminations_total{pool}`. The ceiling is
+  the derived budget the admission gate measures against, so it moves
+  with the healthy node count on its own: a drop with no chart change
+  means nodes left the fleet, and comparing it against the summed
+  pending-provisioning gauges says how much of the budget is in use. The
+  last one
+  counts Pods force-deleted because kubelet never finished terminating
+  them; it is distinct from the start-timeout counter because that means
+  a sandbox failed to come up, while this means one failed to go down and
+  may still be holding its node.
 
   Alongside it, `tuist_runners_pool_oldest_pending_pod_age_seconds{pool}`
   is how long the pool's oldest un-`Running` Pod has been waiting (0 when
@@ -253,8 +557,33 @@ independent workqueues:
   counts, because that is where a warm dispatch poller spends its whole
   idle life. Getting this wrong inverts the reading — a fleet starved of
   hosts would report idle Pods sitting on queued work, which is the
-  fingerprint of the opposite failure. Together they separate two failures
-  that every other series conflates:
+  fingerprint of the opposite failure.
+
+  On darwin `Running` is necessary but not sufficient, so the guest's own
+  heartbeat is consulted on top of it. tart-kubelet synthesizes a macOS
+  Pod's phase and Ready condition from "the VM process is alive and has an
+  IP" and runs no container probes, so a guest whose dispatch poller died
+  reads 1/1 Running for the rest of the VM's life — and nothing bounds
+  that life, since warm standby is deliberately unbounded and a warm macOS
+  runner is in practice recycled only when its SA token expires around the
+  8h mark. `dispatch-poll.sh` therefore beats into the per-VM status share
+  every poll and tart-kubelet republishes it as
+  `tuist.dev/runner-heartbeat-state` (`polling` / `claimed`) plus
+  `tuist.dev/runner-heartbeat-at`; a `polling` beat older than
+  `guestHeartbeatStaleAfter` stops counting. Linux needs none of it — the
+  poller is an init container, so the container runtime already reports
+  whether it is running.
+
+  **Absence is not death.** A Pod carrying no heartbeat annotations is one
+  the host cannot speak for: pools with the cache-volume feature off have
+  no status share to read, and runner images from before the guest wrote a
+  beat produce none. Those keep their benefit of the doubt. Reading
+  absence as dead would drop every such Pod out of warm capacity at once,
+  which besides being wrong also stalls rolls fleet-wide, because
+  `isWarmCapacity` decides what counts against the roll's availability
+  budget. The image and the controller can therefore ship in either order.
+
+  Together they separate two failures that every other series conflates:
 
   - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
     The fix is capacity.
@@ -803,9 +1132,16 @@ Shape:
 
 - `dind-sock` emptyDir at `/var/run` (both containers) exposes
   `/var/run/docker.sock`.
-- `work` emptyDir at `/home/runner/actions-runner/_work` (both
-  containers) so `docker run -v $PWD:/x` paths resolve the same
-  on either side.
+- `work` emptyDir at `/home/runner/work` (both containers) so
+  `docker run -v $PWD:/x` paths resolve the same on either side.
+  That path is the `work_folder` the server mints into the JIT
+  config, **not** the runner's `<runner root>/_work` default —
+  see "Why the work directory is /home/runner/work" below.
+- `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
+  (sidecar only), filled by the `dind-externals` init container —
+  the runner image running `cp -a` out of its own image layer into
+  the volume, staged at `/mnt/dind-externals` there so the mount
+  doesn't shadow the source. See "Why stage externals" below.
 - `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
   Plain node-disk emptyDir — holds a sparse `disk.img` the
   sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
@@ -821,6 +1157,57 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
+
+### Why stage externals? (job `container:` support)
+
+A workflow that declares `jobs.<id>.container` doesn't run its
+steps in the runner container at all: the runner asks dockerd to
+create a container and bind-mounts its own directories into it —
+the work directory as `/__w`, then `_temp`, `_actions` and `_tool`
+under it, `_temp/_github_home` as `/github/home`,
+`_temp/_github_workflow` as `/github/workflow`, and `externals` as
+`/__e`. Those source paths are resolved by **dockerd**, so they
+have to exist in the sidecar's mount namespace, not the runner's,
+and docker silently creates an empty directory for any that don't.
+
+Everything but `externals` hangs off the work directory, which the
+`work` volume shares with the sidecar. `externals` — the node
+runtimes every JS action executes under — ships in the runner
+image alone. Without the staged copy every step in the job
+container dies on a missing `/__e/node2x/bin/node`.
+
+Same fix ARC ships as `init-dind-externals`. The copy runs before
+the sidecar, so it is in place by the time dockerd can serve a
+container and a runner image that stops shipping externals fails
+the Pod early rather than at job time. Cost is a per-Pod copy of
+the node runtimes at warm-up, off the job's critical path.
+
+### Why the work directory is /home/runner/work
+
+`Tuist.Runners` mints the JIT config with an absolute
+`work_folder` — `/home/runner/work` on Linux, `/Users/runner/work`
+on macOS — to match GitHub-hosted's layout so on-disk artifacts
+that bake absolute paths stay interchangeable between hosted and
+self-hosted runs. The runner honors it and **never touches its own
+`<runner root>/_work` default**.
+
+So the `work` volume has to be mounted at `/home/runner/work`. Get
+this wrong and nothing looks broken from the outside: normal jobs
+keep passing, because the runner just writes to a container-local
+directory instead of the shared volume. Only `container:` jobs
+notice — dockerd bind-mounts a path that doesn't exist on its
+side, docker creates it empty, and every step fails. `run:` steps
+die first, on a missing `/__w/_temp/<id>.sh`; JS actions die on a
+missing `/__w/_actions/<owner>/<repo>/<ref>/dist/index.js`.
+
+Keep the two in sync: the podtemplate constant `workPath` and the
+`work_folder` in `Tuist.Runners`. `TestBuild_LinuxDindSharesRunnerWorkDirectory`
+pins the constant.
+
+The PTY socket deliberately lives on its own `shell-sock` volume
+rather than under the work directory: the runner hands the whole
+work tree to a job container as `/__w`, and the runner container's
+shell entry point has no business in there.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 

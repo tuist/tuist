@@ -76,6 +76,7 @@ var tuistBazelCommandDependencies: [Target.Dependency] = [
     "TuistHTTP",
     "TuistAlert",
     "TuistConfigLoader",
+    "TuistSupport",
 ]
 
 var tuistCacheCommandDependencies: [Target.Dependency] = [
@@ -1023,6 +1024,15 @@ var targets: [Target] = [
         path: "cli/Tests/TuistHTTPTests"
     ),
     .testTarget(
+        name: "TuistLoggingTests",
+        dependencies: [
+            "TuistLogging",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistLoggingTests"
+    ),
+    .testTarget(
         name: "TuistUserInputReaderTests",
         dependencies: [
             "TuistUserInputReader",
@@ -1586,6 +1596,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCache",
         dependencies: [
+            "TuistAlert",
             "TuistCore",
             "TuistSupport",
             "TuistHTTP",
@@ -1614,6 +1625,7 @@ targets.append(contentsOf: [
             "TuistGit",
             fileSystemDependency,
             pathDependency,
+            .product(name: "Gzip", package: "1024jp.gzipswift"),
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
@@ -1843,7 +1855,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.14.0")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.16.0")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -1868,15 +1880,16 @@ let package = Package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(id: "apple.swift-protobuf", exact: "1.35.1"),
+        .package(id: "apple.swift-protobuf", exact: "1.38.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.96")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

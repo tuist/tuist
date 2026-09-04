@@ -394,7 +394,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -582,6 +582,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
+                        projectPath: path,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
@@ -683,7 +684,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -737,7 +738,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -804,7 +807,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: runId, Constants.resultBundleName)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
 
         let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
@@ -874,7 +877,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1219,6 +1224,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             for testSchemeRun in testSchemeRuns {
                 let testScheme = testSchemeRun.scheme
+                let xctestrunTestTargets: [TestIdentifier]
+                if action == .testWithoutBuilding,
+                   passthroughXcodeBuildArguments.contains("-xctestrun"),
+                   testSchemeRun.testTargets.isEmpty
+                {
+                    xctestrunTestTargets = try testActionTargetReferences(
+                        scheme: testScheme,
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action
+                    )
+                    .map { try TestIdentifier(target: $0.name) }
+                } else {
+                    xctestrunTestTargets = testSchemeRun.testTargets
+                }
                 let testSchemeResultBundlePath = schemeResultBundlePath(
                     resultBundlePath,
                     schemeName: testScheme.name,
@@ -1242,7 +1261,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         resultBundlePath: testSchemeResultBundlePath,
                         derivedDataPath: derivedDataPath,
                         retryCount: retryCount,
-                        testTargets: testSchemeRun.testTargets,
+                        testTargets: xctestrunTestTargets,
                         skipTestTargets: skipTestTargets,
                         testPlanConfiguration: testPlanConfiguration,
                         passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
@@ -1653,12 +1672,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return resultBundlePath
         }
 
+        // Always emit a `.xcresult`-suffixed per-scheme path, whether the caller
+        // gave us an extension or not. `xcodebuild -resultBundlePath` writes the
+        // bundle at the exact path passed, and Xcode 26 stopped adding the
+        // historical `<name>` → `<name>.xcresult` symlink alongside it. Without
+        // the suffix the bundle lands in a directory the server's post-upload
+        // resolver does not recognise, and the run is marked failed_processing.
         let schemePathComponent = schemeName.toValidInBundleIdentifier()
         let pathComponent: String
         if let pathExtension = resultBundlePath.extension {
             pathComponent = "\(resultBundlePath.basenameWithoutExt)-\(schemePathComponent).\(pathExtension)"
         } else {
-            pathComponent = "\(resultBundlePath.basename)-\(schemePathComponent)"
+            pathComponent = "\(resultBundlePath.basename)-\(schemePathComponent).xcresult"
         }
 
         return resultBundlePath.parentDirectory.appending(component: pathComponent)
@@ -1862,7 +1887,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action,
                 scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
-                mode: mode
+                mode: mode,
+                onlyTestIdentifiers: testTargets.map(\.description),
+                skipTestIdentifiers: skipTestTargets.map(\.description)
             )
             throw error
         }
@@ -1885,7 +1912,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action,
             scheme: scheme.name,
             quarantinedTests: quarantinedTests,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
     }
 
@@ -1953,7 +1982,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -1969,7 +2000,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -1980,7 +2013,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2082,7 +2117,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
-            shardIndex: nil
+            shardIndex: nil,
+            // Everything selective testing skipped. The run carries no modules, so it never reaches
+            // the suite inventory either way.
+            onlyTestIdentifiers: [],
+            skipTestIdentifiers: []
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
