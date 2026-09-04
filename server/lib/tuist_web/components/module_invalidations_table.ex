@@ -13,6 +13,10 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
   attr :row_navigate, :any, default: nil, doc: "fn module -> path end for row navigation"
 
   def module_invalidations_table(assigns) do
+    # The table keys each row off `:id`; without one every row lands on the same
+    # DOM id and LiveView cannot tell them apart when patching.
+    assigns = update(assigns, :rows, fn rows -> Enum.map(rows, &Map.put(&1, :id, &1.name)) end)
+
     ~H"""
     <.table id={@id} rows={@rows} row_navigate={@row_navigate}>
       <:col :let={module} label={dgettext("dashboard_cache", "Module")}>

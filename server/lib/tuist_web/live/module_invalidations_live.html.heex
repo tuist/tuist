@@ -130,16 +130,25 @@
       </.empty_card_section>
 
       <%= if @modules.ok? && not Enum.empty?(@modules.result) do %>
-        <% filtered = filter_modules(@modules.result, @search) %>
+        <% filtered = @modules.result |> sort_modules(@sort_by) |> filter_modules(@search) %>
+        <% page = page_of(filtered, @after_cursor, @before_cursor) %>
         <.module_invalidations_table
-          :if={not Enum.empty?(filtered)}
+          :if={not Enum.empty?(page.rows)}
           id="all-modules-table"
-          rows={filtered}
+          rows={page.rows}
           row_navigate={
             fn module ->
               ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
             end
           }
+        />
+        <.pagination
+          :if={not Enum.empty?(page.rows)}
+          uri={@uri}
+          has_previous_page={page.has_previous_page}
+          has_next_page={page.has_next_page}
+          start_cursor={page.start_cursor}
+          end_cursor={page.end_cursor}
         />
         <.empty_card_section
           :if={Enum.empty?(filtered)}

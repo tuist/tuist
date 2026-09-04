@@ -13,6 +13,10 @@ defmodule TuistWeb.ModuleInvalidationsLive do
   alias TuistWeb.Utilities.Query
 
   @sort_options ~w(invalidations hit_rate blast_radius)
+  @per_page 25
+  # The query returns one row per module, so this bounds the project's module
+  # count rather than a growing event stream.
+  @max_modules 5_000
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -20,7 +24,6 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Modules")} · #{slug} · Tuist")
-      |> assign(:search, "")
       |> assign(OpenGraph.og_image_assigns("module-cache"))
 
     {:ok, socket}
@@ -38,7 +41,10 @@ defmodule TuistWeb.ModuleInvalidationsLive do
               "analytics-date-range",
               "analytics-start-date",
               "analytics-end-date",
-              "sort-by"
+              "sort-by",
+              "q",
+              "after",
+              "before"
             ])
           )
       )
@@ -67,8 +73,18 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
-  def handle_event("search", %{"q" => query}, socket) do
-    {:noreply, assign(socket, :search, query)}
+  def handle_event(
+        "search",
+        %{"q" => query},
+        %{assigns: %{selected_account: account, selected_project: project}} = socket
+      ) do
+    query_params =
+      socket.assigns.uri.query
+      |> Query.put("q", query)
+      |> Query.drop("after")
+      |> Query.drop("before")
+
+    {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
   def handle_info(_event, socket), do: {:noreply, socket}
@@ -91,14 +107,23 @@ defmodule TuistWeb.ModuleInvalidationsLive do
       |> assign(:analytics_period, period)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:sort_by, sort_by)
+      |> assign(:search, params["q"] || "")
+      |> assign(:after_cursor, params["after"])
+      |> assign(:before_cursor, params["before"])
 
     opts = analytics_opts(socket.assigns)
 
-    assign_async(socket, [:modules], fn ->
-      modules = opts |> Keyword.put(:limit, 1000) |> Analytics.module_invalidations() |> sort_modules(sort_by)
-
-      {:ok, %{modules: modules}}
-    end)
+    # Sorting, searching and paging all run over the loaded list, so only a
+    # change to what the query itself selects has to go back to ClickHouse.
+    if opts == socket.assigns[:modules_opts] do
+      socket
+    else
+      socket
+      |> assign(:modules_opts, opts)
+      |> assign_async([:modules], fn ->
+        {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
+      end)
+    end
   end
 
   defp analytics_opts(%{
@@ -115,10 +140,46 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     end
   end
 
-  defp sort_modules(modules, "blast_radius"), do: Enum.sort_by(modules, &(&1.blast_radius || -1), :desc)
+  defp sort_modules(modules, "blast_radius"), do: sort_worst_first(modules, &(&1.blast_radius || -1))
   # Worst first, like every other option: the lowest hit rate is the biggest problem.
-  defp sort_modules(modules, "hit_rate"), do: Enum.sort_by(modules, & &1.hit_rate, :asc)
-  defp sort_modules(modules, field), do: Enum.sort_by(modules, &Map.fetch!(&1, String.to_existing_atom(field)), :desc)
+  defp sort_modules(modules, "hit_rate"), do: Enum.sort_by(modules, &{&1.hit_rate, &1.name})
+  defp sort_modules(modules, field), do: sort_worst_first(modules, &Map.fetch!(&1, String.to_existing_atom(field)))
+
+  # Cursors address rows by position, so ties have to break the same way on
+  # every render. The name is the tiebreaker because it is what the cursor
+  # itself carries.
+  defp sort_worst_first(modules, key_fun), do: Enum.sort_by(modules, &{-key_fun.(&1), &1.name})
+
+  @doc """
+  Slices an already sorted and filtered list into the page addressed by the
+  `after`/`before` cursors, which are module names. A cursor that is no longer
+  in the list (the search or sort changed under it) falls back to the first
+  page.
+  """
+  def page_of(modules, after_cursor, before_cursor) do
+    offset =
+      case {cursor_index(modules, after_cursor), cursor_index(modules, before_cursor)} do
+        {nil, nil} -> 0
+        {nil, before_index} -> max(before_index - @per_page, 0)
+        {after_index, _} -> after_index + 1
+      end
+
+    rows = Enum.slice(modules, offset, @per_page)
+
+    %{
+      rows: rows,
+      has_previous_page: offset > 0,
+      has_next_page: offset + length(rows) < length(modules),
+      start_cursor: rows |> List.first() |> cursor(),
+      end_cursor: rows |> List.last() |> cursor()
+    }
+  end
+
+  defp cursor_index(_modules, cursor) when cursor in [nil, ""], do: nil
+  defp cursor_index(modules, cursor), do: Enum.find_index(modules, &(&1.name == cursor))
+
+  defp cursor(nil), do: nil
+  defp cursor(module), do: module.name
 
   def sort_label("hit_rate"), do: dgettext("dashboard_cache", "Cache hit rate")
   def sort_label("blast_radius"), do: dgettext("dashboard_cache", "Dependents")

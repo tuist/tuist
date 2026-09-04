@@ -83,7 +83,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:40
 #: lib/tuist_web/live/module_cache_module_live.ex:222
 #: lib/tuist_web/live/module_cache_module_live.html.heex:41
-#: lib/tuist_web/live/module_invalidations_live.ex:129
+#: lib/tuist_web/live/module_invalidations_live.ex:190
 #: lib/tuist_web/live/module_invalidations_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -191,7 +191,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:26
 #: lib/tuist_web/live/module_cache_module_live.ex:221
 #: lib/tuist_web/live/module_cache_module_live.html.heex:43
-#: lib/tuist_web/live/module_invalidations_live.ex:128
+#: lib/tuist_web/live/module_invalidations_live.ex:189
 #: lib/tuist_web/live/module_invalidations_live.html.heex:13
 #: lib/tuist_web/live/xcode_cache_live.ex:425
 #, elixir-autogen, elixir-format
@@ -210,13 +210,13 @@ msgstr ""
 msgid "Cache downloads"
 msgstr ""
 
-#: lib/tuist_web/components/module_invalidations_table.ex:24
+#: lib/tuist_web/components/module_invalidations_table.ex:28
 #: lib/tuist_web/live/module_cache_live.ex:359
 #: lib/tuist_web/live/module_cache_live.html.heex:128
 #: lib/tuist_web/live/module_cache_live.html.heex:642
 #: lib/tuist_web/live/module_cache_module_live.html.heex:182
 #: lib/tuist_web/live/module_cache_module_live.html.heex:372
-#: lib/tuist_web/live/module_invalidations_live.ex:123
+#: lib/tuist_web/live/module_invalidations_live.ex:184
 #: lib/tuist_web/live/xcode_cache_live.ex:304
 #: lib/tuist_web/live/xcode_cache_live.html.heex:109
 #: lib/tuist_web/live/xcode_cache_live.html.heex:786
@@ -435,7 +435,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:18
 #: lib/tuist_web/live/module_cache_module_live.ex:220
 #: lib/tuist_web/live/module_cache_module_live.html.heex:42
-#: lib/tuist_web/live/module_invalidations_live.ex:127
+#: lib/tuist_web/live/module_invalidations_live.ex:188
 #: lib/tuist_web/live/module_invalidations_live.html.heex:12
 #: lib/tuist_web/live/xcode_cache_live.ex:426
 #, elixir-autogen, elixir-format
@@ -453,12 +453,12 @@ msgstr ""
 msgid "Localizations"
 msgstr ""
 
-#: lib/tuist_web/components/module_invalidations_table.ex:21
+#: lib/tuist_web/components/module_invalidations_table.ex:25
 #: lib/tuist_web/live/module_cache_live.html.heex:237
 #: lib/tuist_web/live/module_cache_module_live.html.heex:119
 #: lib/tuist_web/live/module_cache_module_live.html.heex:168
 #: lib/tuist_web/live/module_cache_module_live.html.heex:326
-#: lib/tuist_web/live/module_invalidations_live.ex:125
+#: lib/tuist_web/live/module_invalidations_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Misses"
 msgstr ""
@@ -1048,10 +1048,10 @@ msgstr ""
 msgid "Cold misses"
 msgstr ""
 
-#: lib/tuist_web/components/module_invalidations_table.ex:27
+#: lib/tuist_web/components/module_invalidations_table.ex:31
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #: lib/tuist_web/live/module_cache_module_live.html.heex:419
-#: lib/tuist_web/live/module_invalidations_live.ex:124
+#: lib/tuist_web/live/module_invalidations_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Dependents"
 msgstr ""
@@ -1061,14 +1061,14 @@ msgstr ""
 msgid "How many modules this one invalidates downstream when it changes."
 msgstr ""
 
-#: lib/tuist_web/components/module_invalidations_table.ex:18
+#: lib/tuist_web/components/module_invalidations_table.ex:22
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:522
 #: lib/tuist_web/live/module_cache_module_live.html.heex:3
-#: lib/tuist_web/live/module_invalidations_live.ex:22
+#: lib/tuist_web/live/module_invalidations_live.ex:26
 #: lib/tuist_web/live/module_invalidations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Modules"
@@ -1103,7 +1103,7 @@ msgstr ""
 msgid "No cache misses yet"
 msgstr ""
 
-#: lib/tuist_web/live/module_invalidations_live.html.heex:146
+#: lib/tuist_web/live/module_invalidations_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
 msgstr ""
