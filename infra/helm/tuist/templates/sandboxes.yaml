@@ -78,6 +78,10 @@ spec:
     spec:
       serviceAccountName: {{ $name }}
       automountServiceAccountToken: false
+      {{- with .Values.sandboxes.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       # Not hostNetwork on purpose: the sandboxes' traffic is NAT'd to this
       # Pod's IP, so the Pod's Cilium endpoint and the NetworkPolicy below
       # gate every guest's egress.

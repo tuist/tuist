@@ -1879,6 +1879,10 @@ sandboxes:
     tag: ""
     pullPolicy: IfNotPresent
   templateName: default
+  # Pull secrets for the two images, e.g. while a freshly created ghcr package
+  # is still private. Names of docker-registry Secrets in the sandboxes
+  # namespace.
+  imagePullSecrets: []
   # `node.cluster.x-k8s.io/pool` values the DaemonSet may land on. Required.
   nodePools: []
   tolerations: []
