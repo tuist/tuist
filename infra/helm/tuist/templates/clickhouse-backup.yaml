@@ -61,9 +61,9 @@ the log collector entirely, so the object itself is the record.
 */}}
 {{- $jobs := list
   (dict "suffix" "full" "schedule" $m.backup.fullSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'full/$WEEK')" $m.database)
-        "describe" "full backup for ISO week $WEEK")
+        "describe" "a full backup for ISO week $WEEK")
   (dict "suffix" "incremental" "schedule" $m.backup.incrementalSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'incremental/$WEEK/$DAY') SETTINGS base_backup = Disk('backups', 'full/$WEEK')" $m.database)
-        "describe" "incremental backup for $DAY against the full for ISO week $WEEK")
+        "describe" "an incremental backup for $DAY against the full for ISO week $WEEK")
 }}
 {{- range $job := $jobs }}
 ---
@@ -127,7 +127,7 @@ spec:
                 - |
                   WEEK=$(date -u +%G-W%V)
                   DAY=$(date -u +%F)
-                  echo "Taking a {{ $job.describe }}"
+                  echo "Taking {{ $job.describe }}"
                   clickhouse-client \
                     --host {{ $chName }} \
                     --port 9000 \

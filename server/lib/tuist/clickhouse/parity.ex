@@ -17,6 +17,18 @@ defmodule Tuist.ClickHouse.Parity do
   here. Without it a freshly copied chunk fails a comparison that the product
   would have passed.
 
+  ## Comparing a window rather than everything
+
+  Fingerprinting whole tables is what the backfill has to be judged on, and it
+  is far too expensive to repeat on a schedule: summing every numeric column of
+  production's largest tables reads the dataset. The recurring check passes a
+  `since`, which bounds the comparison to rows written recently, and that is
+  also the only part still at risk once the backfill has been verified. A
+  mirrored write that is dropped is dropped now, not retroactively.
+
+  Tables with no time column cannot be bounded that way and are skipped when a
+  window is given, which is stated in the report rather than left implicit.
+
   ## Why the newest rows are excluded
 
   Both servers are taking live writes, and the two sides of a comparison are
@@ -55,14 +67,17 @@ defmodule Tuist.ClickHouse.Parity do
       copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
       derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end)
       as_of = Keyword.get_lazy(opts, :as_of, &default_as_of/0)
+      since = Keyword.get(opts, :since)
 
-      Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s) as of #{as_of}")
+      window = if since, do: " written since #{since}", else: ""
+      Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
 
-      {matching, differing} = split(source, target, copied, as_of)
-      {derived_matching, derived_differing} = split(source, target, derived, as_of)
+      {matching, differing, skipped} = split(source, target, copied, since, as_of)
+      {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
 
       report = %{
-        compared: length(copied),
+        compared: length(copied) - length(skipped),
+        skipped: skipped,
         matching: Enum.map(matching, & &1.table),
         differing: Enum.map(differing, &Map.delete(&1, :matches)),
         derived: %{
@@ -92,15 +107,28 @@ defmodule Tuist.ClickHouse.Parity do
     end)
   end
 
-  defp split(source, target, tables, as_of) do
-    tables
-    |> Enum.map(fn table ->
-      left = fingerprint(source, table, as_of)
-      right = fingerprint(target, table, as_of)
+  defp split(source, target, tables, since, as_of) do
+    # A windowed run can only speak for tables it can bound, so the ones with
+    # no time column are reported as skipped rather than silently compared in
+    # full, which would make an hourly check as expensive as a full one.
+    {comparable, skipped} =
+      if since do
+        Enum.split_with(tables, &(time_column(target, &1) != nil))
+      else
+        {tables, []}
+      end
 
-      %{table: table, source: left, destination: right, matches: left == right}
-    end)
-    |> Enum.split_with(& &1.matches)
+    {matching, differing} =
+      comparable
+      |> Enum.map(fn table ->
+        left = fingerprint(source, table, since, as_of)
+        right = fingerprint(target, table, since, as_of)
+
+        %{table: table, source: left, destination: right, matches: left == right}
+      end)
+      |> Enum.split_with(& &1.matches)
+
+    {matching, differing, skipped}
   end
 
   # Far enough back that a write in flight when the comparison started has
@@ -121,7 +149,7 @@ defmodule Tuist.ClickHouse.Parity do
   # unrounded float sum differs in its last bits for data that is identical.
   # Rounding absorbs that, and the difference a rounded sum could hide is far
   # smaller than any difference worth failing a migration over.
-  defp fingerprint(endpoint, table, as_of) do
+  defp fingerprint(endpoint, table, since, as_of) do
     {integer, float} = numeric_columns(endpoint, table)
     time = time_column(endpoint, table)
 
@@ -132,7 +160,7 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{cutoff_clause(time, as_of)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of)}"
 
     %{rows: [values]} = endpoint.repo.query!(statement, [], log: false)
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
@@ -140,13 +168,19 @@ defmodule Tuist.ClickHouse.Parity do
     error -> %{error: Exception.message(error)}
   end
 
-  defp cutoff_clause(nil, _as_of), do: ""
+  defp window_clause(nil, _since, _as_of), do: ""
 
-  defp cutoff_clause(time, as_of) do
-    stamp = as_of |> DateTime.to_naive() |> NaiveDateTime.to_string()
+  defp window_clause(time, since, as_of) do
+    upper = " #{quote_ident(time)} < toDateTime64('#{stamp(as_of)}', 6)"
 
-    " WHERE #{quote_ident(time)} < toDateTime64('#{stamp}', 6)"
+    if since do
+      " WHERE #{quote_ident(time)} >= toDateTime64('#{stamp(since)}', 6) AND#{upper}"
+    else
+      " WHERE#{upper}"
+    end
   end
+
+  defp stamp(at), do: at |> DateTime.to_naive() |> NaiveDateTime.to_string()
 
   defp numeric_columns(endpoint, table) do
     %{rows: rows} =
