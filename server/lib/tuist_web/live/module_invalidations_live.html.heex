@@ -99,10 +99,7 @@
           secondary_text={dgettext("dashboard_cache", "Sort by:")}
         >
           <.dropdown_item
-            :for={
-              value <-
-                ~w(invalidations hit_rate self_changes dependency_induced unclassified blast_radius)
-            }
+            :for={value <- ~w(invalidations hit_rate blast_radius)}
             value={value}
             label={sort_label(value)}
             patch={"?#{Query.put(@uri.query, "sort-by", value)}"}

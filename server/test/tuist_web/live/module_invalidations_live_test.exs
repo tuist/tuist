@@ -49,23 +49,13 @@ defmodule TuistWeb.ModuleInvalidationsLiveTest do
     assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-invalidations-sort-dropdown")
     assert has_element?(lv, "[data-part=\"modules-table-section\"] #module-search")
 
-    # Misses split three ways: its own content changed, only an upstream
-    # dependency changed, or there was no prior build to compare against.
     headers =
       html
       |> Floki.parse_document!()
       |> Floki.find("#all-modules-table thead th")
       |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
 
-    assert headers == [
-             "Module",
-             "Misses",
-             "Changed",
-             "Upstream",
-             "Cold",
-             "Cache hit rate",
-             "Dependents"
-           ]
+    assert headers == ["Module", "Misses", "Cache hit rate", "Dependents"]
 
     # Core missed both of the two builds it took part in.
     assert html =~ "0.0%"
