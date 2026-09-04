@@ -61,6 +61,7 @@ ARG ANT_VERSION
 RUN curl -fsSL --retry 3 -o /tmp/ant.deb \
         "https://github.com/anthropics/anthropic-cli/releases/download/v${ANT_VERSION}/ant_${ANT_VERSION}_linux_amd64.deb" \
     && apt-get update && apt-get install -y --no-install-recommends /tmp/ant.deb \
+    && ln -s /usr/ant /usr/local/bin/ant \
     && rm -f /tmp/ant.deb && rm -rf /var/lib/apt/lists/*
 
 # mise for per-project toolchains: shims in scripts, full activation in
@@ -85,9 +86,6 @@ case "$-" in *i*) cd /workspace 2>/dev/null ;; esac
 EOF
 RUN mkdir -p /workspace /mnt/memory /run /tmp /proc /sys /dev \
     && chmod 1777 /tmp \
-    && rm -f /etc/resolv.conf /etc/hostname /etc/hosts \
-    && echo sandbox > /etc/hostname \
-    && printf '127.0.0.1\tlocalhost\n127.0.1.1\tsandbox\n::1\tlocalhost ip6-localhost ip6-loopback\n' > /etc/hosts \
     && test -x /bin/bash
 
 COPY --from=builder /out/sbx-init /sbin/sbx-init
@@ -107,7 +105,13 @@ RUN mkdir -p /out \
     && if [ -n "${KERNEL_SHA256}" ]; then echo "${KERNEL_SHA256}  /out/vmlinux" | sha256sum -c -; fi
 COPY --from=guest / /rootfs
 ARG ROOTFS_SIZE
+# /etc/hostname, hosts and resolv.conf are bind mounts inside a build
+# container, so their defaults are seeded here where they are plain files.
+# sbx-init rewrites all three at boot.
 RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootfs/workspace /rootfs/mnt/memory \
+    && rm -f /rootfs/etc/resolv.conf \
+    && echo sandbox > /rootfs/etc/hostname \
+    && printf '127.0.0.1\tlocalhost\n127.0.1.1\tsandbox\n::1\tlocalhost ip6-localhost ip6-loopback\n' > /rootfs/etc/hosts \
     && truncate -s "${ROOTFS_SIZE}" /out/rootfs.ext4 \
     && mkfs.ext4 -q -F -L rootfs -d /rootfs -E lazy_itable_init=0,lazy_journal_init=0 /out/rootfs.ext4 \
     && kernel="$(basename "${KERNEL_URL}")" && kernel="${kernel#vmlinux-}" \
