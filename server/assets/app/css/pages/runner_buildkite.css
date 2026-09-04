@@ -1,0 +1,106 @@
+#account-runner-buildkite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="heading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & [data-part="buildkite-form"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="fields"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      width: 100%;
+      /* The three values are short — a slug, a name and a token prefix.
+         A full-width field would leave the label stranded from its input
+         on a wide dashboard. */
+      max-width: 26rem;
+    }
+
+    & > .noora-alert {
+      width: 100%;
+    }
+  }
+
+  & [data-part="status"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="status-row"] {
+      display: flex;
+      flex-direction: row;
+      align-items: baseline;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="status-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="status-value"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & [data-part="queues"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="queues-hint"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="buildkite-queue-list"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+
+      /* The queue key is copied verbatim into a pipeline's `agents`
+         block, so it reads as a literal, not as prose. */
+      & code {
+        color: var(--noora-surface-label-primary);
+        font-family: "Geist Mono", monospace;
+        font-size: var(--noora-font-size-s);
+      }
+    }
+  }
+}

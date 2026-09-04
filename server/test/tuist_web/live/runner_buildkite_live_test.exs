@@ -17,6 +17,22 @@ defmodule TuistWeb.RunnerBuildkiteLiveTest do
     %{conn: log_in_user(conn, user), account: account, user: user}
   end
 
+  test "masks the agent token so it is never typed in the clear", %{conn: conn, account: account} do
+    # Noora's `text_input` derives the HTML input type from `input_type`,
+    # not from `type`, so `type="password"` on its own silently renders a
+    # plaintext field. That is invisible in review and in every assertion
+    # about behaviour — only the rendered attribute catches it.
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/buildkite")
+
+    token_input =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("input#buildkite-agent-token")
+
+    assert [_] = token_input
+    assert Floki.attribute(token_input, "type") == ["password"]
+  end
+
   test "connects a cluster and shows it afterwards", %{conn: conn, account: account} do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/buildkite")
 

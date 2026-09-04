@@ -9,6 +9,9 @@ defmodule TuistWeb.RunnerBuildkiteLive do
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
 
+  # The fields the form renders an input for.
+  @form_fields [:organization_slug, :cluster_name, :agent_token]
+
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok or
@@ -25,6 +28,7 @@ defmodule TuistWeb.RunnerBuildkiteLive do
      )
      |> assign(:queue_keys, queue_keys(selected_account))
      |> assign(:form_error, nil)
+     |> assign(:field_errors, %{})
      |> assign_installation()}
   end
 
@@ -42,16 +46,30 @@ defmodule TuistWeb.RunnerBuildkiteLive do
 
     case Buildkite.upsert_installation(account.id, attrs) do
       {:ok, _installation} ->
-        {:noreply, socket |> assign(:form_error, nil) |> assign_installation()}
+        {:noreply,
+         socket
+         |> assign(:form_error, nil)
+         |> assign(:field_errors, %{})
+         |> assign_installation()}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :form_error, first_error(changeset))}
+        {field_errors, form_error} = split_errors(changeset)
+
+        {:noreply,
+         socket
+         |> assign(:field_errors, field_errors)
+         |> assign(:form_error, form_error)}
     end
   end
 
   def handle_event("disconnect", _params, %{assigns: %{selected_account: account}} = socket) do
     :ok = Buildkite.delete_installation(account.id)
-    {:noreply, socket |> assign(:form_error, nil) |> assign_installation()}
+
+    {:noreply,
+     socket
+     |> assign(:form_error, nil)
+     |> assign(:field_errors, %{})
+     |> assign_installation()}
   end
 
   # The stack key identifies this controller to Buildkite and scopes its
@@ -75,14 +93,28 @@ defmodule TuistWeb.RunnerBuildkiteLive do
     account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1)
   end
 
-  defp first_error(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Regex.replace(~r/%\{(\w+)\}/, message, fn _whole, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), "") |> to_string()
+  # Errors land on the input that caused them. `stack_key` is the exception:
+  # it is derived, not typed, so it has no input to attach to and would be
+  # invisible as a field error — it becomes a banner instead.
+  defp split_errors(changeset) do
+    errors =
+      Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+        Regex.replace(~r/%\{(\w+)\}/, message, fn _whole, key ->
+          opts |> Keyword.get(String.to_existing_atom(key), "") |> to_string()
+        end)
       end)
-    end)
-    |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field} #{&1}") end)
-    |> List.first()
+
+    {shown, hidden} =
+      Enum.split_with(errors, fn {field, _messages} -> field in @form_fields end)
+
+    field_errors =
+      Map.new(shown, fn {field, messages} -> {Atom.to_string(field), List.first(messages)} end)
+
+    form_error =
+      hidden
+      |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field} #{&1}") end)
+      |> List.first()
+
+    {field_errors, form_error}
   end
 end

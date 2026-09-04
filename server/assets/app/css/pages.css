@@ -36,6 +36,7 @@
 @import "./pages/project_notifications.css";
 @import "./pages/project_settings.css";
 @import "./pages/run_detail.css";
+@import "./pages/runner_buildkite.css";
 @import "./pages/runner_job.css";
 @import "./pages/runner_jobs.css";
 @import "./pages/runner_profiles.css";
