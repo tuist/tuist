@@ -66,9 +66,13 @@ that hosts no cache pod count towards its region: one cache pod anywhere in the
 pool names the region, and every node of that pool inherits it.
 
 Create them under **Alerting → Recording rules**, folder `Alerts`, group
-`Kura region joins`, evaluated every minute. Rules in a group evaluate in
-order, so keep the order below: `kura:pool_region` reads the two rules above
-it and `kura:node_region` reads them both.
+`Kura Recording`, evaluated every minute. Each rule writes its result back to
+the metrics datasource and the next one reads it from there, so the chain
+settles over a few evaluation cycles rather than within one, and position
+inside the group does not order it. When extending the chain, create the new
+rule and wait for it to populate before pointing an existing rule at it:
+switching a consumer first leaves it evaluating against a missing series, and
+`kura:node_region` feeds every region rule in this document.
 
 ```promql
 # kura:pod_region
@@ -2607,7 +2611,9 @@ spent above a threshold.
 
 ### Kura region has room for one more instance
 
-Same query as **Kura region cannot place another instance**.
+The `ceiling` and `memory` rows of **Kura region cannot place another
+instance**, carrying the same zero default. The `disk` and `egress` rows are
+on the critical rule only.
 
 - Threshold: `< 2`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
@@ -2622,11 +2628,10 @@ Same query as **Kura region cannot place another instance**.
 - Description: `Counts how many more two-replica enterprise instances the
   region can place, per placement constraint (ceiling = the
   tuist.dev/memory-ceiling-mib extended resource, memory = native requests
-  against allocatable, disk = ephemeral-storage claims against allocatable
-  disk, egress = 25 Mbps floors against the advertised budget). One means the next enterprise sign-up is the last that fits; zero is
-  paged separately. Plan a node for the region before it lands.`
+  against allocatable). One means the next enterprise sign-up is the last that
+  fits; zero is paged separately. Plan a node for the region before it lands.`
 
-The lead-time tier, on all three constraints: the next enterprise instance is
+The lead-time tier, on both constraints: the next enterprise instance is
 the last one that fits.
 It also holds at zero, alongside the critical rule; that is intended, the
 critical one pages and this one keeps the Slack thread.
