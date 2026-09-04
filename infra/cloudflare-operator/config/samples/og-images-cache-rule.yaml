@@ -1,0 +1,20 @@
+# Cache the runtime OG image renderer for a day. Highest-leverage
+# cache we can install: rendering an OG image is ~31s per request
+# (headless Chrome; falls back to libvips), so keeping the same URL
+# out of origin for a day saves a real amount of compute.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCacheRule
+metadata:
+  name: open-graph-images
+spec:
+  zoneId: REPLACE_WITH_ZONE_ID
+  description: "Cache OG image renders for a day"
+  expression: 'starts_with(http.request.uri.path, "/open-graph-images/") and http.request.method eq "GET"'
+  cacheSettings:
+    cache: true
+    edgeTTL:
+      mode: override_origin
+      default: 86400
+    browserTTL:
+      mode: override_origin
+      default: 86400

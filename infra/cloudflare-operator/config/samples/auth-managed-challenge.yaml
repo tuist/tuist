@@ -1,0 +1,18 @@
+# Managed Challenge on the interactive auth-form POSTs. Credential
+# stuffing typically hits at low RPS (well under a rate limit), so
+# this belongs as a Custom Rule rather than a rate limit. Excludes
+# the CLI / OAuth back-channels which have no browser to solve a
+# challenge.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareWAFCustomRule
+metadata:
+  name: auth-form-managed-challenge
+spec:
+  zoneId: REPLACE_WITH_ZONE_ID
+  description: "Managed Challenge on interactive auth-form POSTs"
+  expression: >
+    (http.request.method eq "POST") and
+    (http.request.uri.path eq "/users/log_in" or
+     starts_with(http.request.uri.path, "/users/reset_password") or
+     http.request.uri.path eq "/users/register")
+  action: managed_challenge

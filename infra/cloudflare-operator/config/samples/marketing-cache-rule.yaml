@@ -1,0 +1,31 @@
+# Cache the marketing and docs surface at the edge for a few minutes.
+# Removes most bot pressure from the highest-volume public surface —
+# every crawler hit after the first in a window comes from cache and
+# never reaches origin.
+#
+# Adjust the expression to match the routes actually served by
+# the origin's marketing pipeline (`browser_marketing` /
+# `browser_docs`) if their prefixes change.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCacheRule
+metadata:
+  name: marketing-and-docs
+spec:
+  zoneId: REPLACE_WITH_ZONE_ID
+  description: "Cache marketing + docs at the edge"
+  expression: >
+    (starts_with(http.request.uri.path, "/blog") or
+     starts_with(http.request.uri.path, "/docs") or
+     starts_with(http.request.uri.path, "/changelog") or
+     starts_with(http.request.uri.path, "/pricing") or
+     starts_with(http.request.uri.path, "/customers") or
+     http.request.uri.path eq "/")
+    and http.request.method eq "GET"
+  cacheSettings:
+    cache: true
+    edgeTTL:
+      mode: override_origin
+      default: 300      # 5 min
+    browserTTL:
+      mode: respect_origin
+    respectStrongEtags: true

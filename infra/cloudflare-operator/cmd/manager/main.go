@@ -101,6 +101,42 @@ func main() {
 		setupLog.Error(err, "setup CloudflareRateLimitReconciler")
 		os.Exit(1)
 	}
+	if err := (&controllers.CloudflareCacheRuleReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareCacheRuleReconciler")
+		os.Exit(1)
+	}
+	if err := (&controllers.CloudflareWAFCustomRuleReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareWAFCustomRuleReconciler")
+		os.Exit(1)
+	}
+	if err := (&controllers.CloudflareZoneSettingReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareZoneSettingReconciler")
+		os.Exit(1)
+	}
+	if err := (&controllers.CloudflareAICrawlControlReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareAICrawlControlReconciler")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "set up health check")

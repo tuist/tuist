@@ -24,32 +24,50 @@ operator fills the gap.
 
 ## Current CRDs
 
+Five kinds today, covering the surface the ops playbook cares about:
+
 - `CloudflareRateLimit` — one entry in a zone's `http_ratelimit`
   ruleset. See `api/v1alpha1/cloudflareratelimit_types.go` and
   `config/samples/public-pages-rate-limit.yaml`.
-
-Follow-on CRDs to add (in priority order):
-
-- `CloudflareCacheRule` — for marketing / docs / OG image caching.
-- `CloudflareCustomRule` — WAF custom rules (public-repo-safe ones
-  only; IP allowlists stay in a private overlay).
-- `CloudflareAICrawlerPolicy` — AI Crawl Control policy per zone.
-- `CloudflareZoneSetting` — Challenge Passage, TLS, etc.
+- `CloudflareCacheRule` — one entry in a zone's
+  `http_request_cache_settings` ruleset. Cache marketing, docs, OG
+  images at the edge. See `config/samples/marketing-cache-rule.yaml`,
+  `config/samples/og-images-cache-rule.yaml`.
+- `CloudflareWAFCustomRule` — one entry in a zone's
+  `http_request_firewall_custom` ruleset. The Custom Rules screen in
+  the Cloudflare dashboard. See `config/samples/auth-managed-challenge.yaml`.
+- `CloudflareZoneSetting` — one zone-level setting pinned to a value
+  (challenge_ttl, ssl, security_level, always_use_https, etc.). The
+  value is raw JSON so one CRD covers every setting shape. See
+  `config/samples/challenge-passage.yaml`.
+- `CloudflareAICrawlControl` — zone-level AI Crawl Control config.
+  The wire format is newer than the Rulesets API and has iterated, so
+  the CRD passes the payload through as raw JSON that the operator
+  PUTs verbatim; drift-detection is a byte comparison.
 
 ## Reconciliation model
 
-Each CR has a stable `ref` the operator derives from the CR's name and
-UID. On every reconcile:
+**Ruleset-based CRDs** (`CloudflareRateLimit`, `CloudflareCacheRule`,
+`CloudflareWAFCustomRule`) share the same reconcile shape:
 
-1. GET the zone's entrypoint ruleset for the phase (`http_ratelimit`
-   for rate limits). If Cloudflare has none yet, POST to create it.
-2. Scan the ruleset for a rule with the matching `ref`.
-3. Compare the live rule to the desired rule (rendered from the CR).
-4. If missing → POST. If drifted → PATCH. If in sync → no-op.
+1. GET the zone's entrypoint ruleset for the phase; POST to create it
+   if none exists yet.
+2. Scan for a rule with a stable `ref` the operator derives from the
+   CR's name and UID (namespaced per CRD kind so collisions between
+   `CloudflareRateLimit/foo` and `CloudflareCacheRule/foo` don't
+   happen on the wire).
+3. Missing → POST. Drifted → PATCH. In sync → no-op.
 
-A finalizer (`cloudflare.tuist.dev/finalizer`) makes CR deletion delete
-the live Cloudflare rule before removing the finalizer, so git deletes
-propagate.
+Ruleset CRDs use a finalizer (`cloudflare.tuist.dev/finalizer`) so a
+CR delete propagates to Cloudflare.
+
+**Settings-based CRDs** (`CloudflareZoneSetting`,
+`CloudflareAICrawlControl`) compare the desired JSON payload against
+the value Cloudflare returns and PATCH/PUT when they differ. These do
+**not** run a finalizer: deleting the CR just stops managing that
+setting; it does not revert Cloudflare to a default. This is
+intentional — a `kubectl delete` on a compliance-critical setting
+should not silently roll it back.
 
 Every successful reconcile requeues after `--resync-interval` (5 min
 by default), which is also how quickly a dashboard edit gets corrected
@@ -63,9 +81,11 @@ The operator ships as a container image and a Helm chart at
 global.
 
 Cloudflare API token lives in a Kubernetes Secret referenced by the
-chart. The token needs Zone:Read, Zone WAF:Edit, and (once cache rules
-land) Cache Rules:Edit scoped to the account and zone under
-management.
+chart. Scopes needed on the token (per the five current CRDs): Zone
+Read, Zone WAF Edit, Cache Rules Edit, Zone Settings Edit, and Zone
+AI Crawl Control Edit — all scoped to the account and zones under
+management. Give the token account-wide zone scopes if you plan to
+manage multiple zones.
 
 ## Local development
 

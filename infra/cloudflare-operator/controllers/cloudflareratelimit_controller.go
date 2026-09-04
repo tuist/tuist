@@ -9,7 +9,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,21 +44,11 @@ const (
 type CloudflareRateLimitReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	CF     RateLimitAPI
+	CF     RulesetAPI
 
 	// ResyncInterval is the requeue after a successful reconcile so the
 	// operator corrects dashboard drift without waiting for a spec edit.
 	ResyncInterval time.Duration
-}
-
-// RateLimitAPI is the subset of the Cloudflare client the reconciler
-// depends on. Kept narrow so tests can stub it.
-type RateLimitAPI interface {
-	GetRateLimitRuleset(ctx context.Context, zoneID string) (*cloudflare.Ruleset, error)
-	CreateRateLimitRuleset(ctx context.Context, zoneID string) (*cloudflare.Ruleset, error)
-	AddRule(ctx context.Context, zoneID, rulesetID string, rule cloudflare.Rule) (*cloudflare.Ruleset, error)
-	UpdateRule(ctx context.Context, zoneID, rulesetID, ruleID string, rule cloudflare.Rule) (*cloudflare.Ruleset, error)
-	DeleteRule(ctx context.Context, zoneID, rulesetID, ruleID string) error
 }
 
 func (r *CloudflareRateLimitReconciler) resync() time.Duration {
@@ -92,7 +81,7 @@ func (r *CloudflareRateLimitReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, nil
 	}
 
-	rs, err := r.ensureRuleset(ctx, cr.Spec.ZoneID)
+	rs, err := ensurePhaseRuleset(ctx, r.CF, cr.Spec.ZoneID, cloudflare.RateLimitPhase)
 	if err != nil {
 		return r.fail(ctx, cr, ref, "", "", err)
 	}
@@ -110,7 +99,7 @@ func (r *CloudflareRateLimitReconciler) Reconcile(ctx context.Context, req ctrl.
 		logger.Info("created rate limit rule", "rulesetId", rs.ID, "ruleId", ruleIDOf(created), "ref", ref)
 		return r.succeed(ctx, cr, ref, rs.ID, ruleIDOf(created), "created")
 
-	case ruleDiffers(existing, &desired):
+	case rulesetRuleDiffers(existing, &desired):
 		updated, err := r.CF.UpdateRule(ctx, cr.Spec.ZoneID, rs.ID, existing.ID, desired)
 		if err != nil {
 			return r.fail(ctx, cr, ref, rs.ID, existing.ID, fmt.Errorf("update rule: %w", err))
@@ -130,7 +119,7 @@ func (r *CloudflareRateLimitReconciler) reconcileDelete(ctx context.Context, cr 
 		return ctrl.Result{}, nil
 	}
 
-	rs, err := r.CF.GetRateLimitRuleset(ctx, cr.Spec.ZoneID)
+	rs, err := r.CF.GetPhaseRuleset(ctx, cr.Spec.ZoneID, cloudflare.RateLimitPhase)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("get ruleset for delete: %w", err)
 	}
@@ -147,25 +136,6 @@ func (r *CloudflareRateLimitReconciler) reconcileDelete(ctx context.Context, cr 
 		return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
 	}
 	return ctrl.Result{}, nil
-}
-
-// ensureRuleset returns the zone's http_ratelimit entrypoint ruleset,
-// creating it if Cloudflare has none yet. Creation happens lazily so a
-// zone that has never had a rate limit rule doesn't require operator
-// bootstrapping to be viable.
-func (r *CloudflareRateLimitReconciler) ensureRuleset(ctx context.Context, zoneID string) (*cloudflare.Ruleset, error) {
-	rs, err := r.CF.GetRateLimitRuleset(ctx, zoneID)
-	if err != nil {
-		return nil, fmt.Errorf("get ruleset: %w", err)
-	}
-	if rs != nil {
-		return rs, nil
-	}
-	created, err := r.CF.CreateRateLimitRuleset(ctx, zoneID)
-	if err != nil {
-		return nil, fmt.Errorf("create ruleset: %w", err)
-	}
-	return created, nil
 }
 
 func (r *CloudflareRateLimitReconciler) succeed(ctx context.Context, cr *cfv1alpha1.CloudflareRateLimit, ref, rulesetID, ruleID, message string) (ctrl.Result, error) {
@@ -231,23 +201,6 @@ func renderRule(cr *cfv1alpha1.CloudflareRateLimit, ref string) cloudflare.Rule 
 			CountingExpression: cr.Spec.RateLimit.CountingExpression,
 		},
 	}
-}
-
-// ruleDiffers compares only the fields the operator sets, ignoring
-// server-side ones (ID, Version, LastUpdated) so a semantically equal
-// rule doesn't cause a needless PATCH on every resync.
-func ruleDiffers(a, b *cloudflare.Rule) bool {
-	if a == nil || b == nil {
-		return a != b
-	}
-	if a.Action != b.Action ||
-		a.Expression != b.Expression ||
-		a.Description != b.Description ||
-		a.Enabled != b.Enabled ||
-		a.Ref != b.Ref {
-		return true
-	}
-	return !reflect.DeepEqual(a.RateLimit, b.RateLimit)
 }
 
 func ruleIDOf(r *cloudflare.Rule) string {

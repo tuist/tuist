@@ -20,9 +20,11 @@ import (
 const (
 	defaultBaseURL = "https://api.cloudflare.com/client/v4"
 
-	// RateLimitPhase is the Ruleset Engine phase for rate limiting rules.
-	// Every zone has at most one entrypoint ruleset per phase.
-	RateLimitPhase = "http_ratelimit"
+	// Ruleset Engine phases the operator can target. Every zone has at
+	// most one entrypoint ruleset per phase.
+	RateLimitPhase      = "http_ratelimit"
+	CacheSettingsPhase  = "http_request_cache_settings"
+	CustomFirewallPhase = "http_request_firewall_custom"
 
 	// RulesetKind for zone-scoped entrypoint rulesets.
 	rulesetKindZone = "zone"
@@ -50,19 +52,21 @@ func New(token string, baseURL string) *Client {
 }
 
 // Rule is one entry in a ruleset. The shape here covers what the
-// operator sets today (rate limiting) and can be extended for other
-// rule kinds later.
+// operator sets today (rate limiting, cache settings, WAF custom
+// firewall) and can be extended for other rule kinds later. Only fields
+// the operator reads or writes are modeled; anything else Cloudflare
+// returns is discarded on decode.
 type Rule struct {
-	ID          string          `json:"id,omitempty"`
-	Version     string          `json:"version,omitempty"`
-	Action      string          `json:"action"`
-	Expression  string          `json:"expression"`
-	Description string          `json:"description,omitempty"`
-	Enabled     bool            `json:"enabled"`
-	Ref         string          `json:"ref,omitempty"`
-	RateLimit   *RuleRateLimit  `json:"ratelimit,omitempty"`
-	LastUpdated string          `json:"last_updated,omitempty"`
-	Extra       json.RawMessage `json:"-"`
+	ID               string          `json:"id,omitempty"`
+	Version          string          `json:"version,omitempty"`
+	Action           string          `json:"action"`
+	Expression       string          `json:"expression"`
+	Description      string          `json:"description,omitempty"`
+	Enabled          bool            `json:"enabled"`
+	Ref              string          `json:"ref,omitempty"`
+	RateLimit        *RuleRateLimit  `json:"ratelimit,omitempty"`
+	ActionParameters json.RawMessage `json:"action_parameters,omitempty"`
+	LastUpdated      string          `json:"last_updated,omitempty"`
 }
 
 // RuleRateLimit mirrors the Cloudflare rule's ratelimit block. Field
@@ -89,11 +93,10 @@ type Ruleset struct {
 	Rules       []Rule `json:"rules"`
 }
 
-// GetRateLimitRuleset returns the zone's entrypoint http_ratelimit
-// ruleset. If none exists yet Cloudflare returns 404 and this function
-// returns (nil, nil) so callers can lazily create it.
-func (c *Client) GetRateLimitRuleset(ctx context.Context, zoneID string) (*Ruleset, error) {
-	path := fmt.Sprintf("/zones/%s/rulesets/phases/%s/entrypoint", zoneID, RateLimitPhase)
+// GetPhaseRuleset returns the zone's entrypoint ruleset for phase, or
+// (nil, nil) if none exists yet so callers can lazily create it.
+func (c *Client) GetPhaseRuleset(ctx context.Context, zoneID, phase string) (*Ruleset, error) {
+	path := fmt.Sprintf("/zones/%s/rulesets/phases/%s/entrypoint", zoneID, phase)
 	var wrapper struct {
 		Result Ruleset `json:"result"`
 	}
@@ -107,15 +110,15 @@ func (c *Client) GetRateLimitRuleset(ctx context.Context, zoneID string) (*Rules
 	return &wrapper.Result, nil
 }
 
-// CreateRateLimitRuleset creates the zone's http_ratelimit entrypoint
-// ruleset. Cloudflare returns an error if one already exists; call
-// GetRateLimitRuleset first.
-func (c *Client) CreateRateLimitRuleset(ctx context.Context, zoneID string) (*Ruleset, error) {
+// CreatePhaseRuleset creates the zone's entrypoint ruleset for phase.
+// Cloudflare returns an error if one already exists; call
+// GetPhaseRuleset first.
+func (c *Client) CreatePhaseRuleset(ctx context.Context, zoneID, phase string) (*Ruleset, error) {
 	body := map[string]any{
 		"name":        "default",
-		"description": "Zone rate limiting ruleset (managed by cloudflare-operator).",
+		"description": fmt.Sprintf("Zone %s ruleset (managed by cloudflare-operator).", phase),
 		"kind":        rulesetKindZone,
-		"phase":       RateLimitPhase,
+		"phase":       phase,
 		"rules":       []Rule{},
 	}
 	path := fmt.Sprintf("/zones/%s/rulesets", zoneID)
@@ -126,6 +129,17 @@ func (c *Client) CreateRateLimitRuleset(ctx context.Context, zoneID string) (*Ru
 		return nil, err
 	}
 	return &wrapper.Result, nil
+}
+
+// GetRateLimitRuleset is a phase-specific alias kept so the rate limit
+// reconciler's API surface reads naturally at the call site.
+func (c *Client) GetRateLimitRuleset(ctx context.Context, zoneID string) (*Ruleset, error) {
+	return c.GetPhaseRuleset(ctx, zoneID, RateLimitPhase)
+}
+
+// CreateRateLimitRuleset is the phase-specific alias.
+func (c *Client) CreateRateLimitRuleset(ctx context.Context, zoneID string) (*Ruleset, error) {
+	return c.CreatePhaseRuleset(ctx, zoneID, RateLimitPhase)
 }
 
 // AddRule appends a rule to the ruleset and returns the resulting

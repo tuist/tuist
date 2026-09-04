@@ -16,7 +16,7 @@ import (
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
 )
 
-// fakeCF is a scripted RateLimitAPI used across reconciler tests. Each
+// fakeCF is a scripted RulesetAPI used across reconciler tests. Each
 // method records the call and returns whatever the test wired up.
 type fakeCF struct {
 	ruleset      *cloudflare.Ruleset
@@ -31,11 +31,11 @@ type fakeCF struct {
 	updateCalls  int
 }
 
-func (f *fakeCF) GetRateLimitRuleset(_ context.Context, _ string) (*cloudflare.Ruleset, error) {
+func (f *fakeCF) GetPhaseRuleset(_ context.Context, _, _ string) (*cloudflare.Ruleset, error) {
 	return f.ruleset, f.getErr
 }
 
-func (f *fakeCF) CreateRateLimitRuleset(_ context.Context, _ string) (*cloudflare.Ruleset, error) {
+func (f *fakeCF) CreatePhaseRuleset(_ context.Context, _, _ string) (*cloudflare.Ruleset, error) {
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
@@ -334,19 +334,19 @@ func TestReconcile_APIErrorSurfacesInStatus(t *testing.T) {
 	}
 }
 
-func TestRuleDiffers(t *testing.T) {
+func TestRulesetRuleDiffers(t *testing.T) {
 	a := renderRule(sampleCR("uid-diff-abc"), "cfop_x")
 	b := renderRule(sampleCR("uid-diff-abc"), "cfop_x")
-	if ruleDiffers(&a, &b) {
+	if rulesetRuleDiffers(&a, &b) {
 		t.Error("identical rules should not differ")
 	}
 	b.RateLimit.RequestsPerPeriod++
-	if !ruleDiffers(&a, &b) {
+	if !rulesetRuleDiffers(&a, &b) {
 		t.Error("changed requestsPerPeriod should count as differ")
 	}
 	c := renderRule(sampleCR("uid-diff-abc"), "cfop_x")
 	c.Action = "block"
-	if !ruleDiffers(&a, &c) {
+	if !rulesetRuleDiffers(&a, &c) {
 		t.Error("changed action should count as differ")
 	}
 }
