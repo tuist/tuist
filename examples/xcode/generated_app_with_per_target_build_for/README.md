@@ -15,7 +15,13 @@ The fixture contains three targets:
 - `ExampleLibraryTests`, which imports and tests `ExampleLibrary`.
 - `ExampleLibraryApp`, which imports and displays a value from `ExampleLibrary`.
 
-Open `ExampleLibrary.xcworkspace`, edit the `ExampleLibrary` scheme, and inspect its Build tab. The baseline manifest uses the existing `targets:` API, so all three targets are enabled for Analyze, Test, Run, Profile, and Archive.
+Open `ExampleLibrary.xcworkspace`, edit the `ExampleLibrary` scheme, and inspect its Build tab. The explicit scheme uses the per-target Build-action API to produce:
+
+| Target | Analyze | Test | Run | Profile | Archive |
+| --- | --- | --- | --- | --- | --- |
+| `ExampleLibrary` | Yes | Yes | Yes | Yes | Yes |
+| `ExampleLibraryTests` | No | Yes | No | No | No |
+| `ExampleLibraryApp` | Yes | No | Yes | Yes | Yes |
 
 The generated XML can also be inspected without Xcode:
 
@@ -23,19 +29,4 @@ The generated XML can also be inspected without Xcode:
 grep -A8 BuildActionEntry ExampleLibrary.xcodeproj/xcshareddata/xcschemes/ExampleLibrary.xcscheme
 ```
 
-After adding per-target build-purpose support, change the build action to:
-
-```swift
-buildAction: .buildAction(
-    buildActionTargets: [
-        .target("ExampleLibrary"),
-        .target("ExampleLibraryTests"),
-        .target(
-            "ExampleLibraryApp",
-            buildFor: [.analyzing, .archiving, .profiling, .running]
-        ),
-    ]
-)
-```
-
-Regenerate the project. `ExampleLibraryApp` should then have `buildForTesting = "NO"`, while its other four values remain `"YES"`.
+After regenerating, `ExampleLibraryApp` should have `buildForTesting = "NO"`, `ExampleLibraryTests` should have only `buildForTesting = "YES"`, and `ExampleLibrary` should have all five values set to `"YES"`.

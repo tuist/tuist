@@ -3,15 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "ExampleLibrary",
     options: .options(
-        automaticSchemesOptions: .enabled(
-            targetSchemesGrouping: .byNameSuffix(
-                build: [],
-                test: ["Tests"],
-                run: ["App"]
-            ),
-            testLanguage: SchemeLanguage(identifier: "en"),
-            testRegion: "US"
-        )
+        automaticSchemesOptions: .disabled
     ),
     targets: [
         .target(
@@ -41,6 +33,27 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/ExampleLibraryApp/**"],
             dependencies: [.target(name: "ExampleLibrary")]
+        ),
+    ],
+    schemes: [
+        .scheme(
+            name: "ExampleLibrary",
+            shared: true,
+            buildAction: .buildAction(
+                buildActionTargets: [
+                    .target("ExampleLibrary"),
+                    .target("ExampleLibraryTests", buildFor: [.testing]),
+                    .target(
+                        "ExampleLibraryApp",
+                        buildFor: [.analyzing, .archiving, .profiling, .running]
+                    ),
+                ]
+            ),
+            testAction: .targets(
+                ["ExampleLibraryTests"],
+                options: .options(language: "en", region: "US")
+            ),
+            runAction: .runAction(executable: "ExampleLibraryApp")
         ),
     ]
 )
