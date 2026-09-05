@@ -12,12 +12,14 @@ defmodule Tuist.Bazel do
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
+  alias Tuist.ClickHouseTimeSeries
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.Repo
   alias Tuist.Tests.Sanitizer
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
+  @ingest_pruning_slack_seconds 24 * 60 * 60
 
   def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
@@ -92,6 +94,12 @@ defmodule Tuist.Bazel do
       end)
 
     IngestRepo.insert_all(InvocationLog, entries)
+  end
+
+  def invocation_logs_present?(project_id, invocation_id, opts \\ []) do
+    project_id
+    |> invocation_log_query(invocation_id, opts)
+    |> ClickHouseRepo.exists?()
   end
 
   def stage_test_result(attrs, max_artifact_bytes \\ @max_test_artifact_bytes_per_invocation) when is_map(attrs) do
@@ -417,16 +425,18 @@ defmodule Tuist.Bazel do
     count
   end
 
-  def list_invocations(project_id, flop_params \\ %{}) do
+  def list_invocations(project_id, flop_params \\ %{}, opts \\ []) do
+    {commands, flop_params} = Map.pop(flop_params, :commands)
+
     {invocations, meta} =
-      from(invocation in Invocation, hints: ["FINAL"])
-      |> where([invocation], invocation.project_id == ^project_id)
+      project_id
+      |> invocation_query(Keyword.put(opts, :commands, commands))
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
     with_cache_summaries(project_id, invocations, meta)
   end
 
-  def get_invocation(project_id, invocation_id) do
+  def get_invocation(project_id, invocation_id, opts \\ []) do
     invocation =
       ClickHouseRepo.one(
         from(invocation in Invocation,
@@ -438,20 +448,66 @@ defmodule Tuist.Bazel do
       )
 
     case invocation do
-      nil -> {:error, :not_found}
-      invocation -> {:ok, Map.put(invocation, :cache, ReapiCache.invocation_summary(project_id, invocation_id))}
+      nil ->
+        {:error, :not_found}
+
+      invocation ->
+        if Keyword.get(opts, :include_cache_summary, true) do
+          cache = ReapiCache.invocation_summary(project_id, invocation_id, cache_summary_query_options([invocation]))
+          {:ok, Map.put(invocation, :cache, cache)}
+        else
+          {:ok, invocation}
+        end
     end
   end
 
-  def list_invocation_logs(project_id, invocation_id, flop_params \\ %{}) do
+  def invocations_present?(project_id, commands \\ nil) do
+    end_datetime = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second) |> NaiveDateTime.add(1, :second)
+
+    project_id
+    |> invocation_query(
+      commands: commands,
+      start_datetime: NaiveDateTime.add(end_datetime, -90, :day),
+      end_datetime: end_datetime
+    )
+    |> ClickHouseRepo.exists?()
+  end
+
+  def list_invocation_logs(project_id, invocation_id, flop_params \\ %{}, opts \\ []) do
     ClickHouseFlop.validate_and_run!(
-      from(log in InvocationLog,
-        hints: ["FINAL"],
-        where: log.project_id == ^project_id and log.invocation_id == ^invocation_id
-      ),
+      invocation_log_query(project_id, invocation_id, opts),
       flop_params,
       for: InvocationLog
     )
+  end
+
+  def list_invocation_log_batch(project_id, invocation_id, after_sequence_number, limit, opts \\ []) do
+    query = invocation_log_query(project_id, invocation_id, opts)
+
+    query =
+      if is_integer(after_sequence_number) do
+        where(query, [log], log.sequence_number > ^after_sequence_number)
+      else
+        query
+      end
+
+    ClickHouseRepo.all(
+      from(log in query,
+        order_by: [asc: log.sequence_number],
+        limit: ^limit
+      )
+    )
+  end
+
+  def invocation_log_query_options(invocation) do
+    [
+      start_datetime: shift_datetime(invocation.started_at, -@ingest_pruning_slack_seconds),
+      end_datetime: shift_datetime(invocation.finished_at, @ingest_pruning_slack_seconds)
+    ]
+  end
+
+  def invocation_cache_query_options(invocation) do
+    cache_summary_query_options([invocation])
   end
 
   def get_invocation_log(project_id, invocation_id, log_id) do
@@ -472,29 +528,77 @@ defmodule Tuist.Bazel do
     end
   end
 
-  def summary(project_id) do
+  def summary(project_id, opts \\ []) do
+    query = invocation_query(project_id, opts)
+
     result =
       ClickHouseRepo.one(
-        from(invocation in Invocation,
-          hints: ["FINAL"],
-          where: invocation.project_id == ^project_id,
+        from(invocation in query,
           select: %{
             total: count(invocation.id),
             successful: coalesce(sum(fragment("if(? = 'success', 1, 0)", invocation.status)), 0),
-            median_duration_ms: fragment("quantileOrNull(0.5)(?)", invocation.duration_ms),
-            p90_duration_ms: fragment("quantileOrNull(0.9)(?)", invocation.duration_ms)
+            failed: coalesce(sum(fragment("if(? = 'failure', 1, 0)", invocation.status)), 0),
+            average_duration_ms: fragment("coalesce(avgOrNull(?), 0)", invocation.duration_ms),
+            median_duration_ms: fragment("coalesce(quantileOrNull(0.5)(?), 0)", invocation.duration_ms),
+            p90_duration_ms: fragment("coalesce(quantileOrNull(0.9)(?), 0)", invocation.duration_ms),
+            p99_duration_ms: fragment("coalesce(quantileOrNull(0.99)(?), 0)", invocation.duration_ms)
           }
         )
       )
 
-    result || %{total: 0, successful: 0, median_duration_ms: 0, p90_duration_ms: 0}
+    result ||
+      %{
+        total: 0,
+        successful: 0,
+        failed: 0,
+        average_duration_ms: 0,
+        median_duration_ms: 0,
+        p90_duration_ms: 0,
+        p99_duration_ms: 0
+      }
+  end
+
+  def invocation_analytics(project_id, opts \\ []) do
+    project_id
+    |> invocation_query(opts)
+    |> daily_analytics(opts)
+  end
+
+  def duration_analytics(project_id, opts \\ []) do
+    analytics = invocation_analytics(project_id, opts)
+
+    %{
+      dates: analytics.dates,
+      values: analytics.average_duration_values,
+      total_average_duration: divide(analytics.total_duration_ms, analytics.total)
+    }
+  end
+
+  def recent_invocations(project_id, limit \\ 30)
+
+  def recent_invocations(project_id, limit) when is_integer(limit) do
+    recent_invocations(project_id, limit: limit)
+  end
+
+  def recent_invocations(project_id, opts) when is_list(opts) do
+    limit = Keyword.get(opts, :limit, 30)
+
+    invocations =
+      project_id
+      |> invocation_query(opts)
+      |> order_by([invocation], desc: invocation.finished_at)
+      |> limit(^limit)
+      |> ClickHouseRepo.all()
+
+    {invocations, _meta} = with_cache_summaries(project_id, invocations, %{})
+    invocations
   end
 
   defp with_cache_summaries(_project_id, [], meta), do: {[], meta}
 
   defp with_cache_summaries(project_id, invocations, meta) do
     invocation_ids = Enum.map(invocations, & &1.invocation_id)
-    summaries = ReapiCache.invocation_summaries(project_id, invocation_ids)
+    summaries = ReapiCache.invocation_summaries(project_id, invocation_ids, cache_summary_query_options(invocations))
 
     invocations =
       Enum.map(invocations, fn invocation ->
@@ -503,4 +607,145 @@ defmodule Tuist.Bazel do
 
     {invocations, meta}
   end
+
+  defp invocation_query(project_id, opts) do
+    query =
+      Invocation
+      |> from(hints: ["FINAL"])
+      |> where([invocation], invocation.project_id == ^project_id)
+      |> maybe_filter_commands(Keyword.get(opts, :commands))
+
+    query =
+      case Keyword.get(opts, :start_datetime) do
+        nil ->
+          query
+
+        start_datetime ->
+          prune_start_datetime = shift_datetime(start_datetime, -@ingest_pruning_slack_seconds)
+
+          where(
+            query,
+            [invocation],
+            invocation.inserted_at >= ^prune_start_datetime and invocation.finished_at >= ^start_datetime
+          )
+      end
+
+    case Keyword.get(opts, :end_datetime) do
+      nil ->
+        query
+
+      end_datetime ->
+        prune_end_datetime = shift_datetime(end_datetime, @ingest_pruning_slack_seconds)
+
+        where(
+          query,
+          [invocation],
+          invocation.inserted_at < ^prune_end_datetime and invocation.finished_at < ^end_datetime
+        )
+    end
+  end
+
+  defp invocation_log_query(project_id, invocation_id, opts) do
+    query =
+      from(log in InvocationLog,
+        hints: ["FINAL"],
+        where: log.project_id == ^project_id and log.invocation_id == ^invocation_id
+      )
+
+    query =
+      case Keyword.get(opts, :start_datetime) do
+        nil -> query
+        start_datetime -> where(query, [log], log.observed_at >= ^start_datetime)
+      end
+
+    case Keyword.get(opts, :end_datetime) do
+      nil -> query
+      end_datetime -> where(query, [log], log.observed_at < ^end_datetime)
+    end
+  end
+
+  defp daily_analytics(query, opts) do
+    %{start_datetime: start_datetime, end_datetime: end_datetime} = period(opts)
+    granularity = ClickHouseTimeSeries.granularity(start_datetime, end_datetime)
+    date_format = ClickHouseTimeSeries.date_format(granularity)
+
+    values =
+      ClickHouseRepo.all(
+        from(invocation in query,
+          group_by: fragment("formatDateTime(?, ?)", invocation.finished_at, ^date_format),
+          order_by: fragment("formatDateTime(?, ?)", invocation.finished_at, ^date_format),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", invocation.finished_at, ^date_format),
+            total: count(invocation.id),
+            successful: coalesce(sum(fragment("if(? = 'success', 1, 0)", invocation.status)), 0),
+            failed: coalesce(sum(fragment("if(? = 'failure', 1, 0)", invocation.status)), 0),
+            average_duration_ms: coalesce(avg(invocation.duration_ms), 0),
+            median_duration_ms: fragment("quantileOrNull(0.5)(?)", invocation.duration_ms),
+            p90_duration_ms: fragment("quantileOrNull(0.9)(?)", invocation.duration_ms),
+            p99_duration_ms: fragment("quantileOrNull(0.99)(?)", invocation.duration_ms)
+          }
+        )
+      )
+
+    values_by_date = Map.new(values, fn result -> {result.date, result} end)
+
+    dates = ClickHouseTimeSeries.buckets(start_datetime, end_datetime, granularity)
+
+    %{
+      dates: dates,
+      total: Enum.sum(Enum.map(values, & &1.total)),
+      total_duration_ms: Enum.sum(Enum.map(values, &(numeric(&1.average_duration_ms) * &1.total))),
+      total_values: Enum.map(dates, &daily_value(values_by_date, &1, :total)),
+      success_rate_values: Enum.map(dates, &daily_success_rate(values_by_date, &1)),
+      failed_values: Enum.map(dates, &daily_value(values_by_date, &1, :failed)),
+      average_duration_values: Enum.map(dates, &daily_value(values_by_date, &1, :average_duration_ms)),
+      median_duration_values: Enum.map(dates, &daily_value(values_by_date, &1, :median_duration_ms)),
+      p90_duration_values: Enum.map(dates, &daily_value(values_by_date, &1, :p90_duration_ms)),
+      p99_duration_values: Enum.map(dates, &daily_value(values_by_date, &1, :p99_duration_ms))
+    }
+  end
+
+  defp daily_success_rate(values_by_date, date) do
+    case Map.get(values_by_date, date) do
+      %{total: total, successful: successful} when total > 0 -> successful / total * 100
+      _ -> 0
+    end
+  end
+
+  defp daily_value(values_by_date, date, key) do
+    values_by_date
+    |> Map.get(date, %{})
+    |> Map.get(key, 0)
+  end
+
+  defp period(opts) do
+    %{
+      start_datetime: Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day)),
+      end_datetime: Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    }
+  end
+
+  defp maybe_filter_commands(query, commands) when is_list(commands) and commands != [] do
+    where(query, [invocation], invocation.command in ^commands)
+  end
+
+  defp maybe_filter_commands(query, _commands), do: query
+
+  defp cache_summary_query_options(invocations) do
+    first_started_at = invocations |> Enum.min_by(& &1.started_at, NaiveDateTime) |> Map.fetch!(:started_at)
+    last_inserted_at = invocations |> Enum.max_by(& &1.inserted_at, NaiveDateTime) |> Map.fetch!(:inserted_at)
+
+    [
+      start_datetime: shift_datetime(first_started_at, -@ingest_pruning_slack_seconds),
+      end_datetime: shift_datetime(last_inserted_at, @ingest_pruning_slack_seconds)
+    ]
+  end
+
+  defp shift_datetime(%DateTime{} = datetime, seconds), do: DateTime.add(datetime, seconds, :second)
+  defp shift_datetime(%NaiveDateTime{} = datetime, seconds), do: NaiveDateTime.add(datetime, seconds, :second)
+  defp divide(_numerator, denominator) when denominator in [nil, 0], do: 0
+  defp divide(numerator, denominator), do: numeric(numerator) / numeric(denominator)
+  defp numeric(%Decimal{} = value), do: Decimal.to_float(value)
+  defp numeric(value) when is_number(value), do: value
+  defp numeric(nil), do: 0
 end
