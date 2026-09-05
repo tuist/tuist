@@ -50,7 +50,7 @@ use crate::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
     },
     io::{IoController, PersistentFile},
-    memory::MemoryController,
+    memory::{MemoryController, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
@@ -1997,7 +1997,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(segment_id.as_str()),
+                offset,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.segment_handle(segment_id).await?;
@@ -2016,7 +2024,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(blob_path.as_str()),
+                offset: 0,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.blob_handle(blob_path).await?;
@@ -13991,7 +14007,16 @@ mod tests {
         store.eviction_batch_budget_bytes = 1;
         let store = Arc::new(store);
 
-        let digests = [reapi_digest(1, 5), reapi_digest(2, 5)];
+        // The eviction yields only after a fixed number of rows. Keep the
+        // target blob beyond that boundary so the hand-driven future has a
+        // deterministic point at which the entry deletion is committed but
+        // the target has not been scanned yet.
+        let digests: Vec<ReapiDigest> = (1..=(SEGMENT_EVICTION_YIELD_ROWS + 1))
+            .map(|index| ReapiDigest {
+                hash: format!("{index:064x}"),
+                size_bytes: 5,
+            })
+            .collect();
         let mut blobs = Vec::new();
         for (index, digest) in digests.iter().enumerate() {
             let manifest = persist_reapi_blob(
@@ -14107,15 +14132,10 @@ mod tests {
             "the republish did not land, so this asserts nothing"
         );
 
-        for _ in 0..10_000 {
-            if std::pin::Pin::new(&mut eviction)
-                .poll(&mut context)
-                .is_ready()
-            {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+        eviction
+            .as_mut()
+            .await
+            .expect("failed to evict the segment after republishing the entry");
         drop(eviction);
 
         assert!(

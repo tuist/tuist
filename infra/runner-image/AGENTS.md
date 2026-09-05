@@ -190,8 +190,46 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
+  job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
+  llcas rotates (new primary, old one demoted) when the chain is over the limit
+  and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
+  falls off — which no part of a build ever calls, so the store grew without
+  bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
+  CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
+  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
+  because the per-machine proxy holds a handle per path for its lifetime and a
+  prune alongside it collects nothing while reporting success. Both lanes are
+  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
+  generation dirs, and the staged allowance is SPLIT between them: the marker
+  budgets the CAS as a whole while llcas only takes a per-generation bound per
+  store, so handing each the full figure would let a two-lane job occupy twice
+  the CAS the image was sized for. Teardown is the only place that can count the
+  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
+  The teardown pass (second, after the drain) bounds what the FLEET inherits: the
+  image is measured and promoted right after it. The attach pass bounds what THIS
+  job inherits, and covers the case teardown cannot reach — a master that is
+  already over budget can fill the volume mid-build and fail the job, and a
+  failed job never promotes, so teardown is skipped and no replacement is ever
+  published. That is the wedge that ends in a manual reset; pruning at attach
+  gives the job the headroom to succeed so its own teardown publishes the fix.
+  The attach pass runs AFTER `CACHE_INVENTORY_BEFORE` is snapshotted, and that
+  order is load-bearing: pruning first folds the collection into the baseline, so
+  a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
+  (verified both ways — same digest when reversed). Taking the baseline first
+  makes the collection itself the change that earns the promote, the same
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. A pruned store settles at ~2x its per-generation limit
+  (primary + the demoted upstream, which is the warm cache), which is why
+  `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
+  `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports
+  `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
+  `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
+  build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
+  on the VM's boot volume and died with it.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
-  teardown. The store's objects are uploaded to the remote cache
+  teardown (the prune is second, and in that order deliberately: a prune deletes
+  objects, and deleting one the spool still owed would strand the association
+  naming it). The store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming
   them are written into the store immediately — so a promote that outruns those
   uploads publishes a master whose keys name objects nothing can produce, for
@@ -234,6 +272,21 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
+  client, built from `cas-plugin/` alongside `runner-shell-agent` by
+  `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
+  `runner.pkr.hcl` is a MANDATORY input and the template has two callers
+  (`runner-image.yml` and `server-production-deployment.yml`'s
+  `runner-image-build`), so a binary built in only one fails the other with
+  `Bad source` — on the release path that takes down the whole cascade. Add new
+  provisioned binaries to that action, not to a workflow. `cas_proxy_client` prefers the binary beside the tuist
+  that `tuist setup cache` installed (it matches the proxy actually running,
+  which is what a drain must talk to) and falls back to this one. It exists
+  because a plain `xcodebuild` workflow never runs Tuist, so it installs no
+  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
+  lane into the volume, so without a binary here nothing on the machine could
+  ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
+  no CAS daemon of its own.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are

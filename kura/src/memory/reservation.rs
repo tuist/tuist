@@ -45,9 +45,28 @@ impl MemoryPermit {
     }
 }
 
+/// Identity of a mapped file region. The mmap pool charges each distinct
+/// region once, however many concurrent responses map it: mappings of the same
+/// file pages alias the same page-cache pages, so the physical footprint does
+/// not grow with the number of readers.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MmapRegion {
+    pub source: Arc<str>,
+    pub offset: u64,
+    pub len: u64,
+}
+
+/// One mapping's share of a region's pool charge. The pool permit is held by
+/// the region entry and released when the last mapping of that region drops.
 pub struct MmapMemoryPermit {
-    pub(super) _concurrency: OwnedSemaphorePermit,
-    pub(super) _transient: TransientMemoryReservation,
+    pub(super) controller: MemoryController,
+    pub(super) region: MmapRegion,
+}
+
+impl Drop for MmapMemoryPermit {
+    fn drop(&mut self) {
+        self.controller.release_mmap_region(&self.region);
+    }
 }
 
 pub struct ResponseStreamMemoryPermit {

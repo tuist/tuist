@@ -18,6 +18,7 @@ use crate::{
     auth::SharedAuth,
     backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     io::IoController,
@@ -44,6 +45,10 @@ pub struct AppState {
     pub runtime: Arc<RuntimeState>,
     pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
+    /// Bounded, post-write delivery of Bazel's conventional test artifacts.
+    /// This is separate from aggregate cache analytics because it may read one
+    /// small blob under the background memory budget.
+    pub bazel_test_artifacts: Option<BazelTestArtifactDelivery>,
     pub usage: Option<Usage>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.

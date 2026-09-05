@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: cloudflare-operator
+    app.kubernetes.io/component: controller-manager
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflare-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflare-operator
+        app.kubernetes.io/component: controller-manager
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --resync-interval={{ .Values.resyncInterval }}
+            - --cloudflare-token-path=/etc/cloudflare/token
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: cloudflare-token
+              mountPath: /etc/cloudflare
+              readOnly: true
+      volumes:
+        - name: cloudflare-token
+          secret:
+            # Defaults to the Secret the ExternalSecret template
+            # renders; override .Values.tokenSecretName to point at a
+            # Secret managed outside this chart. The pod fails to
+            # start if the Secret does not exist, so if
+            # externalSecret.enabled is false the caller must set
+            # tokenSecretName to something they've provisioned.
+            secretName: {{ .Values.tokenSecretName | default "cloudflare-operator-token" }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}

@@ -1573,6 +1573,44 @@ defmodule Tuist.Kura do
   end
 
   @doc """
+  Tears every server an account owns out of the cluster, synchronously.
+
+  `destroy_server/1` only marks a server `:destroying` and leaves the cluster
+  call to the reconciler's next tick. That split is safe for every caller whose
+  rows outlive the tick, and unsafe for exactly one: account deletion cascades
+  `kura_servers` away, so the rows the reconciler needs are gone before it
+  runs and the workload is left with nothing that knows to reclaim it. An
+  instance stranded that way is invisible to every reclaim path we have — the
+  archival sweep reads lifecycle rows, and rollouts scope live servers — so it
+  runs until someone deletes it by hand.
+
+  Best-effort per server: a provisioner failure is logged and the rest still
+  run, because a cluster that cannot be reached must not block the deletion.
+  Anything missed that way is caught by the orphaned-instance reaper.
+  """
+  def destroy_servers_for_account(account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed)
+    |> Repo.all()
+    |> Enum.each(&destroy_server_in_cluster/1)
+
+    :ok
+  end
+
+  defp destroy_server_in_cluster(%Server{} = server) do
+    case Provisioner.destroy(server) do
+      :ok ->
+        mark_destroyed(server)
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura] destroy failed for server #{server.id} on account deletion: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  @doc """
   Enters drain-pending: unpublishes the account's cache endpoint so no new
   cache traffic is routed here, and leaves the workload running so in-flight
   work finishes. New requests stop being routed here from this moment, which is

@@ -509,6 +509,12 @@ if Tuist.Environment.error_tracking_enabled?() do
   if pod_name do
     config :sentry, server_name: pod_name
   end
+
+  # Opt this Pod's SentryHTTPClient into runtime rerouting to Hive. The
+  # callback returns `nil` until the `hive_error_tracking_enabled` flag
+  # is flipped in `/ops/flags`, so wiring it here is safe on every env
+  # even before a Hive DSN is provisioned.
+  config :tuist_common, TuistCommon.SentryHTTPClient, reroute: {Tuist.Sentry, :hive_reroute_target, []}
 end
 
 if Tuist.Environment.env() not in [:test] do
@@ -627,12 +633,15 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #
 #   * Web/server (default): every queue. Self-hosted installs without
 #     dedicated processors stay on this shape.
-#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
-#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Build processor (TUIST_MODE=processor): :process_build for CPU-heavy
+#     xcactivitylog parsing and :process_bazel_tests for memory- and
+#     input/output-bound JUnit report processing. Both run in-cluster on Linux
+#     with independent concurrency limits.
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_BAZEL_TESTS=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
 #     flags the server would race the processors on SKIP LOCKED, and
@@ -646,6 +655,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -658,7 +668,7 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue]
+      [process_build_queue, process_bazel_tests_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
       [process_xcresult_queue]
@@ -669,6 +679,12 @@ oban_queues =
     true ->
       base = base_queues
       base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_bazel_tests?(),
+          do: base,
+          else: base ++ [process_bazel_tests_queue]
+
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 

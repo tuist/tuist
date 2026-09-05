@@ -23,6 +23,7 @@ use crate::{
     analytics::Analytics,
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     http,
     io::IoController,
@@ -50,7 +51,7 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
+const HTTP_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
@@ -138,9 +139,6 @@ async fn run_with_config(
         .map_err(|error| format!("failed to create directories: {error}"))?;
     let auth = AuthEngine::from_env(metrics.clone())
         .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
@@ -183,7 +181,18 @@ async fn run_with_config(
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store = Store::open(&config, io.clone(), memory.clone())?;
+    let store = Arc::new(Store::open(&config, io.clone(), memory.clone())?);
+    let analytics =
+        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
+            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .map_err(|error| format!("failed to initialize Bazel test-artifact delivery: {error}"))?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -215,7 +224,7 @@ async fn run_with_config(
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -223,6 +232,7 @@ async fn run_with_config(
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
@@ -520,18 +530,24 @@ async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::R
 // serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so one listener
 // handles cache + gRPC.
 fn configure_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    // `max_buf_size` is what bounds hyper's HTTP/1.1 write queue. Without it
+    // hyper keeps pulling response chunks for a stalled client until it holds
+    // 16 buffers or ~408 KiB, far past the `RESPONSE_STREAM_SEND_BUFFER_BYTES`
+    // every response stream is charged. The public Ingress proxies to kura over
+    // HTTP/1.1, so this is the common cache-serving transport, not an edge case.
     builder
         .http1()
         .keep_alive(true)
         .timer(TokioTimer::new())
-        .header_read_timeout(Some(Duration::from_secs(30)));
+        .header_read_timeout(Some(Duration::from_secs(30)))
+        .max_buf_size(HTTP_MAX_SEND_BUFFER_BYTES);
     builder
         .http2()
         .initial_stream_window_size(Some(HTTP2_STREAM_WINDOW_BYTES))
         .initial_connection_window_size(Some(HTTP2_CONNECTION_WINDOW_BYTES))
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
-        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
+        .max_send_buf_size(HTTP_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
@@ -1374,10 +1390,15 @@ async fn wait_for_task_shutdown<T>(
 
 #[cfg(test)]
 mod tests {
+    use std::{pin::Pin, task::Poll};
+
     use tokio::{sync::oneshot, time::timeout};
 
     use super::*;
-    use crate::test_support::test_context;
+    use crate::{
+        constants::{RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES},
+        test_support::test_context,
+    };
 
     #[test]
     fn http_builder_accepts_http1_and_http2() {
@@ -1389,6 +1410,127 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    /// In-memory transport that behaves like the production socket: it reports
+    /// vectored-write support, so hyper's HTTP/1.1 connection picks the same
+    /// queued write strategy it uses for `TcpStream` and TLS streams.
+    struct VectoredDuplex(tokio::io::DuplexStream);
+
+    impl tokio::io::AsyncRead for VectoredDuplex {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_read(cx, buf)
+        }
+    }
+
+    impl tokio::io::AsyncWrite for VectoredDuplex {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+
+        fn poll_write_vectored(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            bufs: &[std::io::IoSlice<'_>],
+        ) -> Poll<std::io::Result<usize>> {
+            let Some(buf) = bufs.iter().find(|buf| !buf.is_empty()) else {
+                return Poll::Ready(Ok(0));
+            };
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            true
+        }
+
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_flush(cx)
+        }
+
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_shutdown(cx)
+        }
+    }
+
+    const STALLED_CLIENT_TRANSPORT_BYTES: usize = 1024;
+
+    /// Bytes hyper pulls from a response body over HTTP/1.1, configured the
+    /// way the production listener is, for a client that never reads. The
+    /// transport holds exactly `STALLED_CLIENT_TRANSPORT_BYTES`, so everything
+    /// past that sits in hyper's own write queue.
+    async fn http1_body_bytes_pulled_for_a_stalled_client() -> usize {
+        use std::{
+            convert::Infallible,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
+        use tokio::io::AsyncWriteExt as _;
+
+        let (mut client, server) = tokio::io::duplex(STALLED_CLIENT_TRANSPORT_BYTES);
+        let pulled = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&pulled);
+        let service =
+            hyper::service::service_fn(move |_request: hyper::Request<hyper::body::Incoming>| {
+                let counted = Arc::clone(&counted);
+                async move {
+                    let body = futures_util::stream::unfold((), move |()| {
+                        let counted = Arc::clone(&counted);
+                        async move {
+                            counted.fetch_add(RESPONSE_STREAM_MIN_CHUNK_BYTES, Ordering::SeqCst);
+                            let chunk =
+                                bytes::Bytes::from(vec![b'x'; RESPONSE_STREAM_MIN_CHUNK_BYTES]);
+                            Some((Ok::<_, Infallible>(hyper::body::Frame::data(chunk)), ()))
+                        }
+                    });
+                    Ok::<_, Infallible>(hyper::Response::new(http_body_util::StreamBody::new(body)))
+                }
+            });
+        let mut builder = HttpBuilder::new(TokioExecutor::new());
+        configure_http_builder(&mut builder);
+        tokio::spawn(async move {
+            let _ = builder
+                .serve_connection(
+                    hyper_util::rt::TokioIo::new(VectoredDuplex(server)),
+                    service,
+                )
+                .await;
+        });
+        client
+            .write_all(b"GET /artifact HTTP/1.1\r\nHost: kura\r\n\r\n")
+            .await
+            .expect("send request");
+        sleep(Duration::from_millis(500)).await;
+        drop(client);
+        pulled.load(Ordering::SeqCst)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn http1_send_queue_stays_within_the_charged_send_buffer() {
+        let pulled = http1_body_bytes_pulled_for_a_stalled_client().await;
+        let queued = pulled.saturating_sub(STALLED_CLIENT_TRANSPORT_BYTES);
+
+        // Response streams charge `RESPONSE_STREAM_SEND_BUFFER_BYTES` for the
+        // transport buffer plus their live reader chunks; hyper may hold one
+        // more chunk in flight past the cap.
+        let charged = RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        assert!(
+            queued <= charged,
+            "hyper queued {queued} bytes for a stalled HTTP/1.1 client, more than the \
+             {charged} bytes a response stream is charged"
+        );
     }
 
     #[test]

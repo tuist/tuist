@@ -21,7 +21,8 @@ Build caches are read-heavy and latency-sensitive. A central cache hundreds of m
    ┌──────────────────────────────────────────┐
    │             Kura node (region X)         │
    │                                          │
-   │   co-hosted HTTP + gRPC (REAPI)          │
+   │ co-hosted HTTP + gRPC (Remote Execution  │
+   │ API cache + Bazel Build Event Service)   │
    │            │                             │
    │            ▼                             │
    │   ┌──────────────────────────┐           │
@@ -49,14 +50,14 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Concern | Code |
 | --- | --- |
 | Process entry, server wiring | `src/main.rs`, `src/app.rs` |
-| Public HTTP + gRPC handlers, readiness/rollout endpoints | `src/http.rs`, `src/reapi/` |
+| Public HTTP + gRPC handlers, including the Remote Execution API cache and Bazel Build Event Service, readiness/rollout endpoints | `src/http.rs`, `src/reapi/` |
 | Storage (metadata, outbox, segments) | `src/store.rs` |
 | Replication (membership, outbox processing) | `src/replication/` |
 | Peer catch-up walker (backfill) | `src/backfill/` |
 | Cluster membership and readiness state | `src/state.rs` |
 | Traffic state, drain, single-writer fencing | `src/runtime.rs` |
 | Configuration + auto-derived defaults | `src/config.rs`, `src/constants.rs` |
-| Metrics, traces, logs, error reporting | `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs` |
+| Metrics, traces, logs, error reporting, best-effort cache analytics delivery, and bounded Bazel test-artifact delivery | `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`, `src/bazel_test_artifacts.rs` |
 | Usage metering | `src/usage.rs` |
 | Cache authorization | `src/auth/` |
 | Helm chart, rollout scripts, observability config | `ops/` |
@@ -72,6 +73,12 @@ Kura splits durable state into two planes so that the hot path is simple and the
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
 Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
+
+## Bazel Test-Artifact Delivery
+
+Kura decodes Bazel test-result and test-summary events from the Build Event Protocol. Those events carry attempt and overall target status, run, shard, attempt, duration, cache provenance, chronological sequence, and named output references, so Kura can recognize conventional `test.xml` and `test.log` outputs without reconstructing invocation context from action-cache traffic. It captures only those facts and artifact digests on the stream and sends them to a dedicated queue capped at 64 entries. A serial background worker reopens each available blob under a background-memory reservation that it retains through encoding and retrying delivery to Tuist.
+
+This is deliberately not a durable outbox. A result carries at most two matching outputs, each output is limited to 256 KiB, and a worker takes a background transient-memory reservation before reading it. The queue has a fixed capacity; full queues, oversized data, invalid metadata, unavailable local blobs, and exhausted retries are dropped. Temporary upstream responses receive a small, bounded retry sequence. Result and summary admission never waits. The small completion marker waits only for bounded queue capacity, preserving ordering without allocating beyond the configured budget or adding latency to cache paths. Tuist durably deduplicates accepted results and never reads test reports or logs back from Kura.
 
 ## Memory Pressure And Shedding
 
@@ -229,7 +236,7 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 
 ## Where To Read Next
 
-- For protocol surfaces (REAPI, Xcode, Gradle, Module Cache, Nx, Metro), start in `src/http.rs` and `src/reapi/mod.rs`.
+- For protocol surfaces (Remote Execution API, Bazel Build Event Service, Xcode, Gradle, Module Cache, Nx, Metro), start in `src/http.rs` and `src/reapi/mod.rs`.
 - For the storage layer, `src/store.rs` is the single entry point.
 - For replication invariants see `src/replication/mod.rs` and `src/state.rs`; for catch-up pass scheduling and retry behavior see `src/backfill/lifecycle.rs`.
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.

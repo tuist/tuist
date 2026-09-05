@@ -1685,4 +1685,142 @@ defmodule Tuist.ProjectsTest do
       refute Projects.has_vcs_connection?(project)
     end
   end
+
+  describe "set_project_logo/3" do
+    test "stores the binary and persists the storage key on the project" do
+      project = ProjectsFixtures.project_fixture()
+      binary = "png-bytes"
+
+      expect(Tuist.Storage, :put_object, fn key, ^binary, :project_logos ->
+        assert String.starts_with?(key, "project-logos/#{project.id}/")
+        assert String.ends_with?(key, ".png")
+        :ok
+      end)
+
+      assert {:ok, updated} = Projects.set_project_logo(project, binary, "image/png")
+      assert String.starts_with?(updated.logo_storage_key, "project-logos/#{project.id}/")
+      assert String.ends_with?(updated.logo_storage_key, ".png")
+
+      reloaded = Projects.get_project_by_id(project.id)
+      assert reloaded.logo_storage_key == updated.logo_storage_key
+    end
+
+    test "replacing a logo deletes the previous object" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+
+      {:ok, first} = Projects.set_project_logo(project, "first", "image/png")
+      previous_key = first.logo_storage_key
+
+      expect(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+      expect(Tuist.Storage, :delete_object, fn ^previous_key, :project_logos -> :ok end)
+
+      assert {:ok, second} = Projects.set_project_logo(first, "second", "image/jpeg")
+      assert second.logo_storage_key != previous_key
+      assert String.ends_with?(second.logo_storage_key, ".jpg")
+    end
+
+    test "rejects unsupported content types without writing to storage" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.put_object/3)
+
+      assert {:error, :unsupported_logo_content_type} =
+               Projects.set_project_logo(project, "gif-bytes", "image/gif")
+
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+  end
+
+  describe "prepare_project_logo_upload/2 + finalize_project_logo_upload/2" do
+    test "finalizing commits the storage_key returned by prepare" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.Storage, :generate_upload_url, fn key, :project_logos, _opts ->
+        assert String.starts_with?(key, "project-logos/#{project.id}/")
+        assert String.ends_with?(key, ".webp")
+        "https://storage.example.com/#{key}"
+      end)
+
+      assert {:ok, prepared} = Projects.prepare_project_logo_upload(project, "image/webp")
+      assert String.starts_with?(prepared.upload_url, "https://storage.example.com/")
+      assert is_binary(prepared.upload_token)
+      assert prepared.method == "PUT"
+      assert prepared.content_type == "image/webp"
+
+      stub(Tuist.Storage, :object_exists?, fn key, :project_logos ->
+        assert key == prepared.storage_key
+        true
+      end)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert {:ok, updated} = Projects.finalize_project_logo_upload(project, prepared.upload_token)
+      assert updated.logo_storage_key == prepared.storage_key
+    end
+
+    test "finalizing rejects unsupported content type at prepare time" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      assert {:error, :unsupported_logo_content_type} =
+               Projects.prepare_project_logo_upload(project, "image/gif")
+    end
+
+    test "finalizing errors when the object is missing" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts -> "https://x/y" end)
+
+      {:ok, prepared} = Projects.prepare_project_logo_upload(project, "image/png")
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _actor -> false end)
+
+      assert {:error, :logo_object_not_found} =
+               Projects.finalize_project_logo_upload(project, prepared.upload_token)
+
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+
+    test "finalizing refuses a token issued for another project" do
+      project_a = ProjectsFixtures.project_fixture()
+      project_b = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts -> "https://x/y" end)
+
+      {:ok, prepared} = Projects.prepare_project_logo_upload(project_b, "image/png")
+
+      assert {:error, :logo_upload_token_project_mismatch} =
+               Projects.finalize_project_logo_upload(project_a, prepared.upload_token)
+    end
+
+    test "finalizing refuses garbage tokens" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:error, :invalid_logo_upload_token} =
+               Projects.finalize_project_logo_upload(project, "not-a-token")
+    end
+  end
+
+  describe "clear_project_logo/1" do
+    test "clears the key and deletes the object" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+
+      {:ok, with_logo} = Projects.set_project_logo(project, "bytes", "image/webp")
+      key = with_logo.logo_storage_key
+
+      expect(Tuist.Storage, :delete_object, fn ^key, :project_logos -> :ok end)
+
+      assert {:ok, cleared} = Projects.clear_project_logo(with_logo)
+      assert is_nil(cleared.logo_storage_key)
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+
+    test "is a no-op when the project has no logo" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert {:ok, unchanged} = Projects.clear_project_logo(project)
+      assert unchanged.id == project.id
+      assert is_nil(unchanged.logo_storage_key)
+    end
+  end
 end

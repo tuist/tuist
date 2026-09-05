@@ -30,7 +30,7 @@ defmodule Tuist.MCP.Components.Tools.GetProject do
         "full_handle" => %{"type" => "string"},
         "default_branch" => %{"type" => "string"},
         "visibility" => %{"type" => "string", "enum" => ["private", "public"]},
-        "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle"]},
+        "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle", "bazel"]},
         "repository_url" => %{"type" => ["string", "null"]}
       },
       "required" => ["id", "full_handle", "default_branch", "visibility", "build_system", "repository_url"],

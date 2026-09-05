@@ -275,7 +275,10 @@ config :logger, :console,
     :sandboxes,
     :templates,
     :pending_commands,
-    :service_account
+    :service_account,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis

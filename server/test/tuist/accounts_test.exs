@@ -4056,6 +4056,40 @@ defmodule Tuist.AccountsTest do
       Accounts.delete_account!(account)
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
+
+    test "tears the account's Kura servers out of the cluster before its rows cascade away" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        # The rows the reconciler would need must still be readable here: once
+        # the account is gone they cascade, and nothing can reclaim the
+        # workload afterwards.
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "account deletion still succeeds when the Kura teardown fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Kura, :destroy_servers_for_account, fn _account_id -> raise "cluster unreachable" end)
+
+      # When / Then
+      Accounts.delete_account!(account)
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
   end
 
   describe "sso_configured?/0" do

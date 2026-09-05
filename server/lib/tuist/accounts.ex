@@ -2588,6 +2588,8 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
+    destroy_account_kura_servers(account)
+
     result =
       cond do
         user?(account) ->
@@ -2601,6 +2603,22 @@ defmodule Tuist.Accounts do
 
     purge_account_cache_masters(account)
     result
+  end
+
+  # Runs before the deletion, not after it like the cache-master purge: the
+  # `kura_servers` rows cascade with the account, and the reconciler needs them
+  # to reach the cluster. Destroying afterwards would find nothing to destroy
+  # and leave the instance running forever.
+  defp destroy_account_kura_servers(account) do
+    Kura.destroy_servers_for_account(account.id)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to destroy Kura servers on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   # The runner cache-volume master archive is customer-derived build cache

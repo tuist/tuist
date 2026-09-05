@@ -33,6 +33,7 @@ defmodule Tuist.Automations do
   # project-wide identifier set as one scan.
   @max_scoped_evaluation_range_size 2000
   @minimum_scoped_evaluation_ranges 4
+  @active_alert_events_batch_size 2000
   @revision_fields ~w(
     name
     enabled
@@ -328,10 +329,42 @@ defmodule Tuist.Automations do
   Resolving the latest status per test case already makes those retries
   invisible, without a separate hash aggregation over event identifiers.
   """
-  def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+  def list_active_alert_events(alert_or_id, test_case_ids \\ nil)
+
+  # Callers holding the alert already carry the generation the events are
+  # scoped to, so taking it off the struct skips a lookup that the evaluation
+  # worker would otherwise repeat for every range it evaluates.
+  def list_active_alert_events(%Alert{id: alert_id, baseline_generation: baseline_generation}, test_case_ids) do
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  def list_active_alert_events(alert_id, test_case_ids) do
     baseline_generation =
       Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
 
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, nil) do
+    alert_id
+    |> active_alert_events_query(baseline_generation, nil)
+    |> ClickHouseRepo.all()
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, test_case_ids) do
+    # Send each batch as one array parameter in the request body so the request
+    # address and each ClickHouse query payload stay bounded.
+    test_case_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@active_alert_events_batch_size)
+    |> Enum.flat_map(fn ids_chunk ->
+      alert_id
+      |> active_alert_events_query(baseline_generation, ids_chunk)
+      |> ClickHouseRepo.all(multipart: true)
+    end)
+  end
+
+  defp active_alert_events_query(alert_id, baseline_generation, test_case_ids) do
     AlertEvent
     |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
     |> filter_alert_events_by_test_case_ids(test_case_ids)
@@ -341,14 +374,12 @@ defmodule Tuist.Automations do
       test_case_id: event.test_case_id,
       triggered_at: fragment("argMax(?, ?)", event.triggered_at, event.inserted_at)
     })
-    |> ClickHouseRepo.all()
   end
 
   defp filter_alert_events_by_test_case_ids(query, nil), do: query
-  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
 
   defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
-    where(query, [e], e.test_case_id in ^test_case_ids)
+    where(query, [event], fragment("? IN (?)", event.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})))
   end
 
   def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok

@@ -2220,7 +2220,7 @@
         "spec": {
           "id": 8,
           "title": "Disk by region",
-          "description": "**Fit (disk)** counts how many more instances (two replicas of `$instance_claim_gib` GiB) the region's allocatable ephemeral-storage still admits, `floor()` per node first; each replica requests its storage claim as an `ephemeral-storage` request with no limit, so the request is the only admission control the claim has and it is what **Kura region cannot place another instance** counts as its `disk` row. **Disk requested** is the scheduler's view (claims against allocatable, the disk minus kubelet's eviction reserve); **Host disk used** is the filesystem holding the local-path cache. Rings run full by design, so usage says little: **Shortest retention** is the lowest one-day median of `kura_segment_shed_age_seconds` among the region's full rings (how soon after being written an artifact can be evicted), the number the customer feels; under two days warns, under a day pages (**Kura instance retention horizon**). Its lever is the account's storage claim (`Tuist.Kura.ClaimSizing`), and the region only enters when the claim cannot grow because the boxes are full.",
+          "description": "**Fit (disk)** counts how many more instances (two replicas of `$instance_claim_gib` GiB) the region's allocatable ephemeral-storage still admits, `floor()` per node first; each replica requests its storage claim as an `ephemeral-storage` request with no limit, so the request is the only admission control the claim has and it is what **Kura region cannot place another instance** counts as its `disk` row. **Disk requested** is the scheduler's view (claims against allocatable, the disk minus kubelet's eviction reserve); **Host disk used** is the filesystem holding the local-path cache. Rings run full by design, so usage says little: **Shortest retention** is the lowest one-day median of `kura_segment_shed_age_seconds` among the region's full rings (how soon after being written an artifact can be evicted), the number the customer feels; under a day pages (**Kura instance retention horizon under a day**). A ring is only counted once it has been full for the whole day, because a ring rebuilt more recently (an instance that landed on a new node) holds nothing older than itself and would read as its own age. Its lever is the account's storage claim (`Tuist.Kura.ClaimSizing`), and the region only enters when the claim cannot grow because the boxes are full.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -2330,7 +2330,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -2753,7 +2753,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100)",
+                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100)",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -3693,7 +3693,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
                         "legendFormat": "{{region}}",
                         "instant": false,
                         "range": true
