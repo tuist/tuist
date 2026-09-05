@@ -229,6 +229,23 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                cpuAutosize:
+                  type: object
+                  properties:
+                    requestMilli:
+                      type: integer
+                      format: int32
+                    peakMilli:
+                      type: integer
+                      format: int32
+                    bucketStartedAt:
+                      type: string
+                      format: date-time
+                    bucketPeaksMilli:
+                      type: array
+                      items:
+                        type: integer
+                        format: int32
                 rolloutHealth:
                   type: object
                   properties:

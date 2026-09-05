@@ -237,6 +237,11 @@ type KuraInstanceStatus struct {
 	// rollout. Absent until at least one reconcile has sampled the pods.
 	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
 
+	// CPUAutosize carries the CPU observation behind requests.cpu. It is
+	// status because nothing outside the controller sets it, and it has to
+	// outlive a controller restart.
+	CPUAutosize *KuraInstanceCPUAutosize `json:"cpuAutosize,omitempty"`
+
 	// NodePort exposure (spec.exposeNodePort): the address clients
 	// outside the pod network dial. NodeAddress is the
 	// `tuist.dev/pn-ipv4` label of the node hosting the primary pod —
@@ -245,6 +250,18 @@ type KuraInstanceStatus struct {
 	// ports and the primary pod is placed on a labeled node.
 	NodeAddress   string `json:"nodeAddress,omitempty"`
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
+}
+
+// KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a
+// ring of fixed-length windows, oldest first, with BucketStartedAt the start
+// of the last. The peak is taken across the instance's pods rather than per
+// pod: the pod template is shared, and primary selection can hand the role to
+// either replica.
+type KuraInstanceCPUAutosize struct {
+	RequestMilli     int32        `json:"requestMilli,omitempty"`
+	PeakMilli        int32        `json:"peakMilli,omitempty"`
+	BucketStartedAt  *metav1.Time `json:"bucketStartedAt,omitempty"`
+	BucketPeaksMilli []int32      `json:"bucketPeaksMilli,omitempty"`
 }
 
 // +kubebuilder:object:root=true

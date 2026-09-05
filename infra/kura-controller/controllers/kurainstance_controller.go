@@ -142,6 +142,10 @@ type KuraInstanceReconciler struct {
 	PeerDNSResolver     PeerDNSResolver
 	PeerPathProber      PeerPathProber
 
+	// MetricsClient sources the readings behind requests.cpu. Nil leaves
+	// every instance on the cold-start constant.
+	MetricsClient PodMetricsClient
+
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
 	// temporarily stops answering keeps contributing its last report (with
@@ -329,6 +333,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -421,6 +426,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	r.observeCPUUsage(ctx, instance, pods)
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
@@ -3462,7 +3468,9 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("500m"),
+			// Observed, not declared: see cpu_autosize.go. No CPU limit,
+			// so a burst the box can absorb is not capped.
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuRequestMilli(instance)), resource.DecimalSI),
 			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{

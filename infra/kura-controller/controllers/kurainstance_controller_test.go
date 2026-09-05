@@ -465,8 +465,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if container.EnvFrom[0].SecretRef.Optional == nil || !*container.EnvFrom[0].SecretRef.Optional {
 		t.Fatal("expected shared secret envFrom to be optional so a missing Secret does not crash the pod")
 	}
-	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
-		t.Fatalf("expected default CPU request, got %q", got)
+	if got := container.Resources.Requests.Cpu().String(); got != "100m" {
+		t.Fatalf("expected cold-start CPU request, got %q", got)
 	}
 	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
 		t.Fatalf("expected default memory request, got %q", got)
