@@ -271,6 +271,20 @@ public struct TuistCommand: AsyncParsableCommand {
         #endif
     }
 
+    /// Prints the help screen with the flags that apply to every command appended to it, since
+    /// ArgumentParser never sees them and so renders no entry for them.
+    private static func exitPrintingHelp(for error: Error) -> Never {
+        let screenWidth = GlobalOptionsHelp.screenWidth()
+        let message = fullMessage(for: error, columns: screenWidth)
+        guard GlobalOptionsHelp.isHelpRequest(arguments: Array(Environment.current.arguments)),
+              !message.isEmpty
+        else {
+            exit(withError: error)
+        }
+        print(GlobalOptionsHelp.appending(to: message, screenWidth: screenWidth))
+        exit(withError: nil)
+    }
+
     private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) async {
         var errorAlertMessage: TerminalText?
         var errorAlertNextSteps: [TerminalText] = [
@@ -282,7 +296,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if error.localizedDescription.contains("ArgumentParser") {
             await finishHARRecordingBeforeExit()
-            exit(withError: error)
+            exitPrintingHelp(for: error)
         }
 
         if let remoteExit = error as? RunnerShellRemoteExitError {
