@@ -1836,7 +1836,7 @@ create_xcode_data_for_events = fn events, label ->
         }
       end)
 
-    IngestRepo.insert_all(XcodeGraph, xcode_graphs, timeout: 120_000)
+    IngestRepo.insert_all(XcodeGraph, Enum.map(xcode_graphs, &Map.delete(&1, :project_id)), timeout: 120_000)
 
     xcode_projects =
       Enum.flat_map(xcode_graphs, fn graph ->
@@ -1862,7 +1862,7 @@ create_xcode_data_for_events = fn events, label ->
         ]
       end)
 
-    IngestRepo.insert_all(XcodeProject, xcode_projects, timeout: 120_000)
+    IngestRepo.insert_all(XcodeProject, Enum.map(xcode_projects, &Map.delete(&1, :project_id)), timeout: 120_000)
 
     xcode_targets =
       Enum.flat_map(xcode_projects, fn project ->

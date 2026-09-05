@@ -39,7 +39,11 @@ defmodule Tuist.ClickHouseDictionarySource do
   Like `local_table/2`, but the dictionary holds the result of `query` rather
   than a whole table. A backfill that only needs a fraction of a large table's
   rows keeps its dictionary, and the memory it pins on the server while the
-  mutation runs, proportionally smaller.
+  backfill runs, proportionally smaller.
+
+  Tables in `query` have to be qualified with their database. The server runs
+  the query when it loads the dictionary, outside the repo's default database,
+  and a `DB` setting on the source does not apply to `QUERY` sources.
   """
   def local_query(repo, query) do
     config = repo.config()

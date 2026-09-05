@@ -2911,14 +2911,11 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  # xcode_targets carries every project's rows and is ordered by
-  # (inserted_at, id), so filtering only on the joined command_events side left
-  # the scan with nothing to prune: at the dashboard's 30-day default one query
-  # read ~960M rows and ~30 GiB in production and took ~18s. project_id is
-  # denormalized onto the row and proj_by_project_inserted_at orders by
-  # (project_id, inserted_at), so these predicates turn that into a range over
-  # one project's rows. inserted_at is the ingestion time, bounded the way
-  # Tuist.Xcode already bounds it; measured lag in production is p99 17 minutes.
+  # xcode_targets_by_project is ordered by (project_id, name, inserted_at) and
+  # partitioned by day of inserted_at, so these predicates turn every scan into
+  # a range over one project's rows in the queried days. inserted_at is the
+  # ingestion time, bounded the way Tuist.Xcode already bounds it; measured lag
+  # in production is p99 17 minutes.
   @xcode_target_ingest_lead 300
   @xcode_target_ingest_lag 7200
 

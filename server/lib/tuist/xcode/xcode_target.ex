@@ -24,9 +24,8 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :selective_testing_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
     field :xcode_project_id, Ch, type: "UUID"
     field :command_event_id, Ch, type: "UUID"
-    # Denormalized from the command event so project-scoped analytics can ride
-    # the (project_id, inserted_at) projection instead of scanning every
-    # project's rows.
+    # Denormalized from the command event so the xcode_targets_by_project
+    # materialized view can key each row by project.
     field :project_id, Ch, type: "Int64"
     field :product, Ch, type: "LowCardinality(String)", default: ""
     field :bundle_id, Ch, type: "String", default: ""
