@@ -1,0 +1,192 @@
+name: Flux Diff
+
+# Posts a server-side dry-run (`flux diff`) of the Flux-reconciled workload
+# Cluster CRs on PRs that touch them, so reviewers see the live-vs-desired,
+# machine-level delta before merging (spec/72 Pillar 1 gating). This job can
+# only PREVIEW — applying stays Flux's alone. See infra/k8s/mgmt/flux-diff-rbac.yaml.
+#
+# A `flux diff` is a server-side-apply DRY RUN, which RBAC authorizes as a
+# write, so the job holds apply-capable (dry-run only) mgmt access via the
+# dedicated least-privilege `flux-diff` ServiceAccount. It is therefore
+# contained the same way mgmt-cluster-apply.yml is:
+#   - runs ONLY on branches in the main repository, never on fork PRs (the
+#     token must never reach a fork) — enforced by the job `if` below;
+#   - the flux-diff kubeconfig is an Environment secret (fork PRs cannot
+#     read Environment secrets without approval, a second gate);
+#   - the job's 1Password token is scoped to the `tuist-k8s-mgmt-ci` vault,
+#     which holds ONLY this kubeconfig. That scoping is load-bearing: this job
+#     runs on `pull_request`, and GitHub runs the workflow file FROM THE PR
+#     BRANCH, so anyone who can push a branch here controls what this job
+#     executes. A token scoped to `tuist-k8s-mgmt` would let a PR read the
+#     break-glass cluster-admin kubeconfig, the Hetzner credentials and the
+#     Flux App key from that vault — defeating the least-privilege SA entirely.
+#     (mgmt-cluster-apply.yml can hold the wider scope because it only triggers
+#     on push to main, where no PR can supply modified workflow content.);
+#   - GitHub-hosted runner, because the mgmt apiserver is on :6443 and the
+#     self-hosted runners are behind a NetworkPolicy allowing only 80/443.
+#
+# Deliberately NO environment protection rules. Required reviewers would gate
+# every run behind a manual approval, which defeats the point of an automatic
+# live-vs-desired diff on each PR, and a branch policy cannot help because this
+# job runs on arbitrary PR branch names. Containment here is the vault scoping
+# above plus the same-repo restriction below — not an approval gate.
+
+on:
+  pull_request:
+    paths:
+      - "infra/k8s/clusters/workloads/**"
+      - "infra/flux/mgmt/cluster-*.yaml"
+
+concurrency:
+  group: flux-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diff:
+    name: flux diff
+    # Same-repo branches only; never fork PRs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: flux-diff
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked kubectl"
+          cache: "false"
+      - uses: fluxcd/flux2/action@v2.9.5
+        with:
+          # The action ref pins the action's code; its `version` input defaults
+          # to the LATEST Flux release. Pin it explicitly so the CLI matches the
+          # controllers committed in infra/flux/mgmt/flux-system/.
+          version: 2.9.5
+      - uses: 1password/install-cli-action@v2
+      - name: Load flux-diff kubeconfig from 1Password
+        id: kubeconfig
+        # Tolerate the mgmt-side not being bootstrapped yet: if the flux-diff
+        # credential (Environment secret + `kubeconfig: tuist-mgmt-flux-diff`
+        # in 1Password) is not configured, skip with a neutral result instead
+        # of failing every workloads PR. Real diffs resume once the credential
+        # exists (see infra/k8s/mgmt/flux-diff-rbac.yaml + infra/flux/mgmt/README.md).
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
+            echo "flux-diff credential not configured yet; skipping the diff."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          if op document get "kubeconfig: tuist-mgmt-flux-diff" \
+               --vault tuist-k8s-mgmt-ci --output "$KUBECONFIG" 2>/dev/null; then
+            chmod 600 "$KUBECONFIG"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flux-diff kubeconfig not found in 1Password; skipping the diff."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Diff changed workload Cluster CRs
+        id: diff
+        if: steps.kubeconfig.outputs.configured == 'true'
+        run: |
+          set -uo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          # Cluster subdirs with changes in this PR.
+          # Derive the affected clusters from BOTH watched paths. This job
+          # also triggers on infra/flux/mgmt/cluster-*.yaml, and a PR that only
+          # edits a Kustomization CR (flipping force:, dropping the health gate)
+          # changes reconciliation behaviour just as much as editing the Cluster
+          # CR — reporting "no manifests changed" there invites an approval on
+          # the belief that nothing shipped.
+          changed=$( {
+            git diff --name-only "$base"...HEAD -- infra/k8s/clusters/workloads \
+              | sed -n 's#^infra/k8s/clusters/workloads/\([^/]*\)/.*#\1#p'
+            git diff --name-only "$base"...HEAD -- infra/flux/mgmt \
+              | sed -n 's#^infra/flux/mgmt/cluster-\(.*\)\.yaml$#\1#p'
+          } | sort -u)
+          out="$(mktemp)"
+          failed="$(mktemp)"
+          if [ -z "$changed" ]; then
+            echo "_No workload Cluster manifests changed._" > "$out"
+          else
+            for c in $changed; do
+              dir="infra/k8s/clusters/workloads/$c"
+              [ -d "$dir" ] || continue
+              echo "### \`$c\`" >> "$out"
+              echo '```diff' >> "$out"
+              # Server-side dry-run apply of this cluster's Kustomization build
+              # against live. A non-zero exit here is AMBIGUOUS: `flux diff`
+              # exits non-zero both when there is a diff (the normal, expected
+              # case) and when it failed outright. So the exit code cannot gate
+              # the step — but swallowing it with a bare `|| true` is how a job
+              # that never ran reports "no changes". Capture, render, then scan
+              # for failure signatures and surface them loudly below.
+              step_out="$(mktemp)"
+              flux diff kustomization "cluster-$c" --path="./$dir" >"$step_out" 2>&1 || true
+              cat "$step_out" >> "$out"
+              # These are the shapes a real failure takes, as opposed to
+              # "there is a diff". Missing them is how a job that never reached
+              # the cluster renders as a clean, empty code fence.
+              if grep -qiE 'forbidden|is not authorized|unauthorized|not found|no matches for kind|could not find the requested resource|context deadline exceeded|connection refused|no such host|i/o timeout|failed to|unable to|error:' "$step_out"; then
+                echo "$c" >> "$failed"
+              fi
+              echo '```' >> "$out"
+              echo >> "$out"
+            done
+          fi
+          # A missing Kustomization is expected until Flux is bootstrapped, so
+          # it is reported but does not fail the job; anything else does.
+          if [ -s "$failed" ]; then
+            echo "::error::flux diff could not complete for: $(tr '\n' ' ' < "$failed")"
+            echo "diff_failed=true" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo 'body<<FLUXEOF'
+            echo '<!-- flux-diff -->'
+            echo '## Flux diff — workload Cluster CRs'
+            echo
+            cat "$out"
+            echo
+            echo '> Server-side dry-run via the least-privilege `flux-diff` ServiceAccount. Preview only; Flux applies on merge.'
+            echo 'FLUXEOF'
+          } >> "$GITHUB_OUTPUT"
+      - name: Upsert PR comment
+        if: steps.kubeconfig.outputs.configured == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = process.env.DIFF_BODY;
+            const marker = '<!-- flux-diff -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          DIFF_BODY: ${{ steps.diff.outputs.body }}

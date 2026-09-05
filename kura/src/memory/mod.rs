@@ -358,8 +358,9 @@ impl MemoryController {
     }
 
     /// Gates the *usage* (metering) outbox only. Replication delivery is
-    /// deliberately never paused: its durable backlog is bounded by
-    /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache
+    /// deliberately never paused: its durable backlog is bounded by the outbox
+    /// capacity (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per replication peer, or a
+    /// fixed `KURA_OUTBOX_MAX_DEPTH`), and a full replication outbox rejects cache
     /// writes, so pausing it converts a memory problem into a correctness and
     /// availability one. Metering has no such feedback — a delayed usage batch
     /// costs nothing but freshness — so it stays sheddable.

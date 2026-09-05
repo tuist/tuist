@@ -152,13 +152,21 @@ spec:
         # MachineDeployment via topology mode. Without them the
         # classRef swap to tuist-hcloud would re-render the MD
         # without the autoscaler bounds, dropping cluster-autoscaler's
-        # node-group registration mid-flight. Values must match the
-        # live MD at swap time; verify with:
+        # node-group registration mid-flight.
+        #
+        # `replicas` is deliberately UNSET on this pool (spec/72 footgun):
+        # it is autoscaled between the min/max annotations below, and CAPI's
+        # topology controller only manages replicas when the field is
+        # present. Under Flux (10-min reconcile) a pinned `replicas` would
+        # be re-asserted on every sync and fight cluster-autoscaler; leaving
+        # it unset lets CAPI default within [min,max] and hands replica
+        # control to the autoscaler (see the CAPI Autoscaling docs). Before
+        # enabling the production Flux Kustomization, confirm the live MD's
+        # replicas are preserved:
         #   kubectl -n org-tuist get md tuist-md-processor \
-        #     -o jsonpath='{.metadata.annotations}'
+        #     -o jsonpath='{.spec.replicas}{"\n"}{.metadata.annotations}'
         - class: hcloud-worker
           name: md-processor
-          replicas: 2
           failureDomain: fsn1
           rollout:
             strategy:
