@@ -11,7 +11,9 @@ defmodule TuistWeb.RunDetailLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -28,12 +30,38 @@ defmodule TuistWeb.RunDetailLive do
     run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
     slug = Projects.get_project_slug_from_id(project.id)
 
+    local_hits = run.local_cache_hits_count || 0
+    remote_hits = run.remote_cache_hits_count || 0
+    cacheable_targets = run.cacheable_targets_count || 0
+    cache_hits = local_hits + remote_hits
+    cache_misses = max(cacheable_targets - cache_hits, 0)
+
     {:ok,
      socket
      |> assign(:run, run)
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
+     |> assign(
+       OpenGraph.project_image_assigns(project,
+         title: "tuist #{run.name}",
+         subtitle: run.git_branch,
+         badge: run.status |> to_string() |> String.capitalize(),
+         metric_one_label: dgettext("dashboard_builds", "Run duration"),
+         metric_one_value: DateFormatter.format_duration_from_milliseconds(run.duration),
+         metric_two_label: dgettext("dashboard_cache", "Cache hit rate"),
+         metric_two_value:
+           if(is_nil(run.hit_rate), do: dgettext("dashboard_builds", "None"), else: "#{round(run.hit_rate)}%"),
+         chart: [local_hits, remote_hits, cache_misses],
+         chart_label: dgettext("dashboard_cache", "Cacheable target breakdown"),
+         chart_kind: "bars",
+         chart_categories: [
+           dgettext("dashboard_cache", "Local hits"),
+           dgettext("dashboard_cache", "Remote hits"),
+           dgettext("dashboard_cache", "Misses")
+         ]
+       )
+     )
      |> assign_initial_analytics_state()
      |> assign(:binary_cache_available_filters, define_binary_cache_filters())
      |> assign(:selective_testing_available_filters, define_selective_testing_filters())

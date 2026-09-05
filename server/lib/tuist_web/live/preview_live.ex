@@ -11,6 +11,7 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -42,6 +43,22 @@ defmodule TuistWeb.PreviewLive do
       |> assign(
         :preview,
         preview
+      )
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: preview.display_name || dgettext("dashboard_previews", "Preview"),
+          subtitle:
+            Enum.map_join(
+              preview.supported_platforms || [],
+              " · ",
+              &(&1 |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize())
+            ),
+          badge: dgettext("dashboard_previews", "App preview"),
+          metric_one_label: dgettext("dashboard_previews", "Version"),
+          metric_one_value: preview.version || dgettext("dashboard_builds", "None"),
+          metric_two_label: dgettext("dashboard_previews", "Bundle identifier"),
+          metric_two_value: preview.bundle_identifier || dgettext("dashboard_builds", "None")
+        )
       )
       |> assign(
         :user_agent,
