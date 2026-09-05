@@ -124,17 +124,6 @@ defmodule Tuist.Runners.Buildkite do
   end
 
   @doc """
-  Switches polling for the account's cluster on or off. The connection
-  and its token stay put, so turning it back on is one click.
-  """
-  def set_installation_enabled(account_id, enabled) when is_integer(account_id) and is_boolean(enabled) do
-    case Repo.update_all(from(i in Installation, where: i.account_id == ^account_id), set: [enabled: enabled]) do
-      {1, _} -> :ok
-      {0, _} -> {:error, :not_found}
-    end
-  end
-
-  @doc """
   The stack key this installation uses for `queue_key`.
 
   Buildkite caps a key at 80 bytes and accepts only alphanumerics,

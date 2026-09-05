@@ -483,7 +483,6 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
-      <% runners_path = ~p"/#{@selected_account.name}/settings/runners" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -500,15 +499,6 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Integrations")}
         selected={String.starts_with?(@current_path, integrations_path)}
         navigate={integrations_path}
-      />
-      <.tab_menu_horizontal_item
-        :if={
-          FeatureFlags.runners_enabled?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
-        label={dgettext("dashboard", "Runners")}
-        selected={String.starts_with?(@current_path, runners_path)}
-        navigate={runners_path}
       />
       <.tab_menu_horizontal_item
         :if={

@@ -5,9 +5,16 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+
+  # The fields the Buildkite modal renders an input for.
+  @buildkite_form_fields [:organization_slug, :cluster_name, :agent_token]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -48,6 +55,11 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
+      |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(buildkite_queue_keys: buildkite_queue_keys(selected_account))
+      |> assign(buildkite_field_errors: %{})
+      |> assign(buildkite_form_error: nil)
+      |> assign_buildkite_installation()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -68,6 +80,49 @@ defmodule TuistWeb.IntegrationsLive do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("close-connect-buildkite-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-buildkite-modal"})}
+  end
+
+  @impl true
+  def handle_event("connect-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    attrs = %{
+      organization_slug: String.trim(Map.get(params, "organization_slug", "")),
+      cluster_name: String.trim(Map.get(params, "cluster_name", "")),
+      # The stack key identifies this controller to Buildkite and scopes its
+      # reservations, so it is derived from the account rather than typed:
+      # a customer-chosen key that collided with another account's would
+      # hand them each other's reservations.
+      stack_key: "tuist-#{account.id}",
+      agent_token: String.trim(Map.get(params, "agent_token", ""))
+    }
+
+    case Buildkite.upsert_installation(account.id, attrs) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
+         |> assign_buildkite_installation()
+         |> push_event("close-modal", %{id: "connect-buildkite-modal"})}
+
+      {:error, changeset} ->
+        {field_errors, form_error} = split_buildkite_errors(changeset)
+
+        {:noreply, assign(socket, buildkite_field_errors: field_errors, buildkite_form_error: form_error)}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-buildkite", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Buildkite.delete_installation(account.id)
+
+    {:noreply,
+     socket
+     |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
+     |> assign_buildkite_installation()}
   end
 
   @impl true
@@ -361,6 +416,43 @@ defmodule TuistWeb.IntegrationsLive do
     Tuist.Environment.github_app_configured?() or
       not is_nil(github_installation) or
       Entitlements.allows?(account, :github_enterprise_server)
+  end
+
+  defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
+    assign(socket, buildkite_installation: Buildkite.get_installation(account.id))
+  end
+
+  defp buildkite_queue_keys(account) do
+    account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1)
+  end
+
+  defp buildkite_cluster_label(%{organization_slug: slug, cluster_name: name}) when name in [nil, ""], do: slug
+  defp buildkite_cluster_label(%{organization_slug: slug, cluster_name: name}), do: "#{slug} · #{name}"
+
+  defp buildkite_last_checked(%{last_polled_at: nil}), do: dgettext("dashboard_integrations", "Not yet")
+  defp buildkite_last_checked(%{last_polled_at: at}), do: DateFormatter.from_now(at)
+
+  # Errors land on the input that caused them. `stack_key` is derived, not
+  # typed, so it has no input to attach to and would be invisible as a
+  # field error; it becomes a banner instead.
+  defp split_buildkite_errors(changeset) do
+    errors =
+      Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+        Regex.replace(~r/%\{(\w+)\}/, message, fn _whole, key ->
+          opts |> Keyword.get(String.to_existing_atom(key), "") |> to_string()
+        end)
+      end)
+
+    {shown, hidden} = Enum.split_with(errors, fn {field, _} -> field in @buildkite_form_fields end)
+
+    field_errors = Map.new(shown, fn {field, messages} -> {Atom.to_string(field), List.first(messages)} end)
+
+    form_error =
+      hidden
+      |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field} #{&1}") end)
+      |> List.first()
+
+    {field_errors, form_error}
   end
 
   defp vcs_connections(account, opts \\ []) do

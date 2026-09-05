@@ -189,14 +189,13 @@ defmodule Tuist.Runners.Dispatch do
 
         {:ignored, :allowance_exhausted}
 
-      {:error, reason} when reason in [:runners_disabled, :github_actions_disabled] ->
-        Logger.info("runners: account not accepting GitHub Actions jobs; ignoring",
+      {:error, :runners_disabled} ->
+        Logger.info("runners: runners not enabled for account; ignoring",
           owner: owner,
-          repo: full_name,
-          reason: reason
+          repo: full_name
         )
 
-        {:ignored, reason}
+        {:ignored, :runners_disabled}
 
       {:error, :no_matching_pool} ->
         # Legacy pool fallback path: nothing matched the requested
@@ -526,7 +525,6 @@ defmodule Tuist.Runners.Dispatch do
       when reason in [
              :no_account,
              :runners_disabled,
-             :github_actions_disabled,
              :no_matching_pool,
              :no_pools,
              :ambiguous_pool
@@ -743,10 +741,10 @@ defmodule Tuist.Runners.Dispatch do
         {:error, :no_account}
 
       account ->
-        cond do
-          not FeatureFlags.runners_enabled?(account) -> {:error, :runners_disabled}
-          not account.runner_github_actions_enabled -> {:error, :github_actions_disabled}
-          true -> {:ok, account}
+        if FeatureFlags.runners_enabled?(account) do
+          {:ok, account}
+        else
+          {:error, :runners_disabled}
         end
     end
   end

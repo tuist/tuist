@@ -134,6 +134,93 @@
     }
   }
 
+  & > [data-part="buildkite-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      width: 48%;
+
+      & > [data-part="buildkite-connection"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="row"] {
+          display: flex;
+          flex-direction: row;
+          align-items: baseline;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="label"] {
+            flex-shrink: 0;
+            width: 30%;
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+
+          & > [data-part="value"] {
+            min-width: 0;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="queue-list"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-1);
+            margin: 0;
+            padding: 0;
+            list-style: none;
+
+            /* Copied verbatim into a pipeline's `agents` block, so it
+               reads as a literal, not as prose. */
+            & code {
+              color: var(--noora-surface-label-primary);
+              font-family: "Geist Mono", monospace;
+            }
+          }
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        align-self: flex-end;
+        gap: var(--noora-spacing-4);
+      }
+    }
+  }
+
+  & #connect-buildkite-modal [data-part="connect-buildkite"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  }
+
   & > [data-part="slack-card-section"] {
     display: flex;
     flex-direction: row;

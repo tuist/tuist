@@ -305,7 +305,6 @@ msgstr ""
 msgid "Repository"
 msgstr ""
 
-#: lib/tuist_web/live/runner_settings_live.ex:27
 #: lib/tuist_web/live/runners_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Runners"
@@ -383,7 +382,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:42
 #: lib/tuist_web/live/runner_jobs_live.ex:33
 #: lib/tuist_web/live/runner_profiles_live.ex:26
-#: lib/tuist_web/live/runner_settings_live.ex:22
 #: lib/tuist_web/live/runner_workflow_live.ex:30
 #: lib/tuist_web/live/runner_workflows_live.ex:25
 #: lib/tuist_web/live/runners_live.ex:35
@@ -1394,104 +1392,4 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:53
-#, elixir-autogen, elixir-format
-msgid "Buildkite"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:117
-#, elixir-autogen, elixir-format
-msgid "Cluster agent token"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:100
-#, elixir-autogen, elixir-format
-msgid "Cluster name"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:135
-#, elixir-autogen, elixir-format
-msgid "Connect"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:120
-#, elixir-autogen, elixir-format
-msgid "Create it under your cluster's Agent Tokens in Buildkite. It is stored encrypted and never shown again."
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:154
-#, elixir-autogen, elixir-format
-msgid "Disconnect"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:145
-#, elixir-autogen, elixir-format
-msgid "Last checked"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:149
-#, elixir-autogen, elixir-format
-msgid "Not yet"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:89
-#, elixir-autogen, elixir-format
-msgid "Organization slug"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:134
-#, elixir-autogen, elixir-format
-msgid "Update connection"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:91
-#, elixir-autogen, elixir-format
-msgid "e.g. \"acme\""
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:102
-#, elixir-autogen, elixir-format
-msgid "e.g. \"macOS\""
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:104
-#, elixir-autogen, elixir-format
-msgid "Optional. Only used to label this connection in the dashboard."
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:163
-#, elixir-autogen, elixir-format
-msgid "Tuist runs a Buildkite job when its queue key matches one of your runner profiles. Create a self-hosted queue in your cluster with one of these keys, then target it with agents: { queue: ... } in your pipeline."
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:37
-#, elixir-autogen, elixir-format
-msgid "Connected"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:14
-#, elixir-autogen, elixir-format
-msgid "GitHub Actions"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:16
-#, elixir-autogen, elixir-format
-msgid "Jobs reach the fleet through the GitHub App. Target a runner profile with runs-on in your workflow."
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Manage in Integrations"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:38
-#, elixir-autogen, elixir-format
-msgid "Not connected"
-msgstr ""
-
-#: lib/tuist_web/live/runner_settings_live.html.heex:55
-#, elixir-autogen, elixir-format
-msgid "Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr ""

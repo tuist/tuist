@@ -393,4 +393,115 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute html =~ "Server URL"
     end
   end
+
+  describe "Buildkite" do
+    alias Tuist.Runners.Buildkite
+
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> true end)
+      :ok
+    end
+
+    defp connect_buildkite(lv, attrs) do
+      lv
+      |> form(
+        "#connect-buildkite-form",
+        Map.merge(%{"organization_slug" => "acme", "agent_token" => "bkct_secret"}, attrs)
+      )
+      |> render_submit()
+    end
+
+    test "connects a cluster from the modal and shows it on the card", %{conn: conn, account: account} do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      # Nothing connected: the card offers the modal and takes no more room.
+      refute html =~ "buildkite-connection"
+
+      html = connect_buildkite(lv, %{"cluster_name" => "macOS"})
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.organization_slug == "acme"
+      assert installation.agent_token == "bkct_secret"
+      # Derived, never taken from the form: a customer-chosen key could
+      # collide with another account's and swap their reservations.
+      assert installation.stack_key == "tuist-#{account.id}"
+      assert html =~ "acme · macOS"
+    end
+
+    test "masks the agent token so it is never typed in the clear", %{conn: conn, account: account} do
+      # Noora's `text_input` derives the HTML input type from `input_type`,
+      # not from `type`, so `type="password"` alone renders a plaintext
+      # field. Only the rendered attribute catches it.
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      token_input = html |> Floki.parse_document!() |> Floki.find("input#buildkite-agent-token")
+
+      assert [_] = token_input
+      assert Floki.attribute(token_input, "type") == ["password"]
+    end
+
+    test "reports a rejected token instead of storing it", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html = connect_buildkite(lv, %{"agent_token" => "bkua_wrong_kind_of_token"})
+
+      assert html =~ "cluster agent token"
+      assert is_nil(Buildkite.get_installation(account.id))
+    end
+
+    test "surfaces the last poll error so a broken connection is visible", %{conn: conn, account: account} do
+      {:ok, installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      Buildkite.record_poll_result(installation, {:error, :unauthorized})
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      assert html =~ "Buildkite rejected the agent token"
+    end
+
+    test "lists the queue keys a pipeline can target once connected", %{conn: conn, account: account} do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      # The queue key IS the profile's dispatch label, which is what lets
+      # Buildkite routing reuse the GitHub lane's profile resolution.
+      for profile <- Tuist.Runners.Profiles.list_for_account(account) do
+        assert html =~ Tuist.Runners.Profile.dispatch_label(profile)
+      end
+    end
+
+    test "disconnects a cluster", %{conn: conn, account: account} do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      lv |> element("button[phx-click=disconnect-buildkite]") |> render_click()
+
+      assert is_nil(Buildkite.get_installation(account.id))
+    end
+
+    test "is hidden when runners are not enabled for the account", %{conn: conn, account: account} do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      refute html =~ "buildkite-card-section"
+    end
+  end
 end
