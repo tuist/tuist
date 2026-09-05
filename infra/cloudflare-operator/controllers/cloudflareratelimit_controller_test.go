@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -244,6 +247,71 @@ func TestReconcile_Adopt_ZeroChangeIsNoop(t *testing.T) {
 	}
 	if cf.addCalls != 0 || cf.updateCalls != 0 {
 		t.Fatalf("adoption of matching rule must be a no-op: add=%d update=%d", cf.addCalls, cf.updateCalls)
+	}
+}
+
+// TestImportedPublicPagesRateLimitMatchesCapturedLiveRule guards the
+// production adoption gate. The expected rule below is the Cloudflare
+// response captured during import; changing the Git-managed manifest
+// makes this test fail until the intended drift is reviewed explicitly.
+func TestImportedPublicPagesRateLimitMatchesCapturedLiveRule(t *testing.T) {
+	manifestPath := filepath.Join("..", "..", "flux", "cloudflare-config", "public-pages-rate-limit.yaml")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read imported manifest: %v", err)
+	}
+	manifestJSON, err := utilyaml.ToJSON(manifest)
+	if err != nil {
+		t.Fatalf("convert imported manifest: %v", err)
+	}
+	cr := &cfv1alpha1.CloudflareRateLimit{}
+	if err := json.Unmarshal(manifestJSON, cr); err != nil {
+		t.Fatalf("decode imported manifest: %v", err)
+	}
+	cr.UID = types.UID("captured-live-rule")
+	cr.Finalizers = []string{finalizer}
+
+	live := cloudflare.Rule{
+		ID:          "20a7e7c0f002481baa1b6b91af90e3ba",
+		Ref:         "20a7e7c0f002481baa1b6b91af90e3ba",
+		Version:     "1",
+		Action:      "managed_challenge",
+		Expression:  `(http.request.method eq "GET")`,
+		Description: "Public pages – anti-bombardment",
+		Enabled:     true,
+		LastUpdated: "2026-09-04T11:03:36.413297Z",
+		RateLimit: &cloudflare.RuleRateLimit{
+			Characteristics:    []string{"ip.src", "cf.colo.id"},
+			RequestsPerPeriod:  60,
+			Period:             10,
+			MitigationTimeout:  0,
+			CountingExpression: `(http.response.headers["x-tuist-public"][0] eq "1")`,
+		},
+	}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{
+		ID:    "a8873085ecc543edbb509922cc213352",
+		Rules: []cloudflare.Rule{live},
+	}}
+	r := &CloudflareRateLimitReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.addCalls != 0 || cf.updateCalls != 0 || cf.createCalls != 0 {
+		t.Fatalf("imported rule must be a no-op: add=%d update=%d create=%d", cf.addCalls, cf.updateCalls, cf.createCalls)
+	}
+	got := &cfv1alpha1.CloudflareRateLimit{}
+	if err := kClient.Get(context.Background(), types.NamespacedName{Name: cr.Name}, got); err != nil {
+		t.Fatalf("get reconciled resource: %v", err)
+	}
+	if got.Status.Message != "read_only: in sync (adopted)" {
+		t.Errorf("status message = %q, want zero-change adoption", got.Status.Message)
+	}
+	if got.Status.ProposedChanges != "" {
+		t.Errorf("unexpected proposed changes: %q", got.Status.ProposedChanges)
 	}
 }
 

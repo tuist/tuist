@@ -9,6 +9,10 @@ image:
   # tag today, so falling back to it would land in ErrImagePull.
   # Override to :sha-<git-sha> at install time for reproducible deploys.
   tag: latest
+  # Set together with tag in managed environments. Kubernetes verifies
+  # this content digest before starting the container, so a mutable tag
+  # cannot move the deployed operator to an unreviewed build.
+  digest: ""
   pullPolicy: IfNotPresent
 
 replicaCount: 1

@@ -78,9 +78,22 @@ The operator ships as a container image and a Helm chart at
 (not per-workload cluster) because the resources it manages are
 zone-global.
 
-Cloudflare API token lives in a Kubernetes Secret referenced by the
-chart. The token needs `Zone:Read` and `Zone WAF:Edit` scoped to
-the account and zone under management.
+Flux installs the chart through
+`infra/flux/mgmt/cloudflare-operator.yaml`, which points at the local
+Helm release under `infra/flux/cloudflare-operator/`. Managed values pin
+both the source commit tag and the immutable image digest. Cloudflare
+configuration lives under `infra/flux/cloudflare-config/` and is applied
+by a separate Flux Kustomization that depends on `cloudflare-operator`,
+so the custom resource definition and controller are ready before any
+managed resource is applied. Imported resources start in `read_only` and
+must report no proposed changes before a separate pull request switches
+them to `active`.
+
+The Cloudflare [application programming interface](https://developers.cloudflare.com/fundamentals/api/)
+token lives in a Kubernetes Secret referenced by the chart. The token
+needs `Zone:Read` and `Zone WAF:Edit`, where WAF means
+[Web Application Firewall](https://www.cloudflare.com/learning/ddos/glossary/web-application-firewall-waf/),
+scoped to the account and zone under management.
 
 ## Local development
 
@@ -101,6 +114,5 @@ credentials.
 - `server/lib/tuist_web/plugs/public_page_header_plug.ex` — sets the
   `x-tuist-public` response header the sample rate limit rule keys on.
 - Hive spec #72 (GitOps and health monitoring for the workload
-  clusters) — once Flux is running, this operator's CRDs get
-  committed to git and Flux applies them to the management cluster.
-  Until then the deployment workflow does `kubectl apply` directly.
+  clusters) — Flux installs this operator and applies its configuration
+  to the management cluster.
