@@ -2849,7 +2849,7 @@ end
     end)
 
   # Insert graphs (all from ≤10 dates, safe for large batch)
-  IngestRepo.insert_all(XcodeGraph, graphs, timeout: 120_000)
+  IngestRepo.insert_all(XcodeGraph, Enum.map(graphs, &Map.delete(&1, :project_id)), timeout: 120_000)
   :counters.add(graph_counter, 1, length(graphs))
 
   # Generate all projects for this batch's graphs
@@ -2874,7 +2874,7 @@ end
   projects
   |> Enum.chunk_every(50_000)
   |> Enum.each(fn chunk ->
-    IngestRepo.insert_all(XcodeProject, chunk, timeout: 120_000)
+    IngestRepo.insert_all(XcodeProject, Enum.map(chunk, &Map.delete(&1, :project_id)), timeout: 120_000)
     :counters.add(project_counter, 1, length(chunk))
   end)
 
