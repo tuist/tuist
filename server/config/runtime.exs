@@ -509,12 +509,6 @@ if Tuist.Environment.error_tracking_enabled?() do
   if pod_name do
     config :sentry, server_name: pod_name
   end
-
-  # Opt this Pod's SentryHTTPClient into runtime rerouting to Hive. The
-  # callback returns `nil` until the `hive_error_tracking_enabled` flag
-  # is flipped in `/ops/flags`, so wiring it here is safe on every env
-  # even before a Hive DSN is provisioned.
-  config :tuist_common, TuistCommon.SentryHTTPClient, reroute: {Tuist.Sentry, :hive_reroute_target, []}
 end
 
 if Tuist.Environment.env() not in [:test] do
