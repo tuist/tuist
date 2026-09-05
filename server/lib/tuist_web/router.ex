@@ -657,6 +657,13 @@ defmodule TuistWeb.Router do
           get "/:cache_run_id", CacheRunsController, :show
         end
 
+        scope "/module-cache" do
+          get "/metrics", ModuleCacheController, :metrics
+          get "/modules", ModuleCacheController, :index
+          get "/modules/:module_name", ModuleCacheController, :show
+          get "/modules/:module_name/builds", ModuleCacheController, :builds
+        end
+
         scope "/tests" do
           get "/", TestsController, :index
 

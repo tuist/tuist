@@ -31,7 +31,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:index,
     summary: "List bundles for a project",
     operation_id: "listBundles",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -62,7 +62,7 @@ defmodule TuistWeb.API.BundlesController do
         required: false,
         description: "Number of items per page."
       ]
-    },
+    ],
     responses: %{
       ok:
         {"List of bundles", "application/json",
@@ -128,7 +128,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -147,7 +147,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The ID of the bundle."
       ]
-    },
+    ],
     responses: %{
       ok: {"Bundle details", "application/json", Bundle},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
@@ -251,7 +251,7 @@ defmodule TuistWeb.API.BundlesController do
          },
          required: [:bundle]
        }},
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -264,7 +264,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ]
-    },
+    ],
     responses: %{
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},

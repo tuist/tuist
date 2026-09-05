@@ -71,6 +71,10 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_automation_alert_revisions" in tool_names
       assert "list_project_notification_alerts" in tool_names
       assert "list_xcode_module_cache_targets" in tool_names
+      assert "list_xcode_module_invalidations" in tool_names
+      assert "get_xcode_module" in tool_names
+      assert "list_xcode_module_builds" in tool_names
+      assert "get_xcode_module_cache_timeseries" in tool_names
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
       assert "get_project" in tool_names
@@ -78,7 +82,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.27.0"
+      assert server.version == "1.28.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

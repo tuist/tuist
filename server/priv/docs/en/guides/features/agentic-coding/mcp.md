@@ -334,7 +334,16 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 |------|-------------|---------------------|
 | `list_cache_runs` | List cache runs for a project. | `account_handle`, `project_handle` |
 | `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
+
+#### Module cache
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
 | `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status and diagnostic component hashes, including additional hashing inputs. | `run_id` |
+| `list_xcode_module_invalidations` | Rank a project's modules by how often the module cache invalidated them, split into the invalidations a module's own content caused and the ones a dependency caused. | `account_handle`, `project_handle` |
+| `get_xcode_module` | Get one module's cache invalidation summary together with what it depends on and what it invalidates downstream. | `account_handle`, `project_handle`, `name` |
+| `list_xcode_module_builds` | Walk one module's build history, one row per build with whether the module cache hit and why it missed. | `account_handle`, `project_handle`, `name` |
+| `get_xcode_module_cache_timeseries` | Daily module cache series for a project, or for one module: invalidations against reuses, why the misses happened, and how many modules depended on it. | `account_handle`, `project_handle` |
 
 #### Previews
 

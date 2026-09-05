@@ -2911,6 +2911,155 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  @max_module_window_seconds 366 * 24 * 60 * 60
+  @default_module_window_days 30
+
+  @doc """
+  Resolves a module cache analytics window from an optional start and end,
+  defaulting to the last 30 days, and rejects a range wider than a year.
+
+  These queries emit a bucket per day and scan `xcode_targets` over the whole
+  window, so an unbounded range is the most expensive read the module cache has.
+  The dashboard picks its own bounded ranges; this is the guard for the callers
+  that pass whatever they like.
+  """
+  def module_window(start_datetime, end_datetime) do
+    end_datetime = end_datetime || DateTime.utc_now()
+    start_datetime = start_datetime || DateTime.add(end_datetime, -@default_module_window_days, :day)
+
+    cond do
+      DateTime.compare(end_datetime, start_datetime) != :gt ->
+        {:error, "end_datetime must be after start_datetime."}
+
+      DateTime.diff(end_datetime, start_datetime) > @max_module_window_seconds ->
+        {:error, "The requested time range exceeds the maximum of 366 days."}
+
+      true ->
+        {:ok, start_datetime, end_datetime}
+    end
+  end
+
+  @doc """
+  One module's invalidation row, or nil when the module took part in no build in
+  the window.
+
+  `module_invalidations/1` only returns modules that were invalidated at least
+  once, so a module that only ever reused from cache has no row there. It is
+  still a module, so it gets a zeroed row, with its blast radius read from the
+  dependency graph rather than from the row that does not exist.
+
+  ## Options
+    Those of `module_invalidations/1`, with `:name` required.
+  """
+  def module_summary(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    case opts |> module_invalidations() |> List.first() do
+      nil -> reused_only_module_summary(opts, name)
+      row -> row
+    end
+  end
+
+  defp reused_only_module_summary(opts, name) do
+    timeseries = module_invalidation_timeseries(opts)
+    appearances = Enum.sum(timeseries.invalidations) + Enum.sum(timeseries.reuses)
+
+    if appearances == 0 do
+      nil
+    else
+      %{
+        name: name,
+        product: latest_module_product(opts, name),
+        appearances: appearances,
+        invalidations: 0,
+        invalidation_rate: 0.0,
+        hit_rate: 100.0,
+        self_changes: 0,
+        dependency_induced: 0,
+        unclassified: 0,
+        blast_radius: module_dependents_count(opts)
+      }
+    end
+  end
+
+  # `module_invalidations/1` keys its rows by name and product, so a module with
+  # no row there has no product either. Read the one its most recent build
+  # reported rather than reporting the field empty.
+  defp latest_module_product(opts, name) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, name: name, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    query = """
+    SELECT argMax(xt.product, e.ran_at)
+    FROM xcode_targets AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL
+      AND xt.name = {name:String}#{filter_sql}#{xcode_target_pruning()}
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: [[product]]}} when is_binary(product) -> product
+      _ -> ""
+    end
+  end
+
+  @doc """
+  Where one module sits in the project's latest dependency graph: `:depends_on`
+  (the modules it is invalidated by), `:dependents` (the modules that directly
+  depend on it) and `:transitive_dependents` (everything it invalidates
+  downstream, which is its blast radius).
+
+  All three are nil when no build in the window carries dependency edges, which
+  is the older-CLI case — an empty list would claim the module is a leaf.
+
+  These are the graph edges the CLI reports in `xcode_targets.dependencies`, not
+  the `dependencies` subhash of the target's cache hash.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_neighbors(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    opts
+    |> Keyword.delete(:name)
+    |> latest_graph_dependencies()
+    |> case do
+      edges when map_size(edges) == 0 ->
+        %{depends_on: nil, dependents: nil, transitive_dependents: nil}
+
+      edges ->
+        %{
+          depends_on: edges |> Map.get(name, []) |> Enum.sort(),
+          dependents: direct_dependents(edges, name),
+          transitive_dependents: edges |> module_transitive_dependents(name) |> Enum.sort()
+        }
+    end
+  end
+
+  defp direct_dependents(edges, name) do
+    edges
+    |> Enum.filter(fn {_module, deps} -> name in deps end)
+    |> Enum.map(fn {module, _deps} -> module end)
+    |> Enum.sort()
+  end
+
   # xcode_targets_by_project is ordered by (project_id, name, inserted_at) and
   # partitioned by day of inserted_at, so these predicates turn every scan into
   # a range over one project's rows in the queried days. inserted_at is the
