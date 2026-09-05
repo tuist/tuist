@@ -338,7 +338,14 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      item: kura-sentry
+      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
+      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
+      # `tuist-k8s-production` holds the Hive DSN under the default
+      # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
+      # remoteRef whose item is missing fails the whole `kura-shared-secrets`
+      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
+      # flip this back to `kura-sentry` and reroll.
+      item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
