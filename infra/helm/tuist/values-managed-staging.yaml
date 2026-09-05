@@ -896,11 +896,6 @@ sandboxes:
     tag: "sha-d45232211453"
   templateImage:
     tag: "sha-56965cb61732"
-  # The ghcr packages were created from a branch build and are private until
-  # flipped to public in the GitHub UI; the Secret is created by hand in the
-  # sandboxes namespace. Drop once the packages are public.
-  imagePullSecrets:
-    - name: ghcr-pull
   nodePools:
     - runners-linux
   tolerations:
