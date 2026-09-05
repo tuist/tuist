@@ -83,18 +83,21 @@ spec:
         # PV. The `stateful-worker` class and this whole layout were exercised
         # on staging first, which is the same cascade every deploy follows.
         #
-        # Two replicas, one per EX131-2-LTD, matching the shape the migration
-        # finishes on: after the cutover the system of record cannot live on a
-        # single machine with only the Tigris backups beside it. The chart runs
-        # one ClickHouse pod until each replica has a volume bound to its own
-        # host, so the second node is a joined, tainted, idle machine until
-        # then. That is deliberate: the boxes are the item with a lead time and
-        # limited FSN1 stock, and nothing else here is.
+        # replicas 0 until the two EX131-2-LTD are ordered, then 2, one per
+        # box. Two is the shape the migration finishes on: after the cutover
+        # the system of record cannot live on a single machine with only the
+        # Tigris backups beside it. The chart still runs one ClickHouse pod
+        # until each replica has a volume bound to its own host, so the second
+        # node joins tainted and idle.
         #
-        # Raising this count does not install anything on its own. A Machine
-        # with no host to claim parks as `NoAvailableHost`, and the host only
-        # appears once a Robot server is NAMED for it, which is the real
-        # trigger and the one below.
+        # Zero rather than 2-ahead-of-the-hardware, because Flux gates this
+        # cluster's Kustomization on the `Cluster` `Available` rollup
+        # (`infra/flux/mgmt/cluster-production.yaml`), and replicas that can
+        # never be satisfied are an unavailable MachineDeployment for as long
+        # as the boxes do not exist. caph parks such a Machine as
+        # `NoAvailableHost` and nothing installs, but a permanently unhealthy
+        # rollup is not a state to leave a GitOps health gate in. Raise the
+        # count when the machines are ordered, not before.
         #
         # Two things are fixed at the host's first rescue boot and cannot be
         # changed afterwards without a reinstall, so both have to be right
@@ -117,10 +120,11 @@ spec:
         # skips any server whose name lacks the `tuist-bm-` prefix
         # (`controllers/hostdiscovery.go`), so a box ordered under Hetzner's
         # default name is invisible to it, and to caph. Order the machines
-        # whenever stock allows; rename them once both points above hold.
+        # whenever stock allows and raise the count then; rename them only once
+        # both points above hold.
         - class: stateful-worker
           name: md-clickhouse
-          replicas: 2
+          replicas: 0
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
