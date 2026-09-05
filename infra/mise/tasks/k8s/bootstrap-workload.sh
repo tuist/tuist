@@ -251,23 +251,18 @@ ACTIVE_NODE_NAMES=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get ma
   -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' | awk 'NF')
 ACTIVE_NODE_COUNT=$(printf '%s\n' "$ACTIVE_NODE_NAMES" | awk 'NF { count += 1 } END { print count + 0 }')
 
-if [ "$ACTIVE_NODE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
-  err "Only $ACTIVE_NODE_COUNT/$EXPECTED_MACHINE_COUNT ready CAPI Machines have a workload Node reference."
+if [ "$ACTIVE_NODE_COUNT" -lt "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Only $ACTIVE_NODE_COUNT/$EXPECTED_MACHINE_COUNT CAPI Machines have a workload Node reference."
+  KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" -o wide >&2 || true
   exit 1
 fi
 
-# Do not remove an unreferenced workload Node while the management cluster
-# still has a corresponding Hetzner infrastructure object. A mismatch means
-# deletion is still reconciling and needs an operator's investigation rather
-# than a bootstrap shortcut.
-HCLOUD_MACHINE_COUNT=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get hcloudmachines.infrastructure.cluster.x-k8s.io \
-  -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-if [ "$HCLOUD_MACHINE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
-  err "Management cluster has $HCLOUD_MACHINE_COUNT/$EXPECTED_MACHINE_COUNT Hetzner infrastructure Machines for $CLUSTER_NAME."
-  err "Refusing to prune workload Nodes while infrastructure deletion is still reconciling."
-  exit 1
-fi
-
+# A management Cluster API Machine's nodeRef is authoritative only for Nodes
+# created by the management cluster. The workload may also run its own Cluster
+# API providers for Mac, runner, and cache fleets, which have no management
+# Machine. Only a Hetzner Cloud virtual machine has the numeric hcloud://<id>
+# provider ID, so only that population can be safely reconciled here.
 ORPHANED_NODE_NAMES=""
 while IFS= read -r workload_node_name; do
   [ -z "$workload_node_name" ] && continue
@@ -282,14 +277,43 @@ while IFS= read -r workload_node_name; do
   if [ "$node_is_active" = false ]; then
     ORPHANED_NODE_NAMES="${ORPHANED_NODE_NAMES}${workload_node_name}"$'\n'
   fi
-done < <(KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+done < <(
+  KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.providerID}{"\n"}{end}' \
+    | awk -F '\t' '$2 ~ /^hcloud:\/\/[0-9]+$/ { print $1 }'
+)
 
 if [ -n "$ORPHANED_NODE_NAMES" ]; then
-  err "Found workload Node objects without a live CAPI Machine reference:"
+  err "Found Hetzner Cloud Node objects without a live management Cluster API Machine reference:"
   printf '%s' "$ORPHANED_NODE_NAMES" >&2
 
   if [ "${PRUNE_ORPHANED_NODES:-}" != "1" ]; then
     err "After verifying these are stale, rerun with PRUNE_ORPHANED_NODES=1 to remove them."
+    exit 1
+  fi
+
+  # Refuse the destructive path while a Hetzner Cloud Machine has lost its
+  # owning Cluster API Machine but has not finished deletion. Compare names,
+  # not desired replica counts, so a rolling-update surge remains valid.
+  MANAGEMENT_HCLOUD_MACHINE_NAMES=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" \
+    -o jsonpath='{range .items[?(@.spec.infrastructureRef.kind=="HCloudMachine")]}{.spec.infrastructureRef.name}{"\n"}{end}' \
+    | awk 'NF' | sort -u)
+  LIVE_HCLOUD_MACHINE_NAMES=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get hcloudmachines.infrastructure.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+    | awk 'NF' | sort -u)
+  HCLOUD_MACHINE_DIFFERENCES=$(comm -3 \
+    <(printf '%s\n' "$MANAGEMENT_HCLOUD_MACHINE_NAMES" | awk 'NF' | sort -u) \
+    <(printf '%s\n' "$LIVE_HCLOUD_MACHINE_NAMES" | awk 'NF' | sort -u))
+
+  if [ -n "$HCLOUD_MACHINE_DIFFERENCES" ]; then
+    err "Hetzner Cloud Machine objects do not match the management Cluster API Machine references."
+    err "Refusing to prune workload Nodes while infrastructure reconciliation is in progress."
+    printf '%s\n' "$HCLOUD_MACHINE_DIFFERENCES" >&2
+    KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get \
+      machines.cluster.x-k8s.io,hcloudmachines.infrastructure.cluster.x-k8s.io \
+      -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" -o wide >&2 || true
     exit 1
   fi
 
@@ -299,9 +323,12 @@ if [ -n "$ORPHANED_NODE_NAMES" ]; then
   done <<< "$ORPHANED_NODE_NAMES"
 fi
 
+ACTIVE_NODE_RESOURCES=()
 while IFS= read -r active_node_name; do
-  KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready "node/$active_node_name" --timeout=5m
+  [ -z "$active_node_name" ] && continue
+  ACTIVE_NODE_RESOURCES+=("node/$active_node_name")
 done <<< "$ACTIVE_NODE_NAMES"
+KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready "${ACTIVE_NODE_RESOURCES[@]}" --timeout=5m
 
 # ---------------------------------------------------------------------------
 log "Step 6/13: install hcloud-csi-driver"
@@ -352,11 +379,7 @@ log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
 # up, so we're good to install here.
 
 CAPI_CORE_VERSION="v1.10.4"
-CLUSTERCTL_BIN="$RUNNER_TEMP/clusterctl"
-
-if [ -z "${RUNNER_TEMP:-}" ]; then
-  CLUSTERCTL_BIN="${TMPDIR:-/tmp}/clusterctl"
-fi
+CLUSTERCTL_BIN="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/clusterctl"
 
 if [ ! -x "$CLUSTERCTL_BIN" ]; then
   log "  Downloading clusterctl ${CAPI_CORE_VERSION}"
