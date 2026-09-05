@@ -112,6 +112,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let defaultSwiftVersion: String
         public let manifestEnvironment: [String]
         public let onOutdatedDependencies: OutdatedDependenciesAction
+        public var skipLint: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -131,7 +132,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
             manifestEnvironment: [String] = [],
-            onOutdatedDependencies: OutdatedDependenciesAction = .warn
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            skipLint: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -151,6 +153,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.defaultSwiftVersion = defaultSwiftVersion
             self.manifestEnvironment = manifestEnvironment
             self.onOutdatedDependencies = onOutdatedDependencies
+            self.skipLint = skipLint
         }
 
         #if DEBUG
