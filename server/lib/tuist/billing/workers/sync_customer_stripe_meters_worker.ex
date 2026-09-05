@@ -23,11 +23,12 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   def perform(%Oban.Job{
         args: %{"customer_id" => customer_id, "period_start" => period_start, "period_end" => period_end}
       }) do
-    sync(
-      customer_id,
+    customer_id
+    |> sync(
       DateTime.from_unix!(period_start, :microsecond),
       DateTime.from_unix!(period_end, :microsecond)
     )
+    |> snooze_on_stripe_network_error()
   end
 
   # Transitional clause for jobs enqueued by the pre-fan-out parent worker,
@@ -40,8 +41,26 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   def perform(%Oban.Job{args: %{"customer_id" => customer_id}}) do
     period_end = Timex.beginning_of_day(DateTime.utc_now())
     period_start = Timex.shift(period_end, days: -1)
-    sync(customer_id, period_start, period_end)
+
+    customer_id
+    |> sync(period_start, period_end)
+    |> snooze_on_stripe_network_error()
   end
+
+  # A hackney glitch on the boundary lookup (`:invalid_state`, `:closed`,
+  # `:timeout`, ...) reaches us as `%Stripe.Error{source: :network}`.
+  # Returning the error would fail the attempt, log at :error, and page via
+  # the Sentry logger handler for a blip that clears in seconds — Oban's
+  # own retry is already enough to recover. Snoozing reschedules the job
+  # the same way a retry would while logging at :debug, so the transient
+  # network path stops paging. A real prolonged Stripe outage still
+  # surfaces: every other Stripe call site in the app fails alongside this
+  # one and reports normally, and this job then wakes up into that same
+  # outage and produces its own error once the snooze window elapses.
+  # No partial state is at risk here because children are enqueued only
+  # after `usage_windows` returns ok inside `sync/3`.
+  defp snooze_on_stripe_network_error({:error, %Stripe.Error{source: :network}}), do: {:snooze, 60}
+  defp snooze_on_stripe_network_error(result), do: result
 
   defp sync(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     if Tuist.Environment.error_tracking_enabled?() do

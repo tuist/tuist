@@ -92,12 +92,44 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
            ]
   end
 
-  test "retries instead of snapshotting an unsplit day when boundary discovery fails" do
+  test "snoozes without noise when boundary discovery hits a transient Stripe network blip" do
     customer_id = UUIDv7.generate()
     %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
     period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
     period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
-    error = %Stripe.Error{source: :network, code: :network_code, message: "boom"}
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    stub(Billing, :customer_meter_values, fn ^account, _window_start, _window_end, [include_qa: false] ->
+      [%{event_name: "remote_cache_hit", value: 7}]
+    end)
+
+    stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
+      {:error, %Stripe.Error{source: :network, code: :network_code, message: "boom"}}
+    end)
+
+    # `{:snooze, _}` reschedules without logging at :error, so a hackney
+    # blip doesn't fire a Sentry event on every retry attempt.
+    assert {:snooze, seconds} =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 790,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => DateTime.to_unix(period_start_datetime, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end_datetime, :microsecond)
+               }
+             })
+
+    assert is_integer(seconds) and seconds > 0
+    assert all_enqueued(worker: SyncCustomerStripeMeterWorker) == []
+  end
+
+  test "propagates non-network boundary-discovery errors so Oban's normal retry surfaces them" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+    error = %Stripe.Error{source: :stripe, code: :api_error, message: "boom"}
 
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
