@@ -56,8 +56,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
       |> assign(buildkite_field_errors: %{})
       |> assign(buildkite_form_error: nil)
-      |> assign(buildkite_organization_error: nil)
-      |> assign(buildkite_organization_input: nil)
+      |> assign(buildkite_flash: nil)
+      |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
@@ -115,30 +115,42 @@ defmodule TuistWeb.IntegrationsLive do
     end
   end
 
-  # The organization slug is the connection's identity, so it is edited on
-  # the card; the token stays modal-only because it is never shown again.
   @impl true
-  def handle_event(
-        "update-buildkite-organization",
-        %{"organization_slug" => slug},
-        %{assigns: %{selected_account: account}} = socket
-      ) do
-    case Buildkite.upsert_installation(account.id, %{organization_slug: String.trim(slug)}) do
+  def handle_event("validate-buildkite", params, %{assigns: %{buildkite_installation: installation}} = socket) do
+    values = Map.merge(socket.assigns.buildkite_form_values, Map.take(params, ["organization_slug", "agent_token"]))
+
+    has_changes =
+      String.trim(values["organization_slug"]) != installation.organization_slug or
+        String.trim(values["agent_token"]) != ""
+
+    {:noreply, assign(socket, buildkite_form_values: values, buildkite_has_changes: has_changes, buildkite_flash: nil)}
+  end
+
+  @impl true
+  def handle_event("save-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    token = params |> Map.get("agent_token", "") |> String.trim()
+    attrs = %{organization_slug: params |> Map.get("organization_slug", "") |> String.trim()}
+
+    # A blank token keeps the current one: it is never shown again, so
+    # there is nothing for the customer to re-enter.
+    attrs = if token == "", do: attrs, else: Map.put(attrs, :agent_token, token)
+
+    case Buildkite.upsert_installation(account.id, attrs) do
       {:ok, _installation} ->
         {:noreply,
          socket
-         |> assign(buildkite_organization_error: nil, buildkite_organization_input: nil)
+         |> assign(buildkite_field_errors: %{})
+         |> assign(buildkite_flash: {"success", dgettext("dashboard_integrations", "Buildkite connection saved.")})
          |> assign_buildkite_installation()}
 
       {:error, changeset} ->
-        {field_errors, _form_error} = split_buildkite_errors(changeset)
+        {field_errors, form_error} = split_buildkite_errors(changeset)
 
-        # Keep what was typed on screen so it can be corrected; a re-render
-        # would otherwise put the saved slug back underneath the error.
         {:noreply,
          assign(socket,
-           buildkite_organization_error: field_errors["organization_slug"],
-           buildkite_organization_input: slug
+           buildkite_field_errors: field_errors,
+           buildkite_flash: if(form_error, do: {"error", form_error}),
+           buildkite_form_values: Map.take(params, ["organization_slug", "agent_token"])
          )}
     end
   end
@@ -149,8 +161,7 @@ defmodule TuistWeb.IntegrationsLive do
 
     {:noreply,
      socket
-     |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
-     |> assign(buildkite_organization_error: nil, buildkite_organization_input: nil)
+     |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil, buildkite_flash: nil)
      |> assign_buildkite_installation()}
   end
 
@@ -448,7 +459,17 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
-    assign(socket, buildkite_installation: Buildkite.get_installation(account.id))
+    installation = Buildkite.get_installation(account.id)
+
+    socket
+    |> assign(buildkite_installation: installation)
+    |> assign(buildkite_has_changes: false)
+    |> assign(
+      buildkite_form_values: %{
+        "organization_slug" => (installation && installation.organization_slug) || "",
+        "agent_token" => ""
+      }
+    )
   end
 
   # Errors land on the input that caused them. `stack_key` is derived, not

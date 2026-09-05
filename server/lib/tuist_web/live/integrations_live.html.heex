@@ -265,70 +265,82 @@
     </div>
     <div data-part="content">
       <.alert
+        :if={@buildkite_flash}
+        status={elem(@buildkite_flash, 0)}
+        type="secondary"
+        size="small"
+        title={elem(@buildkite_flash, 1)}
+      />
+      <.alert
         :if={@buildkite_installation && @buildkite_installation.last_error}
         status="error"
         type="secondary"
         size="small"
         title={@buildkite_installation.last_error}
       />
-      <%!-- Only a connected cluster earns space on the page; everything
-            needed to connect one lives in the modal. --%>
-      <div :if={@buildkite_installation} data-part="buildkite-connection">
-        <form
-          id="buildkite-organization-form"
-          phx-change="update-buildkite-organization"
-          phx-submit="update-buildkite-organization"
-        >
-          <.text_input
-            id="buildkite-organization-inline"
-            name="organization_slug"
-            type="basic"
-            label={dgettext("dashboard_integrations", "Organization")}
-            value={@buildkite_organization_input || @buildkite_installation.organization_slug}
-            error={@buildkite_organization_error}
-            required
-            phx-debounce="blur"
-          />
-        </form>
-      </div>
-      <div data-part="actions">
-        <.button
-          :if={@buildkite_installation}
-          label={dgettext("dashboard_integrations", "Disconnect")}
-          variant="secondary"
-          phx-click="disconnect-buildkite"
+      <%!-- Connected: the connection is edited in place and saved as one. A
+            blank token keeps the current one, which is never shown again. --%>
+      <form
+        :if={@buildkite_installation}
+        id="buildkite-form"
+        phx-change="validate-buildkite"
+        phx-submit="save-buildkite"
+      >
+        <.text_input
+          id="buildkite-organization"
+          name="organization_slug"
+          type="basic"
+          label={dgettext("dashboard_integrations", "Organization")}
+          value={@buildkite_form_values["organization_slug"]}
+          error={@buildkite_field_errors["organization_slug"]}
+          required
+          show_required
         />
+        <.text_input
+          id="buildkite-token"
+          name="agent_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Cluster agent token")}
+          value={@buildkite_form_values["agent_token"]}
+          placeholder="••••••••••••"
+          hint={dgettext("dashboard_integrations", "Leave blank to keep the current token.")}
+          error={@buildkite_field_errors["agent_token"]}
+        />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="disconnect-buildkite"
+          />
+          <.button
+            type="submit"
+            label={dgettext("dashboard_integrations", "Save changes")}
+            variant="primary"
+            disabled={not @buildkite_has_changes}
+          />
+        </div>
+      </form>
+      <%!-- Not connected: one button, with the fields in a modal, so an
+            account that does not use Buildkite gives up no space to it. --%>
+      <div :if={is_nil(@buildkite_installation)} data-part="actions">
         <form id="connect-buildkite-form" phx-submit="connect-buildkite">
           <.modal
             id="connect-buildkite-modal"
-            title={
-              if @buildkite_installation,
-                do: dgettext("dashboard_integrations", "Update agent token"),
-                else: dgettext("dashboard_integrations", "Connect Buildkite")
-            }
+            title={dgettext("dashboard_integrations", "Connect Buildkite")}
             description={
-              if @buildkite_installation,
-                do:
-                  dgettext(
-                    "dashboard_integrations",
-                    "Paste a new cluster agent token. It replaces the current one for this connection."
-                  ),
-                else:
-                  dgettext(
-                    "dashboard_integrations",
-                    "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-                  )
+              dgettext(
+                "dashboard_integrations",
+                "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+              )
             }
             header_size="large"
             on_dismiss="close-connect-buildkite-modal"
           >
             <:trigger :let={attrs}>
               <.button
-                label={
-                  if @buildkite_installation,
-                    do: dgettext("dashboard_integrations", "Update token"),
-                    else: dgettext("dashboard_integrations", "Connect")
-                }
+                label={dgettext("dashboard_integrations", "Connect")}
                 variant="primary"
                 {attrs}
               />
@@ -343,7 +355,6 @@
                 title={@buildkite_form_error}
               />
               <.text_input
-                :if={is_nil(@buildkite_installation)}
                 id="buildkite-organization-slug"
                 name="organization_slug"
                 type="basic"
@@ -382,11 +393,7 @@
                 <:action>
                   <.button
                     type="submit"
-                    label={
-                      if @buildkite_installation,
-                        do: dgettext("dashboard_integrations", "Update token"),
-                        else: dgettext("dashboard_integrations", "Connect")
-                    }
+                    label={dgettext("dashboard_integrations", "Connect")}
                     variant="primary"
                   />
                 </:action>

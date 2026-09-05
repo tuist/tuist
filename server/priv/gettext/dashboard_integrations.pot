@@ -17,7 +17,7 @@ msgid "Add new project connection"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:195
-#: lib/tuist_web/live/integrations_live.html.heex:377
+#: lib/tuist_web/live/integrations_live.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -42,12 +42,12 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:330
+#: lib/tuist_web/live/integrations_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:332
+#: lib/tuist_web/live/integrations_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
@@ -97,12 +97,12 @@ msgstr ""
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:389
+#: lib/tuist_web/live/integrations_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:416
+#: lib/tuist_web/live/integrations_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr ""
@@ -132,13 +132,13 @@ msgstr ""
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:376
+#: lib/tuist_web/live/integrations_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:365
-#: lib/tuist_web/live/integrations_live.ex:397
+#: lib/tuist_web/live/integrations_live.ex:376
+#: lib/tuist_web/live/integrations_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr ""
@@ -163,33 +163,34 @@ msgstr ""
 msgid "Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:361
+#: lib/tuist_web/live/integrations_live.html.heex:304
+#: lib/tuist_web/live/integrations_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:330
-#: lib/tuist_web/live/integrations_live.html.heex:388
+#: lib/tuist_web/live/integrations_live.html.heex:343
+#: lib/tuist_web/live/integrations_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:307
+#: lib/tuist_web/live/integrations_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:317
+#: lib/tuist_web/live/integrations_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:297
+#: lib/tuist_web/live/integrations_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:350
+#: lib/tuist_web/live/integrations_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr ""
@@ -199,28 +200,27 @@ msgstr ""
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:364
+#: lib/tuist_web/live/integrations_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:286
+#: lib/tuist_web/live/integrations_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:312
+#: lib/tuist_web/live/integrations_live.ex:143
 #, elixir-autogen, elixir-format
-msgid "Paste a new cluster agent token. It replaces the current one for this connection."
+msgid "Buildkite connection saved."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:306
+#: lib/tuist_web/live/integrations_live.html.heex:307
 #, elixir-autogen, elixir-format
-msgid "Update agent token"
+msgid "Leave blank to keep the current token."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:329
-#: lib/tuist_web/live/integrations_live.html.heex:387
+#: lib/tuist_web/live/integrations_live.html.heex:319
 #, elixir-autogen, elixir-format
-msgid "Update token"
+msgid "Save changes"
 msgstr ""

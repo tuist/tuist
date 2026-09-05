@@ -163,14 +163,18 @@
       flex-direction: column;
       gap: var(--noora-spacing-6);
 
-      & > [data-part="buildkite-connection"] {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-6);
-
+      /* A notice is as wide as its message, not as wide as the card. */
+      & > .noora-alert {
+        align-self: flex-start;
       }
 
-      & > [data-part="actions"] {
+      & > #buildkite-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
+
+      & [data-part="actions"] {
         display: flex;
         flex-direction: row;
         align-items: center;

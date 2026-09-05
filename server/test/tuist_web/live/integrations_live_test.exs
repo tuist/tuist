@@ -427,64 +427,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert html =~ ~s(value="acme")
     end
 
-    test "changes the organization straight from the card", %{conn: conn, account: account} do
-      {:ok, _installation} =
-        Buildkite.upsert_installation(account.id, %{
-          organization_slug: "acme",
-          stack_key: "tuist-#{account.id}",
-          agent_token: "bkct_secret"
-        })
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
-
-      lv |> form("#buildkite-organization-form", %{"organization_slug" => "acme-mobile"}) |> render_change()
-
-      installation = Buildkite.get_installation(account.id)
-      assert installation.organization_slug == "acme-mobile"
-      # The token is untouched: the card edits the identity, not the credential.
-      assert installation.agent_token == "bkct_secret"
-    end
-
-    test "keeps an invalid organization on screen with its error instead of saving it", %{
-      conn: conn,
-      account: account
-    } do
-      {:ok, _installation} =
-        Buildkite.upsert_installation(account.id, %{
-          organization_slug: "acme",
-          stack_key: "tuist-#{account.id}",
-          agent_token: "bkct_secret"
-        })
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
-
-      html = lv |> form("#buildkite-organization-form", %{"organization_slug" => "acme corp"}) |> render_change()
-
-      assert html =~ ~s(value="acme corp")
-      assert html =~ "has invalid format"
-      assert Buildkite.get_installation(account.id).organization_slug == "acme"
-    end
-
-    test "rotates the token without asking for the organization again", %{conn: conn, account: account} do
-      {:ok, _installation} =
-        Buildkite.upsert_installation(account.id, %{
-          organization_slug: "acme",
-          stack_key: "tuist-#{account.id}",
-          agent_token: "bkct_secret"
-        })
-
-      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
-
-      # Connected: the modal is about the token, so the slug field is gone.
-      refute html =~ ~s(id="buildkite-organization-slug")
-
-      lv |> form("#connect-buildkite-form", %{"agent_token" => "bkct_rotated"}) |> render_submit()
-
-      installation = Buildkite.get_installation(account.id)
-      assert installation.agent_token == "bkct_rotated"
-      assert installation.organization_slug == "acme"
-    end
-
     test "masks the agent token so it is never typed in the clear", %{conn: conn, account: account} do
       # Noora's `text_input` derives the HTML input type from `input_type`,
       # not from `type`, so `type="password"` alone renders a plaintext
@@ -534,6 +476,92 @@ defmodule TuistWeb.IntegrationsLiveTest do
       lv |> element("button[phx-click=disconnect-buildkite]") |> render_click()
 
       assert is_nil(Buildkite.get_installation(account.id))
+    end
+
+    defp connected(account) do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      :ok
+    end
+
+    test "saves a new organization from the card while a blank token keeps the current one", %{
+      conn: conn,
+      account: account
+    } do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme-mobile", "agent_token" => ""})
+        |> render_submit()
+
+      assert html =~ "Buildkite connection saved."
+      installation = Buildkite.get_installation(account.id)
+      assert installation.organization_slug == "acme-mobile"
+      assert installation.agent_token == "bkct_secret"
+    end
+
+    test "saves a new token from the card", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      lv
+      |> form("#buildkite-form", %{"organization_slug" => "acme", "agent_token" => "bkct_rotated"})
+      |> render_submit()
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.agent_token == "bkct_rotated"
+      assert installation.organization_slug == "acme"
+    end
+
+    test "keeps an invalid organization on screen with its error instead of saving it", %{
+      conn: conn,
+      account: account
+    } do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme corp", "agent_token" => ""})
+        |> render_submit()
+
+      assert html =~ ~s(value="acme corp")
+      assert html =~ "has invalid format"
+      assert Buildkite.get_installation(account.id).organization_slug == "acme"
+    end
+
+    test "enables Save changes only once something changed", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      save = fn html -> html |> Floki.parse_document!() |> Floki.find("#buildkite-form button[type=submit]") end
+
+      # Rendered valueless, which Floki reads back as an empty string.
+      assert Floki.attribute(save.(html), "disabled") == [""]
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme", "agent_token" => "bkct_new"})
+        |> render_change()
+
+      assert Floki.attribute(save.(html), "disabled") == []
+    end
+
+    test "masks the token field on the card", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      token_input = html |> Floki.parse_document!() |> Floki.find("input#buildkite-token")
+
+      assert [_] = token_input
+      assert Floki.attribute(token_input, "type") == ["password"]
     end
 
     test "is hidden when runners are not enabled for the account", %{conn: conn, account: account} do
