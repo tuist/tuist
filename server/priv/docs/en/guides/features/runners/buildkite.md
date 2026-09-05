@@ -25,11 +25,6 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 1. **Request access.** Runners are invite-only during the beta. [Reach out](mailto:contact@tuist.dev) with the account you want enabled.
 2. **Connect your cluster.** In Buildkite, open your cluster, go to **Agent Tokens**, and create a token; it starts with `bkct_`. In your Tuist dashboard, go to **Settings → Integrations**, choose **Connect** on the Buildkite card, and enter your organization slug and the token. The token is stored encrypted and never shown again. To change the organization or rotate the token later, edit the fields on the card and choose **Save changes**. Tuist begins watching the cluster within a minute.
 
-   > [!WARNING]
-   > **Keep the pipeline, the queues and the token in one cluster**
-   >
-   > A Buildkite agent token is scoped to one cluster and only ever sees that cluster's queues, and a pipeline only dispatches to its own cluster's queues. Nothing in Buildkite warns you when they are split: queue names can match, the connection reports healthy, and jobs sit waiting forever. If you have more than one cluster, decide which one you are using first and create the queues, the token and the pipeline in that one. Buildkite's **New pipeline** form does not ask which cluster you want, so check the pipeline's **Settings → General → Cluster** after creating it.
-
 3. **Name a queue after a Tuist profile.** Every enabled account starts with two ready-to-use <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link>, `linux` and `macos`, and a job is picked up when its queue key matches a profile's label. Create self-hosted queues in your cluster keyed `tuist-linux` and `tuist-macos`, then target one from a step:
 
    ```yaml
@@ -58,7 +53,7 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 Work through these in order:
 
 1. **Is the job on a queue keyed with a profile label?** Open the job in Buildkite and check the queue it is waiting on. It must equal a label from **Runners → Profiles**, `tuist-` prefix included. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
-2. **Are the pipeline, the queues and the token in the same cluster?** See the warning above. This is the most common cause and the hardest to see.
+2. **Are the pipeline, the queues and the token in the same cluster?** A token only sees its own cluster's queues, and a pipeline only dispatches to its own, so a split reports healthy and jobs wait. Queue names can match across clusters, which hides it. Check the pipeline's **Settings → General → Cluster**.
 3. **Does the Buildkite card under Settings → Integrations show an error?** A revoked or wrong-cluster token is reported there.
 
 A profile with no matching Buildkite queue is fine and is skipped quietly; you do not need a queue for every profile.
