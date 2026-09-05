@@ -64,7 +64,7 @@ ovh() {
   curl "${args[@]}"
 }
 
-service_id="$(ovh GET "/dedicated/server/${service}/serviceInfos" | grep -o '"serviceId":[0-9]*' | grep -o '[0-9]*' | head -1)"
+service_id="$(ovh GET "/dedicated/server/${service}/serviceInfos" | grep -o '"serviceId":[0-9]*' | grep -o '[0-9]*' | head -1 || true)"
 [ -z "$service_id" ] && { echo "could not resolve serviceId for ${service} (check creds / OVH_API_BASE entity)" >&2; exit 1; }
 
 # displayName lives on the service resource; OVH's /service/{id} API takes it
@@ -80,8 +80,13 @@ service_id="$(ovh GET "/dedicated/server/${service}/serviceInfos" | grep -o '"se
 # and looks like a broken adoption filter. One production box reached the fleet
 # in exactly that state.
 for attempt in 1 2 3 4 5 6; do
-  ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null
-  observed="$(ovh GET "/service/${service_id}" | tr ',' '\n' | grep -o '"displayName":"[^"]*"' | head -1 | cut -d'"' -f4)"
+  # A transient OVH 5xx counts as one failed attempt, not the end of the loop:
+  # `ovh` runs curl -f under `set -e`, so an unguarded call aborts the script
+  # with a bare curl exit code over a write that may well have landed.
+  if ! ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null; then
+    echo "  PUT /service/${service_id} failed on attempt ${attempt}; retrying" >&2
+  fi
+  observed="$(ovh GET "/service/${service_id}" | tr ',' '\n' | grep -o '"displayName":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
   if [ "$observed" = "$display_name" ]; then
     echo "✓ OVH ${service} (service ${service_id}) displayName set to '${display_name}'"
     exit 0

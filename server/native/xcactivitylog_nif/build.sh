@@ -16,39 +16,25 @@ else
     SCRATCH_PATH="${SCRIPT_DIR}/.build"
 fi
 
-echo "==> Building Swift NIF library..."
-swift build -c release --replace-scm-with-registry --scratch-path "$SCRATCH_PATH" 2>&1
+EXECUTABLE_NAME="xcactivitylog-parser"
+
+echo "==> Building Swift xcactivitylog parser..."
+swift build -c release --replace-scm-with-registry --scratch-path "$SCRATCH_PATH" \
+    --product "$EXECUTABLE_NAME" 2>&1
 
 SWIFT_BUILD_DIR="${SCRATCH_PATH}/release"
-DYLIB_NAME="libXCActivityLogNIF.dylib"
 
-if [ ! -f "$SWIFT_BUILD_DIR/$DYLIB_NAME" ]; then
-    echo "ERROR: Could not find $DYLIB_NAME in $SWIFT_BUILD_DIR"
+if [ ! -f "$SWIFT_BUILD_DIR/$EXECUTABLE_NAME" ]; then
+    echo "ERROR: Could not find $EXECUTABLE_NAME in $SWIFT_BUILD_DIR"
     exit 1
 fi
 
-echo "==> Compiling C NIF bridge..."
+mkdir -p "$PRIV_DIR"
+cp "$SWIFT_BUILD_DIR/$EXECUTABLE_NAME" "$PRIV_DIR/$EXECUTABLE_NAME"
+chmod +x "$PRIV_DIR/$EXECUTABLE_NAME"
 
-ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell 2>/dev/null)
-if [ -z "$ERL_INCLUDE" ]; then
-    echo "ERROR: Could not find Erlang include directory"
-    exit 1
-fi
+echo "==> Signing parser..."
+codesign -s - -f "$PRIV_DIR/$EXECUTABLE_NAME"
 
-cc -shared -undefined dynamic_lookup \
-    -o "$PRIV_DIR/xcactivitylog_nif.so" \
-    nif_bridge.c \
-    -I"$ERL_INCLUDE" \
-    -L"$SWIFT_BUILD_DIR" \
-    -lXCActivityLogNIF \
-    -Wl,-rpath,"@loader_path"
-
-cp "$SWIFT_BUILD_DIR/$DYLIB_NAME" "$PRIV_DIR/$DYLIB_NAME"
-
-echo "==> Signing NIF binaries..."
-codesign -s - -f "$PRIV_DIR/xcactivitylog_nif.so"
-codesign -s - -f "$PRIV_DIR/$DYLIB_NAME"
-
-echo "==> NIF built successfully!"
-echo "    NIF: $PRIV_DIR/xcactivitylog_nif.so"
-echo "    Lib: $PRIV_DIR/$DYLIB_NAME"
+echo "==> Parser built successfully!"
+echo "    Executable: $PRIV_DIR/$EXECUTABLE_NAME"

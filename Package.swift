@@ -1880,7 +1880,7 @@ let package = Package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(id: "apple.swift-protobuf", exact: "1.35.1"),
+        .package(id: "apple.swift-protobuf", exact: "1.38.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
@@ -1889,7 +1889,7 @@ let package = Package(
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.96")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

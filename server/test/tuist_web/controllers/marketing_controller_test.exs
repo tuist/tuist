@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Tuist.Atlas.Email
+  alias Tuist.Marketing.Blog
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -15,6 +16,84 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "describes the site and the product with structured data", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      types =
+        ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
+        |> Regex.scan(html, capture: :all_but_first)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+
+      assert "Organization" in types
+      assert "WebSite" in types
+      assert "SoftwareApplication" in types
+    end
+
+    test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
+    end
+  end
+
+  describe "GET /blog/:year/:month/:day/:slug" do
+    test "emits article metadata with a profile URL for the author", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+      html = conn |> get(post.slug) |> html_response(200)
+
+      assert html =~ ~s(<meta property="og:type" content="article">)
+      # Open Graph types article:author as a profile, so a display name is not
+      # a valid value here.
+      assert [author] = Regex.run(~r|article:author" content="([^"]*)"|, html, capture: :all_but_first)
+      assert author =~ ~r|\Ahttps://|
+      assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
+    end
+  end
+
+  describe "GET /sitemap.xml" do
+    # The sitemap enumerates documentation slugs, which include command-line
+    # pages fetched from the latest GitHub release. Stub them so the test does
+    # not depend on the network.
+    setup do
+      stub(Tuist.Docs.CLI, :get_pages, fn -> [] end)
+      :ok
+    end
+
+    test "includes the product pages", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for path <- ["/cache", "/build-insights", "/selective-testing", "/flaky-tests", "/test-insights", "/previews"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+
+      for path <- ["/about", "/support", "/newsletter"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "carries lastmod for dated content and omits it elsewhere", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      post = List.first(Blog.get_posts())
+      post_date = post.date |> DateTime.to_date() |> Date.to_iso8601()
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: post.slug))}</loc>\s*<lastmod>#{post_date}</lastmod>|
+
+      # A docs page has no trustworthy modification date, so it gets no lastmod
+      # rather than one Google would later learn to distrust.
+      refute xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/en/docs"))}</loc>\s*<lastmod>|
+    end
+
+    test "no longer emits the directives search engines ignore", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      refute xml =~ "<priority>"
+      refute xml =~ "<changefreq>"
     end
   end
 

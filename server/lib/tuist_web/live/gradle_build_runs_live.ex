@@ -17,7 +17,8 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
   def assign_mount(socket) do
     project = socket.assigns.selected_project
-    assign(socket, :available_filters, define_filters(project))
+    tags = Gradle.project_build_tags(project)
+    assign(socket, :available_filters, define_filters(project, tags))
   end
 
   def assign_handle_params(socket, params) do
@@ -210,7 +211,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  defp define_filters(project) do
+  defp define_filters(project, tags) do
     base = [
       %Filter.Filter{
         id: "status",
@@ -300,6 +301,25 @@ defmodule TuistWeb.GradleBuildRunsLive do
         []
       end
 
-    base ++ ran_by_filter
+    tag_filter =
+      if Enum.empty?(tags) do
+        []
+      else
+        [
+          %Filter.Filter{
+            id: "custom_tags",
+            field: :custom_tags,
+            display_name: dgettext("dashboard_gradle", "Tags"),
+            type: :option,
+            searchable: true,
+            options: tags,
+            options_display_names: Map.new(tags, &{&1, &1}),
+            operator: :contains,
+            value: nil
+          }
+        ]
+      end
+
+    base ++ tag_filter ++ ran_by_filter
   end
 end

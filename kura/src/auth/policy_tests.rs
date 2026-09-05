@@ -130,18 +130,13 @@ fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
 fn ctx() -> RequestContext {
     RequestContext {
         transport: "http".into(),
-        route: "/api/cache/gradle/{cache_key}".into(),
         method: "GET".into(),
         operation: "artifact.read".into(),
         server_tenant_id: "acme".into(),
         tenant_id: None,
         namespace_id: None,
-        producer: Some("gradle".into()),
-        artifact_key: None,
-        artifact_hash: None,
+        authorization: None,
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
-        status_code: None,
     }
 }
 
@@ -314,8 +309,6 @@ async fn allows_namespace_only_grpc_requests_for_bazel() {
 
     let mut context = ctx();
     context.transport = "grpc".into();
-    context.route =
-        "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
     context.method = "RPC".into();
     context.tenant_id = None;
     context.namespace_id = Some("bazel".into());
@@ -857,8 +850,8 @@ async fn authorizes_case_insensitively_like_current_cache_nodes() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context.query.insert("account_handle".into(), "ACME".into());
-    context.query.insert("project_handle".into(), "IOS".into());
+    context.tenant_id = Some("ACME".into());
+    context.namespace_id = Some("IOS".into());
 
     let decision = engine.evaluate_access(&context).await;
     assert!(matches!(decision, AccessDecision::Allow));
@@ -892,10 +885,8 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context
-        .query
-        .insert("account_handle".into(), "someone-else".into());
-    context.query.insert("project_handle".into(), "ios".into());
+    context.tenant_id = Some("someone-else".into());
+    context.namespace_id = Some("ios".into());
 
     let deny = expect_deny(engine.evaluate_access(&context).await);
     assert_eq!(deny.status, 403);
@@ -1281,9 +1272,7 @@ fn project_request(authorization: &str) -> RequestContext {
     let mut context = ctx();
     context.tenant_id = Some("acme".into());
     context.namespace_id = Some("ios".into());
-    context
-        .headers
-        .insert("authorization".into(), authorization.to_owned());
+    context.authorization = Some(authorization.to_owned());
     context
 }
 
@@ -1782,12 +1771,8 @@ async fn a_credential_inside_the_verifier_leeway_still_reaches_the_backend() {
     }
 }
 
-// Some routes name their target in the query rather than the path, which is
-// the form the README documents. Both have to reach the same answer: keyed on
-// the raw context fields the query form left them unset, so two projects
-// looked identical and the first one's answer served the second.
 #[tokio::test]
-async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() {
+async fn resolved_targets_are_authorized_independently() {
     let base = spawn_tuist_auth_mock(
         |_headers, _payload| {
             (
@@ -1799,18 +1784,7 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
     )
     .await;
 
-    let query_form = |project: &str| {
-        let mut context = ctx();
-        context
-            .headers
-            .insert("authorization".into(), "Bearer opaque-token".into());
-        context.query.insert("account_handle".into(), "acme".into());
-        context
-            .query
-            .insert("project_handle".into(), project.into());
-        context
-    };
-    let path_form = |project: &str| {
+    let resolved_context = |project: &str| {
         let mut context = ctx();
         context
             .headers
@@ -1820,21 +1794,16 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
         context
     };
 
-    for form in [
-        &query_form as &dyn Fn(&str) -> RequestContext,
-        &path_form as &dyn Fn(&str) -> RequestContext,
-    ] {
-        let engine = engine_pointing_at(&base, false);
+    let engine = engine_pointing_at(&base, false);
 
-        assert!(matches!(
-            engine.evaluate_access(&form("ios")).await,
-            AccessDecision::Allow
-        ));
+    assert!(matches!(
+        engine.evaluate_access(&resolved_context("ios")).await,
+        AccessDecision::Allow
+    ));
 
-        let deny = expect_deny(engine.evaluate_access(&form("android")).await);
-        assert_eq!(deny.status, 403);
-        assert!(deny.message.contains("acme/android"));
-    }
+    let deny = expect_deny(engine.evaluate_access(&resolved_context("android")).await);
+    assert_eq!(deny.status, 403);
+    assert!(deny.message.contains("acme/android"));
 }
 
 // The fast path is one lookup: the entry is the answer, and nothing behind it

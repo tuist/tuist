@@ -15,6 +15,42 @@ To run tests selectively with your <.localized_link href="/guides/features/proje
 
 `tuist test` integrates directly with the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
+## Separate build and test jobs {#separate-build-and-test-jobs}
+
+Selective testing supports separate build and test jobs. If the build job produces an `.xctestrun` file, restore it in the test job and forward it to `tuist test --without-building`:
+
+```sh
+tuist test MyScheme \
+  --without-building \
+  -- \
+  -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER' \
+  -xctestrun artifacts/MyScheme.xctestrun
+```
+
+Tuist generates the project to determine which test targets changed, then forwards those targets through `-only-testing`. It does not pass a project, workspace, or scheme to `xcodebuild` when `-xctestrun` is present because those input modes are mutually exclusive.
+
+Alternatively, build with `tuist test --build-only` and persist the complete `.xctestproducts` bundle:
+
+```sh
+tuist test MyScheme \
+  --build-only \
+  -- \
+  -testProductsPath artifacts/MyScheme.xctestproducts \
+  -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER'
+```
+
+In the test job, restore that complete bundle and pass the same path with `--without-building`:
+
+```sh
+tuist test MyScheme \
+  --without-building \
+  -- \
+  -testProductsPath artifacts/MyScheme.xctestproducts \
+  -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER'
+```
+
+An `.xctestrun` file is the test-run configuration: it identifies the built test bundles and how to launch them. An `.xctestproducts` bundle also contains the built test products and their `.xctestrun` files. Tuist adds the selective-testing graph to that bundle during the build job, letting the test job execute the selected tests without regenerating the project.
+
 > [!WARNING]
 > **Module Vs File-level Granularity**
 >

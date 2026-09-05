@@ -11,6 +11,15 @@ To add packages using the registry in your Xcode project, use the default Xcode 
 
 ![Adding package dependencies](/images/guides/features/build/registry/registry-add-package.png)
 
-> [!NOTE]
-> Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
+## Resolving source control packages {#resolving-source-control-packages}
 
+Packages that are declared with a source control URL, such as the transitive dependencies of the packages you add, are resolved from source control by default. `tuist registry setup` configures Xcode to resolve them from the registry instead by writing the following user default:
+
+```bash
+defaults write com.apple.dt.Xcode IDEPackageDependencySCMToRegistryTransformation useRegistryIdentityAndSources
+```
+
+Xcode then resolves a source control package from the registry whenever a registry equivalent exists, and falls back to source control when it doesn't.
+
+> [!NOTE]
+> This is a per-machine Xcode preference and not a project setting, so committing the registry configuration file doesn't share it with the rest of your team. Every developer needs to run `tuist registry setup` once on their machine. The preference then applies to all Xcode projects on that machine.

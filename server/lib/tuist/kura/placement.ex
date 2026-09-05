@@ -35,8 +35,8 @@ defmodule Tuist.Kura.Placement do
       correct_initial: %{
         window_days: 7,
         majority_share: 0.8,
-        min_runs_per_day: 10,
-        min_active_days: 3,
+        min_runs_per_day: 5,
+        min_active_days: 1,
         within_days: 14
       },
       relocate: %{
@@ -55,8 +55,8 @@ defmodule Tuist.Kura.Placement do
       correct_initial: %{
         window_days: 7,
         majority_share: 0.8,
-        min_runs_per_day: 10,
-        min_active_days: 3,
+        min_runs_per_day: 5,
+        min_active_days: 1,
         within_days: 14
       },
       relocate: %{
@@ -75,8 +75,8 @@ defmodule Tuist.Kura.Placement do
       correct_initial: %{
         window_days: 7,
         majority_share: 0.8,
-        min_runs_per_day: 10,
-        min_active_days: 3,
+        min_runs_per_day: 5,
+        min_active_days: 1,
         within_days: 14
       },
       relocate: %{
@@ -169,14 +169,28 @@ defmodule Tuist.Kura.Placement do
   # whose cache is days old and nearly cold is cheap, moving one with a warm
   # working set is not.
   #
-  # So this is narrow rather than merely faster. It reads the same short window
-  # the guess itself read, but demands a clearly higher majority for acting on
-  # less evidence, and it only ever runs while the primary is young AND was
-  # never decided. Applying it records a placement row, which makes the primary
+  # So this is narrow rather than slow. It reads the same short window the guess
+  # itself read, and it only ever runs while the primary is young AND was never
+  # decided. Applying it records a placement row, which makes the primary
   # decided and disqualifies this rung for good — the once-only guarantee needs
   # no counter of its own, and correcting a guess does not spend the quarterly
   # relocation budget, because converging on the right answer for the first
   # time is not churn.
+  #
+  # What holds it back is the majority, not the calendar. The reason other
+  # rungs wait for days to accumulate is flapping, and this one cannot flap:
+  # it fires at most once per account, ever. So a day count would buy no
+  # safety, and it costs the account a wrongly placed cache on every build
+  # until it elapses. Worse, `within_days` expires the rung entirely, so an
+  # account building a few days a week could fail to accumulate the days
+  # before the window closed and fall through to a rung measured in months —
+  # the outcome this exists to prevent.
+  #
+  # A single active day is therefore enough, and the floors that remain are
+  # the ones that mean something: a clear majority, so one developer on a
+  # VPN moves nothing unless they genuinely are the account's traffic, and a
+  # volume floor that a real working day clears and an evaluation from a
+  # conference does not.
   defp correct_initial(_context, %{correct_initial: nil}, _runs), do: nil
   defp correct_initial(%{primary: nil}, _plan_policy, _runs), do: nil
   defp correct_initial(%{primary_decided?: true}, _plan_policy, _runs), do: nil

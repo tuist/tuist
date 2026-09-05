@@ -51,9 +51,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Select all project scopes"
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
-    refute html =~ "MCP"
-    refute html =~ "SCIM write"
-    refute html =~ "account:scim:write"
+    refute scope_present?(html, AccountToken.mcp_scope())
+    refute scope_present?(html, AccountToken.scim_scope())
     refute html =~ "#{account.name}/ios-app"
     assert account_tokens_table_headers(html) == ["Name", "Token", "Last used", "Created"]
     assert scope_checked?(html, "ci")
@@ -89,9 +88,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Select all project scopes"
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
-    refute html =~ "MCP"
-    refute html =~ "SCIM write"
-    refute html =~ "account:scim:write"
+    refute scope_present?(html, AccountToken.mcp_scope())
+    refute scope_present?(html, AccountToken.scim_scope())
   end
 
   test "lists tokens beyond the first account-token page", %{conn: conn, account: account} do
@@ -519,12 +517,21 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   defp scope_checked?(html, scope) do
-    id = "#account-token-scope-#{String.replace(scope, ":", "-")}"
-
     html
     |> Floki.parse_fragment!()
-    |> Floki.find("#{id} .noora-checkbox-control")
+    |> Floki.find("#{scope_selector(scope)} .noora-checkbox-control")
     |> Floki.attribute("data-state")
     |> Kernel.==(["checked"])
+  end
+
+  defp scope_present?(html, scope) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find(scope_selector(scope))
+    |> Enum.any?()
+  end
+
+  defp scope_selector(scope) do
+    "#account-token-scope-#{String.replace(scope, ":", "-")}"
   end
 end

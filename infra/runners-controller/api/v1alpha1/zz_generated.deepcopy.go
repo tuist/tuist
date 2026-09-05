@@ -93,8 +93,8 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 
 func (in *RunnerPoolProvisioning) DeepCopyInto(out *RunnerPoolProvisioning) {
 	*out = *in
-	if in.MaxConcurrentPerFleetSelector != nil {
-		in, out := &in.MaxConcurrentPerFleetSelector, &out.MaxConcurrentPerFleetSelector
+	if in.MaxConcurrentPerNode != nil {
+		in, out := &in.MaxConcurrentPerNode, &out.MaxConcurrentPerNode
 		*out = new(int32)
 		**out = **in
 	}

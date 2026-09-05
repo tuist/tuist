@@ -5,6 +5,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Xcode.XcodeGraph, as: XcodeGraph
   alias Tuist.Xcode.XcodeProject, as: XcodeProject
@@ -104,6 +105,19 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           project || CommandEventsFixtures.command_event_fixture().id
         end)
 
+      # Production writes project_id from the command event and inserted_at as
+      # wall clock minutes after the event ran, so the fixture derives both from
+      # the event unless told otherwise. Analytics prune xcode_targets on them.
+      event =
+        ClickHouseRepo.one(
+          from(e in Event,
+            where: e.id == ^command_event_id,
+            select: %{project_id: e.project_id, created_at: e.created_at}
+          )
+        )
+
+      project_id = Keyword.get_lazy(opts, :project_id, fn -> (event && event.project_id) || 0 end)
+
       name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
       binary_cache_hash = Keyword.get(opts, :binary_cache_hash, nil)
 
@@ -134,17 +148,53 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
       id = Keyword.get(opts, :id, UUIDv7.generate())
 
-      xcode_target_data = %{
-        id: id,
-        name: name,
-        xcode_project_id: xcode_project_id,
-        command_event_id: command_event_id,
-        binary_cache_hash: binary_cache_hash,
-        binary_cache_hit: binary_cache_hit,
-        selective_testing_hash: selective_testing_hash,
-        selective_testing_hit: selective_testing_hit,
-        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-      }
+      inserted_at =
+        opts
+        |> Keyword.get_lazy(:inserted_at, fn -> (event && event.created_at) || NaiveDateTime.utc_now() end)
+        |> case do
+          %DateTime{} = dt -> DateTime.to_naive(dt)
+          naive -> naive
+        end
+        |> NaiveDateTime.truncate(:second)
+
+      subhashes =
+        Map.new(
+          [
+            :sources_hash,
+            :resources_hash,
+            :copy_files_hash,
+            :core_data_models_hash,
+            :target_scripts_hash,
+            :environment_hash,
+            :headers_hash,
+            :deployment_target_hash,
+            :info_plist_hash,
+            :entitlements_hash,
+            :dependencies_hash,
+            :project_settings_hash,
+            :target_settings_hash,
+            :buildable_folders_hash,
+            :additional_hashing_inputs_hash,
+            :external_hash
+          ],
+          fn key -> {key, Keyword.get(opts, key, "")} end
+        )
+
+      xcode_target_data =
+        Map.merge(subhashes, %{
+          id: id,
+          name: name,
+          xcode_project_id: xcode_project_id,
+          command_event_id: command_event_id,
+          project_id: project_id,
+          binary_cache_hash: binary_cache_hash,
+          binary_cache_hit: binary_cache_hit,
+          selective_testing_hash: selective_testing_hash,
+          selective_testing_hit: selective_testing_hit,
+          product: Keyword.get(opts, :product, ""),
+          dependencies: Keyword.get(opts, :dependencies, []),
+          inserted_at: inserted_at
+        })
 
       IngestRepo.insert_all(XcodeTarget, [xcode_target_data])
 

@@ -1,0 +1,195 @@
+# Production workload Cluster, topology mode against tuist-hcloud.
+# Three worker pools: md-0 general (ccx23, dedicated vCPU for the
+# Phoenix server's predictable p99 latency), md-processor (cpx62
+# shared-vCPU, 16 vCPU / 32 GiB each, optimized for xcactivitylog
+# parsing throughput-per-euro), and kura (ccx13 dedicated vCPU for
+# Kura cache replicas). Pool labels propagate from MachineDeployment
+# metadata to nodes via CAPI's machine-to-node label sync (only the
+# node-role.kubernetes.io/, node-restriction.kubernetes.io/, and
+# node.cluster.x-k8s.io/ prefixes are allowed through).
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: tuist
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      # Default for pools without an override (md-0).
+      - name: hcloudWorkerMachineType
+        value: ccx23
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+      # The kubelet must expose the real systemd-resolved resolver file to
+      # pods, not Ubuntu's loopback stub at /etc/resolv.conf.
+      - name: workerResolvConf
+        value: /run/systemd/resolve/resolv.conf
+      # Scopes bare-metal HBM claims to this cluster (see the
+      # `HetznerBareMetalMachineTemplateClusterSelector` patch in
+      # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
+      # on the `hetzner-robot-controller` Deployment and the
+      # cluster prefix in the Robot panel server name
+      # (`tuist-bm-production-…`).
+      - name: bareMetalCluster
+        value: production
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
+      # Insert InternalIP so the apiserver can reach kubelets on nodes with no
+      # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
+      # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
+      # re-renders the apiserver patch and rolls this cluster's control plane.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
+      # Codify the fallback used to restore production after validation in
+      # canary and staging. New control-plane kubelets bootstrap through the
+      # load-balanced endpoint until their local endpoint is available.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
+    workers:
+      machineDeployments:
+        # General-purpose pool: Phoenix server, redis, system DaemonSets,
+        # plus the 3-instance CloudNativePG cluster — its hard pod
+        # anti-affinity (`topologyKey: kubernetes.io/hostname,
+        # podAntiAffinityType: required`) needs one CNPG instance per
+        # host, so the pool size has to match the configured instance
+        # count to avoid leaving a CNPG pod permanently Pending.
+        - class: hcloud-worker
+          name: md-0
+          replicas: 3
+          failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general
+        # Dedicated stable-egress gateway pool (HA, ≥2 nodes). The Phoenix
+        # server's public egress is SNAT'd through the active node's Hetzner
+        # Floating IP by the CiliumEgressGatewayPolicy in the platform chart.
+        # Every node here self-applies the candidate label
+        # `tuist.dev/stable-egress-candidate=server` at kubelet registration
+        # via `workerNodeLabels` (survives MachineHealthCheck remediation,
+        # unlike CAPI metadata-label sync). The stable-egress failover
+        # controller picks one Ready candidate as active — moving the Floating
+        # IP (Hetzner API) and the active `tuist.dev/stable-egress-gateway`
+        # label together — and fails over to the other on node loss. The
+        # host-configurer DaemonSet configures eth0 on the active node.
+        #
+        # An outage on 2026-06-14 traced to this binding being a single
+        # hand-labelled node: it got remediated, neither the label nor the IP
+        # migrated, and server egress black-holed. Two candidates + automated
+        # failover removes both the SPOF and the manual runbook.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          # HA floor for the 2-node egress gateway pool. Overrides the
+          # hcloud-worker class default (unhealthyInRange "[0-2]", which permits
+          # remediating BOTH nodes at once). Never auto-remediate the whole pair:
+          # a single bad node is replaced, but if both go unhealthy the cause is
+          # almost always systemic (control-plane blip, network partition), so
+          # CAPI holds and pages instead of deleting the pool — the failure mode
+          # behind the 2026-07-30 canary outage, which is fleet-wide (this pool
+          # backs customer egress-allowlist IPs in production).
+          healthCheck:
+            remediation:
+              triggerIf:
+                unhealthyInRange: "[0-1]"
+              # Belt-and-suspenders: even within range, only one replacement in
+              # flight so a rolling remediation always keeps a gateway serving.
+              maxInFlight: 1
+          variables:
+            overrides:
+              # Forwards/SNATs server egress only — runs no application
+              # workload, so it doesn't need the general pool's dedicated
+              # vCPU shape.
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
+              # Isolate the gateway pool: only cilium, hcloud-csi, the egress
+              # host-configurer and the (tolerating) monitoring agents run here.
+              # Keeps ingress-nginx/CoreDNS/Redis off these nodes so they can't
+              # OOM the egress gateway that serves customer allowlist IPs.
+              - name: workerNodeTaints
+                value: tuist.dev/stable-egress=true:NoSchedule
+        # Dedicated processor pool: xcactivitylog parsing.
+        # CA annotations declared here propagate to the rendered
+        # MachineDeployment via topology mode. Without them the
+        # classRef swap to tuist-hcloud would re-render the MD
+        # without the autoscaler bounds, dropping cluster-autoscaler's
+        # node-group registration mid-flight.
+        #
+        # `replicas` is pinned here, NOT omitted. Omitting it is CAPI's
+        # documented autoscaler pattern — the Cluster CRD says a nil value means
+        # "an external entity (like cluster autoscaler) is responsible" — but the
+        # same sentence says the MachineDeployment is then "created without the
+        # number of Replicas (defaulting to 1)". Applying nil to an MD that
+        # already ran 2 therefore dropped it to 1: a running processor node was
+        # deleted and the pool sat below its own autoscaler minimum until it was
+        # restored by hand. Moving this pool to autoscaler-owned replicas is a
+        # deliberate change needing a window, not something to carry along in an
+        # unrelated migration.
+        #
+        # Consequence while pinned: Flux re-asserts 2 on its interval, so a
+        # cluster-autoscaler scale-up is reverted within one reconcile. That is
+        # the trade being made knowingly — capacity floor over elasticity.
+        - class: hcloud-worker
+          name: md-processor
+          replicas: 2
+          failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: processor
+            annotations:
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "2"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "6"
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx62
+        # US East / US West Kura capacity moved off Hetzner to OVH bare-metal
+        # boxes (Vint Hill VA / Hillsboro OR), provisioned as the kura-us-east /
+        # kura-us-west fleets in the tuist chart (ovhFleets) and self-joined via
+        # the CAPI provider — they are no longer Hetzner worker pools here, so the
+        # region catalog reports no Hetzner location for them.

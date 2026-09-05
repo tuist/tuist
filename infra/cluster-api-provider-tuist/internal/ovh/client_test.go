@@ -3,6 +3,8 @@ package ovh
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ovh/go-ovh/ovh"
@@ -550,5 +552,24 @@ func TestPublicEgressRejectsAnOutOfRangeValue(t *testing.T) {
 				t.Fatalf("Mbps = %d, want 0", got.Mbps)
 			}
 		})
+	}
+}
+
+func TestIsTaskAlreadyExists(t *testing.T) {
+	// The message shape OVH returned when a second release reinstall raced the
+	// first on ns3048220 (2026-09-03); the class is what is matched on.
+	inFlight := &ovh.APIError{
+		Code:    400,
+		Class:   "Client::BadRequest::TaskAlreadyExists",
+		Message: "Task 563254948 of type reinstallServer with status todo is already running on server ns3048220.ip-51-255-75.eu",
+	}
+	if !IsTaskAlreadyExists(fmt.Errorf("start reinstall on srv: %w", inFlight)) {
+		t.Fatal("IsTaskAlreadyExists = false for a wrapped TaskAlreadyExists; the release would retry until the queued install finishes")
+	}
+	if IsTaskAlreadyExists(&ovh.APIError{Code: 400, Class: "Client::BadRequest", Message: "only 1 single SSH key can be provided"}) {
+		t.Fatal("IsTaskAlreadyExists = true for an unrelated 400")
+	}
+	if IsTaskAlreadyExists(errors.New("dial tcp: connection refused")) {
+		t.Fatal("IsTaskAlreadyExists = true for a non-API error")
 	}
 }

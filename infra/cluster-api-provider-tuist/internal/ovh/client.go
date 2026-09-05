@@ -655,6 +655,31 @@ func mapTaskStatus(status string) InstallState {
 	}
 }
 
+// taskAlreadyExistsClass is the OVHcloud error class returned when the requested
+// task is already queued on the server. The class is a typed field on the API
+// error, so callers key on it rather than on the human-readable message (which
+// carries the task id, type and hostname and is not a stable contract).
+const taskAlreadyExistsClass = "Client::BadRequest::TaskAlreadyExists"
+
+// IsTaskAlreadyExists reports whether err is OVH's rejection of a task it
+// already has queued on the server, e.g. a second reinstall issued while the
+// first is still running:
+//
+//	OVHcloud API error (status code 400): Client::BadRequest::TaskAlreadyExists:
+//	"Task 563254948 of type reinstallServer with status todo is already running
+//	on server ns3048220.ip-51-255-75.eu"
+//
+// It says only that SOME task is in flight, not which; the message names the
+// type but the task list (InstallState) is the readable answer, so callers that
+// care about the type ask there.
+func IsTaskAlreadyExists(err error) bool {
+	var apiErr *ovh.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Class == taskAlreadyExistsClass
+	}
+	return false
+}
+
 // IsNotFound reports whether err is an OVH 404, so callers can treat an absent
 // server/task as gone rather than a hard error.
 func IsNotFound(err error) bool {

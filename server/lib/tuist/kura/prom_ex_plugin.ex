@@ -114,6 +114,16 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:plan, :reason]
           ),
           counter(
+            @metric_prefix ++ [:seed_declined, :count],
+            event_name: Telemetry.event_name_seed_declined(),
+            description:
+              "Accounts not seeded an instance ahead of their first cache request, because the " <>
+                "region they resolve to is over its pressure line. They are still provisioned on " <>
+                "first use, so sustained counts measure how much of the head start the fleet " <>
+                "cannot currently afford.",
+            tags: [:plan, :region, :reason]
+          ),
+          counter(
             @metric_prefix ++ [:placement_preference_unmet, :count],
             event_name: Telemetry.event_name_placement_preference_unmet(),
             description:

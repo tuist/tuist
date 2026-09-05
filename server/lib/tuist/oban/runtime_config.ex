@@ -14,6 +14,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   has an empty crontab, so the gate stays an allowlist by construction.
   """
 
+  alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -27,6 +28,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
+    {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
   ]

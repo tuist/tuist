@@ -38,15 +38,18 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   ## Retries
 
   GitHub returns 404 for ~30 s after the job completes while it
-  finalises the log archive. We let Oban retry with backoff up to
-  5 attempts before giving up.
+  finalises the log archive. Those first misses are expected, so
+  we snooze the job instead of returning an error: a snooze
+  records no exception and keeps Sentry clean for the log fetches
+  that are genuinely broken. Oban bumps `max_attempts` per snooze,
+  so real retries for other failure modes stay intact.
 
-  A 404 on the last attempt is not raised. Some jobs have no log
-  archive at all — `Tuist.Runners.Dispatch` filters out the known
-  class (a completed job with no steps never ran), but a webhook
-  that predates that filter, or an archive GitHub simply never
-  publishes, would otherwise discard the job with an error nobody
-  can act on.
+  After the snooze budget is exhausted, a 404 is quietly accepted.
+  Some jobs have no log archive at all — `Tuist.Runners.Dispatch`
+  filters out the known class (a completed job with no steps never
+  ran), but a webhook that predates that filter, or an archive
+  GitHub simply never publishes, would otherwise discard the job
+  with an error nobody can act on.
   """
   use Oban.Worker,
     queue: :webhooks,
@@ -60,6 +63,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   alias Tuist.VCS
 
   require Logger
+
+  # Cover GitHub's ~30 s archive-finalisation window with a
+  # handful of quiet snoozes before we give up.
+  @log_not_ready_snoozes 5
+  @log_not_ready_snooze_seconds 15
 
   # Lines per ClickHouse insert. Sized so the in-memory accumulator
   # stays bounded (~hundreds of KB for typical messages) while
@@ -76,8 +84,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
           "installation_id" => installation_id,
           "repository" => repository
         },
-        attempt: attempt,
-        max_attempts: max_attempts
+        attempt: attempt
       }) do
     with {:ok, installation} <- fetch_installation(installation_id),
          api_url = VCS.installation_api_url(installation),
@@ -96,10 +103,13 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
 
         :ok
 
-      {:error, :log_not_ready_yet} when attempt >= max_attempts ->
-        # Out of retries and GitHub still has no archive. Nothing here
-        # is actionable, so record it and let the job complete rather
-        # than discarding it with an error.
+      {:error, :log_not_ready_yet} when attempt <= @log_not_ready_snoozes ->
+        {:snooze, @log_not_ready_snooze_seconds}
+
+      {:error, :log_not_ready_yet} ->
+        # Out of the snooze budget and GitHub still has no archive.
+        # Nothing here is actionable, so record it and let the job
+        # complete rather than discarding it with an error.
         Logger.warning("runners: fetch-logs gave up; no log archive published",
           workflow_job_id: workflow_job_id,
           repository: repository
@@ -154,7 +164,8 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
         {:ok, state.line_number}
 
       # 404 happens for ~30 s after completion while GitHub finalises
-      # the log archive. Oban's exponential backoff covers this.
+      # the log archive. `perform/1` snoozes on this so the wait
+      # doesn't surface as a Sentry error.
       {:ok, %{status: 404}} ->
         {:error, :log_not_ready_yet}
 

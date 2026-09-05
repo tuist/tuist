@@ -25,6 +25,13 @@ defmodule TuistOps.JIT.Policy do
   Owner/Admin/Member default to deny — admin-flavor roles like
   Auditor or Billing admin are not granted any self-approve or
   approver power because they're not engineering identities.
+
+  Staging sits outside the elevation flow entirely — see
+  `always_write_env?/1`. Its write tier is part of every
+  engineering identity's baseline, so the impersonation endpoint
+  hands it out unconditionally and the Slack bot refuses an
+  `/elevate staging` rather than opening an approval for access
+  the requester already holds.
   """
 
   alias TuistOps.JIT.TailscaleClient
@@ -38,6 +45,15 @@ defmodule TuistOps.JIT.Policy do
     "group:tuist-canary-write" => "canary",
     "group:tuist-production-write" => "production"
   }
+
+  # Envs that hand their `tuist-<env>-write` tier to every
+  # engineering identity unconditionally — no request, no second
+  # human, no TTL. Staging serves no customers and holds nothing
+  # we can't rebuild, so gating a pod restart there behind an
+  # approval costs more than the containment it buys. Canary and
+  # production stay elevation-gated: canary is the first stop of
+  # the production release cascade and production is production.
+  @always_write_envs ["staging"]
 
   @doc """
   Returns true if `actor_email` is allowed to approve their own
@@ -81,6 +97,16 @@ defmodule TuistOps.JIT.Policy do
   declared target.
   """
   def env_for(target_group), do: Map.get(@group_to_env, target_group)
+
+  @doc """
+  Returns true if `env` grants its `tuist-<env>-write` tier to
+  every engineering identity with no elevation. Read by
+  `TuistOpsWeb.PolicyController` when deciding whether to inject
+  the write group, and by the Slack bot to reject an `/elevate`
+  for an env that is already writable.
+  """
+  def always_write_env?(env) when is_binary(env), do: env in @always_write_envs
+  def always_write_env?(_env), do: false
 
   @doc """
   Returns `{:ok, env}` if the role is allowed to operate on the env,

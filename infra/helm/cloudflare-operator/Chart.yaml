@@ -1,0 +1,17 @@
+apiVersion: v2
+name: cloudflare-operator
+description: >
+  Kubernetes controller that reconciles CRDs under cloudflare.tuist.dev
+  against the Cloudflare API. Deploys the operator to the management
+  cluster, ships the CRDs it owns, and wires up an ExternalSecret that
+  syncs the Cloudflare API token from 1Password via
+  external-secrets-operator.
+
+  Runs one replica with leader election so `--replicaCount` can be
+  bumped without racing rules. The reconciler is stateless (it finds
+  its rules on Cloudflare by a stable `ref` it sets), so there is no
+  local state volume to attach.
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

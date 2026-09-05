@@ -165,4 +165,21 @@ defmodule TuistOps.JIT.PolicyTest do
       refute Policy.approver_allowed?(@admin, nil)
     end
   end
+
+  describe "always_write_env?/1" do
+    test "staging is standing write access, so it needs no elevation" do
+      assert Policy.always_write_env?("staging")
+    end
+
+    test "canary and production stay elevation-gated" do
+      refute Policy.always_write_env?("canary")
+      refute Policy.always_write_env?("production")
+      refute Policy.always_write_env?("prod")
+    end
+
+    test "unknown and non-binary envs are not standing write" do
+      refute Policy.always_write_env?("europe")
+      refute Policy.always_write_env?(nil)
+    end
+  end
 end

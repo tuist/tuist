@@ -76,4 +76,24 @@ struct GenerationMetadataStoreTests {
         #expect(try await fileSystem.exists(stalePath) == false)
         #expect(try await fileSystem.exists(recentPath) == true)
     }
+
+    @Test(.inTemporaryDirectory) func read_marksTheEntryAsUsed() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.generationMetadata))
+            .willReturn(temporaryDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App")
+        try await subject.store(generationId: "generation-id", for: projectPath)
+
+        let entry = try #require(try await fileSystem.glob(directory: temporaryDirectory, include: ["*.json"]).collect().first)
+        let generatedAt = Date().addingTimeInterval(-40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: generatedAt], ofItemAtPath: entry.pathString)
+
+        _ = try await subject.read(for: projectPath)
+
+        // Only `tuist generate` writes this, so a project generated once and then built for a month
+        // would age its entry out while it is still what links those builds to their graph.
+        let lastUsed = try #require(try await fileSystem.fileMetadata(at: entry)?.lastModificationDate)
+        #expect(lastUsed > generatedAt)
+    }
 }

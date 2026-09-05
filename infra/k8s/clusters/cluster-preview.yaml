@@ -50,6 +50,12 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
     workers:
       machineDeployments:
         - class: hcloud-worker

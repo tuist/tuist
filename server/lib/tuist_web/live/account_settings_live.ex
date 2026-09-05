@@ -10,7 +10,6 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
   alias Tuist.Locale, as: SharedLocale
 
   @impl true
@@ -27,7 +26,6 @@ defmodule TuistWeb.AccountSettingsLive do
     add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
-    kura_enabled = kura_enabled?(selected_account)
 
     preferred_locale_form =
       to_form(%{"preferred_locale" => current_user.preferred_locale || "browser"})
@@ -41,7 +39,6 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
       |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
-      |> assign(kura_enabled: kura_enabled)
       |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
@@ -226,10 +223,6 @@ defmodule TuistWeb.AccountSettingsLive do
       Accounts.update_account(selected_account, %{custom_cache_endpoints_enabled: checked})
 
     {:noreply, assign(socket, selected_account: updated_account)}
-  end
-
-  defp kura_enabled?(account) do
-    FeatureFlags.kura_enabled?(account)
   end
 
   defp delete_cache_endpoint(socket, endpoint_id) do

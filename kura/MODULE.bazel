@@ -20,7 +20,7 @@ bazel_dep(name = "platforms", version = "1.1.0")
 # Crate graph + Rust toolchains via rules_rs: it resolves the third-party crates directly from
 # Cargo.toml/Cargo.lock for the platform_triples below, regenerating on each build with no committed
 # crate lockfile, so the same checked-in tree builds identically on every host.
-bazel_dep(name = "rules_rs", version = "0.0.93")
+bazel_dep(name = "rules_rs", version = "0.0.108")
 
 # rocksdb (librocksdb-sys) compiles its C++ with the LZ4 compression backend on (the only one its
 # resolved feature set enables here). lz4 comes from the BCR @lz4 module: it's linked into lz4-sys
@@ -38,24 +38,13 @@ toolchains.toolchain(
 )
 use_repo(toolchains, "default_rust_toolchains")
 
-register_toolchains("@default_rust_toolchains//:all")
+register_toolchains("@default_rust_toolchains//...")
 
-# Make @rules_rust visible here so the clippy aspect label
-# (@rules_rust//rust:defs.bzl%rust_clippy_aspect) resolves on the `mise run clippy` command line.
-# rules_rs already provisions this repo; re-importing its extension only adds it to our repo mapping,
-# it does not create a second copy.
+# Make @rules_rust visible here so labels that name it resolve from this module: the clippy aspect
+# (@rules_rust//rust:defs.bzl%rust_clippy_aspect) on the `mise run clippy` command line, and the
+# use_hermetic_macos_sdkroot flag set in .bazelrc. rules_rs already provisions this repo;
+# re-importing its extension only adds it to our repo mapping, it does not create a second copy.
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
-
-# Every Rust target rules_rs generates defaults its `macos_sdkroot` to @macos_sdk//sysroot, which
-# the @llvm module unpacks from a Command Line Tools .pkg fetched from Apple's software update CDN.
-# Apple retires those URLs (the pinned one now 403s) and the archived fallback is best-effort, so
-# macOS analysis fails outright on a cold repository cache. Our macOS builds use the host Xcode
-# toolchain for the -sys crates' C/C++, so the patch drops that attribute back to empty and lets
-# rustc's linker resolve the same SDK the cc toolchain already targets.
-rules_rust.patch(
-    patches = ["//bazel/patches:rules_rust_host_macos_sdkroot.patch"],
-    strip = 1,
-)
 use_repo(rules_rust, "rules_rust")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
@@ -88,7 +77,9 @@ crate.annotation(
 #
 # `additive_build_file_content` defines that cc_library inside this crate's package (so its includes
 # resolve against the vendored `rocksdb/` tree) and `extra_aliased_targets` re-exposes it on the
-# @crates hub as `rocksdb`. Setting ROCKSDB_LIB_DIR/ROCKSDB_STATIC makes build.rs link the prebuilt
+# @crates hub as `rocksdb_cc`. The hub alias cannot be called `rocksdb`: rules_rs also generates an
+# unversioned alias of that name for the `rocksdb` crate itself, and two aliases with one name are a
+# package error. Setting ROCKSDB_LIB_DIR/ROCKSDB_STATIC makes build.rs link the prebuilt
 # archive and skip `build_rocksdb()` (which is what read DEP_LZ4_INCLUDE — now inert but kept as a
 # cold-build fallback). On a librocksdb-sys bump, regenerate rocksdb_lib_sources.bzl and the version
 # in //bazel/third_party/rocksdb.
@@ -103,8 +94,8 @@ crate.annotation(
         "ROCKSDB_LIB_DIR": "$(execpath @@//bazel/third_party/rocksdb:rocksdb_lib_dir)",
         "ROCKSDB_STATIC": "1",
     },
-    deps = ["@crates//:rocksdb-0.17.3+10.4.2"],
-    extra_aliased_targets = {"rocksdb": "rocksdb"},
+    deps = ["@crates//:rocksdb_cc-0.17.3+10.4.2"],
+    extra_aliased_targets = {"rocksdb_cc": "rocksdb"},
     additive_build_file_content = """
 # This content is injected into librocksdb-sys's generated BUILD, which does not inherit our
 # module's apparent repo names, so refs use canonical names: @@rules_cc+, @@lz4+, @@platforms, and

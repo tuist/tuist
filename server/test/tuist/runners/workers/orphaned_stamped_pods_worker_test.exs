@@ -8,6 +8,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.OrphanedStampedPodsWorker
+  alias Tuist.Runners.WorkflowJobs
 
   setup :verify_on_exit!
 
@@ -76,8 +77,26 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
     # Default: no open sessions. Tests that exercise the session
     # guard override this per-case.
     stub(RunnerSessions, :live_pod_names, fn -> MapSet.new() end)
+    # Default: no session has a finished job. Tests for the
+    # finished-job override stub both per-case.
+    stub(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold -> [] end)
+    stub(WorkflowJobs, :terminal_completions, fn _ids -> %{} end)
     :ok
   end
+
+  # An open session as the worker reads it, for a pod whose claim was
+  # minted for `workflow_job_id` and whose runner GitHub actually ran
+  # `executed_workflow_job_id` on (nil until the in_progress webhook).
+  defp open_session(pod_name, workflow_job_id, executed_workflow_job_id) do
+    %{
+      id: System.unique_integer([:positive]),
+      pod_name: pod_name,
+      workflow_job_id: workflow_job_id,
+      executed_workflow_job_id: executed_workflow_job_id
+    }
+  end
+
+  defp ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
 
   describe "perform/1" do
     test "reaps a stamped pod with no live claim that is older than the grace window" do
@@ -302,6 +321,120 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new(["runner-macos-busy"]) end)
+
+      reject(&K8sClient.delete_runner/2)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "reaps a Linux pod whose runner is reported executing and whose session is open once GitHub finished its job" do
+      # The 2026-09-02 shape: the runner process died mid-job inside
+      # the microVM, the container never terminated, so `started=true`
+      # held, the controller never reported pods/stopped, and the
+      # session stayed open. Both shields say "live"; GitHub says the
+      # job completed 20 minutes ago. GitHub wins: a Pod runs one job.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-dead-mid-job", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-dead-mid-job"]) end)
+
+      expect(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold ->
+        [open_session("runner-dead-mid-job", 100, 200)]
+      end)
+
+      expect(WorkflowJobs, :terminal_completions, fn ids ->
+        assert Enum.sort(ids) == [100, 200]
+        %{200 => ago(1200)}
+      end)
+
+      expect(K8sClient, :delete_runner, fn @namespace, "runner-dead-mid-job" -> :ok end)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "resolves the finished job from the claimed id when GitHub never reported which job ran" do
+      # A job that failed before its in_progress webhook leaves
+      # executed_workflow_job_id nil; the completion still lands on
+      # the job the claim was minted for.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-dead-early", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-dead-early"]) end)
+
+      expect(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold ->
+        [open_session("runner-dead-early", 100, nil)]
+      end)
+
+      expect(WorkflowJobs, :terminal_completions, fn [100] -> %{100 => ago(1200)} end)
+
+      expect(K8sClient, :delete_runner, fn @namespace, "runner-dead-early" -> :ok end)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a pod whose job finished inside the finished window" do
+      # Normal post-job teardown: the runner is exiting and the Pool
+      # reconciler will reap it in a minute. Reaping here would race
+      # it and lose the runner's exit code.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-just-finished", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-just-finished"]) end)
+
+      expect(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold ->
+        [open_session("runner-just-finished", 100, 200)]
+      end)
+
+      expect(WorkflowJobs, :terminal_completions, fn _ids -> %{200 => ago(60)} end)
+
+      reject(&K8sClient.delete_runner/2)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a pod whose job is still in progress" do
+      # An open session with no terminal completion is a live build,
+      # exactly what the session shield exists to protect.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-long-build", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-long-build"]) end)
+
+      expect(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold ->
+        [open_session("runner-long-build", 100, 200)]
+      end)
+
+      expect(WorkflowJobs, :terminal_completions, fn _ids -> %{} end)
+
+      reject(&K8sClient.delete_runner/2)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "a live claim still protects a pod whose job finished" do
+      # A claim on a finished job is a database inconsistency for the
+      # claim sweeps, not evidence about the Pod. Over-reaping is the
+      # worse error, so the claim shield is kept.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-claimed-finished", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new(["runner-claimed-finished"]) end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-claimed-finished"]) end)
+
+      expect(RunnerSessions, :list_open_for_pod_reconciliation, fn _threshold ->
+        [open_session("runner-claimed-finished", 100, 200)]
+      end)
+
+      expect(WorkflowJobs, :terminal_completions, fn _ids -> %{200 => ago(1200)} end)
 
       reject(&K8sClient.delete_runner/2)
 

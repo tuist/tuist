@@ -11,7 +11,7 @@
 It makes applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [Visual Studio Code](https://code.visualstudio.com) interoperable with Tuist.
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
-Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions.
+Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
 
 ## Model Context Protocol versus skills
@@ -171,9 +171,9 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
-## Gradle authentication uses two credentials
+## Build-system integrations use two credentials
 
-The credential used for Model Context Protocol tools does not authenticate the Gradle plugin. Before an agent edits or verifies a Gradle integration, it should run:
+The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:
 
 ```bash
 tuist auth whoami --url https://tuist.dev
@@ -204,13 +204,13 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `search_tuist` | Start answering Tuist questions from public documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+| `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
 #### Source-backed answers
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
-Compatible clients receive server instructions during initialization that route ordinary Tuist questions through documentation and source-backed tools before local files or general web search. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
+Compatible clients receive server instructions during initialization that describe when documentation and source-backed tools can provide useful evidence. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -280,9 +280,21 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `get_gradle_integration_guide` | Return the complete authentication, project setup, Gradle plugin, cache policy, and two-build verification workflow. Agents should call it before editing an existing Android or Gradle project. | None |
-| `list_gradle_builds` | List Gradle build runs for a project. | `account_handle`, `project_handle` |
-| `get_gradle_build` | Get detailed information about a specific Gradle build run. | `build_run_id` |
+| `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
+| `get_gradle_build` | Get detailed information and custom metadata for a specific Gradle build run. | `build_run_id` |
 | `list_gradle_build_tasks` | List tasks for a specific Gradle build run, including outcome and cache status. | `build_run_id` |
+
+#### Bazel invocations
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
+| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations and their correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
+| `get_bazel_invocation` | Get one completed Bazel invocation and its correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
+| `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
+| `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
+| `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
 #### Tests
 
@@ -298,7 +310,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 | `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
 | `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
-| `update_test_case` | Update a test case's state or flaky classification. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `update_test_case` | Update a test case's state or flaky classification. A change can dispatch an event to configured webhook endpoints, including external services. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
 
 #### Bundles
@@ -353,10 +365,11 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `compare_generations` | Guides you through comparing two generation runs to identify performance regressions and module cache changes. |
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 | `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. It includes separate tool and Gradle authentication, account discovery, project creation, remote cache policy, build insights, and read-back verification. |
+| `integrate_bazel_project` | Guides you through creating or selecting a Bazel project, authenticating the command line, configuring the remote cache and build insights, and verifying the integration through Tuist build data. |
 | `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
 | `ask_tuist` | Answers a Tuist question using public material for context and focused implementation and test evidence as the source of truth for current behavior. It requires a `question` and cites revision-pinned evidence. |
 
-Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_bazel_project` accepts an optional `server_url` for self-hosted or local installations. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
 
 #### Gradle integration prompt features
 

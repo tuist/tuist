@@ -2572,26 +2572,44 @@ defmodule Tuist.Tests do
     # be pure overhead there.
     total_count = test_cases_count(base_query, flop, query_settings)
 
+    # Ordering by a duration statistic has to rank every candidate row, so
+    # those requests keep the join. Every other request selects the page from
+    # `test_cases` alone and reads the statistics afterwards for the rows that
+    # survived pagination. The join carries no `LIMIT` into its subquery, so
+    # leaving it in place merges the aggregate over the project's whole active
+    # suite to render one page of it.
+    {joined_duration_fields, page_duration_fields} =
+      if duration_order_fields(attrs) == [] do
+        {[], duration_fields}
+      else
+        {duration_fields, []}
+      end
+
     case state_filter_mode do
       :joined ->
-        base_query
-        |> select_resolved_test_case_state()
-        |> select_durations(project_id, duration_fields, is_ci)
-        |> Tuist.ClickHouseFlop.run(flop,
-          for: TestCase,
-          count: total_count,
-          query_opts: [settings: query_settings]
-        )
+        {test_cases, meta} =
+          base_query
+          |> select_resolved_test_case_state()
+          |> select_durations(project_id, joined_duration_fields, is_ci)
+          |> Tuist.ClickHouseFlop.run(flop,
+            for: TestCase,
+            count: total_count,
+            query_opts: [settings: query_settings]
+          )
+
+        {select_page_durations(test_cases, project_id, page_duration_fields, is_ci), meta}
 
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_durations(project_id, duration_fields, is_ci)
+          |> select_durations(project_id, joined_duration_fields, is_ci)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
-            query_opts: [settings: @duration_join_settings]
+            query_opts: [settings: page_query_settings(joined_duration_fields)]
           )
+
+        test_cases = select_page_durations(test_cases, project_id, page_duration_fields, is_ci)
 
         resolved_page_states =
           resolve_test_case_states(project_id, Enum.map(test_cases, & &1.id))
@@ -2605,6 +2623,9 @@ defmodule Tuist.Tests do
         {test_cases, meta}
     end
   end
+
+  defp page_query_settings([]), do: []
+  defp page_query_settings(_joined_duration_fields), do: @duration_join_settings
 
   @doc """
   Duration fields `list_test_cases/3` can compute and sort by.
@@ -2630,6 +2651,51 @@ defmodule Tuist.Tests do
 
     Enum.filter(@duration_fields, fn field ->
       MapSet.member?(preloaded, "#{field}_ms") or MapSet.member?(ordered, to_string(field))
+    end)
+  end
+
+  # The subset the caller ranks by, which is what decides whether the statistics
+  # have to be computed before the page is cut.
+  defp duration_order_fields(attrs) do
+    ordered = to_string_set(Map.get(attrs, :order_by) || Map.get(attrs, "order_by"))
+
+    Enum.filter(@duration_fields, &MapSet.member?(ordered, to_string(&1)))
+  end
+
+  # Reads the statistics for one page of test cases. Scoping the aggregate to
+  # the page's identifiers is what keeps the merge bounded: the identifiers ride
+  # the table's sort prefix, so ClickHouse reads the granules holding those test
+  # cases rather than every row the project wrote inside the window.
+  #
+  # `run_count` defaults to 0 for a test case with no rows in the window, which
+  # is the same value the LEFT JOIN path produces for it, so the sample floor
+  # treats both identically.
+  defp select_page_durations(test_cases, _project_id, [], _is_ci), do: test_cases
+  defp select_page_durations([], _project_id, _duration_fields, _is_ci), do: []
+
+  defp select_page_durations(test_cases, project_id, duration_fields, is_ci) do
+    test_case_ids = Enum.map(test_cases, & &1.id)
+
+    stats =
+      project_id
+      |> test_case_duration_stats_subquery(duration_fields, is_ci)
+      |> where([stats], stats.test_case_id in ^test_case_ids)
+      |> ClickHouseRepo.all(settings: @duration_join_settings)
+      |> Map.new(&{&1.test_case_id, &1})
+
+    Enum.map(test_cases, fn test_case ->
+      row = Map.get(stats, test_case.id, %{})
+      run_count = Map.get(row, :run_count, 0)
+
+      durations =
+        Map.new(duration_fields, fn field ->
+          value = if run_count >= @min_duration_samples, do: Map.get(row, field)
+          {:"#{field}_ms", value}
+        end)
+
+      test_case
+      |> Map.merge(durations)
+      |> Map.put(:duration_sample_count, run_count)
     end)
   end
 

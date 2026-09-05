@@ -85,16 +85,15 @@ impl CacheGrants {
     }
 
     /// Whether the target was withheld for payment rather than never granted.
-    pub fn payment_required_for(&self, target: &RequestTarget) -> bool {
-        let account = target.account.to_lowercase();
+    pub fn payment_required_for(&self, target: &RequestTarget<'_>) -> bool {
         self.payment_required
             .iter()
-            .any(|handle| handle == &account)
+            .any(|handle| handle == target.account.as_ref())
     }
 
     /// The level these grants give one target: write implies read, so the
     /// answer is the highest action the buckets name it for.
-    pub fn level(&self, target: &RequestTarget) -> Access {
+    pub fn level(&self, target: &RequestTarget<'_>) -> Access {
         if self.allow(target, &Action::Write) {
             Access::ReadWrite
         } else if self.allow(target, &Action::Read) {
@@ -127,7 +126,7 @@ impl CacheGrants {
     /// alone, and one naming a project against the project bucket alone. There
     /// is deliberately no fallback between them: an account grant is access to
     /// the account's own cache, not to every project in it.
-    pub fn allow(&self, target: &RequestTarget, action: &Action) -> bool {
+    pub fn allow(&self, target: &RequestTarget<'_>, action: &Action) -> bool {
         self.bucket(&target.scope)
             .allows(action, &target.identifier)
     }
@@ -135,12 +134,14 @@ impl CacheGrants {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Barrier};
+
     use serde_json::json;
 
     use super::*;
     use crate::auth::target::RequestTarget;
 
-    fn target(scope: Scope, identifier: &str) -> RequestTarget {
+    fn target(scope: Scope, identifier: &str) -> RequestTarget<'_> {
         RequestTarget {
             scope,
             account: "acme".into(),
@@ -291,6 +292,89 @@ mod tests {
         assert_eq!(
             grants.level(&target(Scope::Project, "acme/api")),
             Access::Refused
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn normalized_payment_required_benchmark() {
+        const WORKERS: usize = 8;
+        const ITERATIONS_PER_WORKER: usize = 500_000;
+        const SAMPLES: usize = 6;
+
+        let grants = Arc::new(CacheGrants {
+            payment_required: vec!["other".into(), "acme".into()],
+            ..CacheGrants::default()
+        });
+        let account = Arc::<str>::from("acme");
+
+        let measure = |reuse_normalized: bool| {
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let barrier = barrier.clone();
+                    let grants = grants.clone();
+                    let account = account.clone();
+                    scope.spawn(move || {
+                        let target = RequestTarget {
+                            scope: Scope::Project,
+                            account: account.as_ref().into(),
+                            namespace: Some("ios".into()),
+                            identifier: "acme/ios".into(),
+                        };
+                        barrier.wait();
+                        for _ in 0..ITERATIONS_PER_WORKER {
+                            let found = if reuse_normalized {
+                                grants.payment_required_for(std::hint::black_box(&target))
+                            } else {
+                                let account = std::hint::black_box(&target).account.to_lowercase();
+                                grants
+                                    .payment_required
+                                    .iter()
+                                    .any(|handle| handle == &account)
+                            };
+                            std::hint::black_box(found);
+                        }
+                    });
+                }
+                barrier.wait();
+                std::time::Instant::now()
+            });
+            (WORKERS * ITERATIONS_PER_WORKER) as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC normalized_payment_required_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC normalized_payment_required_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC normalized_payment_required_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 }

@@ -12,6 +12,17 @@ build --incompatible_strict_action_env
 
 test --test_output=errors
 
+# Resolve the macOS SDK through the host cc toolchain instead of rules_rust's hermetic
+# @macos_sdk//sysroot, which the @llvm module unpacks from a Command Line Tools .pkg fetched from
+# Apple's software update CDN. Apple retires those URLs (the pinned one 403s) and the archived
+# fallback is best-effort, so macOS analysis fails outright on a cold repository cache. Our macOS
+# builds compile and link their C/C++ with the host Xcode toolchain anyway, so a differently
+# versioned minimal sysroot buys no hermeticity; leaving SDKROOT unset lets rustc's linker use the
+# same SDK the cc toolchain already targets. The flag is universally scoped, so it also covers the
+# exec-config build-script actions, and it is inert off macOS (the sysroot it gates is selected on
+# @platforms//os:osx).
+build --@rules_rust//rust/settings:use_hermetic_macos_sdkroot=false
+
 # Apply the os-specific config blocks below based on the host OS.
 build --enable_platform_specific_config
 

@@ -361,6 +361,36 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 	}
 }
 
+// cacheFleetTaints is what every cache fleet template stamps on its boxes, and
+// what tells the self-join that tenant volumes will land on this /data.
+func cacheFleetTaints() []corev1.Taint {
+	return []corev1.Taint{{Key: kuraCacheTaintKey, Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+}
+
+// A runner box has no tenant volumes on /data, so the image-store quota bounds
+// nothing there and only adds a ceiling that nothing can clear: XFS reports a
+// blown project quota as ENOSPC, and the kubelet's image GC keys on the
+// FILESYSTEM's free space, which on an 828 GiB /data is nowhere near a
+// threshold. A runner Pod's whole writable layer lives in that store, so the
+// quota is reached by ordinary CI and the box then fails every job it accepts
+// until it is drained.
+func TestContainerdQuotaSkippedOnFleetsWithoutCacheVolumes(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "runner-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", KataRuntime: true,
+		Taints: []corev1.Taint{{Key: "tuist.dev/runner-tier", Value: "bare-metal", Effect: corev1.TaintEffectNoSchedule}},
+	})
+
+	if strings.Contains(script, containerdQuotaPath) {
+		t.Fatalf("expected no image-store quota on a fleet with no cache volumes, got:\n%s", script)
+	}
+	// The relocation itself must stay: the image store still belongs on the big
+	// disk rather than the ~20G root, quota or not.
+	if !strings.Contains(script, "mkdir -p /data/containerd") {
+		t.Fatalf("expected the image-store relocation to survive, got:\n%s", script)
+	}
+}
+
 // The image store is the one consumer of /data that is not a tenant, and it is
 // otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
 // nearly full, so on a box whose tenants are light containerd can grow into the
@@ -371,7 +401,7 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
-		BootstrapUser: "ubuntu", InstanceType: "ovh",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", Taints: cacheFleetTaints(),
 	})
 
 	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
@@ -393,7 +423,7 @@ func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) 
 // join. Every tenant on the box is bounded either way; what is lost is defence
 // in depth on the shared pool, which is the state the box was in before.
 func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
-	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34", Taints: cacheFleetTaints()})
 	line := "bash " + containerdQuotaPath + " || echo"
 	if !strings.Contains(script, line) {
 		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)

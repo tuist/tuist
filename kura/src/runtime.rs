@@ -9,17 +9,29 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(not(test))]
+use std::cell::Cell;
 #[cfg(test)]
 use std::path::PathBuf;
 
 use tokio::sync::{Notify, futures::Notified};
 
-use crate::metrics::Metrics;
+use crate::metrics::{InflightMetrics, Metrics};
 
 const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
+#[cfg(not(test))]
+const PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL: u8 = 16;
 const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
 const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
+const PUBLIC_HTTP_INFLIGHT_SHIFT: u32 = 32;
+const HTTP_INFLIGHT_INCREMENT: u64 = 1;
+const PUBLIC_HTTP_INFLIGHT_INCREMENT: u64 = 1 << PUBLIC_HTTP_INFLIGHT_SHIFT;
+
+#[cfg(not(test))]
+thread_local! {
+    static PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER: Cell<u8> = const { Cell::new(0) };
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrafficState {
@@ -57,8 +69,7 @@ pub struct RuntimeState {
     peer_view_required: AtomicBool,
     peer_view_ready: AtomicBool,
     writer_lock_owned: AtomicBool,
-    http_inflight: AtomicUsize,
-    public_http_inflight: AtomicUsize,
+    http_inflight: AtomicU64,
     grpc_inflight: AtomicUsize,
     public_request_latency_ewma_micros: AtomicU64,
     public_request_latency_sampled_at_ms: AtomicU64,
@@ -74,8 +85,7 @@ impl RuntimeState {
             peer_view_required: AtomicBool::new(false),
             peer_view_ready: AtomicBool::new(false),
             writer_lock_owned: AtomicBool::new(true),
-            http_inflight: AtomicUsize::new(0),
-            public_http_inflight: AtomicUsize::new(0),
+            http_inflight: AtomicU64::new(0),
             grpc_inflight: AtomicUsize::new(0),
             public_request_latency_ewma_micros: AtomicU64::new(0),
             public_request_latency_sampled_at_ms: AtomicU64::new(0),
@@ -132,11 +142,11 @@ impl RuntimeState {
     }
 
     pub fn http_inflight(&self) -> usize {
-        self.http_inflight.load(Ordering::SeqCst)
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).0
     }
 
     pub fn public_http_inflight(&self) -> usize {
-        self.public_http_inflight.load(Ordering::SeqCst)
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).1
     }
 
     pub fn grpc_inflight(&self) -> usize {
@@ -189,6 +199,12 @@ impl RuntimeState {
         self.http_inflight() + self.grpc_inflight()
     }
 
+    /// Returns a notification for shutdown drain progress.
+    ///
+    /// Callers must invoke [`Self::request_drain`] before waiting because
+    /// completed requests notify waiters only while the runtime is draining.
+    /// Create this future before checking [`Self::total_inflight`] so a
+    /// completion cannot be missed between the check and the wait.
     pub fn inflight_changed(&self) -> Notified<'_> {
         self.inflight_changed.notified()
     }
@@ -198,27 +214,26 @@ impl RuntimeState {
         metrics: &Metrics,
         traffic_class: HttpTrafficClass,
     ) -> InflightGuard {
-        let count = self.http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
-        metrics.update_http_inflight(count);
-        if traffic_class.contributes_to_public_load() {
-            let count = self.public_http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
-            metrics.update_public_http_inflight(count);
+        let public_load = traffic_class.contributes_to_public_load();
+        let increment =
+            HTTP_INFLIGHT_INCREMENT + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+        let counts = self.http_inflight.fetch_add(increment, Ordering::SeqCst) + increment;
+        let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+        metrics.update_http_inflight(http_inflight);
+        if public_load {
+            metrics.update_public_http_inflight(public_http_inflight);
         }
-        self.inflight_changed.notify_waiters();
         InflightGuard::new(
             self.clone(),
-            metrics.clone(),
-            InflightKind::Http {
-                public_load: traffic_class.contributes_to_public_load(),
-            },
+            metrics.inflight_metrics(),
+            InflightKind::Http { public_load },
         )
     }
 
     pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
         let count = self.grpc_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_grpc_inflight(count);
-        self.inflight_changed.notify_waiters();
-        InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
+        InflightGuard::new(self.clone(), metrics.inflight_metrics(), InflightKind::Grpc)
     }
 
     /// Records the time to first response byte for a completed public request.
@@ -236,6 +251,10 @@ impl RuntimeState {
     ) {
         metrics.observe_public_request_latency(transport, route, duration);
 
+        if !should_update_public_request_latency_ewma() {
+            return;
+        }
+
         let sample_micros = duration.as_micros().min(u64::MAX as u128) as u64;
         if sample_micros == 0 {
             return;
@@ -243,7 +262,7 @@ impl RuntimeState {
 
         let mut current = self
             .public_request_latency_ewma_micros
-            .load(Ordering::SeqCst);
+            .load(Ordering::Relaxed);
         loop {
             let next = if current == 0 {
                 sample_micros
@@ -251,15 +270,13 @@ impl RuntimeState {
                 ((current * (PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR - 1)) + sample_micros)
                     / PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR
             };
-            match self.public_request_latency_ewma_micros.compare_exchange(
-                current,
-                next,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            ) {
+            match self
+                .public_request_latency_ewma_micros
+                .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+            {
                 Ok(_) => {
                     self.public_request_latency_sampled_at_ms
-                        .store(now_ms(), Ordering::SeqCst);
+                        .store(now_ms(), Ordering::Relaxed);
                     metrics.update_public_request_latency_ewma(Duration::from_micros(next));
                     break;
                 }
@@ -267,6 +284,18 @@ impl RuntimeState {
             }
         }
     }
+}
+
+fn should_update_public_request_latency_ewma() -> bool {
+    #[cfg(test)]
+    return true;
+
+    #[cfg(not(test))]
+    PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER.with(|counter| {
+        let current = counter.get();
+        counter.set((current + 1) % PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL);
+        current == 0
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -289,13 +318,13 @@ enum InflightKind {
 
 pub struct InflightGuard {
     runtime: Arc<RuntimeState>,
-    metrics: Metrics,
+    metrics: Arc<InflightMetrics>,
     kind: InflightKind,
     active: bool,
 }
 
 impl InflightGuard {
-    fn new(runtime: Arc<RuntimeState>, metrics: Metrics, kind: InflightKind) -> Self {
+    fn new(runtime: Arc<RuntimeState>, metrics: Arc<InflightMetrics>, kind: InflightKind) -> Self {
         Self {
             runtime,
             metrics,
@@ -313,26 +342,35 @@ impl Drop for InflightGuard {
         self.active = false;
         match self.kind {
             InflightKind::Http { public_load } => {
-                let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
-                self.metrics
-                    .update_http_inflight(previous.saturating_sub(1));
+                let decrement = HTTP_INFLIGHT_INCREMENT
+                    + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+                let counts = self
+                    .runtime
+                    .http_inflight
+                    .fetch_sub(decrement, Ordering::SeqCst)
+                    .saturating_sub(decrement);
+                let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+                self.metrics.update_http(http_inflight);
                 if public_load {
-                    let previous = self
-                        .runtime
-                        .public_http_inflight
-                        .fetch_sub(1, Ordering::SeqCst);
-                    self.metrics
-                        .update_public_http_inflight(previous.saturating_sub(1));
+                    self.metrics.update_public_http(public_http_inflight);
                 }
             }
             InflightKind::Grpc => {
                 let previous = self.runtime.grpc_inflight.fetch_sub(1, Ordering::SeqCst);
-                self.metrics
-                    .update_grpc_inflight(previous.saturating_sub(1));
+                self.metrics.update_grpc(previous.saturating_sub(1));
             }
         }
-        self.runtime.inflight_changed.notify_waiters();
+        if self.runtime.is_draining() {
+            self.runtime.inflight_changed.notify_waiters();
+        }
     }
+}
+
+fn http_inflight_counts(counts: u64) -> (usize, usize) {
+    (
+        (counts as u32) as usize,
+        ((counts >> PUBLIC_HTTP_INFLIGHT_SHIFT) as u32) as usize,
+    )
 }
 
 fn now_ms() -> u64 {
@@ -419,7 +457,7 @@ fn try_lock_exclusive(_file: &File) -> Result<(), std::io::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{sync::Barrier, time::Duration};
 
     use tempfile::tempdir;
     use tokio::time::timeout;
@@ -444,12 +482,71 @@ mod tests {
         let metrics = Metrics::new("region".into(), "tenant".into());
         let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
 
+        runtime.request_drain();
         let notified = runtime.inflight_changed();
         drop(guard);
 
         timeout(Duration::from_secs(1), notified)
             .await
             .expect("request completion should wake inflight waiters");
+    }
+
+    #[tokio::test]
+    async fn inflight_requests_do_not_notify_before_drain() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+        let notified = runtime.inflight_changed();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+
+        let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+        drop(guard);
+
+        assert!(timeout(Duration::from_millis(10), notified).await.is_err());
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn inflight_request_accounting_benchmark() {
+        const WORKERS: usize = 8;
+        const REQUESTS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        fn measure() -> f64 {
+            let runtime = RuntimeState::new();
+            let metrics = Metrics::new("region".into(), "tenant".into());
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::time::Instant::now();
+            std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let runtime = runtime.clone();
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..REQUESTS_PER_WORKER {
+                            drop(runtime.start_http_request(&metrics, HttpTrafficClass::Public));
+                        }
+                    });
+                }
+                barrier.wait();
+            });
+            let requests = (WORKERS * REQUESTS_PER_WORKER) as f64;
+            requests / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure();
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC request_accounting_requests_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
     }
 
     #[test]

@@ -1,11 +1,46 @@
 // Tuist tailnet ACLs.
 //
 // Source of truth for who-can-talk-to-what on the Tuist tailnet.
-// Mirror this file into the Tailscale admin console under "Access
-// controls"; Tailscale doesn't have a public API for ACL sync, so
-// updates land via the console UI. The file lives in the repo so
-// changes go through code review, not via someone's browser
-// session.
+// The file lives in the repo so changes go through code review,
+// not via someone's browser session.
+//
+// HOW IT REACHES THE TAILNET: today, by hand. Paste this file into
+// the Tailscale admin console under "Access controls". Nothing in
+// CI applies it, so a merged change to this file has NO effect
+// until someone does that — a fact worth remembering when a fresh
+// grant appears not to work.
+//
+// Manual is a DECISION, not a platform limitation, and not an
+// oversight to go fix. Tailscale does expose the policy file over
+// its API (`GET`/`POST /api/v2/tailnet/<tailnet>/acl`, accepting
+// HuJSON and honouring `If-Match` for optimistic concurrency, plus
+// an `/acl/validate` endpoint), and ships an official GitHub Action
+// — `tailscale/gitops-acl-action` — that runs `action: test` on
+// pull requests and `action: apply` on merge.
+//
+// We are not using it yet, because the `policy_file` scope is
+// whole-file: there is no way to authorise a credential for "may
+// edit the staging grants" and nothing else. A CI identity able to
+// apply this file could therefore add a
+// `tailscale.com/cap/kubernetes` grant on
+// `tag:tuist-k8s-production` handing its holder
+// `tuist-production-write` — exactly the elevation the JIT flow
+// exists to gate behind a stated intent, a TTL and a second human.
+// Automating the paste would put that capability behind "can land a
+// commit on main" instead. The `tests` block below cannot backstop
+// it either: Tailscale's test engine does not resolve `autogroup:*`,
+// so the human-kubectl grants are precisely the ones an automated
+// `apply` would validate the least.
+//
+// Revisit when both halves have an answer: federated identity
+// (GitHub Actions OIDC, so no long-lived secret — see
+// https://tailscale.com/kb/1581/workload-identity-federation) for
+// the credential, and some way to keep production-tier grants off
+// the automated path. Until then, a human pastes it.
+//
+// Note the OAuth client we already have, used by tuist-ops's
+// TuistOps.JIT.TailscaleClient, is deliberately `users:read` only
+// and cannot write this file.
 //
 // Tag taxonomy:
 //
@@ -58,12 +93,20 @@
 	// No email lists are kept in this file; promoting someone in
 	// the console flips their access on the next session.
 	//
-	// This document is the **view-tier** policy only. Elevated
-	// access (writes) flows through a separate Pomerium gateway
-	// that gates per-request on a Tuist DB flag — no Tailscale
-	// policy mutation. So there are no "break-glass" groups
-	// declared here, and the ACL itself is humans-only, edited
-	// through code review.
+	// For CANARY and PRODUCTION this document is the **view-tier**
+	// policy only. Elevated access (writes) there flows through a
+	// separate Pomerium gateway that gates per-request on a Tuist DB
+	// flag — no Tailscale policy mutation. So there are no
+	// "break-glass" groups declared here, and the ACL itself is
+	// humans-only, edited through code review.
+	//
+	// STAGING is different: its write tier is standing access rather
+	// than a per-request elevation, so there is nothing left for a
+	// per-request gateway to decide and staging kubectl runs over
+	// the tailnet instead. That makes the
+	// `tailscale.com/cap/kubernetes` grants further down the
+	// authoritative tier decision for staging — the only place in
+	// this file that hands out an `edit`-tier group.
 	"groups": {},
 
 	"tagOwners": {
@@ -239,22 +282,92 @@
 			"ip": ["tcp:22"],
 		},
 
-		// Human kubectl access to workload clusters is NOT a
-		// tailnet grant — Pomerium per env handles it via Google
-		// Workspace OIDC (`kube-<env>.tuist.dev`) + per-request
-		// impersonation resolved by tuist-ops's PolicyController.
-		// See `infra/helm/pomerium/`. No `tailscale.com/cap/kubernetes`
-		// grants belong in this file.
+		// Human kubectl to CANARY and PRODUCTION is NOT a tailnet
+		// grant — Pomerium per env handles it via Google Workspace
+		// OIDC (`kube-<env>.tuist.dev`) + per-request impersonation
+		// resolved by tuist-ops's PolicyController, which reads the
+		// live JIT elevation row. That decision cannot be expressed
+		// in a static ACL, which is exactly why those two envs stay
+		// behind the gateway. No `tailscale.com/cap/kubernetes`
+		// grants for `tag:tuist-k8s-canary` or
+		// `tag:tuist-k8s-production` belong in this file.
 
-		// Elevated (`edit`) access for writes does NOT live here.
-		// It flows through the Pomerium gateway (see
+		// Human kubectl to STAGING, on the other hand, IS a tailnet
+		// grant. Staging's write tier is standing access rather than
+		// a per-request elevation
+		// (`TuistOps.JIT.Policy.always_write_env?/1`), so there is no
+		// per-request lookup left to do and no reason to make anyone
+		// re-authenticate to a browser gateway for it. The staging
+		// operator runs Tailscale's in-process API server proxy in
+		// auth mode (`apiServerProxyConfig.mode: "true"` in
+		// infra/helm/tailscale-operator/values-staging.yaml) at
+		// `tuist-k8s-staging.taild6d7bb.ts.net`; it WhoIs's the
+		// caller and turns the `impersonate.groups` below into the
+		// `Impersonate-Group` headers the apiserver binds.
+		//
+		// The group names are the same ones Pomerium's chart binds to
+		// ClusterRoles in
+		// infra/helm/pomerium/templates/access-tiers.yaml — that file
+		// is now load-bearing for BOTH doors into staging, so it must
+		// not be deleted along with a future Pomerium teardown.
+		//
+		// KNOWN GAP vs the gateway path: `autogroup:member` is
+		// role-agnostic — Tailscale documents it as every direct
+		// member of the tailnet, which includes admin-flavour roles
+		// (Auditor, Billing admin, IT admin, Network admin).
+		// tuist-ops's PolicyController denies those roles outright.
+		// So a non-engineering tailnet role that would get nothing
+		// through Pomerium gets `tuist-eng` + `tuist-staging-write`
+		// here. Accepted for staging while every member of this
+		// tailnet is an engineer. The fix, if that stops being true,
+		// is to declare an explicit `group:tuist-eng` in the `groups`
+		// block above and use it as `src` instead of the autogroup —
+		// at the cost of keeping an email list in this file.
+		//
+		// Owners and Admins match BOTH grants (they are members too),
+		// so they receive `tuist-admins` + `tuist-eng` +
+		// `tuist-staging-write`. Harmless: `tuist-admins` and
+		// `tuist-eng` both bind to `view`, and the union is the same
+		// tier either way.
+		//
+		// `ip: tcp:443` is what actually reaches the proxy. It is
+		// subsumed by the catch-all grant at the top of this list
+		// today; it is spelled out so the path survives that rule's
+		// removal, same convention as the pairs above. Note the dst
+		// tag is shared with the cluster's subnet router and egress
+		// proxies, so this opens 443 slightly wider than the operator
+		// alone — the same caveat already recorded for the CNPG
+		// pooler grant.
+		{
+			"src": ["autogroup:member"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:443"],
+			"app": {
+				"tailscale.com/cap/kubernetes": [
+					{"impersonate": {"groups": ["tuist-eng", "tuist-staging-write"]}},
+				],
+			},
+		},
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:443"],
+			"app": {
+				"tailscale.com/cap/kubernetes": [
+					{"impersonate": {"groups": ["tuist-admins", "tuist-staging-write"]}},
+				],
+			},
+		},
+
+		// Elevated (`edit`) access for CANARY and PRODUCTION does not
+		// live here. It flows through the Pomerium gateway (see
 		// `infra/helm/pomerium/`), which authenticates callers via
 		// Google Workspace OIDC, looks up the active elevation in
 		// the tuist-ops DB per request, and injects the
 		// Impersonate-Group header that maps to the env's elevated
-		// ClusterRole. The tailnet ACL stays read-only and static —
-		// no runtime mutation, no break-glass groups, and no
-		// role-tier branching at this layer (Pomerium ext_authz
+		// ClusterRole. For those two envs the tailnet ACL stays
+		// read-only and static — no runtime mutation, no break-glass
+		// groups, and no role-tier branching at this layer (Pomerium
 		// owns that decision).
 	],
 

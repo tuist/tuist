@@ -383,16 +383,18 @@ enum HTTPAuthorization {
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
         // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic GITHUB_TOKEN /
-        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
+        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. This mirrors SwiftPM, whose download
-        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
+        // a private release asset. SwiftPM's makeAuthorizationProvider actually
+        // ranks its environment token above netrc, but we keep netrc first here
+        // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
+        // host a netrc entry deliberately targets.
         if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
             keychain: { await KeychainAuthorization.credential(for: url) },
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+            gitHubEnvToken: GitHubAuth.envToken(from: environment)
         ) {
             return header
         }
@@ -416,7 +418,7 @@ enum HTTPAuthorization {
         if let credential = await keychain() {
             return basicHeader(credential)
         }
-        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
+        if isGitHub, let token = gitHubEnvToken {
             return bearerHeader(token)
         }
         return nil
@@ -434,11 +436,6 @@ enum HTTPAuthorization {
 
     private static func bearerHeader(_ token: String) -> String {
         "Bearer \(token)"
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
     }
 }
 

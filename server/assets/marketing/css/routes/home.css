@@ -91,7 +91,7 @@
         }
       }
 
-      & > [data-part="title"] h1 {
+      & > [data-part="title"] [data-part="line"] {
         color: var(--noora-surface-label-primary);
         font-family: var(--noora-font-heading);
         font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
@@ -1216,7 +1216,7 @@
           align-items: center;
           gap: var(--noora-spacing-4);
 
-          & > h1 {
+          & > [data-part="value"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-semibold) var(--noora-font-display-xlarge);
             letter-spacing: -0.045rem;

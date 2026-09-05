@@ -47,6 +47,9 @@ const runtimeProperties = {
     "--runner-vnc-width": "",
     "--runner-vnc-height": "",
     "--runner-vnc-aspect-ratio": "",
+    // Set inline by the Gradle build timeline on each configuration operation.
+    "--configuration-operation-start": "",
+    "--configuration-operation-duration": "",
   },
 };
 

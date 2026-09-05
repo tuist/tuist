@@ -68,7 +68,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)
      |> assign(:head_twitter_card, "summary_large_image")
-     |> assign_structured_data(get_changelog_structured_data(filtered_entries))
+     |> put_structured_data(get_changelog_structured_data(filtered_entries))
      |> assign(
        :head_description,
        dgettext(

@@ -33,6 +33,34 @@ defmodule TuistWeb.API.GradleControllerTest do
         git_commit_sha: "abc123",
         root_project_name: "my-app",
         requested_tasks: ["assembleDebug", "test"],
+        custom_metadata: %{
+          tags: ["nightly", "android"],
+          values: %{"cpu_model" => "Apple M4", "team" => "mobile"}
+        },
+        configuration_cache: %{
+          status: "invalid",
+          invalidation_reasons: ["an environment variable changed"]
+        },
+        configuration_operations: [
+          %{
+            phase: "project",
+            build_path: ":",
+            project_path: ":app",
+            duration_ms: 300,
+            started_at: "2026-08-31T12:00:00Z"
+          }
+        ],
+        artifact_transforms: [
+          %{
+            transformer_name: "JetifyTransform",
+            transform_action_class: "com.example.JetifyTransform",
+            subject_name: "example.jar",
+            artifact_name: "example.jar",
+            consumer_project_path: ":app",
+            duration_ms: 200,
+            started_at: "2026-08-31T12:00:01Z"
+          }
+        ],
         tasks: [
           %{
             task_path: ":app:compileKotlin",
@@ -40,7 +68,9 @@ defmodule TuistWeb.API.GradleControllerTest do
             outcome: "executed",
             cacheable: true,
             duration_ms: 5000,
-            cache_key: "key-123"
+            cache_key: "key-123",
+            remote_cache_miss: true,
+            remote_cache_stored: true
           },
           %{
             task_path: ":app:test",
@@ -61,6 +91,8 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       Buffer.flush()
       Gradle.Task.Buffer.flush()
+      Gradle.ConfigurationOperation.Buffer.flush()
+      Gradle.ArtifactTransform.Buffer.flush()
 
       {:ok, build} = Gradle.get_build(response["id"])
       assert build.project_id == project.id
@@ -69,10 +101,24 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.gradle_version == "8.5"
       assert build.is_ci == true
       assert build.requested_tasks == ["assembleDebug", "test"]
+      assert build.custom_tags == ["nightly", "android"]
+      assert build.custom_values == %{"cpu_model" => "Apple M4", "team" => "mobile"}
       assert build.account_id == user.account.id
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
       assert build.cacheable_tasks_count == 2
+      assert build.configuration_cache_status == "invalid"
+      assert build.configuration_cache_invalidation_reasons == ["an environment variable changed"]
+
+      [task | _] = Gradle.list_tasks(response["id"])
+      assert task.remote_cache_miss == true
+      assert task.remote_cache_stored == true
+
+      [configuration_operation] = Gradle.list_configuration_operations(response["id"])
+      assert configuration_operation.project_path == ":app"
+
+      [artifact_transform] = Gradle.list_artifact_transforms(response["id"])
+      assert artifact_transform.transformer_name == "JetifyTransform"
     end
 
     test "creates a build with machine metrics", %{conn: conn, user: user, project: project} do
@@ -176,6 +222,25 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.cacheable_tasks_count == 0
     end
 
+    test "rejects custom metadata that exceeds the shared Xcode limits", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration_ms: 1000,
+        status: "success",
+        tasks: [],
+        custom_metadata: %{
+          tags: ["nightly"],
+          values: %{"x#{String.duplicate("a", 50)}" => "value"}
+        }
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      assert %{"message" => "The custom metadata is invalid."} = json_response(conn, :bad_request)
+    end
+
     test "uses client-provided build ID when present", %{conn: conn, user: user, project: project} do
       client_id = UUIDv7.generate()
 
@@ -270,6 +335,8 @@ defmodule TuistWeb.API.GradleControllerTest do
           status: "success",
           gradle_version: "8.5",
           is_ci: true,
+          custom_tags: ["nightly"],
+          custom_values: %{"team" => "android"},
           tasks: [
             %{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true},
             %{task_path: ":app:test", outcome: "local_hit", cacheable: true}
@@ -291,6 +358,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build["tasks_local_hit_count"] == 1
       assert build["cacheable_tasks_count"] == 2
       assert is_number(build["cache_hit_rate"])
+      assert build["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
     end
 
     test "does not return builds from other projects", %{conn: conn, user: user, project: project} do
@@ -305,6 +373,25 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       response = json_response(conn, 200)
       assert response["builds"] == []
+    end
+
+    test "filters builds by custom tag", %{conn: conn, user: user, project: project} do
+      tagged_build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          custom_tags: ["nightly"]
+        )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        custom_tags: ["release"]
+      )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds?tag=nightly")
+
+      assert %{"builds" => [%{"id" => ^tagged_build_id}]} = json_response(conn, 200)
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
@@ -340,6 +427,8 @@ defmodule TuistWeb.API.GradleControllerTest do
           git_commit_sha: "abc123",
           root_project_name: "my-app",
           requested_tasks: ["assembleRelease"],
+          custom_tags: ["nightly"],
+          custom_values: %{"team" => "android"},
           tasks: [
             %{
               task_path: ":app:compileKotlin",
@@ -364,6 +453,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert response["git_commit_sha"] == "abc123"
       assert response["root_project_name"] == "my-app"
       assert response["requested_tasks"] == ["assembleRelease"]
+      assert response["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
 
       assert length(response["tasks"]) == 1
       task = hd(response["tasks"])
@@ -372,6 +462,8 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert task["cacheable"] == true
       assert task["duration_ms"] == 5000
       assert task["cache_key"] == "key-123"
+      assert task["remote_cache_miss"] == false
+      assert task["remote_cache_stored"] == nil
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
