@@ -20,6 +20,14 @@ public protocol CacheServicing {
     ) async throws
 }
 
+public protocol CachePullServicing {
+    func run(
+        path: String?,
+        configuration: String?,
+        targets: Set<String>
+    ) async throws
+}
+
 public struct EmptyHashCacheService: HashCacheServicing {
     public init() {}
     public func run(
@@ -46,7 +54,22 @@ public struct EmptyCacheService: CacheServicing {
     }
 }
 
+public struct EmptyCachePullService: CachePullServicing {
+    public init() {}
+
+    public func run(
+        path _: String?,
+        configuration _: String?,
+        targets _: Set<String>
+    ) async throws {
+        print(
+            "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."
+        )
+    }
+}
+
 public enum Extension {
     @TaskLocal public static var hashCacheService: HashCacheServicing = EmptyHashCacheService()
     @TaskLocal public static var cacheService: CacheServicing = EmptyCacheService()
+    @TaskLocal public static var cachePullService: CachePullServicing = EmptyCachePullService()
 }

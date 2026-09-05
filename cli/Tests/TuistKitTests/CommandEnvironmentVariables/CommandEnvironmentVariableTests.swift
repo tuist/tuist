@@ -985,6 +985,27 @@ struct CommandEnvironmentVariableTests {
         }
     }
 
+    @Test(.withMockedEnvironment()) func cachePullCommandUsesEnvVars() throws {
+        setVariable(.cacheConfiguration, value: "CacheConfig")
+        setVariable(.cachePath, value: "/cache/path")
+        setVariable(.cacheTargets, value: "Fmk1,Fmk2")
+
+        let commandWithEnvVars = try CachePullCommand.parse([])
+        #expect(commandWithEnvVars.configuration == "CacheConfig")
+        #expect(commandWithEnvVars.path == "/cache/path")
+        #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
+
+        let commandWithArgs = try CachePullCommand.parse([
+            "--configuration", "CacheConfig",
+            "--path", "/cache/path",
+            "--",
+            "Fmk1", "Fmk2",
+        ])
+        #expect(commandWithArgs.configuration == "CacheConfig")
+        #expect(commandWithArgs.path == "/cache/path")
+        #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
+    }
+
     @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {
         Environment.mocked?.variables = [
             "TUIST_FOO": "1",
