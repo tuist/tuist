@@ -123,6 +123,16 @@ defmodule Tuist.Kura.Regions do
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
+  # CPU ceilings become the pod's limits.cpu. There is no floor here: the
+  # controller observes requests.cpu per instance, so the plan grants only the
+  # burst bound. Each sits several times over its plan's measured 14-day peak
+  # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
+  # quota is not work-conserving: one set near real use stalls a burst on an
+  # otherwise idle box. As a share of the smallest managed box, 11 cores:
+  # 36%, 18%, 9%.
+  @enterprise_cpu_ceiling_milli 4000
+  @pro_cpu_ceiling_milli 2000
+  @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
   # claim covers the whole data volume, not just the cache: Kura's artifact ring
   # shares it with the upload staging directory and the RocksDB index, and the
@@ -483,6 +493,18 @@ defmodule Tuist.Kura.Regions do
   def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+
+  @doc """
+  The `limits.cpu` in millicores for a billing plan.
+
+  The counterpart to `memory_profile/1`'s ceiling, and the burst bound half of
+  the same pair egress already has: a floor that is guaranteed and a ceiling
+  that is enforced. The floor has no entry here because the controller observes
+  it per instance rather than granting it per plan.
+  """
+  def cpu_ceiling_milli(:enterprise), do: @enterprise_cpu_ceiling_milli
+  def cpu_ceiling_milli(:pro), do: @pro_cpu_ceiling_milli
+  def cpu_ceiling_milli(_plan), do: @standard_cpu_ceiling_milli
 
   @doc """
   True iff the region sizes its instances per tier rather than taking the

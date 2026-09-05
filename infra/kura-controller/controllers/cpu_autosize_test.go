@@ -250,7 +250,7 @@ func TestCPUSizingLeavesTheOtherDimensionsAlone(t *testing.T) {
 		t.Fatalf("CPU request = %q, want 1500m", got)
 	}
 	if _, ok := after.Limits[corev1.ResourceCPU]; ok {
-		t.Fatal("CPU is compressible: a limit would cap a burst the box can absorb")
+		t.Fatal("an instance with no plan ceiling gets no CPU limit")
 	}
 	for _, name := range []corev1.ResourceName{
 		corev1.ResourceMemory,
@@ -464,5 +464,94 @@ func TestScheduleCapSurvivesAnObservationPass(t *testing.T) {
 	}
 	if got := cpuRequestMilli(instance); got != capped {
 		t.Fatalf("template request = %dm, want it still capped at %dm", got, capped)
+	}
+}
+
+// The plan grants the burst bound and the kernel enforces it, the same pair
+// egress already has: a floor that is guaranteed and a ceiling that is not
+// merely advisory.
+func TestCPUCeilingBecomesTheLimit(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{CPUCeilingMilli: 4000},
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 600},
+		},
+	}
+
+	r := defaultResources(instance, false)
+
+	if got := r.Limits.Cpu().String(); got != "4" {
+		t.Fatalf("CPU limit = %q, want 4 cores", got)
+	}
+	if got := r.Requests.Cpu().String(); got != "600m" {
+		t.Fatalf("CPU request = %q, want the observed 600m", got)
+	}
+	// The ceiling is a usage bound, not a reservation: putting it into the
+	// scheduler's arithmetic is the over-reservation this sizing removes.
+	for _, name := range []corev1.ResourceName{corev1.ResourceCPU} {
+		q := r.Requests[name]
+		if q.MilliValue() >= 4000 {
+			t.Fatalf("the ceiling reached requests.%s as %s", name, q.String())
+		}
+	}
+}
+
+// The API rejects a limit under its request, so an observation above the
+// plan's ceiling has to come down to it rather than making the pod
+// unadmittable.
+func TestCPURequestIsClampedToTheCeiling(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{CPUCeilingMilli: 1000},
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 3000},
+		},
+	}
+
+	r := defaultResources(instance, false)
+
+	request, limit := r.Requests.Cpu(), r.Limits.Cpu()
+	if request.Cmp(*limit) > 0 {
+		t.Fatalf("request %s exceeds limit %s, which the API rejects", request, limit)
+	}
+	if got := request.String(); got != "1" {
+		t.Fatalf("CPU request = %q, want it clamped to the 1-core ceiling", got)
+	}
+}
+
+// A region that sizes every instance alike grants no ceiling, and an
+// uncapped pod is the behaviour that predates the field.
+func TestNoCPUCeilingLeavesThePodUncapped(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 600},
+		},
+	}
+
+	r := defaultResources(instance, false)
+
+	if _, ok := r.Limits[corev1.ResourceCPU]; ok {
+		t.Fatal("expected no CPU limit when the plan grants no ceiling")
+	}
+	if got := r.Requests.Cpu().String(); got != "600m" {
+		t.Fatalf("CPU request = %q, want 600m", got)
+	}
+}
+
+// Adding a CPU limit must not make the pod Guaranteed: Kura's admission pools
+// are sized from a memory ceiling that deliberately exceeds its floor.
+func TestCPUCeilingKeepsThePodBurstable(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			CPUCeilingMilli:  4000,
+			MemoryFloorMib:   1024,
+			MemoryCeilingMib: 4096,
+		},
+	}
+
+	r := defaultResources(instance, false)
+
+	request, limit := r.Requests[corev1.ResourceMemory], r.Limits[corev1.ResourceMemory]
+	if request.Cmp(limit) == 0 {
+		t.Fatal("memory request equals its limit, which would make the pod Guaranteed")
 	}
 }

@@ -117,6 +117,20 @@ type KuraInstanceSpec struct {
 	// clamped up to it, since a limit under the request is rejected by the API.
 	MemoryCeilingMib int32 `json:"memoryCeilingMib,omitempty"`
 
+	// CPUCeilingMilli is the CPU, in millicores, this instance may reach at
+	// peak. It becomes `limits.cpu`. There is no matching floor field because
+	// `requests.cpu` is observed per instance rather than granted per plan
+	// (see cpu_autosize.go), so this is the burst bound only.
+	//
+	// A request above it is clamped down to it, since a limit under the
+	// request is rejected by the API. Zero sets no CPU limit at all, which is
+	// what a region that sizes every instance alike wants.
+	//
+	// Deliberately not bin-packed. A CPU-ceiling extended resource would put
+	// the burst bound back into the scheduler's arithmetic, which is the
+	// over-reservation this sizing exists to remove.
+	CPUCeilingMilli int32 `json:"cpuCeilingMilli,omitempty"`
+
 	// MemoryCeilingBinPacked makes the pod additionally request its ceiling as
 	// the `tuist.dev/memory-ceiling-mib` extended resource (request == limit;
 	// extended resources are integer and non-overcommittable), so the scheduler

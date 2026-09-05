@@ -269,15 +269,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           )
           |> Map.fetch!("spec")
 
-        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"]}
+        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"], spec["cpuCeilingMilli"]}
       end
 
       # The floor is the standing reservation, so the tier that gets the larger
       # one is the tier that pays for a guarantee. The ceiling — how large a
-      # burst Kura admits before shedding — moves with it.
-      assert profile.(:enterprise) == {1024, 4096, true}
-      assert profile.(:pro) == {512, 3072, true}
-      assert profile.(:air) == {256, 768, true}
+      # burst Kura admits before shedding — moves with it. The CPU ceiling is
+      # the same grant for the other compressible resource; its floor is absent
+      # because the controller observes that per instance.
+      assert profile.(:enterprise) == {1024, 4096, true, 4000}
+      assert profile.(:pro) == {512, 3072, true, 2000}
+      assert profile.(:air) == {256, 768, true, 1000}
     end
 
     test "sizes a self-hosted deployment off its license rather than a subscription" do
@@ -333,6 +335,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "memoryFloorMib")
       refute Map.has_key?(spec, "memoryCeilingMib")
       refute Map.has_key?(spec, "memoryCeilingBinPacked")
+      refute Map.has_key?(spec, "cpuCeilingMilli")
     end
 
     test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do

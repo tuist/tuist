@@ -3467,16 +3467,26 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 		ceilingMib = floorMib
 	}
 
+	// The request is observed per instance (see cpu_autosize.go); the ceiling
+	// is the plan's, and bounds it because the API rejects a limit under its
+	// request.
+	cpuMilli := cpuRequestMilli(instance)
+	cpuCeilingMilli := instance.Spec.CPUCeilingMilli
+	if cpuCeilingMilli > 0 && cpuMilli > cpuCeilingMilli {
+		cpuMilli = cpuCeilingMilli
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			// Observed, not declared: see cpu_autosize.go. No CPU limit,
-			// so a burst the box can absorb is not capped.
-			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuRequestMilli(instance)), resource.DecimalSI),
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuMilli), resource.DecimalSI),
 			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
 			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	if cpuCeilingMilli > 0 {
+		r.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(cpuCeilingMilli), resource.DecimalSI)
 	}
 	// Ceiling bin-packing is opt-in per region, for the same reason the egress
 	// floor is: a pod that requests an extended resource its node does not

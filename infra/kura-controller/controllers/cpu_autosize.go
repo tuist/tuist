@@ -30,7 +30,11 @@ const (
 const cpuUnobservedWindow int32 = -1
 
 // Requests land on a band so load drifting within one does not re-template
-// the StatefulSet and roll its pods. The ends are the floor and the ceiling.
+// the StatefulSet and roll its pods. The ends bound the reservation, not the
+// usage: the smallest keeps an idle pod at a real share under contention, and
+// the largest stops one instance reserving a whole box. What an instance may
+// actually use is spec.cpuCeilingMilli, which the plan grants and the kernel
+// enforces.
 var cpuRequestBands = []int32{50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2000, 3000}
 
 // PodMetricsClient reads current per-pod CPU from the metrics.k8s.io
@@ -150,7 +154,7 @@ func cpuBand(milli int64) int32 {
 	return cpuRequestBands[len(cpuRequestBands)-1]
 }
 
-// bandBelow is the largest band under milli, floored at the ladder's first
+// bandBelow is the largest band under milli, bounded by the ladder's first
 // entry.
 func bandBelow(milli int32) int32 {
 	below := cpuRequestBands[0]
