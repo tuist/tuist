@@ -41,6 +41,7 @@ pub struct MetricsInner {
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
     backfill_bodies_peer_label_set: Arc<Mutex<HashSet<String>>>,
+    outbox_target_label_set: Arc<Mutex<HashSet<String>>>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -109,7 +110,10 @@ pub struct MetricsInner {
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
+    outbox_capacity: Gauge,
+    outbox_peer_capacity: Gauge,
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
+    outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
@@ -661,6 +665,9 @@ impl Metrics {
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
+        let outbox_capacity = Gauge::default();
+        let outbox_peer_capacity = Gauge::default();
+        let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
@@ -1185,9 +1192,24 @@ impl Metrics {
             outbox_messages.clone(),
         );
         registry.register(
+            "kura_outbox_capacity",
+            "Replication outbox messages the node may hold across all target peers",
+            outbox_capacity.clone(),
+        );
+        registry.register(
             "kura_outbox_lane_messages",
             "Replication outbox messages waiting to be processed, split by drain lane",
             outbox_lane_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_target_messages",
+            "Replication outbox messages waiting to be processed, split by target peer",
+            outbox_target_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_peer_capacity",
+            "Replication outbox messages one target peer may hold",
+            outbox_peer_capacity.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
@@ -1706,6 +1728,7 @@ impl Metrics {
                 internal_backfill_request_duration,
                 backfill_bodies_peer_requests,
                 backfill_bodies_peer_label_set: Arc::new(Mutex::new(HashSet::new())),
+                outbox_target_label_set: Arc::new(Mutex::new(HashSet::new())),
                 public_request_latency,
                 http_exceptions,
                 artifact_reads,
@@ -1764,7 +1787,10 @@ impl Metrics {
                 manifest_index_rebuilds,
                 manifest_index_rebuild_duration,
                 outbox_messages,
+                outbox_capacity,
+                outbox_peer_capacity,
                 outbox_lane_messages,
+                outbox_target_messages,
                 multipart_uploads,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
@@ -2449,6 +2475,41 @@ impl Metrics {
             .store(count as u64, Ordering::Relaxed);
     }
 
+    pub fn update_outbox_capacity(&self, max_depth: usize) {
+        self.outbox_capacity.set(max_depth as i64);
+    }
+
+    pub fn update_outbox_peer_capacity(&self, per_peer: usize) {
+        self.outbox_peer_capacity.set(per_peer as i64);
+    }
+
+    /// A target whose queue drained (or that left) is zeroed rather than
+    /// removed, the `clear_backfill_pass_progress` convention: the series
+    /// never gaps under a scrape, so a ratio alert always has a sample.
+    pub fn update_outbox_target_messages(&self, depths: &[(String, usize)]) {
+        let mut known = self
+            .outbox_target_label_set
+            .lock()
+            .expect("outbox target label set lock");
+        for (target, depth) in depths {
+            known.insert(target.clone());
+            self.outbox_target_messages
+                .get_or_create(&OutboxTargetLabels {
+                    target: target.clone(),
+                })
+                .set(*depth as i64);
+        }
+        for target in known.iter() {
+            if !depths.iter().any(|(present, _)| present == target) {
+                self.outbox_target_messages
+                    .get_or_create(&OutboxTargetLabels {
+                        target: target.clone(),
+                    })
+                    .set(0);
+            }
+        }
+    }
+
     pub fn update_segment_fsyncs(&self, total: u64) {
         // The store tracks the cumulative fsync count as a process-local atomic
         // that resets to 0 on restart, exactly like this Counter. Advance the
@@ -3072,6 +3133,11 @@ fn records_public_http_metrics(route: &str) -> bool {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct OutboxLaneLabels {
     lane: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct OutboxTargetLabels {
+    target: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4276,6 +4342,15 @@ mod tests {
         assert!(rendered.contains("kura_outbox_messages"));
         assert!(rendered.contains("kura_outbox_lane_messages{lane=\"bulk\"} 3"));
         assert!(rendered.contains("kura_outbox_lane_messages{lane=\"metadata\"} 1"));
+
+        // F5: a target that drained (or left) is zeroed rather than removed,
+        // the `clear_backfill_pass_progress` convention, so the series never
+        // gaps under a scrape and ratio alerts keep a sample to evaluate.
+        metrics.update_outbox_target_messages(&[("http://a".to_string(), 5)]);
+        metrics.update_outbox_target_messages(&[("http://b".to_string(), 2)]);
+        let rendered = metrics.render();
+        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://a\"} 0"));
+        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://b\"} 2"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));

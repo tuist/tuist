@@ -37,6 +37,7 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert invocation["git_branch"] == "feature/bazel"
     assert invocation["git_commit_sha"] == "abcdef"
     assert invocation["is_ci"]
+    assert invocation["cache_endpoint"] == "cache.tuist.dev"
     assert invocation["cache"]["hits"] == 1
     assert invocation["cache"]["invocation_id"] == nil
   end
@@ -95,18 +96,37 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert message =~ "Bazel invocation log not found"
   end
 
-  test "lists raw cache events", %{conn: conn, user: user, project: project} do
+  test "lists raw cache events with diagnostic context and filters by operation", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
     create_cache_event(project, "invocation-1")
+    observed_at = ~U[2026-09-04 12:00:00.123000Z]
+    create_cache_event(project, "invocation-1", operation: "cas", outcome: "write", observed_at: observed_at)
 
     result =
       ListBazelCacheEvents.call(conn, %{
         "account_handle" => user.account.name,
         "project_handle" => project.name,
-        "invocation_id" => "invocation-1"
+        "invocation_id" => "invocation-1",
+        "operation" => "cas"
       })
 
     assert %{"content" => [%{"type" => "text", "text" => text}]} = result
-    assert %{"cache_events" => [%{"invocation_id" => "invocation-1", "outcome" => "hit"}]} = JSON.decode!(text)
+
+    assert %{
+             "cache_events" => [
+               %{
+                 "invocation_id" => "invocation-1",
+                 "client_kind" => "bazel",
+                 "operation" => "cas",
+                 "outcome" => "write",
+                 "cache_endpoint" => "cache.tuist.dev",
+                 "observed_at" => "2026-09-04T12:00:00.123Z"
+               }
+             ]
+           } = JSON.decode!(text)
   end
 
   test "gets a raw cache event", %{conn: conn, user: user, project: project} do
@@ -166,13 +186,16 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     id
   end
 
-  defp create_cache_event(project, invocation_id) do
+  defp create_cache_event(project, invocation_id, options \\ []) do
+    operation = Keyword.get(options, :operation, "action_cache")
+    outcome = Keyword.get(options, :outcome, "hit")
+
     ReapiCache.create_cache_events([
       %{
         client_kind: "bazel",
-        operation: "action_cache",
-        outcome: "hit",
-        action_digest: "action-hit",
+        operation: operation,
+        outcome: outcome,
+        action_digest: "#{operation}-#{outcome}",
         size: 2048,
         duration_ms: 10,
         invocation_id: invocation_id,
@@ -182,7 +205,8 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         project_id: project.id,
         account_handle: project.account.name,
         project_handle: project.name,
-        cache_endpoint: "cache.tuist.dev"
+        cache_endpoint: "cache.tuist.dev",
+        observed_at: Keyword.get(options, :observed_at, DateTime.utc_now())
       }
     ])
   end

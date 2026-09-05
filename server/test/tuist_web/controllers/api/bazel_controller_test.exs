@@ -30,6 +30,7 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert invocation["git_branch"] == "feature/bazel"
       assert invocation["git_commit_sha"] == "abcdef"
       assert invocation["is_ci"]
+      assert invocation["cache_endpoint"] == "cache.tuist.dev"
       assert invocation["status"] == "success"
       assert invocation["duration_ms"] == 15_000
       assert invocation["cache"]["hits"] == 1
@@ -124,6 +125,29 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert event["outcome"] == "hit"
       assert event["size"] == 2048
     end
+
+    test "filters cache events by operation and returns diagnostic context", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_cache_event(project, "invocation-1", "hit", 2048)
+      observed_at = ~U[2026-09-04 12:00:00.123000Z]
+      create_cache_event(project, "invocation-1", "write", 1024, operation: "cas", observed_at: observed_at)
+
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/cache-events?operation=cas"
+        )
+
+      assert %{"cache_events" => [event], "pagination_metadata" => _} = json_response(conn, 200)
+      assert event["client_kind"] == "bazel"
+      assert event["operation"] == "cas"
+      assert event["outcome"] == "write"
+      assert event["cache_endpoint"] == "cache.tuist.dev"
+      assert event["observed_at"] == "2026-09-04T12:00:00.123Z"
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/bazel/cache-events/:cache_event_id" do
@@ -201,11 +225,11 @@ defmodule TuistWeb.API.BazelControllerTest do
     id
   end
 
-  defp create_cache_event(project, invocation_id, outcome, size) do
+  defp create_cache_event(project, invocation_id, outcome, size, options \\ []) do
     ReapiCache.create_cache_events([
       %{
         client_kind: "bazel",
-        operation: "action_cache",
+        operation: Keyword.get(options, :operation, "action_cache"),
         outcome: outcome,
         action_digest: "digest-#{outcome}-#{size}",
         size: size,
@@ -217,7 +241,8 @@ defmodule TuistWeb.API.BazelControllerTest do
         project_id: project.id,
         account_handle: project.account.name,
         project_handle: project.name,
-        cache_endpoint: "cache.tuist.dev"
+        cache_endpoint: "cache.tuist.dev",
+        observed_at: Keyword.get(options, :observed_at, DateTime.utc_now())
       }
     ])
   end

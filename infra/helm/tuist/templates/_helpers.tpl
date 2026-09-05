@@ -135,6 +135,22 @@ if the cluster topology uses a different pool name.
 {{- .Values.runnersFleetLinux.name | default "runners-linux" -}}
 {{- end -}}
 
+{{/*
+The Secret holding the object-storage credentials, which is not always the
+same one. With `managedSecrets` the credentials are synced into their own
+Secret by External Secrets and the chart never sees their values; without it
+they are rendered into app-secrets from values. `server-deployment.yaml`
+branches on this inline; anything else that needs those credentials has to
+branch the same way, or it reads a key that exists and is empty.
+*/}}
+{{- define "tuist.objectStorageCredentialsSecretName" -}}
+{{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets -}}
+{{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+{{- else -}}
+{{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000
@@ -692,6 +708,35 @@ operational knobs. Render them from chart values so the server, migration,
 processor, and xcresult-processor pods stay aligned without relying on the
 runtime secret bundle.
 */}}
+{{- /*
+The in-cluster ClickHouse the workload is migrating onto, for as long as
+ClickHouse Cloud is still the system of record. Absent unless the managed
+workload is enabled, which is what keeps the schema clone, the backfill and
+the shadow writes inert everywhere else.
+*/ -}}
+{{- define "tuist.clickhouseBareMetalEnv" -}}
+{{- if .Values.clickhouse.managed.enabled }}
+- name: TUIST_CLICKHOUSE_BARE_METAL_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
+      key: url
+      # `optional` because the migration Job is a pre-upgrade hook and this
+      # Secret is an ordinary release resource, so on the deploy that first
+      # introduces the managed ClickHouse the Secret does not exist yet. A
+      # required reference makes that Job unable to start at all, which fails
+      # the whole deploy: without `optional` the pod stays Pending with
+      # `secret "…-clickhouse-credentials" not found` and `helm --wait` times
+      # out. Absent instead means the schema clone reads no destination and
+      # skips, and the next deploy has both the Secret and the server.
+      optional: true
+{{- if .Values.clickhouse.managed.shadowWrites.enabled }}
+- name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
+  value: "1"
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
 - name: TUIST_CLICKHOUSE_POOL_SIZE

@@ -1,0 +1,410 @@
+<div id="module-cache-modules">
+  <div data-part="filters">
+    <.dropdown
+      id="modules-environment-dropdown"
+      label={environment_label(@analytics_environment)}
+      secondary_text={dgettext("dashboard_cache", "Environment:")}
+    >
+      <.dropdown_item
+        :for={
+          {value, label} <- [
+            {"any", dgettext("dashboard_cache", "Any")},
+            {"local", dgettext("dashboard_cache", "Local")},
+            {"ci", dgettext("dashboard_cache", "CI")}
+          ]
+        }
+        value={value}
+        label={label}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", value)}"}
+        data-selected={@analytics_environment == value}
+      >
+        <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="modules-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_cache", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_cache", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_cache", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_cache", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_cache", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "modules-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_cache", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "modules-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <% analytics_ready = @timeseries.ok? %>
+  <% totals =
+    if analytics_ready,
+      do:
+        analytics_totals(
+          @module_count.result,
+          @timeseries.result,
+          @miss_reasons_series.result
+        ) %>
+  <.card
+    title={dgettext("dashboard_cache", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        loading={!analytics_ready}
+        id="widget-modules"
+        title={dgettext("dashboard_cache", "Modules")}
+        legend_color="primary"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Modules in the project, from the latest commit on its default branch."
+          )
+        }
+        value={if totals, do: format_number(totals.modules)}
+        phx_click="select_widget"
+        phx_value_widget="modules"
+        selected={@analytics_selected_widget == "modules"}
+      />
+      <.widget
+        loading={!analytics_ready}
+        id="widget-hits"
+        title={dgettext("dashboard_cache", "Hits")}
+        legend_color="primary"
+        description={
+          dgettext("dashboard_cache", "Module builds served from cache instead of being rebuilt.")
+        }
+        value={if totals, do: format_number(totals.hits)}
+        phx_click="select_widget"
+        phx_value_widget="hits"
+        selected={@analytics_selected_widget == "hits"}
+      />
+      <.widget
+        loading={!analytics_ready}
+        id="widget-misses"
+        title={miss_reason_title(@selected_miss_reason)}
+        legend_color={miss_reason_color(@selected_miss_reason)}
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, or it had never been cached."
+          )
+        }
+        value={if totals, do: format_number(miss_reason_value(totals, @selected_miss_reason))}
+        phx_click="select_widget"
+        phx_value_widget="misses"
+        selected={@analytics_selected_widget == "misses"}
+      >
+        <:select>
+          <.dropdown_item
+            :for={
+              {value, label, color} <- [
+                {"all", dgettext("dashboard_cache", "All"), "destructive"},
+                {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
+                {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
+                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
+              ]
+            }
+            value={value}
+            phx-click="select_miss_reason"
+            phx-value-type={value}
+            data-selected={@selected_miss_reason == value}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color={color}></div>
+              <span data-part="label">{label}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if totals, do: format_number(miss_reason_value(totals, value))}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
+    </div>
+
+    <.card_section :if={!@timeseries.ok?} data-part="analytics-chart-section">
+      <.skeleton_chart />
+    </.card_section>
+
+    <.card_section
+      :if={@timeseries.ok? && @analytics_selected_widget == "modules"}
+      data-part="analytics-chart-section"
+    >
+      <.chart
+        id="modules-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
+            tooltip: %{},
+            xAxis: %{
+              type: "category",
+              data: @modules_series.result.dates,
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  List.first(@modules_series.result.dates),
+                  List.last(@modules_series.result.dates)
+                ]
+              }
+            },
+            yAxis: %{
+              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+              axisLabel: %{color: "var:noora-surface-label-secondary"}
+            },
+            legend: %{show: false}
+          }
+        }
+        series={[
+          %{
+            name: dgettext("dashboard_cache", "Modules"),
+            data: @modules_series.result.counts,
+            type: "line",
+            color: "var:noora-chart-primary"
+          }
+        ]}
+        y_axis_min={0}
+        grid_lines
+      />
+    </.card_section>
+
+    <.card_section
+      :if={@timeseries.ok? && @analytics_selected_widget == "hits"}
+      data-part="analytics-chart-section"
+    >
+      <.chart
+        id="modules-hits-chart"
+        type="bar"
+        extra_options={
+          %{
+            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
+            tooltip: %{},
+            xAxis: %{
+              type: "category",
+              data: @timeseries.result.dates,
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  List.first(@timeseries.result.dates),
+                  List.last(@timeseries.result.dates)
+                ]
+              }
+            },
+            yAxis: %{
+              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+              axisLabel: %{color: "var:noora-surface-label-secondary"}
+            },
+            legend: %{show: false}
+          }
+        }
+        series={[
+          %{
+            name: dgettext("dashboard_cache", "Hits"),
+            data: @timeseries.result.reuses,
+            type: "bar",
+            color: "var:noora-chart-primary",
+            barMaxWidth: 18
+          }
+        ]}
+        y_axis_min={0}
+        grid_lines
+      />
+    </.card_section>
+
+    <.card_section
+      :if={@timeseries.ok? && @analytics_selected_widget == "misses"}
+      data-part="analytics-chart-section"
+    >
+      <.chart
+        id="modules-miss-reasons-chart"
+        type="bar"
+        extra_options={
+          %{
+            grid: %{width: "96%", left: "0.4%", right: "3%", height: "88%", top: "6%"},
+            tooltip: %{},
+            xAxis: %{
+              type: "category",
+              data: @miss_reasons_series.result.dates,
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  List.first(@miss_reasons_series.result.dates),
+                  List.last(@miss_reasons_series.result.dates)
+                ]
+              }
+            },
+            yAxis: %{
+              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+              axisLabel: %{color: "var:noora-surface-label-secondary"}
+            },
+            legend: %{show: false}
+          }
+        }
+        series={[
+          %{
+            name: dgettext("dashboard_cache", "Changed"),
+            data: @miss_reasons_series.result.changed,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-primary",
+            barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "Upstream"),
+            data: @miss_reasons_series.result.upstream,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-secondary",
+            barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "Cold"),
+            data: @miss_reasons_series.result.cold,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-tertiary",
+            barMaxWidth: 18
+          }
+        ]}
+        y_axis_min={0}
+        grid_lines
+      />
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_cache", "Modules")}
+    icon="apps"
+    data-part="modules-card"
+  >
+    <.card_section data-part="modules-table-section">
+      <div data-part="filters">
+        <form id="module-search-form" phx-change="search" phx-submit="search">
+          <.text_input
+            type="search"
+            id="module-search"
+            name="q"
+            value={@search}
+            placeholder={dgettext("dashboard_cache", "Search modules")}
+            show_suffix={false}
+            data-part="search"
+            phx-debounce="200"
+          />
+        </form>
+        <.dropdown
+          id="modules-sort-dropdown"
+          label={sort_label(@sort_by)}
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={value <- ~w(invalidations hit_rate blast_radius)}
+            value={value}
+            label={sort_label(value)}
+            patch={sort_dropdown_patch(@uri, value)}
+            data-selected={@sort_by == value}
+          >
+            <:right_icon :if={@sort_by == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+
+      <div :if={!@modules.ok?} data-part="skeleton">
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+        <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      </div>
+
+      <.empty_card_section
+        :if={@modules.ok? && Enum.empty?(@modules.result)}
+        title={dgettext("dashboard_cache", "No cache misses yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+
+      <%= if @modules.ok? && not Enum.empty?(@modules.result) do %>
+        <% filtered =
+          @modules.result |> sort_modules(@sort_by, @sort_order) |> filter_modules(@search) %>
+        <% page = page_of(filtered, @after_cursor, @before_cursor) %>
+        <.module_invalidations_table
+          :if={not Enum.empty?(page.rows)}
+          id="all-modules-table"
+          rows={page.rows}
+          sort_by={@sort_by}
+          sort_order={@sort_order}
+          sort_patch={fn column -> column_patch_sort(assigns, column) end}
+          row_navigate={
+            fn module ->
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
+            end
+          }
+        />
+        <.pagination
+          :if={not Enum.empty?(page.rows)}
+          uri={@uri}
+          has_previous_page={page.has_previous_page}
+          has_next_page={page.has_next_page}
+          start_cursor={page.start_cursor}
+          end_cursor={page.end_cursor}
+        />
+        <.empty_card_section
+          :if={Enum.empty?(filtered)}
+          title={dgettext("dashboard_cache", "No modules match your search")}
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

@@ -338,6 +338,7 @@ defmodule Tuist.Application do
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
+        shadow_ingest_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
@@ -396,6 +397,28 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp shadow_ingest_children do
+    if Environment.clickhouse_bare_metal_url() do
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp ops_clickhouse_children do

@@ -316,7 +316,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "keeps managed regions aligned with platform ingress classes and production node pools" do
       platform_values = read_repo_yaml("infra/helm/platform/values.yaml")
-      production_cluster = read_repo_yaml("infra/k8s/clusters/cluster-production.yaml")
+      production_cluster = read_repo_yaml("infra/k8s/clusters/workloads/production/cluster.yaml")
 
       platform_ingress_keys = %{
         "eu-central" => "kura-eu-central-ingress-nginx",
