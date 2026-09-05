@@ -462,6 +462,99 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Reconciliation-check telemetry absent entirely (Pushgateway reset or never scraped)`
 
+### Flux reconciliation stalled
+
+**Provisioned** in the `Infrastructure` folder as
+`Flux - reconciliation has stalled fleet-wide` (critical), paired with
+`Flux - telemetry missing from the management cluster`.
+
+Flux reconciles the workload `Cluster` resources from git
+(`infra/flux/mgmt/README.md`). A stalled reconciler breaks nothing at the
+moment it stalls; it stops correcting drift, so the fleet diverges from the
+repository silently and the next real change never lands.
+
+```promql
+sum(increase(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[1h]))
+```
+
+- Pending period: 10 minutes, firing below 1
+- Summary: `Flux has not completed any reconciliation in the last hour`
+
+Normal is roughly 120 per hour across the seven Kustomizations and the
+GitRepository.
+
+**Fleet total on purpose.** Suspending a single Kustomization is a normal
+operation, so a per-Kustomization version of this rule would page every time
+someone suspends one to fix git. This fires only when *all* reconciliation has
+stopped.
+
+**It cannot see a reconcile that runs and fails**, because the duration
+histogram counts failed reconciles too. That is the separate rule below.
+
+### Flux telemetry missing
+
+```promql
+absent_over_time(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[30m])
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux controller telemetry has stopped arriving from the management cluster`
+
+The stall rule compares a counter against a threshold, so if the controllers
+disappear the series goes with them, the comparison returns No Data, and No Data
+is Normal here. That leaves the most severe case invisible to it. This rule
+covers it.
+
+Note these metrics are collected by pod-annotation autodiscovery rather than an
+explicit scrape config, so a change to those annotations stops collection
+silently. This rule is what makes that loud.
+
+### Flux Kustomization not Ready
+
+**Not yet provisioned. Do not create it until the metric below exists** - a rule
+whose query matches nothing sits in No Data, renders as Normal, and is
+indistinguishable from a passing rule, which is the failure this whole section
+exists to avoid.
+
+Flux 2.9.5 exports `gotk_reconcile_duration_seconds_*` and `gotk_event_*` but
+**not** `gotk_reconcile_condition`, so nothing off the controllers says whether a
+reconcile *succeeded*. A Kustomization that fetches and then fails to apply on
+every interval is indistinguishable from a healthy one in the metrics above.
+
+The series comes from kube-state-metrics custom-resource-state, the same
+mechanism already producing `kube_customresource_kubeadmcontrolplane_*`,
+configured in `values-management.yaml`. Once it is flowing:
+
+```promql
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_status_condition{
+    cluster="tuist-management", type="Ready"
+  }
+)
+== 0
+unless
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_spec_suspend{cluster="tuist-management"}
+) == 1
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux Kustomization {{ $labels.kustomization }} has not applied cleanly`
+
+The `unless` clause excludes deliberately suspended Kustomizations, which keep
+whatever Ready condition they last had.
+
+Two things to check before creating the rule, both of which have silently killed
+a rule in this document before:
+
+- Confirm the query returns a series. Add `kube_customresource_kustomization_.*`
+  to `metricsTuning.includeMetrics` is already done, but that list is an
+  **allowlist**: anything not matched is dropped before it leaves the cluster.
+- Check the labels survived adaptive metrics. A brand-new metric has no query
+  usage, which is exactly what the recommender aggregates away, and this rule is
+  useless without `kustomization`. Query the bare metric: the error names every
+  aggregated label.
+
 ### Cluster API admission webhook failing (fleet-wide write freeze)
 
 The management cluster serves the CAPI/CAPH admission webhooks with a
