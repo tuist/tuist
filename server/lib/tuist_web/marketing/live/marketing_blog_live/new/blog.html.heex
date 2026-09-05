@@ -1,0 +1,201 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog" phx-hook="ScrollToTop" data-scroll-target='[data-part="filters-bar"]'>
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Blog")}</h1>
+
+      <div data-part="filters-bar" data-search-open={@search_open}>
+        <div data-part="categories">
+          <.link
+            patch={blog_href(nil, @search_query, 1, @view_mode)}
+            data-selected={is_nil(@selected_category)}
+            data-part="category"
+          >
+            {dgettext("marketing", "All")}
+          </.link>
+          <.link
+            :for={category <- Enum.reject(@categories, &is_nil/1)}
+            patch={blog_href(to_string(category), @search_query, 1, @view_mode)}
+            data-selected={@selected_category == to_string(category)}
+            data-part="category"
+          >
+            {category_label(category)}
+          </.link>
+        </div>
+
+        <%!-- Tab/mobile swap the pill row for a dropdown; it renders as a tray
+        with a modal scrim on phones (see css/new/routes/blog.css). --%>
+        <.dropdown
+          id="blog-category-select"
+          data-part="category-select"
+          size="large"
+          label={category_label(@selected_category)}
+        >
+          <.dropdown_item
+            value="all"
+            label={dgettext("marketing", "All")}
+            patch={blog_href(nil, @search_query, 1, @view_mode)}
+          />
+          <.dropdown_item
+            :for={category <- Enum.reject(@categories, &is_nil/1)}
+            value={to_string(category)}
+            label={category_label(category)}
+            patch={blog_href(to_string(category), @search_query, 1, @view_mode)}
+          />
+        </.dropdown>
+
+        <div data-part="actions">
+          <form phx-submit="search" phx-change="search">
+            <.text_input
+              id="blog-search"
+              name="search"
+              type="search"
+              placeholder={dgettext("marketing", "Search...")}
+              value={@search_query}
+              show_suffix={@search_open}
+            >
+              <:suffix>
+                <button
+                  type="button"
+                  data-part="clear-search"
+                  phx-click="close_search"
+                  aria-label={dgettext("marketing", "Clear search")}
+                >
+                  <.close />
+                </button>
+              </:suffix>
+            </.text_input>
+          </form>
+          <%!-- The compact search field is clipped to zero width rather than
+          removed, so this click can focus it before the server responds. --%>
+          <.button
+            data-part="search-toggle"
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            phx-click={JS.push("open_search") |> JS.focus(to: "#blog-search")}
+            aria-label={dgettext("marketing", "Search")}
+          >
+            <.search />
+          </.button>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/blog/rss.xml"}
+            aria-label={dgettext("marketing", "RSS feed")}
+          >
+            <.rss />
+          </.button>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/blog/atom.xml"}
+            aria-label={dgettext("marketing", "Atom feed")}
+          >
+            <.atom />
+          </.button>
+
+          <%!-- The hook mirrors the active view into a cookie, so the next
+          visit starts in it (see assets/marketing/js/hooks). --%>
+          <.button_group
+            id="blog-view-switcher"
+            phx-hook="BlogViewPreference"
+            data-view-mode={@view_mode}
+            size="large"
+            data-part="view-switcher"
+          >
+            <.button_group_item
+              icon_only={true}
+              patch={blog_href(@selected_category, @search_query, @current_page, "grid")}
+              data-selected={@view_mode == "grid"}
+              aria-label={dgettext("marketing", "Grid view")}
+            >
+              <.grid_dots />
+            </.button_group_item>
+            <.button_group_item
+              icon_only={true}
+              patch={blog_href(@selected_category, @search_query, @current_page, "list")}
+              data-selected={@view_mode == "list"}
+              aria-label={dgettext("marketing", "List view")}
+            >
+              <.menu_2 />
+            </.button_group_item>
+          </.button_group>
+        </div>
+      </div>
+    </header>
+
+    <section :if={@view_mode == "grid"} data-part="posts">
+      <.link
+        :for={post <- @filtered_posts}
+        data-part="post"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_href(post))}
+        target={if Content.external_link?(post), do: "_blank"}
+        rel={if Content.external_link?(post), do: "noopener noreferrer"}
+      >
+        <div data-part="cover">
+          <img
+            data-part="image"
+            src={TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+        <div data-part="content">
+          <h3 data-part="title">{Content.get_entry_title(post)}</h3>
+          <p data-part="excerpt">{Content.get_entry_excerpt(post)}</p>
+        </div>
+        <footer data-part="footer">
+          <div data-part="metadata">
+            <span data-part="author">{Content.get_entry_author_name(post)}</span>
+            <span data-part="separator" aria-hidden="true">•</span>
+            <span data-part="date">
+              {Timex.format!(Content.get_entry_date(post), "{Mfull} {D}, {YYYY}")}
+            </span>
+          </div>
+          <%!-- Wrapped because Noora's icon components raw-render their SVG and
+          drop any attributes passed to them, data-part included. --%>
+          <span data-part="icon">
+            <.arrow_right />
+          </span>
+        </footer>
+      </.link>
+      <%!-- Blank cells keep the grid's hairlines closed when the last page
+      doesn't fill its row (they collapse on the single-column layout). --%>
+      <span :for={_ <- 1..@row_fillers//1} data-part="filler" aria-hidden="true"></span>
+    </section>
+
+    <%!-- The list view reuses Noora's table cells (not a table): the class is
+    what scopes their styling, and the page frame replaces the table chrome. --%>
+    <section :if={@view_mode == "list"} data-part="list" class="noora-table">
+      <.link
+        :for={post <- @filtered_posts}
+        data-part="row"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_href(post))}
+        target={if Content.external_link?(post), do: "_blank"}
+        rel={if Content.external_link?(post), do: "noopener noreferrer"}
+      >
+        <.text_cell data-column="title" label={Content.get_entry_title(post)} />
+        <.tag_cell
+          :if={Content.get_entry_category(post)}
+          data-column="category"
+          label={post |> Content.get_entry_category() |> to_string() |> String.capitalize()}
+        />
+        <.text_cell
+          data-column="date"
+          label={Timex.format!(Content.get_entry_date(post), "{Mfull} {D}, {YYYY}")}
+        />
+      </.link>
+    </section>
+
+    <section :if={@total_pages > 1} data-part="pagination-control">
+      <.pagination_group
+        page_patch={&blog_href(@selected_category, @search_query, &1, @view_mode)}
+        current_page={@current_page}
+        number_of_pages={@total_pages}
+      />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

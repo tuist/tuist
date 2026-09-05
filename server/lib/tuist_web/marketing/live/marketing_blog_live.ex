@@ -8,18 +8,33 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Content
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
 
-  @posts_per_page 9
+  # Columns of the redesigned post grid on desktop, used to pad the last row
+  # with blank cells so its hairlines stay closed.
+  @grid_columns 3
+  # A card takes far more room than a list row, so each view gets the page size
+  # that fills a screen without a wall of scrolling.
+  @posts_per_page %{"grid" => 9, "list" => 20}
 
-  def mount(_params, _session, socket) do
+  embed_templates "marketing_blog_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (blog_new/1) distinct from the legacy blog/1.
+  embed_templates "marketing_blog_live/new/*", suffix: "_new"
+
+  def render(%{new_design: true} = assigns), do: blog_new(assigns)
+  def render(assigns), do: blog(assigns)
+
+  def mount(_params, session, socket) do
     all_entries = Content.get_entries(current_locale())
     structured_posts = Blog.get_posts()
 
     socket =
       socket
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :blog))
       |> assign(:categories, Content.get_entry_categories())
       |> assign(:search_query, "")
       |> assign(:selected_category, nil)
@@ -27,6 +42,13 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(:total_pages, 1)
       |> assign(:highlighted_post, List.first(all_entries))
       |> assign(:filtered_posts, [])
+      |> assign(:row_fillers, 0)
+      |> assign(:view_mode, "grid")
+      # The remembered view (cookie → session, see TuistWeb.Marketing
+      # .Preferences) applies to the first render only; from then on the URL
+      # carries the view, so toggling back to the grid isn't overridden by it.
+      |> assign(:remembered_view, session["blog_view"])
+      |> assign(:search_open, false)
       |> assign(:structured_posts, structured_posts)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
@@ -81,26 +103,41 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         Enum.filter(filtered_posts, &(Content.get_entry_category(&1) == category))
       end
 
+    # The redesigned page has no highlighted post above the grid, so the most
+    # recent entry stays in the grid there.
     filtered_posts =
-      Enum.reject(filtered_posts, fn post ->
-        Content.get_entry_slug(post) == Content.get_entry_slug(highlighted_post)
-      end)
+      if socket.assigns.new_design do
+        filtered_posts
+      else
+        Enum.reject(filtered_posts, fn post ->
+          Content.get_entry_slug(post) == Content.get_entry_slug(highlighted_post)
+        end)
+      end
 
     # Calculate pagination
+    view_mode = view_mode(params, socket.assigns[:remembered_view])
+    per_page = @posts_per_page[view_mode]
     total_posts = length(filtered_posts)
-    total_pages = max(ceil(total_posts / @posts_per_page), 1)
+    total_pages = max(ceil(total_posts / per_page), 1)
     page = min(max(page, 1), total_pages)
-    start_index = (page - 1) * @posts_per_page
-    paginated_posts = Enum.slice(filtered_posts, start_index, @posts_per_page)
+    start_index = (page - 1) * per_page
+    paginated_posts = Enum.slice(filtered_posts, start_index, per_page)
 
     socket =
       socket
       |> assign(:highlighted_post, highlighted_post)
       |> assign(:filtered_posts, paginated_posts)
+      |> assign(:row_fillers, rem(@grid_columns - rem(length(paginated_posts), @grid_columns), @grid_columns))
       |> assign(:search_query, search_query)
       |> assign(:selected_category, category)
       |> assign(:current_page, page)
       |> assign(:total_pages, total_pages)
+      |> assign(:view_mode, view_mode)
+      |> assign(:remembered_view, nil)
+      # Only ever opened here, never closed: deleting the last character of a
+      # query patches through this function, and collapsing the field mid-typing
+      # would be maddening. "close_search" is what closes it.
+      |> assign(:search_open, socket.assigns[:search_open] || search_query != "")
       |> assign(
         :head_image,
         Tuist.Environment.app_url(
@@ -132,32 +169,32 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   end
 
   def handle_event("search", %{"search" => search_query}, socket) do
-    # Reset pagination and category when searching
-    {:noreply, push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}", replace: true)}
+    # Reset pagination and category when searching, but stay in the same view.
+    {:noreply, push_patch(socket, to: blog_href(nil, search_query, 1, socket.assigns.view_mode), replace: true)}
   end
 
   def handle_event("select_category", %{"category" => category}, socket) do
     # Reset pagination and search when selecting category
-    {:noreply, push_patch(socket, to: "#{blog_path()}?category=#{URI.encode_www_form(category)}")}
+    {:noreply, push_patch(socket, to: blog_href(category, "", 1, socket.assigns.view_mode))}
   end
 
   def handle_event("page_change", %{"page" => page}, socket) do
-    params = []
+    %{search_query: search_query, selected_category: category, view_mode: view_mode} = socket.assigns
 
-    params =
-      if socket.assigns.search_query == "",
-        do: params,
-        else: ["search=#{URI.encode_www_form(socket.assigns.search_query)}" | params]
+    {:noreply, push_patch(socket, to: blog_href(category, search_query, page, view_mode))}
+  end
 
-    params =
-      if socket.assigns.selected_category,
-        do: ["category=#{socket.assigns.selected_category}" | params],
-        else: params
+  def handle_event("open_search", _params, socket) do
+    {:noreply, assign(socket, :search_open, true)}
+  end
 
-    params = ["page=#{page}" | params]
-    query_string = "?#{Enum.join(params, "&")}"
+  def handle_event("close_search", _params, socket) do
+    %{selected_category: category, view_mode: view_mode} = socket.assigns
 
-    {:noreply, push_patch(socket, to: "#{blog_path()}#{query_string}")}
+    {:noreply,
+     socket
+     |> assign(:search_open, false)
+     |> push_patch(to: blog_href(category, "", 1, view_mode))}
   end
 
   defp entry_image_url(entry) do
@@ -172,9 +209,34 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     Tuist.Environment.app_url(path: path, marketing: true)
   end
 
-  defp blog_path do
-    Localization.localized_href("/blog", current_locale())
+  defp category_label(nil), do: dgettext("marketing", "All")
+  defp category_label(category), do: category |> to_string() |> String.capitalize()
+
+  defp view_mode(params, remembered_view) do
+    case Map.get(params, "view") do
+      "list" -> "list"
+      "grid" -> "grid"
+      _ -> remembered_view || "grid"
+    end
   end
+
+  # Every filter, page and view link goes through here so switching one keeps
+  # the others: the whole state of the index lives in the query string.
+  defp blog_href(category, search, page, view) do
+    query =
+      [category: category, search: search, page: page, view: view]
+      |> Enum.reject(fn {key, value} -> default_param?(key, value) end)
+      |> Enum.map_join("&", fn {key, value} -> "#{key}=#{URI.encode_www_form(to_string(value))}" end)
+
+    path = if query == "", do: "/blog", else: "/blog?#{query}"
+
+    Localization.localized_href(path, current_locale())
+  end
+
+  defp default_param?(_key, value) when value in [nil, ""], do: true
+  defp default_param?(:page, page), do: page in [1, "1"]
+  defp default_param?(:view, view), do: view == "grid"
+  defp default_param?(_key, _value), do: false
 
   defp current_locale do
     Gettext.get_locale(TuistWeb.Gettext)
