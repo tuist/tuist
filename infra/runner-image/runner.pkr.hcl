@@ -127,7 +127,7 @@ variable "runner_version" {
   # renovate.json for the limits and the dependency dashboard that
   # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.336.0"
+  default = "2.337.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
