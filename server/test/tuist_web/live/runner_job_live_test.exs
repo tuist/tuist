@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -679,6 +680,76 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
     assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  describe "Buildkite jobs" do
+    defp buildkite_job!(account, workflow_run_id, job_name) do
+      {:ok, mapping} =
+        %Buildkite.Job{}
+        |> Buildkite.Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme",
+          pipeline_slug: "ios-app",
+          build_number: workflow_run_id,
+          queue_key: "tuist-macos"
+        })
+        |> Repo.insert(returning: true)
+
+      # `repository` holds the pipeline slug on this lane, exactly as
+      # `Buildkite.lifecycle_attrs/4` fills it.
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: mapping.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "ios-app",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "ios-app",
+          run_attempt: 1,
+          job_name: job_name,
+          head_branch: "main",
+          head_sha: ""
+        })
+
+      flush_outbox!()
+      mapping
+    end
+
+    test "links to the Buildkite build instead of a non-existent GitHub repository", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4821, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4821/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "https://buildkite.com/acme/ios-app/builds/4821"
+      # The GitHub deep link would be built from the pipeline slug and 404.
+      refute html =~ "https://github.com/ios-app"
+    end
+
+    test "omits the steps card, which this lane never populates", %{conn: conn, account: account} do
+      mapping = buildkite_job!(account, 4822, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4822/jobs/#{mapping.workflow_job_id}")
+
+      refute html =~ "Steps will appear here once the job finishes."
+    end
+
+    test "still offers insights, which resolve through the pipeline handle", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4823, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "Insights"
+    end
   end
 
   test "renders captured logs on mount", %{conn: conn, account: account} do
