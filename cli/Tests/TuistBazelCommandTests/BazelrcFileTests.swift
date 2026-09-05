@@ -22,7 +22,8 @@ struct BazelrcFileTests {
         // The credential helper is keyed by host, so moving the cache without
         // moving it too leaves Bazel unable to authenticate against the
         // endpoint it was just given.
-        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: rendered(), with: moved))
+        let existing = rendered().replacingOccurrences(of: "build --bes_timeout=10m", with: "build --bes_timeout=30s")
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: moved))
 
         #expect(rewritten.contains("build --remote_cache=grpcs://acme-ca-east-1.kura.tuist.dev"))
         #expect(
@@ -31,6 +32,9 @@ struct BazelrcFileTests {
             )
         )
         #expect(rewritten.contains("build --bes_backend=grpcs://acme-ca-east-1.kura.tuist.dev"))
+        #expect(rewritten.contains("build --bes_timeout=10m"))
+        #expect(!rewritten.contains("build --bes_timeout=30s"))
+        #expect(rewritten.contains("build --build_event_publish_all_actions"))
         #expect(!rewritten.contains("eu-central"))
     }
 
@@ -65,6 +69,37 @@ struct BazelrcFileTests {
         #expect(rewritten.contains("build --bes_backend=grpcs://acme-ca-east-1.kura.tuist.dev"))
         #expect(rewritten.contains("build --bes_header=x-tuist-account-handle=acme"))
         #expect(rewritten.contains("build --bes_header=x-tuist-project-handle=app"))
+        #expect(rewritten.contains("build --build_event_publish_all_actions"))
+    }
+
+    @Test func adds_bounded_event_settings_to_an_existing_build_event_service_configuration() throws {
+        let existing = rendered()
+            .replacingOccurrences(of: "build --bes_outerr_chunk_size=262144\n", with: "")
+            .replacingOccurrences(of: "build --build_event_max_named_set_of_file_entries=500\n", with: "")
+            .replacingOccurrences(of: "build --build_event_publish_all_actions\n", with: "")
+        let unchangedEndpoint = GRPCEndpoint(
+            host: "acme-eu-central-1.kura.tuist.dev",
+            explicitPort: nil,
+            isTLS: true
+        )
+
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: unchangedEndpoint))
+
+        #expect(rewritten.contains("build --bes_outerr_chunk_size=262144"))
+        #expect(rewritten.contains("build --build_event_max_named_set_of_file_entries=500"))
+        #expect(rewritten.contains("build --build_event_publish_all_actions"))
+    }
+
+    @Test func preserves_an_explicit_action_publication_opt_out() throws {
+        let existing = rendered().replacingOccurrences(
+            of: "build --build_event_publish_all_actions",
+            with: "common --build_event_publish_all_actions=false # Keep large builds lightweight"
+        )
+
+        let rewritten = BazelrcFile.replacingRemoteCache(in: existing, with: moved)
+
+        #expect(rewritten?.contains("common --build_event_publish_all_actions=false") == true)
+        #expect(rewritten?.contains("\nbuild --build_event_publish_all_actions") == false)
     }
 
     @Test func omits_build_event_service_settings_when_insights_are_disabled() throws {
@@ -79,6 +114,7 @@ struct BazelrcFileTests {
         )
 
         #expect(!contents.contains("--bes_"))
+        #expect(!contents.contains("--build_event_publish_all_actions"))
     }
 
     @Test func is_nothing_to_do_when_the_file_names_no_endpoint() throws {

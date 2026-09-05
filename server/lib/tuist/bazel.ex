@@ -15,8 +15,11 @@ defmodule Tuist.Bazel do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.Repo
+  alias Tuist.Tests.Sanitizer
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
+
+  def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
   def ingest_test_report(project, invocation, test_results, test_summaries) do
     TestReportIngestor.ingest(project, invocation, test_results, test_summaries)
@@ -37,6 +40,22 @@ defmodule Tuist.Bazel do
           git_branch: Map.get(invocation, :git_branch, ""),
           git_commit_sha: Map.get(invocation, :git_commit_sha, ""),
           is_ci: Map.get(invocation, :is_ci, false),
+          bazel_version: Map.get(invocation, :bazel_version, ""),
+          cpu_time_ms: Map.get(invocation, :cpu_time_ms, 0),
+          actions_created: Map.get(invocation, :actions_created, 0),
+          actions_executed: Map.get(invocation, :actions_executed, 0),
+          targets_configured: Map.get(invocation, :targets_configured, 0),
+          packages_loaded: Map.get(invocation, :packages_loaded, 0),
+          build_timeline_duration_ms: Map.get(invocation, :build_timeline_duration_ms, 0),
+          build_timeline_lanes: Map.get(invocation, :build_timeline_lanes, []),
+          build_timeline_span_lanes: Map.get(invocation, :build_timeline_span_lanes, []),
+          build_timeline_span_start_ms: Map.get(invocation, :build_timeline_span_start_ms, []),
+          build_timeline_span_durations_ms: Map.get(invocation, :build_timeline_span_durations_ms, []),
+          build_timeline_span_categories: Map.get(invocation, :build_timeline_span_categories, []),
+          build_timeline_span_descriptions: Map.get(invocation, :build_timeline_span_descriptions, []),
+          critical_path_duration_ms: Map.get(invocation, :critical_path_duration_ms, 0),
+          critical_path_action_descriptions: Map.get(invocation, :critical_path_action_descriptions, []),
+          critical_path_action_durations_ms: Map.get(invocation, :critical_path_action_durations_ms, []),
           status: invocation.status,
           exit_code: invocation.exit_code,
           started_at: invocation.started_at,
