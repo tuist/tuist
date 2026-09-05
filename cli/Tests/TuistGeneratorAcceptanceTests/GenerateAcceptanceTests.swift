@@ -123,13 +123,82 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         #expect(planReferences.first?.default == true)
         #expect(planReferences.last?.default == false)
 
-        // And: the generated JSON references the expected test targets
+        // And: the generated JSON contains every configured test-plan value.
         let unitPlanData = try Data(contentsOf: unitPlanPath.url)
         let unitPlanJSON = try #require(
             try JSONSerialization.jsonObject(with: unitPlanData) as? [String: Any]
         )
         let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
-        #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+        #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests", "DisabledTests"])
+        #expect(unitTargets[0]["parallelizable"] as? Bool == true)
+        #expect(unitTargets[0]["selectedTests"] as? [String] == ["AppTests/test_selected()"])
+        #expect(unitTargets[0]["skippedTests"] as? [String] == ["AppTests/test_skipped()"])
+        #expect(unitTargets[1]["enabled"] as? Bool == false)
+
+        let configurations = try #require(unitPlanJSON["configurations"] as? [[String: Any]])
+        #expect(configurations.compactMap { $0["name"] as? String } == ["Configuration 1", "Configuration 2"])
+        let firstConfigurationOptions = try #require(configurations[0]["options"] as? [String: Any])
+        let secondConfigurationOptions = try #require(configurations[1]["options"] as? [String: Any])
+        #expect(secondConfigurationOptions["testExecutionOrdering"] as? String == "alphabetical")
+        #expect(secondConfigurationOptions["testTimeoutsEnabled"] as? Bool == true)
+        let options = try #require(unitPlanJSON["defaultOptions"] as? [String: Any])
+        #expect(firstConfigurationOptions.isEmpty)
+        let coverage = try #require(options["codeCoverage"] as? [String: Any])
+        #expect(options["parallelizationMode"] as? String == "enabled")
+        #expect(options["testExecutionOrdering"] as? String == "random")
+        #expect(options["testRepetitionMode"] as? String == "retryOnFailure")
+        #expect(options["maximumTestRepetitions"] as? Int == 2)
+        #expect(options["repeatInNewRunnerProcess"] as? Bool == true)
+        #expect(options["testTimeoutsEnabled"] as? Bool == false)
+        #expect(options["defaultTestExecutionTimeAllowance"] as? Int == 60)
+        #expect(options["maximumTestExecutionTimeAllowance"] as? Int == 120)
+        #expect(options["userAttachmentLifetime"] as? String == "keepAlways")
+        #expect(options["uiTestingScreenshotsLifetime"] as? String == "keepNever")
+        #expect(options["areLocalizationScreenshotsEnabled"] as? Bool == true)
+        #expect(options["diagnosticCollectionPolicy"] as? String == "OnFailure")
+        #expect(options["distributor"] as? String == "com.apple.TestFlight")
+        #expect(options["language"] as? String == "en")
+        #expect(options["region"] as? String == "US")
+        #expect(options["preferredScreenCaptureFormat"] as? String == "screenshots")
+        #expect(options["mainThreadCheckerEnabled"] as? Bool == false)
+        #expect((options["runtimeIssueDetection"] as? [String: Any])?["severity"] as? String == "error")
+        #expect((options["mainThreadCheckerDetectionPolicy"] as? [String: Any])?["severity"] as? String == "error")
+        #expect(
+            (options["threadPerformanceCheckerRuntimeIssueDetection"] as? [String: Any])?["severity"] as? String == "error"
+        )
+        #expect((options["locationScenario"] as? [String: Any])?["identifier"] as? String == "Berlin, Germany")
+        #expect((options["locationScenario"] as? [String: Any])?["referenceType"] as? String == "built-in")
+
+        let arguments = try #require(options["commandLineArgumentEntries"] as? [[String: Any]])
+        #expect(arguments.first?["argument"] as? String == "-feature")
+        #expect(arguments.first?["enabled"] as? Bool == true)
+        let environmentVariables = try #require(options["environmentVariableEntries"] as? [[String: Any]])
+        #expect(environmentVariables.first?["key"] as? String == "FEATURE")
+        #expect(environmentVariables.first?["value"] as? String == "enabled")
+        #expect(environmentVariables.first?["enabled"] as? Bool == true)
+
+        let coverageTargets = try #require(coverage["targets"] as? [[String: Any]])
+        #expect(coverageTargets.first?["name"] as? String == "App")
+        #expect((options["targetForVariableExpansion"] as? [String: Any])?["name"] as? String == "App")
+
+        for configuration in configurations {
+            let name = try #require(configuration["name"] as? String)
+
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--test-plan",
+                    "UnitTests",
+                    "--filter-configurations",
+                    name,
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    try #require(FileSystem.temporaryTestDirectory).pathString,
+                ]
+            )
+        }
     }
 }
 

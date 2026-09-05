@@ -8,6 +8,7 @@ import XCTest
 final class ProjectLinterTests: XCTestCase {
     var targetLinter: MockTargetLinter!
     var schemeLinter: MockSchemeLinter!
+    var testPlanLinter: MockTestPlanLinter!
     var settingsLinter: MockSettingsLinter!
     var packageLinter: MockPackageLinter!
 
@@ -17,12 +18,14 @@ final class ProjectLinterTests: XCTestCase {
         super.setUp()
         targetLinter = MockTargetLinter()
         schemeLinter = MockSchemeLinter()
+        testPlanLinter = MockTestPlanLinter()
         settingsLinter = MockSettingsLinter()
         packageLinter = MockPackageLinter()
         subject = ProjectLinter(
             targetLinter: targetLinter,
             settingsLinter: settingsLinter,
             schemeLinter: schemeLinter,
+            testPlanLinter: testPlanLinter,
             packageLinter: packageLinter
         )
     }
@@ -31,6 +34,7 @@ final class ProjectLinterTests: XCTestCase {
         subject = nil
         settingsLinter = nil
         schemeLinter = nil
+        testPlanLinter = nil
         targetLinter = nil
         packageLinter = nil
         super.tearDown()
@@ -52,5 +56,19 @@ final class ProjectLinterTests: XCTestCase {
 
         // Then
         XCTAssertTrue(got.isEmpty)
+    }
+
+    func test_lint_includes_test_plan_linter_issues() async throws {
+        // Given
+        let project = Project.test()
+        let expectedIssue = LintingIssue(reason: "Test plan issue", severity: .error)
+        testPlanLinter.issues = [expectedIssue]
+
+        // When
+        let got = try await subject.lint(project)
+
+        // Then
+        XCTAssertEqual(got, [expectedIssue])
+        XCTAssertEqual(testPlanLinter.lintedProjects.count, 1)
     }
 }

@@ -41,7 +41,9 @@ extension XcodeGraph.TestableTarget {
             skipped: manifest.isSkipped,
             parallelization: parallelization,
             randomExecutionOrdering: manifest.isRandomExecutionOrdering,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            selectedTests: manifest.selectedTests,
+            skippedTests: manifest.skippedTests
         )
     }
 }
