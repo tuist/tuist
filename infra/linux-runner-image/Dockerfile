@@ -230,7 +230,7 @@ RUN apt-get update \
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=1.36.1
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.2.0
+ARG HELM_VERSION=4.2.4
 # renovate: datasource=github-releases depName=cli/cli
 ARG GH_VERSION=2.97.0
 RUN ARCH="$(dpkg --print-architecture)" \
