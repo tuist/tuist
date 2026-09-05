@@ -327,28 +327,37 @@ absent_over_time(
 Servers with no owning CAPI `Machine`, from the `reconciliation-checks`
 CronJob (`infra/k8s/mgmt/reconciliation-checks.yaml`).
 
+The check emits one series per offending server, so the alert names it rather
+than reporting a bare count. This cluster's own nodes are excluded — the
+management cluster does not self-manage, so its VM has no owning `Machine`.
+
 ```promql
-max by (cluster) (
-  capi_reconciliation_orphan_servers{cluster="tuist-management"}
+max by (cluster, id, name) (
+  capi_reconciliation_orphan_server{cluster="tuist-management"}
 ) > 0
 ```
 
 - Pending period: 15 minutes
-- Summary: `{{ $value }} Hetzner server(s) have no owning CAPI Machine`
+- Summary: `Hetzner server {{ $labels.name }} (id {{ $labels.id }}) has no owning CAPI Machine — billed but untracked`
 
 ### Cluster removed from git still live
 
 Live `Cluster` objects absent from git — the never-prune blind spot the
 Hetzner orphan check misses (their servers still have valid `Machine` owners).
 
+Only Clusters that Flux has actually managed are considered: membership is read
+from the `kustomize.toolkit.fluxcd.io/name` label, so Clusters owned by
+`mgmt-cluster-apply.yml` (preview, pentest, any future flat `cluster-*.yaml`)
+are never counted and no exclusion list has to be maintained.
+
 ```promql
-max by (cluster) (
-  capi_reconciliation_stale_clusters{cluster="tuist-management"}
+max by (cluster, name) (
+  capi_reconciliation_stale_cluster{cluster="tuist-management"}
 ) > 0
 ```
 
 - Pending period: 15 minutes
-- Summary: `{{ $value }} live Cluster(s) are absent from git (stale)`
+- Summary: `Cluster {{ $labels.name }} is live but no longer in git — remove it deliberately (see infra/flux/mgmt/README.md) or restore the manifest`
 
 ### Reconciliation checks stopped running
 
@@ -367,8 +376,12 @@ time() - max by (cluster) (
 - Summary: `Orphan-server / stale-cluster checks have not completed for {{ $value | humanizeDuration }} (CronJob failing, or Pushgateway lost its store)`
 
 Threshold is 3× the 30-minute schedule, so a single missed run does not page.
-The companion `absent_over_time(...)` on the same series still catches the
-distinct case where the Pushgateway is redeployed and comes back empty:
+
+The Pushgateway store is deliberately ephemeral (no persistence file — it would
+sit on an `emptyDir` and be wiped on restart anyway). After a bounce the series
+are simply absent until the next run, at most 30 minutes later, which is well
+inside the 1-hour window below — so a restart plus one missed run does not page
+on healthy reconciliation:
 
 ```promql
 absent_over_time(

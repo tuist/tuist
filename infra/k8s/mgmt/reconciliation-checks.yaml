@@ -2,17 +2,22 @@
 # Decision 7), both alerting via Pillar 2:
 #
 #   (a) Orphan servers — Hetzner Cloud servers with no owning CAPI Machine
-#       (billed but untracked). Reads the Cloud API token from the existing
+#       (billed but untracked), excluding this cluster's own nodes: the mgmt
+#       cluster does not self-manage, so its VM has no Machine and would be
+#       reported every run. Reads the Cloud API token from the existing
 #       org-tuist/hetzner Secret; nothing leaves the cluster (a CI job would
 #       copy the Hetzner credential out).
-#   (b) Stale clusters — live Cluster objects that Flux no longer manages
-#       (removed from git but still running under CAPI with valid Machine
-#       owners, so the orphan check can't see them). "Managed by Flux" is
-#       read straight from the Flux Kustomization inventories, so the check
-#       stays correct with no separate list to maintain. `tuist-preview` and
-#       `tuist-pentest` are excluded — they are git-managed outside Flux by
-#       mgmt-cluster-apply.yml, so they never appear in a Flux inventory and
-#       would otherwise report as permanently stale.
+#   (b) Stale clusters — Clusters that Flux HAS managed but that are no longer
+#       in any Kustomization inventory (removed from git but still running
+#       under CAPI with valid Machine owners, so the orphan check can't see
+#       them). Both membership tests are derived, not listed: inventory comes
+#       from the Flux Kustomizations, and non-Flux Clusters are recognised by
+#       the absence of the kustomize.toolkit.fluxcd.io/name label rather than
+#       an exclusion list that rots when another flat cluster-*.yaml is added.
+#
+# Both checks emit a per-resource series alongside the count, so an alert can
+# name the offending server or cluster instead of sending on-call to
+# break-glass to find out which one it is.
 #
 # A CronJob can't be scraped directly, so it pushes two gauges to a tiny
 # Pushgateway that alloy-metrics scrapes (annotationAutodiscovery) into
@@ -89,8 +94,11 @@ spec:
       containers:
         - name: pushgateway
           image: prom/pushgateway:v1.10.0
-          args:
-            - --persistence.file=/tmp/pushgateway.store
+          # No --persistence.file: it would sit on the emptyDir below and be
+          # wiped on every restart anyway, implying a durability that does not
+          # exist. The store is intentionally ephemeral — the CronJob repopulates
+          # it every 30m, and the alert windows in alerts.md are sized so a
+          # bounce plus one missed run does not page.
           ports:
             - name: metrics
               containerPort: 9091
@@ -151,8 +159,11 @@ spec:
               type: RuntimeDefault
           containers:
             - name: check
-              # kubectl + jq + curl.
-              image: alpine/k8s:1.31.2
+              # kubectl + jq + curl. Pinned within N-1 of the mgmt
+              # cluster (1.36): an out-of-skew kubectl can parse a
+              # newer CAPI kind into nothing, and both checks would
+              # then report 0 — the exact blindness they exist to catch.
+              image: alpine/k8s:1.36.4
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -173,14 +184,20 @@ spec:
                 - |
                   set -euo pipefail
 
-                  # (a) Orphan Hetzner Cloud servers: every server id in the
-                  # project, minus every id owned by a CAPI Machine.
+                  # (a) Orphan Hetzner Cloud servers: every server in the
+                  # project, minus those owned by a CAPI Machine, minus the
+                  # nodes of THIS cluster. The management cluster does not
+                  # self-manage — its own VM is a Hetzner server with no owning
+                  # Machine — so without the last term it is reported as an
+                  # orphan on every run and the alert fires forever. Derived
+                  # from this cluster's own Node providerIDs rather than a
+                  # hardcoded id, so a rebuilt mgmt VM stays covered.
                   page=1
                   server_ids=""
                   while :; do
                     resp=$(curl -sf -H "Authorization: Bearer $HCLOUD_TOKEN" \
                       "https://api.hetzner.cloud/v1/servers?per_page=50&page=$page")
-                    server_ids="$server_ids $(echo "$resp" | jq -r '.servers[].id')"
+                    server_ids="$server_ids $(echo "$resp" | jq -r '.servers[] | "\(.id) \(.name)"' | tr ' ' '~')"
                     next=$(echo "$resp" | jq -r '.meta.pagination.next_page // empty')
                     [ -z "$next" ] && break
                     page=$next
@@ -188,26 +205,44 @@ spec:
                   owned=$(kubectl get machines.cluster.x-k8s.io -A -o json \
                     | jq -r '.items[].spec.providerID // empty' \
                     | sed -n 's#^hcloud://##p')
+                  self=$(kubectl get nodes -o json \
+                    | jq -r '.items[].spec.providerID // empty' \
+                    | sed -n 's#^hcloud://##p')
                   orphans=0
-                  for id in $server_ids; do
-                    echo "$owned" | grep -qx "$id" || orphans=$((orphans + 1))
+                  orphan_series=""
+                  for entry in $server_ids; do
+                    id=${entry%%~*}
+                    name=${entry#*~}
+                    echo "$owned" | grep -qx "$id" && continue
+                    echo "$self"  | grep -qx "$id" && continue
+                    orphans=$((orphans + 1))
+                    # One series per offender so the alert annotation can name
+                    # it; a bare count forces on-call to break-glass to find out
+                    # which server is unaccounted for.
+                    orphan_series="${orphan_series}capi_reconciliation_orphan_server{id=\"$id\",name=\"$name\"} 1\n"
                   done
 
-                  # (b) Stale clusters: live Clusters not in any Flux
-                  # Kustomization inventory (i.e. removed from git but still
-                  # running). Clusters that are git-managed OUTSIDE Flux by
-                  # mgmt-cluster-apply.yml are never in that inventory, so they
-                  # must be excluded or they report as permanently stale. Keep
-                  # this in step with the flat clusters/cluster-*.yaml set.
+                  # (b) Stale clusters: Clusters that Flux HAS managed but that
+                  # are no longer in any Kustomization inventory (removed from
+                  # git while still running). Membership is derived from the
+                  # Flux ownership label rather than an exclusion list: objects
+                  # applied by a Kustomization carry
+                  # kustomize.toolkit.fluxcd.io/name, and Clusters owned by
+                  # mgmt-cluster-apply.yml (preview, pentest, and any future
+                  # flat cluster-*.yaml) never do. A hardcoded exclusion list
+                  # silently rots the moment another non-Flux cluster is added.
                   git_clusters=$(kubectl get kustomizations.kustomize.toolkit.fluxcd.io \
                     -n flux-system -o json \
                     | jq -r '.items[].status.inventory.entries[]?.id' \
                     | awk -F_ '$3 == "cluster.x-k8s.io" && $4 == "Cluster" { print $2 }')
                   stale=0
+                  stale_series=""
                   for c in $(kubectl get clusters.cluster.x-k8s.io -A \
+                      -l kustomize.toolkit.fluxcd.io/name \
                       -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
-                    case "$c" in tuist-preview|tuist-pentest) continue ;; esac
-                    echo "$git_clusters" | grep -qx "$c" || stale=$((stale + 1))
+                    echo "$git_clusters" | grep -qx "$c" && continue
+                    stale=$((stale + 1))
+                    stale_series="${stale_series}capi_reconciliation_stale_cluster{name=\"$c\"} 1\n"
                   done
 
                   echo "orphan_servers=$orphans stale_clusters=$stale"
@@ -217,7 +252,16 @@ spec:
                   # last values indefinitely, so `absent()`/`absent_over_time()`
                   # can never fire. Alerting is on the age of this stamp instead
                   # (see alerts.md).
-                  printf '# TYPE capi_reconciliation_orphan_servers gauge\ncapi_reconciliation_orphan_servers %s\n# TYPE capi_reconciliation_stale_clusters gauge\ncapi_reconciliation_stale_clusters %s\n# TYPE capi_reconciliation_last_success_timestamp_seconds gauge\ncapi_reconciliation_last_success_timestamp_seconds %s\n' \
-                    "$orphans" "$stale" "$(date +%s)" \
-                    | curl -sf --data-binary @- \
+                  #
+                  # PUT, not POST: POST only replaces metrics of the same name
+                  # within the group, so a per-resource series pushed once (an
+                  # orphan that has since been cleaned up) would be served
+                  # forever and alert indefinitely. PUT replaces the whole group,
+                  # so resolved offenders disappear on the next run.
+                  {
+                    printf '# TYPE capi_reconciliation_orphan_servers gauge\ncapi_reconciliation_orphan_servers %s\n# TYPE capi_reconciliation_stale_clusters gauge\ncapi_reconciliation_stale_clusters %s\n# TYPE capi_reconciliation_last_success_timestamp_seconds gauge\ncapi_reconciliation_last_success_timestamp_seconds %s\n' \
+                      "$orphans" "$stale" "$(date +%s)"
+                    printf '# TYPE capi_reconciliation_orphan_server gauge\n%b' "$orphan_series"
+                    printf '# TYPE capi_reconciliation_stale_cluster gauge\n%b' "$stale_series"
+                  } | curl -sf -X PUT --data-binary @- \
                       "$PUSHGW/metrics/job/reconciliation-checks"

@@ -102,8 +102,18 @@ jobs:
           set -uo pipefail
           base="${{ github.event.pull_request.base.sha }}"
           # Cluster subdirs with changes in this PR.
-          changed=$(git diff --name-only "$base"...HEAD -- infra/k8s/clusters/workloads \
-            | sed -n 's#^infra/k8s/clusters/workloads/\([^/]*\)/.*#\1#p' | sort -u)
+          # Derive the affected clusters from BOTH watched paths. This job
+          # also triggers on infra/flux/mgmt/cluster-*.yaml, and a PR that only
+          # edits a Kustomization CR (flipping force:, dropping the health gate)
+          # changes reconciliation behaviour just as much as editing the Cluster
+          # CR — reporting "no manifests changed" there invites an approval on
+          # the belief that nothing shipped.
+          changed=$( {
+            git diff --name-only "$base"...HEAD -- infra/k8s/clusters/workloads \
+              | sed -n 's#^infra/k8s/clusters/workloads/\([^/]*\)/.*#\1#p'
+            git diff --name-only "$base"...HEAD -- infra/flux/mgmt \
+              | sed -n 's#^infra/flux/mgmt/cluster-\(.*\)\.yaml$#\1#p'
+          } | sort -u)
           out="$(mktemp)"
           failed="$(mktemp)"
           if [ -z "$changed" ]; then
@@ -124,7 +134,10 @@ jobs:
               step_out="$(mktemp)"
               flux diff kustomization "cluster-$c" --path="./$dir" >"$step_out" 2>&1 || true
               cat "$step_out" >> "$out"
-              if grep -qiE 'forbidden|is not authorized|no matches for kind|failed to|unable to|connection refused|unauthorized' "$step_out"; then
+              # These are the shapes a real failure takes, as opposed to
+              # "there is a diff". Missing them is how a job that never reached
+              # the cluster renders as a clean, empty code fence.
+              if grep -qiE 'forbidden|is not authorized|unauthorized|not found|no matches for kind|could not find the requested resource|context deadline exceeded|connection refused|no such host|i/o timeout|failed to|unable to|error:' "$step_out"; then
                 echo "$c" >> "$failed"
               fi
               echo '```' >> "$out"

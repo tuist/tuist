@@ -64,10 +64,18 @@ is what activates reconciliation.
 `flux-system/` (`gotk-components.yaml`, `gotk-sync.yaml`, `kustomization.yaml`)
 is **already committed here**, generated with `flux install --export` at the
 pinned version below using bootstrap's default component set
-(source / kustomize / helm / notification controllers). `flux bootstrap` is
-idempotent: it adopts those files rather than rewriting them, provided you run
-the same version. Keep it in step with the `fluxcd/flux2/action` pin in
-`.github/workflows/flux-diff.yml` so CI and the cluster agree.
+(source / kustomize / helm / notification controllers). Keep that version in
+step with the `fluxcd/flux2/action` pin in `.github/workflows/flux-diff.yml` so
+CI and the cluster agree.
+
+**`flux bootstrap` rewrites `gotk-sync.yaml` from its CLI flags on every run**,
+and 2.9.5 has no flag for the GitRepository provider — so a re-bootstrap strips
+`spec.provider: github`, source-controller falls back to reading the
+`flux-system` Secret as basic auth, ignores the ESO-synced App fields, and
+reconciliation dies quietly once the bootstrap PAT expires. `kustomization.yaml`
+therefore re-asserts the provider as a patch; that file is what Flux builds, so
+the setting survives a rewrite. **Verify it after every bootstrap** (below) —
+this is the one thing a re-bootstrap can silently regress.
 
 Pre-flight first — it is non-mutating and confirms the cluster can host Flux:
 
@@ -119,11 +127,18 @@ The root Kustomization in `gotk-sync.yaml` (path `./infra/flux/mgmt`) then
 reconciles the per-cluster `Kustomization` CRs in this directory, and Flux
 tracks and upgrades itself from git thereafter.
 
-Verify — expect `flux-system` Ready plus one Kustomization per cluster:
+Verify — expect `flux-system` Ready plus one Kustomization per cluster, and
+confirm the provider survived the bootstrap rewrite:
 
 ```bash
 flux check && flux get kustomizations -A
+kubectl -n flux-system get gitrepository flux-system \
+  -o jsonpath='{.spec.provider}{"\n"}'   # must print: github
 ```
+
+If that prints empty, the bootstrap rewrite won and the kustomize patch did not
+apply — fix it before the PAT expires, or source auth will fail with no obvious
+signal.
 
 ### Harden the source (optional, after bootstrap)
 
@@ -142,12 +157,16 @@ Two cautions before adding one:
   re-included once a parent directory is excluded. Each level has to be
   re-opened (`/*`, `!/infra`, `/infra/*`, `!/infra/k8s`, …).
 
-The straightforward version, enumerating what must never be reconciled:
+Add it as a patch in `kustomization.yaml`, next to the provider one — **not**
+directly in `gotk-sync.yaml`, which `flux bootstrap` rewrites:
 
 ```yaml
-# infra/flux/mgmt/flux-system/gotk-sync.yaml — GitRepository spec:
-spec:
-  ignore: |
+# infra/flux/mgmt/flux-system/kustomization.yaml — additional patch:
+#   - target: {kind: GitRepository, name: flux-system}
+#     patch: |
+#       - op: add
+#         path: /spec/ignore
+#         value: |
     /infra/k8s/clusters/clusterclass-tuist.yaml
     /infra/k8s/clusters/bare-metal*.yaml
     /infra/k8s/clusters/machinedrainrules.yaml

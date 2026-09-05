@@ -163,7 +163,12 @@ spec:
       - apiGroups: ["cluster.x-k8s.io"]
         apiVersions: ["*"]
         operations: ["CREATE", "UPDATE"]
-        resources: ["clusters"]
+        # Deliberately broader than the Role above. If the Role is ever widened
+        # (a subresource like clusters/status to make `flux diff` behave better,
+        # or another kind), a policy scoped to exactly `clusters` would let those
+        # non-dry-run writes slip past admission. Matching the whole group keeps
+        # the guard ahead of the grant instead of trailing it.
+        resources: ["*"]
   matchConditions:
     - name: only-the-flux-diff-identity
       expression: "request.userInfo.username == 'system:serviceaccount:org-tuist:flux-diff'"
