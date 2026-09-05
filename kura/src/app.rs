@@ -221,6 +221,8 @@ async fn run_with_config(
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -239,6 +241,7 @@ async fn run_with_config(
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -295,6 +298,7 @@ async fn run_with_config(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -624,6 +628,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.outbox_messages,
                             snapshot.outbox_bulk_messages,
                         );
+                        state
+                            .metrics
+                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics
@@ -1187,6 +1194,7 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    state.rebuild_replication_targets().await;
     Ok(())
 }
 

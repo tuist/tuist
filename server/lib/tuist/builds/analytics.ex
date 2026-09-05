@@ -2293,6 +2293,7 @@ defmodule Tuist.Builds.Analytics do
       %{project_id: project_id, start: start_datetime, end: end_datetime, limit: limit}
       |> Map.merge(filter_params)
       |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT name, product, appearances, invalidations, self_changes, dependency_induced
@@ -2334,7 +2335,7 @@ defmodule Tuist.Builds.Analytics do
           WHERE e.project_id = {project_id:Int64}
             AND e.ran_at >= {start:DateTime64(6)}
             AND e.ran_at <= {end:DateTime64(6)}
-            AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
+            AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
         )
         WINDOW w AS (
           PARTITION BY name, product, branch
@@ -2391,7 +2392,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql_e2, _} = module_invalidation_filters(opts, "e2")
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     # Grouping over the window would keep a module that newer builds no longer
     # contain, so the graph is read from the newest commit that carries edges.
@@ -2410,7 +2413,7 @@ defmodule Tuist.Builds.Analytics do
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
-        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     )
     WHERE commit = (
       SELECT argMax(coalesce(nullIf(e2.git_commit_sha, ''), toString(e2.id)), e2.ran_at)
@@ -2420,7 +2423,7 @@ defmodule Tuist.Builds.Analytics do
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND xt2.binary_cache_hash IS NOT NULL
-        AND notEmpty(xt2.dependencies)#{filter_sql_e2}
+        AND notEmpty(xt2.dependencies)#{filter_sql_e2}#{xcode_target_pruning("xt2")}
     )
     GROUP BY name
     """
@@ -2583,6 +2586,7 @@ defmodule Tuist.Builds.Analytics do
       |> Map.merge(reason_params)
       |> Map.merge(commit_params)
       |> Map.merge(cursor_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
@@ -2636,7 +2640,7 @@ defmodule Tuist.Builds.Analytics do
           WHERE e.project_id = {project_id:Int64}
             AND e.ran_at >= {start:DateTime64(6)}
             AND e.ran_at <= {end:DateTime64(6)}
-            AND xt.binary_cache_hash IS NOT NULL
+            AND xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning()}
             AND xt.name = {name:String}#{filter_sql}
         )
         WINDOW w AS (
@@ -2784,7 +2788,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
@@ -2795,7 +2801,7 @@ defmodule Tuist.Builds.Analytics do
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     GROUP BY day
     ORDER BY day
     """
@@ -2841,10 +2847,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql_e2, _} = module_invalidation_filters(Keyword.delete(opts, :git_branch), "e2")
 
     params =
-      Map.merge(
-        %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime},
-        filter_params
-      )
+      %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     # A commit is usually built more than once, so count across every build of
     # it rather than picking one. A build that reports no commit sha falls back
@@ -2862,7 +2867,7 @@ defmodule Tuist.Builds.Analytics do
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
         AND e.git_branch = {branch:String}
-        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     )
     WHERE commit = (
       SELECT argMax(#{String.replace(commit_key, "%{alias}", "e2")}, e2.ran_at)
@@ -2872,7 +2877,7 @@ defmodule Tuist.Builds.Analytics do
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND e2.git_branch = {branch:String}
-        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}
+        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}#{xcode_target_pruning("xt2")}
     )
     """
 
@@ -2904,6 +2909,27 @@ defmodule Tuist.Builds.Analytics do
       edges when map_size(edges) == 0 -> nil
       edges -> edges |> reverse_edges() |> then(&downstream_dependents(name, &1)) |> MapSet.size()
     end
+  end
+
+  # xcode_targets_by_project is ordered by (project_id, name, inserted_at) and
+  # partitioned by day of inserted_at, so these predicates turn every scan into
+  # a range over one project's rows in the queried days. inserted_at is the
+  # ingestion time, bounded the way Tuist.Xcode already bounds it; measured lag
+  # in production is p99 17 minutes.
+  @xcode_target_ingest_lead 300
+  @xcode_target_ingest_lag 7200
+
+  defp xcode_target_pruning(alias_name \\ "xt") do
+    " AND #{alias_name}.project_id = {project_id:Int64}" <>
+      " AND #{alias_name}.inserted_at >= {targets_start:DateTime64(6)}" <>
+      " AND #{alias_name}.inserted_at <= {targets_end:DateTime64(6)}"
+  end
+
+  defp xcode_target_pruning_params(start_datetime, end_datetime) do
+    %{
+      targets_start: DateTime.add(start_datetime, -@xcode_target_ingest_lead, :second),
+      targets_end: DateTime.add(end_datetime, @xcode_target_ingest_lag, :second)
+    }
   end
 
   defp module_invalidation_filters(opts, alias_name \\ "e") do
@@ -2954,6 +2980,7 @@ defmodule Tuist.Builds.Analytics do
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
@@ -2965,7 +2992,7 @@ defmodule Tuist.Builds.Analytics do
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
     GROUP BY day
     ORDER BY day
     """
@@ -3018,6 +3045,7 @@ defmodule Tuist.Builds.Analytics do
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
@@ -3056,7 +3084,7 @@ defmodule Tuist.Builds.Analytics do
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
-          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
+          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
       )
       WINDOW w AS (
         PARTITION BY name, product, branch
@@ -3112,7 +3140,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
@@ -3127,7 +3157,7 @@ defmodule Tuist.Builds.Analytics do
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     GROUP BY day, name
     ORDER BY day
     """
