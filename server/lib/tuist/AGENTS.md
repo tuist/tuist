@@ -10,6 +10,10 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
+  Its query options suppress application SQL logging without overriding managed
+  ClickHouse logging policy; server password masking requires valid dictionary DDL.
+
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
 

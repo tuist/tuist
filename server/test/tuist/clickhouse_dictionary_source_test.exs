@@ -23,6 +23,13 @@ defmodule Tuist.ClickHouseDictionarySourceTest do
     def config, do: [username: "tuist"]
   end
 
+  test "query options suppress application logging without overriding server logging policy" do
+    opts = ClickHouseDictionarySource.query_opts()
+
+    assert opts[:log] == false
+    refute Keyword.has_key?(Keyword.get(opts, :settings, []), :log_queries)
+  end
+
   describe "local_query/2" do
     test "carries the credentials the repo itself connects with" do
       assert ClickHouseDictionarySource.local_query(AuthenticatedRepo, "SELECT id, project_id FROM command_events") ==
