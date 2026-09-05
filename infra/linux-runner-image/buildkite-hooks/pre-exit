@@ -122,18 +122,17 @@ report_finish() {
   # so shipping a large log does not inflate what the customer is charged
   # for.
   #
-  # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone, so a
-  # post-command or artifact hook that fails the job would otherwise be
-  # reported as a success. BUILDKITE_LAST_HOOK_EXIT_STATUS carries the
-  # exit code of the hook that ran before this one, and the agent runs the
-  # global pre-exit hook last (plugin, then repository, then agent), so
-  # between them they cover the phases that can fail a job after the
-  # command.
+  # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone.
+  # BUILDKITE_LAST_HOOK_EXIT_STATUS is the exit status of the hook that
+  # ran immediately before this one, and the agent resets it as each hook
+  # completes, so it adds at most the last post-command hook's failure.
   #
-  # Neither is Buildkite's own final verdict — the agent alone cannot know
-  # it, and reading it back would mean asking customers for a REST API
-  # token far broader than the cluster token this integration needs. A job
-  # failed only by something after this hook will still read as passing.
+  # The agent runs pre-exit hooks global first, then the repository's,
+  # then the plugins', so this hook cannot see a failure raised only by
+  # one of those; such a job is reported here as passing. Buildkite's own
+  # verdict is out of reach for a stack: the Stacks API exposes a job's
+  # state but not its exit status, and the REST API would need a token
+  # far broader than the cluster token this integration asks for.
   exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
   if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
      && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then

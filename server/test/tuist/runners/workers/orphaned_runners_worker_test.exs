@@ -6,6 +6,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -34,7 +35,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       claimed_at: Keyword.get(opts, :claimed_at, ~U[2026-05-16 21:14:06.616167Z]),
       started_at: Keyword.get(opts, :started_at, ~U[2026-05-16 21:14:07.711527Z]),
       pod_name: Keyword.get(opts, :pod_name, "pod-1"),
-      fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6")
+      fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6"),
+      provider: Keyword.get(opts, :provider, "github")
     }
   end
 
@@ -376,6 +378,39 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       stub(Claims, :executing?, fn _wfid -> true end)
 
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "asks Buildkite, not GitHub, about a Buildkite row" do
+      # The surrogate id is unknown to GitHub, whose 404 would read as
+      # "pruned" and complete a job that may still be running.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, provider: "buildkite", workflow_job_id: 1_000_000_000_000_042)
+
+      expect(Jobs, :list_orphaned_running, fn _ -> [orphan] end)
+      expect(Buildkite, :orphan_status, fn ^orphan -> {:ok, {"completed", "cancelled"}} end)
+      reject(&Tuist.VCS.get_github_app_installation_for_account/1)
+      reject(&GitHubClient.get_workflow_job/3)
+
+      expect(Claims, :complete, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :complete, fn _wfid, "cancelled" -> {:ok, %{}} end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a Buildkite row alone while an agent holds the job" do
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, provider: "buildkite", workflow_job_id: 1_000_000_000_000_043)
+
+      expect(Jobs, :list_orphaned_running, fn _ -> [orphan] end)
+      expect(Buildkite, :orphan_status, fn _orphan -> {:ok, {"in_progress", ""}} end)
+      reject(&Jobs.complete/2)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})

@@ -511,7 +511,8 @@ defmodule Tuist.Runners.WorkflowJobs do
     :claimed_at,
     :started_at,
     :pod_name,
-    :fleet_name
+    :fleet_name,
+    :provider
   ]
 
   defp orphan_fields, do: @orphan_fields

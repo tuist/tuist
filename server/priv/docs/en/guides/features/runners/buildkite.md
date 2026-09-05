@@ -34,6 +34,8 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 
 Tuist begins watching the cluster within a minute.
 
+To change the organization or rotate the token later, edit the fields on the card and choose **Save changes**. Leaving the token blank keeps the current one.
+
 ## Name a queue after a profile {#name-a-queue-after-a-profile}
 
 A Buildkite job says where it wants to run with a queue, and a Tuist runner <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> describes what it runs on. Tuist connects the two by name: a job is picked up when its queue key matches a profile's label.

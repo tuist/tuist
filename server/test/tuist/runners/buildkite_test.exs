@@ -502,6 +502,50 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
   end
 
+  describe "orphan_status/1" do
+    setup %{installation: installation, queue_key: queue_key, account: account} do
+      job = scheduled_job(%{queue_key: queue_key})
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: [job], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+      assert {:ok, 1} = Buildkite.poll(installation)
+
+      mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
+
+      %{orphan: %{workflow_job_id: mapping.workflow_job_id, account_id: account.id}, job_uuid: job.job_uuid}
+    end
+
+    test "folds Buildkite's job state into the sweep's vocabulary", %{orphan: orphan, job_uuid: uuid} do
+      for {state, expected} <- [
+            {"scheduled", {"queued", ""}},
+            {"reserved", {"in_progress", ""}},
+            {"running", {"in_progress", ""}},
+            {"finished", {"completed", ""}},
+            {"canceled", {"completed", "cancelled"}},
+            {"timed_out", {"completed", "cancelled"}}
+          ] do
+        stub(Client, :job_states, fn _installation, _stack, [^uuid] -> {:ok, %{uuid => state}} end)
+
+        assert {:ok, ^expected} = Buildkite.orphan_status(orphan)
+      end
+    end
+
+    test "treats a job Buildkite no longer knows as over", %{orphan: orphan} do
+      stub(Client, :job_states, fn _installation, _stack, _uuids -> {:ok, %{}} end)
+
+      assert {:ok, {"completed", ""}} = Buildkite.orphan_status(orphan)
+    end
+
+    test "leaves a state it does not understand to the next tick", %{orphan: orphan, job_uuid: uuid} do
+      stub(Client, :job_states, fn _installation, _stack, _uuids -> {:ok, %{uuid => "blocked"}} end)
+
+      assert {:error, {:unknown_state, "blocked"}} = Buildkite.orphan_status(orphan)
+    end
+  end
+
   describe "job_trusted?/2" do
     setup %{installation: installation, account: account, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})

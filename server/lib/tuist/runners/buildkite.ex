@@ -155,6 +155,50 @@ defmodule Tuist.Runners.Buildkite do
   end
 
   @doc """
+  What Buildkite currently holds a job at, for a lifecycle row that has
+  gone stale at `running`, in the vocabulary `OrphanedRunnersWorker`
+  acts on: `{"queued", ""}` when Buildkite could hand the job to an agent
+  again, `{"in_progress", ""}` while an agent or a reservation holds it,
+  and `{"completed", conclusion}` once Buildkite is done with it. A job
+  Buildkite no longer knows is over too.
+  """
+  def orphan_status(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
+    with {:ok, job} <- fetch_job(workflow_job_id),
+         {:ok, installation} <- fetch_installation(account_id),
+         {:ok, states} <-
+           Client.job_states(installation, stack_key_for(installation, job.queue_key), [job.job_uuid]) do
+      orphan_status_for(Map.get(states, job.job_uuid))
+    end
+  end
+
+  @schedulable_states ~w(pending waiting limiting limited scheduled unblocked)
+  @held_states ~w(reserved assigned accepted running canceling timing_out)
+  @cancelled_states ~w(canceled timed_out expired skipped broken waiting_failed blocked_failed unblocked_failed)
+
+  # A finished job whose runner never reported has no known outcome,
+  # which is the answer the GitHub lane gives for a pruned job as well.
+  defp orphan_status_for(nil), do: {:ok, {"completed", ""}}
+  defp orphan_status_for("finished"), do: {:ok, {"completed", ""}}
+  defp orphan_status_for(state) when state in @schedulable_states, do: {:ok, {"queued", ""}}
+  defp orphan_status_for(state) when state in @held_states, do: {:ok, {"in_progress", ""}}
+  defp orphan_status_for(state) when state in @cancelled_states, do: {:ok, {"completed", "cancelled"}}
+  defp orphan_status_for(state), do: {:error, {:unknown_state, state}}
+
+  defp fetch_job(workflow_job_id) do
+    case get_job(workflow_job_id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
+  end
+
+  defp fetch_installation(account_id) do
+    case get_installation(account_id) do
+      nil -> {:error, :not_found}
+      installation -> {:ok, installation}
+    end
+  end
+
+  @doc """
   One poll pass over an installation: for every queue the account's
   profiles name, take what Buildkite has scheduled, reserve it, and turn
   it into queued lifecycle rows.

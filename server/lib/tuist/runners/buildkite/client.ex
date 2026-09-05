@@ -137,6 +137,18 @@ defmodule Tuist.Runners.Buildkite.Client do
   end
 
   @doc """
+  The state Buildkite currently holds each of `job_uuids` in, keyed by
+  uuid. A uuid Buildkite does not know is absent from the result.
+  """
+  def job_states(%Installation{} = installation, stack_key, job_uuids) when is_list(job_uuids) do
+    case request(installation, :post, "/stacks/#{stack_key}/jobs/get-states", json: %{job_uuids: job_uuids}) do
+      {:ok, %{"states" => states}} when is_map(states) -> {:ok, states}
+      {:ok, body} -> {:error, {:unexpected_body, truncate(body)}}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
   Marks a reserved job finished without ever running it.
 
   The GitHub lane has no equivalent lever: a job we fail to provision

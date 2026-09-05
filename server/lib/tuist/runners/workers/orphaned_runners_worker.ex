@@ -178,6 +178,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -259,7 +260,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :ok
   end
 
-  # `{orphan, evidence}` pairs for everything worth asking GitHub about.
+  # `{orphan, evidence}` pairs for everything worth asking the provider about.
   #
   # The floor is a stand-in for evidence: the sweep cannot tell a healthy
   # in-flight build from an orphan without asking GitHub, so it waits 5
@@ -347,6 +348,25 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # there is to go on — including when the read failed, so a read we
   # could not trust degrades to the old behaviour rather than to a
   # guess. Only the queued branch reads it.
+  # A Buildkite row cannot be asked about on GitHub: its surrogate id is
+  # unknown there, and the 404 would read as "pruned" and complete a job
+  # that may still be running. Buildkite's own answer arrives folded into
+  # the vocabulary the GitHub branch acts on.
+  defp recover_one(%{provider: "buildkite", workflow_job_id: workflow_job_id, account_id: account_id} = orphan, evidence) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         {:ok, {status, conclusion}} <- Buildkite.orphan_status(orphan) do
+      handle_gh_status(status, conclusion, orphan, account, evidence)
+    else
+      {:error, reason} ->
+        Logger.warning("runners: orphan worker buildkite lookup failed; will retry next tick",
+          workflow_job_id: workflow_job_id,
+          reason: inspect(reason)
+        )
+
+        false
+    end
+  end
+
   defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan, evidence) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
