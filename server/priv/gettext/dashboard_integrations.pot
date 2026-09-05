@@ -17,7 +17,7 @@ msgid "Add new project connection"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:195
-#: lib/tuist_web/live/integrations_live.html.heex:388
+#: lib/tuist_web/live/integrations_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -164,33 +164,33 @@ msgid "Buildkite"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:304
-#: lib/tuist_web/live/integrations_live.html.heex:372
+#: lib/tuist_web/live/integrations_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:343
-#: lib/tuist_web/live/integrations_live.html.heex:396
+#: lib/tuist_web/live/integrations_live.html.heex:342
+#: lib/tuist_web/live/integrations_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:331
+#: lib/tuist_web/live/integrations_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:333
+#: lib/tuist_web/live/integrations_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:313
+#: lib/tuist_web/live/integrations_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:361
+#: lib/tuist_web/live/integrations_live.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr ""
@@ -200,7 +200,7 @@ msgstr ""
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:375
+#: lib/tuist_web/live/integrations_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
@@ -215,12 +215,7 @@ msgstr ""
 msgid "Buildkite connection saved."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:307
-#, elixir-autogen, elixir-format
-msgid "Leave blank to keep the current token."
-msgstr ""
-
-#: lib/tuist_web/live/integrations_live.html.heex:319
+#: lib/tuist_web/live/integrations_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
