@@ -6,6 +6,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Builds.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
@@ -219,6 +220,33 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     |> Floki.parse_document!()
     |> Floki.find("#module-build-history-table tbody tr")
     |> length()
+  end
+
+  test "shows errors in place of the analytics and the builds when their queries fail", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Analytics, :module_invalidations, fn _opts ->
+      raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+    end)
+
+    stub(Analytics, :module_build_history, fn _opts ->
+      raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+    end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core")
+
+    render_async(lv, 2000)
+
+    assert has_element?(lv, ~s([data-part="analytics"] [data-part="analytics-error"]))
+    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+    refute has_element?(lv, "[data-part=\"analytics-chart-section\"]")
+
+    assert has_element?(lv, "#module-cache-module [data-part=\"error\"]")
+    refute has_element?(lv, "#module-cache-module [data-part=\"skeleton\"]")
+    refute has_element?(lv, "#module-build-history-table")
   end
 
   test "the analytics widgets read the same way as the modules page", %{

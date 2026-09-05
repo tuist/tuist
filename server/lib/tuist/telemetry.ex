@@ -87,4 +87,8 @@ defmodule Tuist.Telemetry do
   def event_name_ingestion_buffer_dropped do
     [:tuist, :ingestion, :buffer, :dropped]
   end
+
+  def event_name_live_view_assign_async do
+    [:tuist, :live_view, :assign_async]
+  end
 end

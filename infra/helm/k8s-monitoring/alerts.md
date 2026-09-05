@@ -3775,6 +3775,157 @@ clamp_min(
 - Pending period: 2 minutes
 - Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.cluster }}`
 
+### Tuist server ClickHouse query failures
+
+```promql
+sum by (cluster, namespace, result) (
+  increase(tuist_clickhouse_query_count{result!="ok"}[5m])
+) > 0
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
+- `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
+  for every query the read-only ClickHouse repo runs. `result` is `ok`,
+  `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
+  `TIMEOUT_EXCEEDED`, which the repo's `max_execution_time` produces for a
+  slow read; `clickhouse_241` the memory limit), `transport_closed` for a
+  connection the client dropped, `queue_timeout` for a pool checkout that never
+  got a connection.
+- The threshold is `> 0` on purpose, the same reasoning as the Kura
+  NetworkPolicy rule above: the errors are rare enough that any magnitude floor
+  would be tuned blind and hide a low-rate variant. Duration does the
+  discrimination. A one-off error holds a `[5m]` window for under five minutes
+  and never clears the pending period; a page whose queries keep failing holds
+  it for as long as anyone loads the page. On 2026-09-05 the Modules page
+  failed 21 query attempts, which reached the server logs as ClickHouse
+  connection timeouts between 08:21Z and 08:24Z across two pods, so the
+  condition holds from 08:21Z to about 08:29Z and the rule fires around
+  08:26Z.
+- Set **No Data** to Normal: the counter only exists once a query has run.
+
+### Tuist server ClickHouse query latency
+
+```promql
+histogram_quantile(
+  0.9,
+  sum by (cluster, namespace, le) (
+    rate(tuist_clickhouse_query_duration_milliseconds_bucket[10m])
+  )
+) > 5000
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
+- Same histogram as the failures rule, all outcomes included so a query that
+  ran into its timeout counts as slow rather than disappearing from the
+  distribution. The repo stops a read at 15 s server-side and 20 s
+  client-side, so the histogram's top buckets are 15 000, 20 000 and 30 000.
+
+### Tuist server LiveView async work slow
+
+```promql
+histogram_quantile(
+  0.9,
+  sum by (cluster, namespace, view, le) (
+    rate(tuist_live_view_assign_async_duration_milliseconds_bucket[10m])
+  )
+) > 10000
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `{{ $labels.view }} took over 10s at p90 to load its data for 10 minutes in {{ $labels.cluster }}`
+- The HTTP request duration rules see only a LiveView's initial render. The
+  data a dashboard page shows loads afterwards inside `assign_async` over the
+  socket, which is where the 2026-09-05 Modules page outage happened while
+  every HTTP p90 stayed flat. `TuistWeb.Async` wraps `assign_async` for every
+  LiveView and emits the function's wall-clock and outcome (`ok`, `error`,
+  `exception`) tagged with the view module; `Tuist.LiveView.PromExPlugin`
+  exports it. The stock PromEx LiveView plugin was not enabled instead: it
+  measures `mount` and `handle_event`, neither of which covers async loads,
+  and its `handle_event` histogram is tagged per event name per view, which on
+  91 views is far more series than one histogram per view.
+- `result="exception"` is the same signal as the failures rule for pages whose
+  work is not a ClickHouse query; it is not a separate rule because the
+  exception itself reaches the error tracker.
+
+### Slow or cancelled ClickHouse query
+
+Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
+not the metrics data source. This is rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
+query"), whose definition before 2026-09-05 could not have fired on that
+day's Modules page outage, so the fields below replace it.
+
+```sql
+SELECT
+  toString(normalized_query_hash) AS query_hash,
+  substring(replaceRegexpAll(normalizeQuery(any(query)), '\\s+', ' '), 1, 120) AS query_preview,
+  countIf(type = 'ExceptionWhileProcessing' AND exception_code IN (394, 210, 159))
+    + countIf(type = 'QueryFinish' AND query_duration_ms >= 10000) AS slow_or_cancelled
+FROM clusterAllReplicas('default', system.query_log)
+WHERE event_time >= now() - INTERVAL 15 MINUTE
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+  AND is_initial_query
+  AND http_user_agent LIKE 'ch/%'
+GROUP BY query_hash
+HAVING slow_or_cancelled > 0
+ORDER BY slow_or_cancelled DESC
+LIMIT 20
+```
+
+- Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
+  expression: the query returns one numeric column and string columns only,
+  which Grafana reads as one series per `(query_hash, query_preview)` label
+  set. The previous definition returned a string `query_preview` column next to
+  several numeric ones and its Reduce step failed with `input data must be a
+  wide series`, so the rule errored instead of evaluating whenever rows came
+  back.
+- Pending period: 2 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.B }} times in 15 minutes: {{ $labels.query_preview }}`
+- Set **No Data** to Normal: a healthy cluster returns no rows.
+- `clusterAllReplicas('default', system.query_log)` reads every replica's log.
+  The data source hits one of the three ClickHouse Cloud replicas per request,
+  so the previous `system.query_log` saw a third of the attempts at best.
+- `type = 'QueryFinish'` alone never sees a query the client gave up on.
+  ClickHouse records those as `ExceptionWhileProcessing`, under an
+  `exception_code` that depends on where the abort lands: 394
+  (`QUERY_WAS_CANCELLED`) or 210 (`NETWORK_ERROR`) when the client closed the
+  connection, 159 (`TIMEOUT_EXCEEDED`) when the server's own
+  `max_execution_time` stopped it. Production logged 394 for all 21 attempts
+  on 2026-09-05, and reproducing the same abort through the Elixir driver
+  logged 210, so all three are counted.
+- Three per normalized query in 15 minutes replaces twenty in 30 minutes with
+  a 10-minute pending period. The Modules page runs five distinct queries per
+  load, so five loads by one user produced about four attempts per query hash,
+  which the old floor never reached. Three is one page load past the first
+  failure, and the lookback keeps the condition true well past the 2-minute
+  pending period. `Tuist.ClickHouseRetry` re-attempts a dropped connection up
+  to three times and every attempt is logged, so a page failing this way
+  clears the floor faster than the page-load count alone suggests.
+- `http_user_agent LIKE 'ch/%'` keeps this to the Elixir services' driver and
+  out of the data source's own queries and ad-hoc console queries, which
+  otherwise show up here as slow rows the moment someone explores query_log.
+- Group by `normalized_query_hash`, not by a marker the application writes into
+  the SQL. The Ecto ClickHouse adapter inlines parameters into the statement it
+  sends (`{project_id:Int64}` arrives as `_CAST(2382, 'Int64')`) and drops
+  comments on the way, so nothing written into the query text survives into
+  `query_log`.
+- `normalizeQuery` folds literals into `?` so the preview label is stable per
+  hash between evaluations; a changing label value would open a new alert
+  instance each time.
+- Validated against a reproduction, not against production: replaying the
+  failure through the driver against ClickHouse 26.1 gave 18 and 4 for the two
+  query shapes, both above the threshold, while the previous rule's
+  `type = 'QueryFinish'` form returned no rows over the same window.
+
 ### etcd write-ahead-log synchronization latency
 
 ```promql

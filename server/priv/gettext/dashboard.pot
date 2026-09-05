@@ -2666,3 +2666,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
+
+#: lib/tuist_web/components/error_card_section.ex:18
+#, elixir-autogen, elixir-format
+msgid "Something went wrong"
+msgstr ""
+
+#: lib/tuist_web/components/error_card_section.ex:21
+#, elixir-autogen, elixir-format
+msgid "We couldn't load this data. Reload the page to try again."
+msgstr ""

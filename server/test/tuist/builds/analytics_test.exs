@@ -2207,6 +2207,16 @@ defmodule Tuist.Builds.AnalyticsTest do
   end
 
   describe "module_build_history/1" do
+    test "raises when ClickHouse fails the query" do
+      project = ProjectsFixtures.project_fixture()
+
+      expect(Tuist.ClickHouseRepo, :query!, fn _query, _params ->
+        raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+      end)
+
+      assert_raise Ch.Error, fn -> Analytics.module_build_history(project_id: project.id, name: "Core") end
+    end
+
     setup do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -2490,6 +2500,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
       %{project: project}
+    end
+
+    test "raises when ClickHouse fails the query", %{project: project} do
+      expect(Tuist.ClickHouseRepo, :query!, fn _query, _params ->
+        raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+      end)
+
+      assert_raise Ch.Error, fn -> Analytics.module_invalidations(project_id: project.id) end
     end
 
     test "classifies invalidations as self-change vs dependency-induced", %{project: project} do
