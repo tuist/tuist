@@ -67,9 +67,18 @@ struct BazelSetupCommandServiceTests {
         )
     }
 
-    private func credentialHelperPath() throws -> AbsolutePath {
-        let environment = try #require(Environment.mocked)
-        return environment.configDirectory.appending(components: ["credentials", "tuist-bazel-credential-helper"])
+    private func credentialHelperPath(from bazelrcContent: String) throws -> AbsolutePath {
+        let prefix = "build --credential_helper="
+        let line = try #require(
+            bazelrcContent.split(whereSeparator: \.isNewline).first { $0.hasPrefix(prefix) }
+        )
+        let assignment = line.dropFirst(prefix.count)
+        let separatorIndex = try #require(assignment.firstIndex(of: "="))
+        return try AbsolutePath(validating: String(assignment[assignment.index(after: separatorIndex)...]))
+    }
+
+    private func canonicalPathString(_ path: AbsolutePath) -> String {
+        URL(fileURLWithPath: path.pathString).resolvingSymlinksInPath().path
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
@@ -80,15 +89,16 @@ struct BazelSetupCommandServiceTests {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
 
         // When
         try await subject.run(directory: temporaryDirectory.pathString)
 
         // Then
-        let scriptPath = try credentialHelperPath()
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
+        let scriptPath = try credentialHelperPath(from: bazelrcContent)
         #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev"))
         #expect(bazelrcContent.contains("build --remote_header=x-tuist-account-handle=my-account"))
         #expect(bazelrcContent.contains("build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)"))
@@ -99,14 +109,16 @@ struct BazelSetupCommandServiceTests {
         #expect(bazelrcContent.contains("build --bes_timeout=30s"))
         #expect(bazelrcContent.contains("build --bes_upload_mode=fully_async"))
 
-        let scriptContent = try await fileSystem.readTextFile(at: scriptPath)
         #expect(
-            scriptContent == """
-            #!/bin/sh
-            exec tuist bazel credential-helper "$@"
-
-            """
+            try await fileSystem.readTextFile(at: temporaryDirectory.appending(component: ".bazelrc"))
+                == "try-import %workspace%/.bazelrc.tuist\n"
         )
+
+        let scriptContent = try await fileSystem.readTextFile(at: scriptPath)
+        #expect(scriptContent.contains("project_path='"))
+        #expect(scriptContent.contains("bazelrc_path='"))
+        #expect(scriptContent.contains("--bazelrc-path \"$bazelrc_path\""))
+        #expect(scriptContent.contains("exec tuist bazel credential-helper \"$@\""))
         #expect(FileManager.default.isExecutableFile(atPath: scriptPath.pathString))
     }
 
@@ -125,10 +137,10 @@ struct BazelSetupCommandServiceTests {
         try await subject.run(directory: temporaryDirectory.pathString)
 
         // Then
-        let scriptPath = try credentialHelperPath()
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
+        let scriptPath = try credentialHelperPath(from: bazelrcContent)
         #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev:8443"))
         #expect(bazelrcContent.contains("build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)"))
         verify(remoteCacheProbeService)
@@ -156,10 +168,10 @@ struct BazelSetupCommandServiceTests {
         try await subject.run(directory: temporaryDirectory.pathString)
 
         // Then
-        let scriptPath = try credentialHelperPath()
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
+        let scriptPath = try credentialHelperPath(from: bazelrcContent)
         #expect(bazelrcContent.contains("build --remote_cache=grpc://localhost:5091"))
         #expect(bazelrcContent.contains("build --credential_helper=localhost=\(scriptPath.pathString)"))
         verify(remoteCacheProbeService)
@@ -181,8 +193,11 @@ struct BazelSetupCommandServiceTests {
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
 
-        let scriptPath = try credentialHelperPath()
-        try await fileSystem.makeDirectory(at: scriptPath.parentDirectory)
+        try await subject.run(directory: temporaryDirectory.pathString)
+        let bazelrcContent = try await fileSystem.readTextFile(
+            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
+        )
+        let scriptPath = try credentialHelperPath(from: bazelrcContent)
         try await fileSystem.writeText("#!/bin/sh\n# custom helper\n", at: scriptPath)
 
         // When
@@ -191,6 +206,340 @@ struct BazelSetupCommandServiceTests {
         // Then
         let scriptContent = try await fileSystem.readTextFile(at: scriptPath)
         #expect(scriptContent == "#!/bin/sh\n# custom helper\n")
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_scopes_credential_helpers_to_the_configured_checkout() async throws {
+        // Given
+        let firstDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let secondDirectory = firstDirectory.appending(component: "second-checkout")
+        try await fileSystem.makeDirectory(at: secondDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        // When
+        try await subject.run(directory: firstDirectory.pathString)
+        try await subject.run(directory: secondDirectory.pathString)
+
+        // Then
+        let firstHelperPath = try credentialHelperPath(
+            from: try await fileSystem.readTextFile(at: firstDirectory.appending(component: ".bazelrc.tuist"))
+        )
+        let secondHelperPath = try credentialHelperPath(
+            from: try await fileSystem.readTextFile(at: secondDirectory.appending(component: ".bazelrc.tuist"))
+        )
+        #expect(firstHelperPath != secondHelperPath)
+        let firstHelperContent = try await fileSystem.readTextFile(at: firstHelperPath)
+        let secondHelperContent = try await fileSystem.readTextFile(at: secondHelperPath)
+        #expect(firstHelperContent.contains("project_path='\(canonicalPathString(firstDirectory))'"))
+        #expect(!firstHelperContent.contains(canonicalPathString(secondDirectory)))
+        #expect(secondHelperContent.contains("project_path='\(canonicalPathString(secondDirectory))'"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_adds_bazelrc_import_once() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.writeText("build --keep_going\n", at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(
+            try await fileSystem.readTextFile(at: bazelrcPath)
+                == "build --keep_going\ntry-import %workspace%/.bazelrc.tuist\n"
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_does_not_add_bazelrc_import_when_disabled() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        let existingContent = "build --keep_going\n"
+        try await fileSystem.writeText(existingContent, at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString, addBazelrcImport: false)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: bazelrcPath) == existingContent)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_adds_bazelrc_import_after_content_without_a_trailing_newline() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.writeText("build --keep_going", at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(
+            try await fileSystem.readTextFile(at: bazelrcPath)
+                == "build --keep_going\ntry-import %workspace%/.bazelrc.tuist\n"
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_recognizes_an_existing_bazelrc_import_with_flexible_whitespace() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        let existingContent = "import  %workspace%/.bazelrc.tuist\n"
+        try await fileSystem.writeText(existingContent, at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: bazelrcPath) == existingContent)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_adds_bazelrc_import_before_trailing_user_imports() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.writeText("build --keep_going\r\ntry-import %workspace%/.bazelrc.user\r\n", at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(
+            try await fileSystem.readTextFile(at: bazelrcPath)
+                == "build --keep_going\r\ntry-import %workspace%/.bazelrc.tuist\r\ntry-import %workspace%/.bazelrc.user\r\n"
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_preserves_existing_remote_configuration() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        let existingContent = "build --remote_cache=grpcs://example.com\n"
+        try await fileSystem.writeText(existingContent, at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: bazelrcPath) == existingContent)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_preserves_existing_build_event_service_configuration() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        let existingContent = "build --bes_backend=grpcs://example.com\n"
+        try await fileSystem.writeText(existingContent, at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: bazelrcPath) == existingContent)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_ignores_commented_remote_configuration() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.writeText("# build --remote_cache=grpcs://example.com\n", at: bazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(
+            try await fileSystem.readTextFile(at: bazelrcPath)
+                == "# build --remote_cache=grpcs://example.com\ntry-import %workspace%/.bazelrc.tuist\n"
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_writes_bazel_configuration_at_the_workspace_root() async throws {
+        // Given
+        let workspaceDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let nestedDirectory = workspaceDirectory.appending(components: ["sources", "app"])
+        try await fileSystem.makeDirectory(at: nestedDirectory)
+        try await fileSystem.touch(workspaceDirectory.appending(component: "REPO.bazel"))
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        // When
+        try await subject.run(directory: nestedDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.exists(workspaceDirectory.appending(component: ".bazelrc.tuist")))
+        #expect(try await fileSystem.exists(workspaceDirectory.appending(component: ".bazelrc")))
+        #expect(try await !fileSystem.exists(nestedDirectory.appending(component: ".bazelrc.tuist")))
+        let bazelrcContent = try await fileSystem.readTextFile(
+            at: workspaceDirectory.appending(component: ".bazelrc.tuist")
+        )
+        let helperPath = try credentialHelperPath(from: bazelrcContent)
+        let helperContent = try await fileSystem.readTextFile(at: helperPath)
+        #expect(helperContent.contains("project_path='\(canonicalPathString(nestedDirectory))'"))
+        #expect(helperContent.contains("bazelrc_path='\(canonicalPathString(workspaceDirectory))'"))
+        #expect(helperContent.contains("--bazelrc-path \"$bazelrc_path\""))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_creates_a_new_helper_when_the_workspace_root_changes() async throws {
+        // Given
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDirectory = rootDirectory.appending(components: ["apps", "ios"])
+        try await fileSystem.makeDirectory(at: projectDirectory)
+        let nestedWorkspaceMarker = projectDirectory.appending(component: "WORKSPACE")
+        try await fileSystem.touch(nestedWorkspaceMarker)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await subject.run(directory: projectDirectory.pathString)
+        let nestedBazelrcContent = try await fileSystem.readTextFile(
+            at: projectDirectory.appending(component: ".bazelrc.tuist")
+        )
+        let nestedHelperPath = try credentialHelperPath(from: nestedBazelrcContent)
+
+        try await fileSystem.remove(nestedWorkspaceMarker)
+        try await fileSystem.touch(rootDirectory.appending(component: "MODULE.bazel"))
+
+        // When
+        try await subject.run(directory: projectDirectory.pathString)
+
+        // Then
+        let rootBazelrcContent = try await fileSystem.readTextFile(
+            at: rootDirectory.appending(component: ".bazelrc.tuist")
+        )
+        let rootHelperPath = try credentialHelperPath(from: rootBazelrcContent)
+        #expect(rootHelperPath != nestedHelperPath)
+        #expect(
+            try await fileSystem.readTextFile(at: rootHelperPath)
+                .contains("bazelrc_path='\(canonicalPathString(rootDirectory))'")
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_does_not_discover_a_workspace_above_the_repository_root() async throws {
+        // Given
+        let outerDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let repositoryDirectory = outerDirectory.appending(component: "repository")
+        let nestedDirectory = repositoryDirectory.appending(component: "sources")
+        try await fileSystem.makeDirectory(at: nestedDirectory)
+        try await fileSystem.touch(outerDirectory.appending(component: "WORKSPACE"))
+        try await fileSystem.touch(repositoryDirectory.appending(component: ".git"))
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        // When
+        try await subject.run(directory: nestedDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.exists(nestedDirectory.appending(component: ".bazelrc.tuist")))
+        #expect(try await !fileSystem.exists(outerDirectory.appending(component: ".bazelrc.tuist")))
+        #expect(try await !fileSystem.exists(repositoryDirectory.appending(component: ".bazelrc")))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_does_not_replace_a_symbolic_bazelrc() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let sharedBazelrcPath = temporaryDirectory.appending(component: "shared.bazelrc")
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.writeText("build --keep_going\n", at: sharedBazelrcPath)
+        try await fileSystem.createSymbolicLink(from: bazelrcPath, to: sharedBazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(try await fileSystem.resolveSymbolicLink(bazelrcPath) == sharedBazelrcPath)
+        #expect(try await fileSystem.readTextFile(at: sharedBazelrcPath) == "build --keep_going\n")
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_does_not_replace_a_dangling_symbolic_bazelrc() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let missingBazelrcPath = temporaryDirectory.appending(component: "missing.bazelrc")
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+        try await fileSystem.createSymbolicLink(from: bazelrcPath, to: missingBazelrcPath)
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        #expect(
+            try FileManager.default.destinationOfSymbolicLink(atPath: bazelrcPath.pathString)
+                == missingBazelrcPath.pathString
+        )
+        #expect(try await !fileSystem.exists(missingBazelrcPath))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
