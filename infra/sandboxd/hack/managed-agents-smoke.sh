@@ -33,22 +33,32 @@ req() {
   fi
 }
 
-wait_idle() {
-  local sid="$1" status
+# Waits for a turn to finish: the event count must have grown past the
+# given watermark and the session must be idle again. Checking idle alone
+# races the queued message, which the session may not have picked up yet.
+wait_turn() {
+  local sid="$1" before="$2" status count
   for _ in $(seq 1 120); do
     status=$(req GET "/v1/sessions/$sid" | jq -r .status)
-    case "$status" in
-      idle|terminated) echo "session $sid is $status"; return 0 ;;
-    esac
+    count=$(event_count "$sid")
+    if [ "$count" -gt "$before" ]; then
+      case "$status" in
+        idle|terminated) echo "session $sid is $status after $count events"; return 0 ;;
+      esac
+    fi
     sleep 5
   done
   echo "session $sid still $status after 10 minutes"; return 1
 }
 
+event_count() {
+  req GET "/v1/sessions/$1/events?limit=200" | jq -r '(.data // .) | length'
+}
+
 print_turn() {
-  # Agent messages and tool calls since the given event id (or all).
-  req GET "/v1/sessions/$1/events?limit=200" | jq -r '
-    (.data // .) | .[] |
+  # Agent messages and tool calls after the first $2 events.
+  req GET "/v1/sessions/$1/events?limit=200" | jq -r --argjson skip "${2:-0}" '
+    (.data // .) | .[$skip:] | .[] |
     if .type == "agent.message" then "agent: " + ([.content[]? | select(.type=="text") | .text] | join(" "))
     elif .type == "agent.tool_use" then "tool_use: " + (.name // .tool_name // "?") + " " + ((.input // {}) | tostring | .[0:160])
     elif .type == "user.tool_result" then "tool_result: " + ((.content // []) | tostring | .[0:200])
@@ -64,8 +74,9 @@ echo "agent: $AGENT_ID"
 SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; date -u | tee /workspace/t"}]}]}')" | jq -r .id)
 echo "session: $SID"
 
-echo "== turn 1"; wait_idle "$SID"; print_turn "$SID"
+echo "== turn 1"; wait_turn "$SID" 1; print_turn "$SID" 0
+seen=$(event_count "$SID")
 echo "== waiting ${PAUSE_WAIT}s for the sandbox to pause"; sleep "$PAUSE_WAIT"
 req POST "/v1/sessions/$SID/events" '{"events":[{"type":"user.message","content":[{"type":"text","text":"bash: cat /workspace/t; uptime"}]}]}' >/dev/null
-echo "== turn 2"; wait_idle "$SID"; print_turn "$SID"
+echo "== turn 2"; wait_turn "$SID" "$((seen + 1))"; print_turn "$SID" "$seen"
 echo "session: $SID"
