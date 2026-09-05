@@ -414,7 +414,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
 
       # Nothing connected: the card offers the modal and takes no more room.
-      refute html =~ "buildkite-connection"
+      refute html =~ ~s(id="buildkite-form")
 
       html = connect_buildkite(lv, %{})
 

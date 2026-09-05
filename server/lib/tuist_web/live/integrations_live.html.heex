@@ -254,16 +254,32 @@
     </div>
   </.card_section>
   <.card_section :if={@buildkite_card_visible?} data-part="buildkite-card-section">
-    <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_integrations", "Buildkite")}</span>
-      <span data-part="subtitle">
-        {dgettext(
-          "dashboard_integrations",
-          "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-        )}
-      </span>
-    </div>
-    <div data-part="content">
+    <%!-- Connected: the whole card is the save form, with the actions on
+          the header line and the fields below. A blank token keeps the
+          current one, which is never shown again. --%>
+    <form
+      :if={@buildkite_installation}
+      id="buildkite-form"
+      phx-change="validate-buildkite"
+      phx-submit="save-buildkite"
+    >
+      <div data-part="header-row">
+        <.buildkite_header />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="disconnect-buildkite"
+          />
+          <.button
+            type="submit"
+            label={dgettext("dashboard_integrations", "Save changes")}
+            variant="primary"
+            disabled={not @buildkite_has_changes}
+          />
+        </div>
+      </div>
       <.alert
         :if={@buildkite_flash}
         status={elem(@buildkite_flash, 0)}
@@ -272,20 +288,13 @@
         title={elem(@buildkite_flash, 1)}
       />
       <.alert
-        :if={@buildkite_installation && @buildkite_installation.last_error}
+        :if={@buildkite_installation.last_error}
         status="error"
         type="secondary"
         size="small"
         title={@buildkite_installation.last_error}
       />
-      <%!-- Connected: the connection is edited in place and saved as one. A
-            blank token keeps the current one, which is never shown again. --%>
-      <form
-        :if={@buildkite_installation}
-        id="buildkite-form"
-        phx-change="validate-buildkite"
-        phx-submit="save-buildkite"
-      >
+      <div data-part="fields">
         <.text_input
           id="buildkite-organization"
           name="organization_slug"
@@ -306,24 +315,14 @@
           placeholder="••••••••••••"
           error={@buildkite_field_errors["agent_token"]}
         />
-        <div data-part="actions">
-          <.button
-            type="button"
-            label={dgettext("dashboard_integrations", "Disconnect")}
-            variant="secondary"
-            phx-click="disconnect-buildkite"
-          />
-          <.button
-            type="submit"
-            label={dgettext("dashboard_integrations", "Save changes")}
-            variant="primary"
-            disabled={not @buildkite_has_changes}
-          />
-        </div>
-      </form>
-      <%!-- Not connected: one button, with the fields in a modal, so an
-            account that does not use Buildkite gives up no space to it. --%>
-      <div :if={is_nil(@buildkite_installation)} data-part="actions">
+      </div>
+    </form>
+    <%!-- Not connected: the header line and one button, with the fields in
+          a modal, so an account that does not use Buildkite gives up no
+          space to it. --%>
+    <div :if={is_nil(@buildkite_installation)} data-part="header-row">
+      <.buildkite_header />
+      <div data-part="actions">
         <form id="connect-buildkite-form" phx-submit="connect-buildkite">
           <.modal
             id="connect-buildkite-modal"

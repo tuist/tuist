@@ -458,6 +458,22 @@ defmodule TuistWeb.IntegrationsLive do
       Entitlements.allows?(account, :github_enterprise_server)
   end
 
+  # Rendered on both sides of the connected/not-connected split, so the
+  # header is defined once.
+  defp buildkite_header(assigns) do
+    ~H"""
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_integrations", "Buildkite")}</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+        )}
+      </span>
+    </div>
+    """
+  end
+
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
     installation = Buildkite.get_installation(account.id)
 

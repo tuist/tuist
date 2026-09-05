@@ -134,31 +134,13 @@
     }
   }
 
-  /* Unlike the GitHub card, the connection details run the full width of
-     the card: the cluster field and the queue keys are the whole point of
-     the card once connected, not a side column. */
+  /* Title and subtitle on the left, the actions on the same line to the
+     right; when connected, the fields run the full width underneath. */
   & > [data-part="buildkite-card-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-6);
 
-    & > [data-part="header"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-
-      & > [data-part="title"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-      }
-
-      & > [data-part="subtitle"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-      }
-    }
-
-    & > [data-part="content"] {
+    & > #buildkite-form {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -168,17 +150,43 @@
         align-self: flex-start;
       }
 
-      & > #buildkite-form {
+      & > [data-part="fields"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-5);
       }
+    }
 
-      & [data-part="actions"] {
+    & [data-part="header-row"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--noora-spacing-8);
+
+      & > [data-part="header"] {
         display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
         flex-direction: row;
         align-items: center;
-        align-self: flex-end;
         gap: var(--noora-spacing-4);
       }
     }
