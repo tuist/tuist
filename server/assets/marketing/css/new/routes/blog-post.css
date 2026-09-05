@@ -106,10 +106,24 @@
       /* Same hairline treatment as the prose images below (prose.css). */
       box-shadow: var(--noora-light-border-default);
       border-radius: var(--noora-radius-4);
-      background: var(--marketing-illustration-neutral-2);
+      background: var(--noora-surface-background-tertiary);
       width: 100%;
       max-width: 780px;
       height: auto;
+
+      /* As a frame around the SVG cover artwork (MarketingBlogCovers): the
+         raster images' 16:9, clipped to the radius. */
+      &:has(> [data-part="artwork"]) {
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+      }
+
+      & > [data-part="artwork"] {
+        display: block;
+        width: 100%;
+        height: 100%;
+        color: var(--noora-surface-label-primary);
+      }
     }
 
     & > [data-part="content"] {
@@ -224,7 +238,6 @@
       & > [data-part="post"] {
         display: flex;
         flex-direction: column;
-        transition: background 0.2s ease;
         border-top: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-8);
         color: inherit;
@@ -242,10 +255,9 @@
           }
         }
 
+        /* As on the blog index: hovering only reveals the arrow. */
         &:hover,
         &:focus-visible {
-          background: var(--noora-surface-background-secondary);
-
           & > [data-part="footer"] > [data-part="icon"] {
             transform: translateX(0);
             opacity: 1;
@@ -254,7 +266,8 @@
 
         & > [data-part="cover"] {
           box-shadow: var(--noora-light-border-default);
-          background: var(--marketing-illustration-neutral-2);
+          /* Same ground as the blog index cards (blog.css). */
+          background: var(--noora-surface-background-tertiary);
           aspect-ratio: 16 / 9;
           overflow: hidden;
 
@@ -263,6 +276,13 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+          }
+
+          & > [data-part="artwork"] {
+            display: block;
+            width: 100%;
+            height: 100%;
+            color: var(--noora-surface-label-primary);
           }
         }
 

@@ -1,0 +1,59 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="1920" height="1080" fill="#F7F7F7"/>
+<path d="M48 186L1872 186" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<path d="M48 324L1872 324" stroke="#D9DBDD"/>
+<path d="M48 462L1872 462" stroke="#D9DBDD"/>
+<path d="M48 600L1872 600" stroke="#D9DBDD"/>
+<path d="M48 738L1872 738" stroke="#D9DBDD"/>
+<path d="M48 876L1872 876" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<rect x="48.5" y="47.5" width="1823" height="985" stroke="#C9CCCF" stroke-dasharray="5.42 5.42"/>
+<path d="M387.085 502L563.085 359" stroke="#C9CCCF"/>
+<path d="M1009.06 464.882L1009.31 465.323L1240.31 336.966L1240.06 336.525L1239.81 336.084L1008.81 464.441L1009.06 464.882Z" fill="#C9CCCF"/>
+<path d="M1512.32 474.68L1512.58 474.237L1286.96 335.105L1286.7 335.548L1286.43 335.99L1512.06 475.122L1512.32 474.68Z" fill="#C9CCCF"/>
+<path d="M703.222 623.225L703.675 623.035L596.307 373.935L595.854 374.125L595.401 374.315L702.769 623.415L703.222 623.225Z" fill="#C9CCCF"/>
+<path d="M449.443 714.875L449.897 714.685L376.941 545.485L376.488 545.675L376.034 545.865L448.99 715.065L449.443 714.875Z" fill="#C9CCCF"/>
+<path d="M680.447 664.35L680.271 663.868L485.057 733.193L485.233 733.675L485.408 734.157L680.623 664.832L680.447 664.35Z" fill="#C9CCCF"/>
+<path d="M962.423 725.45L962.556 724.949L732.637 659.496L732.504 659.997L732.372 660.498L962.291 725.951L962.423 725.45Z" fill="#C9CCCF"/>
+<path d="M1249.82 630.275L1249.63 629.798L1012.12 721.289L1012.31 721.766L1012.5 722.242L1250.01 630.752L1249.82 630.275Z" fill="#C9CCCF"/>
+<path d="M1450.46 716.05L1450.69 715.593L1295.61 632.168L1295.37 632.625L1295.14 633.082L1450.22 716.507L1450.46 716.05Z" fill="#C9CCCF"/>
+<path d="M1477.77 705.147L1478.23 705.289L1532.26 516.441L1531.8 516.3L1531.34 516.159L1477.31 705.006L1477.77 705.147Z" fill="#C9CCCF"/>
+<path d="M164.085 521L336.085 520" stroke="#8366FF"/>
+<path d="M391.085 533L680.085 648" stroke="#8366FF"/>
+<path d="M732.085 641L963.085 493" stroke="#8366FF"/>
+<path d="M1015.08 490L1247.08 609" stroke="#8366FF"/>
+<path d="M1298.08 609L1510.08 502" stroke="#8366FF"/>
+<path d="M1563.08 481L1756.08 430" stroke="#8366FF"/>
+<path d="M365.085 48V1033" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<path d="M430.085 48V1033" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<path d="M495.085 48V1033" stroke="#D9DBDD"/>
+<path d="M706.085 48V1033" stroke="#D9DBDD"/>
+<path d="M960.085 48V1033" stroke="#D9DBDD"/>
+<path d="M1262.08 48V1033" stroke="#D9DBDD"/>
+<path d="M1422.08 48V1033" stroke="#D9DBDD"/>
+<path d="M1557.08 48V1033" stroke="#D9DBDD"/>
+<path d="M839.085 48V1033" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<path d="M1078.08 48V1033" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<path d="M1711.08 48V1033" stroke="#D9DBDD" stroke-dasharray="5.42 5.42"/>
+<circle cx="365.585" cy="520.5" r="29.5" fill="#A2A5A8"/>
+<circle cx="588.585" cy="345.5" r="29.5" fill="#D9DBDD"/>
+<ellipse cx="458.585" cy="743" rx="29.5" ry="30" fill="#D9DBDD"/>
+<circle cx="988.585" cy="730.5" r="29.5" fill="#D9DBDD"/>
+<circle cx="1262.58" cy="325.5" r="29.5" fill="#D9DBDD"/>
+<circle cx="1471.58" cy="730.5" r="29.5" fill="#D9DBDD"/>
+<ellipse cx="706.585" cy="653" rx="29.5" ry="30" fill="#A2A5A8"/>
+<circle cx="989.085" cy="481" r="30" fill="#A2A5A8"/>
+<circle cx="1273.58" cy="622.5" r="29.5" fill="#A2A5A8"/>
+<circle cx="1536.58" cy="488.5" r="29.5" fill="#A2A5A8"/>
+<circle cx="121.207" cy="520.231" r="43.7039" stroke="#8366FF" stroke-width="1.42236"/>
+<circle cx="121.207" cy="520.231" r="22.2076" fill="#A2A5A8"/>
+<circle cx="1797.88" cy="423.881" r="43.7039" stroke="#8366FF" stroke-width="1.42236"/>
+<circle cx="1797.88" cy="423.881" r="22.2076" fill="#A2A5A8"/>
+<path d="M48.5 41.5V53.5" stroke="#707478"/>
+<path d="M42.5 47.5L54.4999 47.5372" stroke="#707478"/>
+<path d="M1871.5 41.5V53.5" stroke="#707478"/>
+<path d="M1865.5 47.5L1877.5 47.5372" stroke="#707478"/>
+<path d="M1871.5 1026.5V1038.5" stroke="#707478"/>
+<path d="M1865.5 1032.5L1877.5 1032.54" stroke="#707478"/>
+<path d="M48.5 1026.5V1038.5" stroke="#707478"/>
+<path d="M42.5 1032.5L54.4999 1032.54" stroke="#707478"/>
+</svg>
