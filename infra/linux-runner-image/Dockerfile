@@ -111,7 +111,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.336.0
+ARG RUNNER_VERSION=2.337.0
 ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out

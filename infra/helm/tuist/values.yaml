@@ -2379,7 +2379,7 @@ buildersFleet:
   # into the runner-image guest matches the one running on the
   # host that bakes it. Renovate-tracked: bump both pins together.
   # renovate: datasource=github-releases depName=actions/runner
-  ghRunnerVersion: "2.336.0"
+  ghRunnerVersion: "2.337.0"
   # Override the auto-derived Secret name (default:
   # `<fleetName>-gh-app`). Self-hosters who manage the Secret
   # out-of-band point at their own name here. The Secret has three
