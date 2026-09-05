@@ -282,6 +282,46 @@ export function prepareChartOptions(input, element) {
     }
   }
 
+  if (option.tooltip?.formatter === "fn:rangeBarTooltip") {
+    option.tooltip.formatter = rangeBarTooltipFormatter;
+    option.tooltip.trigger ??= "item";
+  }
+
+  if (Array.isArray(option.series)) {
+    let hasRangeBarSeries = false;
+
+    option.series.forEach((series) => {
+      if (series.renderItem === "fn:rangeBar") {
+        series.renderItem = rangeBarRenderItem;
+        series.encode ??= { x: [1, 2], y: 0 };
+        hasRangeBarSeries = true;
+      }
+    });
+
+    if (hasRangeBarSeries) {
+      const hasMultipleXAxes = Array.isArray(option.xAxis);
+      const hasMultipleYAxes = Array.isArray(option.yAxis);
+      const xAxes = hasMultipleXAxes ? option.xAxis : [option.xAxis];
+      const yAxes = hasMultipleYAxes ? option.yAxis : [option.yAxis];
+      const xAxis = { ...(xAxes[0] ?? {}) };
+      const yAxis = { ...(yAxes[0] ?? {}) };
+
+      if (yAxis.data === undefined && Array.isArray(xAxis.data)) {
+        yAxis.data = xAxis.data;
+        delete xAxis.data;
+      }
+
+      const rangeXAxis = { ...xAxis, type: "value" };
+      const rangeYAxis = { ...yAxis, type: "category" };
+      option.xAxis = hasMultipleXAxes
+        ? [rangeXAxis, ...xAxes.slice(1)]
+        : rangeXAxis;
+      option.yAxis = hasMultipleYAxes
+        ? [rangeYAxis, ...yAxes.slice(1)]
+        : rangeYAxis;
+    }
+  }
+
   if (option.yAxis?.splitLine?.lineStyle?.color) {
     option.yAxis.splitLine.lineStyle.color = processColor(
       option.yAxis.splitLine.lineStyle.color,
@@ -401,6 +441,86 @@ function processItemColor(dataItem) {
       });
     }
   }
+}
+
+function rangeBarRenderItem(params, api) {
+  const lane = api.value(0);
+  const start = api.value(1);
+  const end = api.value(2);
+
+  if (
+    !Number.isFinite(lane) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end < start
+  ) {
+    return null;
+  }
+
+  const startCoordinate = api.coord([start, lane]);
+  const endCoordinate = api.coord([end, lane]);
+  const height = api.size([0, 1])[1] * 0.62;
+  const shape = echarts.graphic.clipRectByRect(
+    {
+      x: startCoordinate[0],
+      y: startCoordinate[1] - height / 2,
+      width: Math.max(endCoordinate[0] - startCoordinate[0], 1),
+      height,
+    },
+    {
+      x: params.coordSys.x,
+      y: params.coordSys.y,
+      width: params.coordSys.width,
+      height: params.coordSys.height,
+    },
+  );
+
+  if (!shape) return null;
+
+  return {
+    type: "rect",
+    shape,
+    style: api.style(),
+  };
+}
+
+export function rangeBarTooltipFormatter(params) {
+  const param = Array.isArray(params) ? params[0] : params;
+  if (!param) return "";
+
+  const [, start, end] = Array.isArray(param.value) ? param.value : [];
+  const duration =
+    Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? end - start
+      : null;
+  const data = param.data && typeof param.data === "object" ? param.data : {};
+  const description = data.name || param.name;
+  const rows = [
+    rangeBarTooltipRow(data.durationLabel, duration),
+    rangeBarTooltipRow(data.startLabel, start),
+  ].filter(Boolean);
+  const title = description
+    ? `<span data-part="title">${escapeHtml(description)}</span>`
+    : "";
+  const divider =
+    description && rows.length > 0
+      ? '<div class="noora-line-divider"><div data-part="line"></div></div>'
+      : "";
+
+  if (!title && rows.length === 0) return "";
+
+  return `<div class="noora-chart-tooltip">${title}${divider}${rows.join("")}</div>`;
+}
+
+function rangeBarTooltipRow(label, value) {
+  if (!label) return "";
+
+  const formattedValue = Number.isFinite(value)
+    ? formatMilliseconds(value)
+    : "\u2014";
+  const labelElement = `<span data-part="label">${escapeHtml(label)}</span>`;
+
+  return `<div data-part="series-item">${labelElement}<span data-part="value">${escapeHtml(formattedValue)}</span></div>`;
 }
 
 function transformColorProperty(colorProp) {

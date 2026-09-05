@@ -51,7 +51,41 @@ defmodule Noora.Chart do
         }
       }
     }
+  }
   ```
+
+  ## Range bars
+
+  Custom series can use Noora's built-in range-bar renderer and tooltip. Each
+  point contains `[lane, start_in_milliseconds, end_in_milliseconds]`.
+  Noora configures the value and category axes and the required encoding when
+  it encounters `renderItem: "fn:rangeBar"`.
+
+  ```elixir
+  <.chart
+    id="timeline"
+    type="custom"
+    series={[
+      %{
+        type: "custom",
+        renderItem: "fn:rangeBar",
+        data: [
+          %{
+            value: [0, 125, 575],
+            name: "Compile Sources",
+            durationLabel: "Execution duration",
+            startLabel: "Started after"
+          }
+        ]
+      }
+    ]}
+    labels={["Worker 1"]}
+    extra_options={%{tooltip: %{formatter: "fn:rangeBarTooltip"}}}
+  />
+  ```
+
+  The optional `name`, `durationLabel`, and `startLabel` values are rendered in the
+  tooltip exactly as supplied, allowing callers to localize them.
   """
   use Phoenix.Component
 
@@ -59,10 +93,16 @@ defmodule Noora.Chart do
 
   attr(:type, :string,
     default: "bar",
-    values: ["bar", "line", "pie", "scatter", "radar"],
+    values: ["bar", "line", "pie", "scatter", "radar", "custom"],
     doc: """
     The type of chart to render. Defaults to "bar".
-    Available types: bar, line, pie, scatter, radar
+    Available types: bar, line, pie, scatter, radar, custom.
+
+    The custom type passes the provided series through to Apache ECharts. Use
+    `renderItem: "fn:rangeBar"` and `tooltip.formatter:
+    "fn:rangeBarTooltip"` for a range-bar timeline. Range-bar points use
+    `[lane, start_in_milliseconds, end_in_milliseconds]`; Noora supplies
+    the required value x-axis, category y-axis, and series encoding.
     """
   )
 
@@ -83,6 +123,11 @@ defmodule Noora.Chart do
     For scatter charts:
       - A list of [x, y] points: [[10, 20], [30, 40]]
       - A list of maps with series: [%{name: "Series 1", data: [[10, 20], [30, 40]]}]
+
+    For custom range-bar charts:
+      - A custom series with `renderItem: "fn:rangeBar"`
+      - Data points with `[lane, start_in_milliseconds, end_in_milliseconds]`
+      - Optional `name`, `durationLabel`, and `startLabel` fields for tooltip content
     """
   )
 
@@ -388,9 +433,9 @@ defmodule Noora.Chart do
     end
   end
 
-  # Sets tooltip trigger based on chart type (item for pie, axis for others)
+  # Sets tooltip trigger based on chart type (item for pie/custom, axis for others)
   defp add_tooltip_options(options, chart_type) do
-    trigger_value = if chart_type == "pie", do: "item", else: "axis"
+    trigger_value = if chart_type in ["pie", "custom"], do: "item", else: "axis"
 
     tooltip = %{
       trigger: trigger_value
