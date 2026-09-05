@@ -453,6 +453,13 @@ clickhouse:
   # Turning it on is step 2 of the rollout plan in the pull request. Nothing
   # here is reachable before that, and every step after it is a separate deploy
   # with its own gate.
+  #
+  # The machines are no longer the only gate. The `clickhouse` pool is two
+  # nodes, and the local PersistentVolume this chart renders binds on the pool
+  # label rather than a node name, so with one volume and two candidate nodes
+  # nothing stops the scheduler placing the pod on the node that does not hold
+  # the data. A volume per host has to land before this can be `true`, at one
+  # replica as much as at two.
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,

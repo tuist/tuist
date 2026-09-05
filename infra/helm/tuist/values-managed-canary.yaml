@@ -279,6 +279,11 @@ clickhouse:
     # Both are still 1 here, because two replicas need a volume per replica and
     # a database initialised on each of them, and neither exists yet. Raise
     # them together once they do.
+    #
+    # The volume per replica is what gates `enabled: true` above, not just this
+    # count: the pool is two nodes and the local PersistentVolume binds on the
+    # pool label rather than a node name, so even one pod can be scheduled onto
+    # the node that does not hold the data.
     replicas: 1
     persistence:
       size: 200Gi

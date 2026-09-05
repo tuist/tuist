@@ -83,26 +83,44 @@ spec:
         # PV. The `stateful-worker` class and this whole layout were exercised
         # on staging first, which is the same cascade every deploy follows.
         #
-        # replicas 0 until the machines are ordered. Declaring the pool with no
-        # replicas creates the MachineDeployment and its templates and claims
-        # no host, so this is inert until someone raises the count, and raising
-        # it is then the only cluster-side step. A replica with no host to claim
-        # would not wedge anything either — caph parks the Machine as
-        # `NoAvailableHost` — but zero keeps it obvious that nothing is
-        # expected yet.
+        # Two replicas, one per EX131-2-LTD, matching the shape the migration
+        # finishes on: after the cutover the system of record cannot live on a
+        # single machine with only the Tigris backups beside it. The chart runs
+        # one ClickHouse pod until each replica has a volume bound to its own
+        # host, so the second node is a joined, tainted, idle machine until
+        # then. That is deliberate: the boxes are the item with a lead time and
+        # limited FSN1 stock, and nothing else here is.
         #
-        # `statefulRaidLevel` is 10 here, set above, and has to be right
-        # before this host's first rescue boot: installimage applies the level
-        # across the whole disk set, the layout is fixed at install, and level
-        # 1 on a four-disk box is a four-way mirror rather than a pair of
-        # mirrors striped.
+        # Raising this count does not install anything on its own. A Machine
+        # with no host to claim parks as `NoAvailableHost`, and the host only
+        # appears once a Robot server is NAMED for it, which is the real
+        # trigger and the one below.
         #
-        # PREREQ: the Robot server must be named `tuist-bm-production-ch-1` so
-        # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
-        # stamped for this cluster.
+        # Two things are fixed at the host's first rescue boot and cannot be
+        # changed afterwards without a reinstall, so both have to be right
+        # BEFORE the server is named:
+        #
+        #   1. `statefulRaidLevel` is 10 here, set above. installimage applies
+        #      the level across the whole disk set, so level 1 on a four-disk
+        #      box is a four-way mirror (3.84 TB) rather than a pair of mirrors
+        #      striped (7.68 TB), on a machine bought for its disk.
+        #
+        #   2. `hetzner-robot-controller` must be running an image that carries
+        #      the WWN filler's four-disk fix. Before it, the filler promoted
+        #      only the first two WWNs into `spec.rootDeviceHints.raid.wwn`,
+        #      which was right while every box was an AX-class pair and installs
+        #      a four-disk box across two of its disks, silently. The pin lives
+        #      in `infra/k8s/mgmt/hetzner-robot-controller.yaml`.
+        #
+        # PREREQ, and the last step rather than the first: name the Robot
+        # servers `tuist-bm-production-ch-1` and `-2`. `hetzner-robot-controller`
+        # skips any server whose name lacks the `tuist-bm-` prefix
+        # (`controllers/hostdiscovery.go`), so a box ordered under Hetzner's
+        # default name is invisible to it, and to caph. Order the machines
+        # whenever stock allows; rename them once both points above hold.
         - class: stateful-worker
           name: md-clickhouse
-          replicas: 0
+          replicas: 2
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
