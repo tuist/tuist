@@ -27,15 +27,22 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
         let moduleMapsDirectory = derivedDirectory.appending(component: Constants.DerivedDirectory.moduleMaps)
         let frameworkSearchPathsDirectory = derivedDirectory.appending(component: Constants.DerivedDirectory.frameworkSearchPaths)
         let projectA = Project.test(path: projectPath)
+        let testPlansDirectory = derivedDirectory.appending(
+            component: Constants.DerivedDirectory.testPlans
+        )
         try await fileSystem.makeDirectory(at: derivedDirectory)
         try await fileSystem.makeDirectory(at: derivedDirectory.appending(component: "InfoPlists"))
         try await fileSystem.makeDirectory(at: moduleMapsDirectory)
         try await fileSystem.makeDirectory(at: frameworkSearchPathsDirectory)
+        try await fileSystem.makeDirectory(at: testPlansDirectory)
         try await fileSystem.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
         try await fileSystem.touch(moduleMapsDirectory.appending(component: "TargetA-deps.modulemap"))
         try await fileSystem.touch(moduleMapsDirectory.appending(component: "StaleTarget-deps.modulemap"))
         try await fileSystem.touch(frameworkSearchPathsDirectory.appending(component: "TargetA.resp"))
         try await fileSystem.touch(frameworkSearchPathsDirectory.appending(component: "StaleTarget.resp"))
+        try await fileSystem.touch(
+            testPlansDirectory.appending(component: "GeneratedTestPlan.xctestplan")
+        )
 
         // When
         let (_, sideEffects) = try await subject.map(project: projectA)
