@@ -7,15 +7,18 @@
 #   ANTHROPIC_API_KEY=sk-ant-... ENVIRONMENT_ID=env_... \
 #     infra/sandboxd/hack/managed-agents-smoke.sh
 #
-# Optional: MODEL (default claude-sonnet-5), AGENT_ID (reuse an agent),
-# PAUSE_WAIT seconds between turns (default 120, longer than the worker's
-# max idle plus the server's pause grace so the second turn hits a resume).
+# Optional: MODEL (default claude-haiku-4-5-20251001, the cheapest supported
+# model; the prompts are deliberately tiny), AGENT_ID (reuse an agent),
+# BUDGET_CENTS (hard session spend cap, default 50), PAUSE_WAIT seconds
+# between turns (default 90, longer than the worker's max idle plus the
+# server's pause grace so the second turn hits a resume).
 set -euo pipefail
 
 : "${ANTHROPIC_API_KEY:?}"
 : "${ENVIRONMENT_ID:?}"
-MODEL="${MODEL:-claude-sonnet-5}"
-PAUSE_WAIT="${PAUSE_WAIT:-120}"
+MODEL="${MODEL:-claude-haiku-4-5-20251001}"
+BUDGET_CENTS="${BUDGET_CENTS:-50}"
+PAUSE_WAIT="${PAUSE_WAIT:-90}"
 API="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
 
 req() {
@@ -54,15 +57,15 @@ print_turn() {
 }
 
 if [ -z "${AGENT_ID:-}" ]; then
-  AGENT_ID=$(req POST /v1/agents "$(jq -n --arg m "$MODEL" '{name:"tuist-sandbox-smoke", model:$m, system:"You are running inside a Tuist sandbox. Use the bash tool for every task and reply with the raw command output.", tools:[{type:"agent_toolset_20260401"}]}')" | jq -r .id)
+  AGENT_ID=$(req POST /v1/agents "$(jq -n --arg m "$MODEL" '{name:"tuist-sandbox-smoke", model:$m, system:"Use bash. Reply with only the command output.", tools:[{type:"agent_toolset_20260401"}]}')" | jq -r .id)
 fi
 echo "agent: $AGENT_ID"
 
-SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", initial_events:[{type:"user.message", content:[{type:"text", text:"Run exactly this with bash and reply with its output: uname -a; hostname; date -u | tee /workspace/hello.txt; nohup sleep 3600 >/dev/null 2>&1 & echo started sleep pid $!"}]}]}')" | jq -r .id)
+SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; date -u | tee /workspace/t"}]}]}')" | jq -r .id)
 echo "session: $SID"
 
 echo "== turn 1"; wait_idle "$SID"; print_turn "$SID"
 echo "== waiting ${PAUSE_WAIT}s for the sandbox to pause"; sleep "$PAUSE_WAIT"
-req POST "/v1/sessions/$SID/events" '{"events":[{"type":"user.message","content":[{"type":"text","text":"Run exactly this with bash and reply with its output: cat /workspace/hello.txt; pgrep -a sleep; uptime"}]}]}' >/dev/null
+req POST "/v1/sessions/$SID/events" '{"events":[{"type":"user.message","content":[{"type":"text","text":"bash: cat /workspace/t; uptime"}]}]}' >/dev/null
 echo "== turn 2"; wait_idle "$SID"; print_turn "$SID"
 echo "session: $SID"
