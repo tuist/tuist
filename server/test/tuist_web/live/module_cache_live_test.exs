@@ -7,6 +7,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Runs.ModuleCacheTab
 
   describe "module cache page" do
@@ -33,6 +34,45 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       assert has_element?(lv, "#widget-cache-hit-rate")
       assert has_element?(lv, "#widget-cache-hits")
       assert has_element?(lv, "#widget-cache-misses")
+    end
+
+    test "renders the module invalidation card with worst offenders", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+      build = fn created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      build.(~N[2024-01-30 10:00:00], :miss, "s1")
+      build.(~N[2024-01-31 09:00:00], :miss, "s2")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+      html = render_async(lv, 2000)
+
+      # Then
+      assert has_element?(lv, "#module-cache-modules-table")
+      assert has_element?(lv, "#widget-most-invalidated-module")
+      assert html =~ "Core"
     end
   end
 
@@ -91,5 +131,57 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       },
       Map.new(attrs)
     )
+  end
+
+  test "the module summary looks past the rows the card lists", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event = fn created_at ->
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: created_at
+      ).id
+    end
+
+    target = fn event_id, name, sources, deps ->
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event_id,
+        name: name,
+        product: "framework",
+        binary_cache_hash: "h-#{name}-#{sources}",
+        binary_cache_hit: :miss,
+        sources_hash: sources,
+        dependencies: deps
+      )
+    end
+
+    first = event.(~N[2024-01-29 10:00:00])
+    latest = event.(~N[2024-01-30 10:00:00])
+
+    # 40 noisy modules, each missing far more often than Core, so Core sorts
+    # last and falls outside the 30 the query returns by default.
+    for i <- 1..40 do
+      name = "Noise#{String.pad_leading("#{i}", 2, "0")}"
+
+      for {event_id, sources} <- [{first, "a"}, {latest, "b"}] do
+        target.(event_id, name, "#{sources}-#{name}", ["Core"])
+      end
+    end
+
+    # Core misses once, but every one of those modules depends on it.
+    target.(latest, "Core", "core", [])
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+
+    html = render_async(lv, 2000)
+
+    # Summarising only the returned rows would miss Core entirely.
+    assert html =~ "Core"
   end
 end
