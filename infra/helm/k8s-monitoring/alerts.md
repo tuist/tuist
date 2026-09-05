@@ -4022,22 +4022,10 @@ entries and never becomes a metric.
 
 **How the data gets here.** The Grafana Faro Web SDK is an npm dependency
 bundled into the server's own JavaScript, so there is no third-party script and
-no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which
-the `tuist` chart routes at the `faro.receiver` on the `alloy-receiver`
-collector through an ExternalName Service (`server.faro` in
-`infra/helm/tuist`). Alloy forwards to Grafana Cloud Loki.
-
-**The collector path is rewritten, and that is the fragile part.** Alloy's
-`faro.receiver` serves POST on `/collect` and nothing else, so a dedicated
-Ingress rewrites `/-/faro/collect` to `/collect` before it reaches the receiver.
-It is a separate Ingress object from the server's on purpose: `rewrite-target`
-is a per-Ingress annotation, so putting the path on the main Ingress would
-rewrite `/` as well and take the whole site down. ingress-nginx denies an
-Ingress whose host and path another Ingress already defines, so the collector
-path must be one no other Ingress on `tuist.dev` lists. The first deploy of
-this pipeline shipped without the rewrite and every payload got a 404 from
-Alloy's router, which is why the triage below starts by reading the body of
-that 404 rather than only its status.
+no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which a
+dedicated Ingress routes at the `faro.receiver` on the `alloy-receiver`
+collector through an ExternalName Service (`server.faro` in `infra/helm/tuist`).
+Alloy forwards to Grafana Cloud Loki.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
@@ -4046,31 +4034,40 @@ to filter. A blocked collector would not look like an outage, it would quietly
 bias the percentiles toward the users who do not block, which is exactly the
 population least likely to be slow.
 
-**The shape of the data.** Web vitals arrive as `kind=measurement` entries with
-`type=web-vitals`. The logfmt line carries one field per vital (`lcp`, `cls`,
-`inp`, `fcp`, `ttfb`) **in milliseconds**, so every rule divides by 1000 to
-alert in seconds. Faro metadata is prefixed: `app_name`, `app_environment`,
-`page_url`, `session_id`, `browser_*`, `view_name`. LCP attribution lands
-alongside the value (`resource_load_delay`, `resource_load_duration`,
-`element_render_delay`, `time_to_first_byte`) and the measurement context is
-prefixed `context_` (`context_rating`, `context_element`).
+#### Measured baseline
 
-Because `| logfmt` promotes every field to a label, each query needs an explicit
-`by (app_environment)` or `sum by (...)`. Without it a range aggregation returns
-one series per unique field combination, which is per-session.
+Taken 2026-09-05 over 24h, 768 LCP samples. **Re-derive this after any change to
+the marketing site's asset weight**, and treat it as the reference for whether a
+threshold below is still sensible.
 
-**`app_environment` is `prod`, not `production`.** The value comes from
-`Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
-the k8s and Grafana Cloud label layer, a different thing. Every rule here
-originally filtered `production` and therefore matched nothing — and because the
-percentile rules are No Data: OK, that read as a healthy, fast site rather than
-a broken pipeline. If a rule in this group ever goes quiet, re-run its query
-with the environment filter removed before believing the silence.
+| Percentile | LCP | Threshold | Headroom |
+| --- | --- | --- | --- |
+| p50 | 0.87s | 2.5s | 2.9x |
+| **p75** | **1.57s** | **2.5s** | **1.6x** |
+| p90 | 2.87s | 4.0s | 1.4x |
+| p95 | 3.81s | 5.0s | 1.3x |
+| p99 | 7.11s | 10.0s | 1.4x |
+
+Ratings: **88% good, 8% needs-improvement, 4% poor**. p75 at 1.57s passes Core
+Web Vitals comfortably and sits inside the 1.2–1.8s target for a mostly static
+site behind Cloudflare with TTFB around 117ms.
+
+Volume is about **32 LCP samples an hour**. Every window and sample floor below
+is derived from that rate rather than guessed, which is what the first version
+of these rules got wrong.
+
+#### The stream selector — read this before writing a query
+
+**`kind` is NOT a Loki label.** Alloy's Faro exporter sets it as a stream label,
+but Grafana Cloud does not index it. The only stream labels are `cluster`,
+`env`, `k8s_cluster_name`, `service_name` and `detected_level`; everything else,
+`kind` included, lives inside the logfmt line and must be parsed out:
 
 ```logql
-quantile_over_time(0.95,
-  {service_name="tuist-web", kind="measurement"}
+quantile_over_time(0.75,
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | app_environment="prod"
     | lcp!=""
@@ -4078,21 +4075,41 @@ quantile_over_time(0.95,
 ) by (app_environment) / 1000
 ```
 
-Every rule pairs that with a sample-count query and fires only when both the
-threshold is crossed and enough samples exist, so a handful of overnight
-visitors on bad connections cannot manufacture a percentile.
+Selecting `{service_name="tuist-web", kind="measurement"}` matches nothing.
+
+**`app_environment` is `prod`, not `production`.** The value comes from
+`Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
+the k8s and Grafana Cloud label layer, a different thing.
+
+Because `| logfmt` promotes every field to a label, each query also needs an
+explicit `by (app_environment)` or `sum by (...)`. Without it a range
+aggregation returns one series per unique field combination, which is
+per-session.
+
+Web vitals arrive as `kind=measurement` entries with `type=web-vitals`. The line
+carries one field per vital (`lcp`, `cls`, `inp`, `fcp`, `ttfb`) **in
+milliseconds**, so every rule divides by 1000 to alert in seconds. Metadata is
+prefixed: `app_name`, `app_environment`, `page_url`, `session_id`, `browser_*`,
+`view_name`. LCP attribution lands alongside the value (`resource_load_delay`,
+`resource_load_duration`, `element_render_delay`, `time_to_first_byte`) and the
+measurement context is prefixed `context_` (`context_rating`,
+`context_element`).
+
+#### The rules
 
 | Rule | Percentile | Window | Threshold | Min samples | Pending |
 | --- | --- | --- | --- | --- | --- |
-| LCP p50 above the Core Web Vitals good threshold | 0.50 | 1h | > 2.5s | 50 | 15m |
-| **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **200** | **30m** |
-| LCP p90 in the Core Web Vitals poor band | 0.90 | 1h | > 4.0s | 100 | 15m |
-| LCP p95 sustained slow tail | 0.95 | 6h | > 5.0s | 200 | 30m |
-| LCP p99 pathological tail | 0.99 | 6h | > 8.0s | 200 | 30m |
+| LCP p50 above the Core Web Vitals good threshold | 0.50 | 6h | > 2.5s | 100 | 30m |
+| **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **100** | **30m** |
+| LCP p90 in the Core Web Vitals poor band | 0.90 | 6h | > 4.0s | 100 | 30m |
+| LCP p95 sustained slow tail | 0.95 | 24h | > 5.0s | 300 | 30m |
+| LCP p99 pathological tail | 0.99 | 24h | > 10.0s | 300 | 30m |
 
-The higher percentiles use a 6h window because a stable estimate needs roughly
-ten times `1/(1-q)` samples and tuist.dev does not produce that in an hour
-outside peak.
+Each pairs the percentile with a sample-count query and fires only when both the
+threshold is crossed and enough samples exist, so a handful of overnight
+visitors cannot manufacture a percentile. At 32 samples an hour a 6h window
+holds roughly 190 and a 24h window roughly 770; p95 and p99 need the wider one
+because a stable estimate takes about ten times `1/(1-q)` samples.
 
 **p75 is the only one of these that measures a standard.** Core Web Vitals
 assesses LCP at the 75th percentile — at or below 2.5s is good, above 4.0s is
@@ -4102,13 +4119,8 @@ is slow. The other four describe the *shape* of a regression: a p50 move changed
 something for everyone, p90 and p95 point at a segment, and p99 finds individual
 broken pages. Only p75 answers whether we are passing.
 
-Treat 2.5s as the failing line rather than the goal. tuist.dev is mostly static
-content behind Cloudflare with TTFB around 117ms, and marketing image weight was
-cut from 145 MB to 73 MB in [#12800](https://github.com/tuist/tuist/pull/12800),
-so **p75 in the 1.2–1.8s range is what to aim at**. For reference, a site
-passing comfortably at p75 ≈ 2.0s typically sits around p50 ≈ 1.4s, p90 ≈ 3.0s,
-p95 ≈ 3.8s and p99 ≈ 6.5s — which is why the thresholds above sit clear of a
-healthy distribution rather than hugging it.
+Treat 2.5s as the failing line rather than the goal; **p75 in the 1.2–1.8s range
+is what to aim at**, and the measured 1.57s is inside it.
 
 Core Web Vitals is officially assessed over 28 days, which is neither practical
 nor useful to alert on, so the p75 rule uses 6h as an operational proxy. A
@@ -4122,8 +4134,9 @@ value, so no extra instrumentation is needed:
 
 ```logql
 quantile_over_time(0.75,
-  {service_name="tuist-web", kind="measurement"}
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | lcp!=""
     | unwrap resource_load_duration [6h]
@@ -4134,17 +4147,22 @@ Swap `resource_load_duration` for `time_to_first_byte`, `resource_load_delay` or
 `element_render_delay`. A large `resource_load_duration` is image weight; a large
 `time_to_first_byte` is the origin.
 
-**THESE THRESHOLDS ARE NOT MEASUREMENTS OF TUIST.DEV.** They anchor on Google's
-Core Web Vitals boundaries because when the rules were written no LCP history
-existed to derive anything from: PostHog held the only real-user vitals and was
-being removed in the same change. Re-derive the p50, p90, p95 and p99 thresholds
-from two weeks of this stream before treating any of them as an SLO. p75 is the
-exception and should stay at 2.5s: it is a published standard rather than a
-guess about this site. The p95 rule tracks the percentile the retired PostHog
-daily report watched, so it is the one with continuity to what came before.
-
 These rules are warnings and carry no `affected_service` label. A slow marketing
 page is not a customer-visible outage and must not open a status-page incident.
+
+#### Signal-to-noise in this stream
+
+Of roughly 37,000 Faro entries a day, only about 4,600 are `kind=measurement`
+and 768 of those carry an LCP. The rest is `kind=event`, dominated by
+`faro.performance.resource` entries — and because LiveView long-polls every ten
+seconds, a single idle open tab emits a resource-timing entry on that cadence
+forever.
+
+The consequence is query amplification rather than a large bill: an LCP query
+scans around 63,000 lines to find 768. If it becomes a problem, pass
+`enablePerformanceInstrumentation: false` to `getWebInstrumentations` in
+`server/assets/shared/js/analytics.js`. Web vitals come from a separate
+instrumentation and are unaffected.
 
 ### Browser vitals telemetry missing
 
@@ -4155,8 +4173,9 @@ silence all five permanently and read as health.
 
 ```logql
 sum(count_over_time(
-  {service_name="tuist-web", kind="measurement"}
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | app_environment="prod"
     | lcp!="" [2h]
@@ -4171,12 +4190,25 @@ The polarity is inverted relative to the rules it guards. If the stream vanishes
 entirely, `sum(count_over_time(...))` returns nothing rather than zero, so the
 threshold alone would never fire and No Data has to be the alerting state. The
 same inversion applies to the `absent_over_time` rules elsewhere in this
-document.
+document. A healthy 2h window holds roughly 60 samples, and the threshold is
+total silence rather than a volume dip.
 
-**It ships paused.** It was created alongside the Faro pipeline but before that
-pipeline was deployed, so leaving it active would have fired continuously from
-creation. Unpause it once the deploy has landed and Explore shows measurements
-arriving; while it is paused the percentile rules are unguarded.
+**This pipeline has now shipped three silent faults**, and all three presented
+identically — every rule green, nothing firing, no data behind any of it:
+
+1. **Path.** Alloy's `faro.receiver` serves POST on `/collect` alone. Payloads
+   got a plain-text `404 page not found` from Alloy's router until the collector
+   URL moved to `/-/faro/collect`.
+2. **Environment spelling.** The rules filtered `app_environment="production"`
+   while the app emits `prod`.
+3. **`kind` as a label.** The rules selected `{service_name="tuist-web",
+   kind="measurement"}`, which Grafana Cloud never indexes. This one hid two
+   days of perfectly good data.
+
+The shape is always the same: a filter that matches nothing is indistinguishable
+from a fast site when No Data is OK. **When a rule in this group goes quiet,
+strip the query back to `{service_name="tuist-web"}` and re-add one stage at a
+time** before believing the silence.
 
 Triage follows the payload:
 
@@ -4184,15 +4216,16 @@ Triage follows the payload:
    `collector_url`. Empty means `TUIST_FARO_COLLECTOR_URL` is unset, i.e.
    `server.faro.collectorUrl` is empty in the chart.
 2. **Ingress** — `curl -sX POST https://tuist.dev/-/faro/collect -H 'Content-Type: application/json' -d '{}'`
-   should not 404. **Read the body, not just the status**, because the two 404s
-   mean opposite things: a plain-text `404 page not found` is Go's, so the
-   request reached Alloy and only the path is wrong (the rewrite Ingress is
-   missing or its annotation was dropped), whereas the server's HTML error page
-   means the request never left Phoenix and `server.faro.receiverHost` is empty,
-   so neither the ExternalName Service nor the Faro Ingress was rendered.
-3. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
+   should return 202. **Read the body of any 404**: a plain-text
+   `404 page not found` is Go's, so the request reached Alloy and the path is
+   wrong, whereas the server's HTML error page means it never left Phoenix and
+   neither the ExternalName Service nor the Faro Ingress was rendered.
+3. **Loki** — strip the query to the bare stream selector, then re-add
+   `| logfmt | kind="measurement"` and each filter in turn.
+4. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
    collector counts what it ingested. Rising there but absent in Loki is a
-   forwarding problem, not a browser one.
+   forwarding problem. Absent entirely proves nothing on its own: those
+   component metrics are not always exported to Grafana Cloud.
 
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
