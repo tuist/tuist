@@ -67,6 +67,7 @@ defmodule Tuist.Accounts.Account do
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
+    field :runner_github_actions_enabled, :boolean, default: true
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -135,6 +136,12 @@ defmodule Tuist.Accounts.Account do
 
   def runner_trial_changeset(account, attrs) do
     cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
+  end
+
+  def runner_github_actions_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:runner_github_actions_enabled])
+    |> validate_required([:runner_github_actions_enabled])
   end
 
   def update_changeset(account, attrs) do

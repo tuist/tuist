@@ -1,30 +1,78 @@
-#account-runner-buildkite {
+#runner-settings {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-6);
+  align-items: stretch;
+  gap: var(--noora-spacing-9);
 
-  & > [data-part="page-header"] {
+  & > [data-part="title"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  /* One card per CI provider: a header row with the switch on the right,
+     and the provider's configuration below it only while it is on. */
+  & > [data-part="github-actions-card-section"],
+  & > [data-part="buildkite-card-section"] {
     display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--noora-spacing-5);
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
 
-    & > [data-part="heading"] {
+    & > [data-part="header"] {
       display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-      min-width: 0;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--noora-spacing-8);
 
-      & > [data-part="title"] {
-        margin: 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      & > [data-part="heading"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
       }
 
-      & > [data-part="subtitle"] {
+      & > .noora-toggle {
+        flex-shrink: 0;
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+      /* The values are short — a slug, a name, a token prefix. A field
+         spanning the whole card would strand the label from its input. */
+      max-width: 36rem;
+    }
+  }
+
+  & [data-part="connection"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="connection-status"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+      &[data-status="connected"] {
+        color: var(--noora-surface-label-primary);
+      }
+
+      &[data-status="disconnected"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
     }
   }
@@ -40,10 +88,6 @@
       flex-direction: column;
       gap: var(--noora-spacing-4);
       width: 100%;
-      /* The three values are short — a slug, a name and a token prefix.
-         A full-width field would leave the label stranded from its input
-         on a wide dashboard. */
-      max-width: 26rem;
     }
 
     & > .noora-alert {

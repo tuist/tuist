@@ -30,7 +30,7 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 > If you have more than one cluster, decide which one you are using first, then create the queues, the token and the pipeline in that one. Buildkite's **New pipeline** form does not ask which cluster you want, so check the pipeline's **Settings → General → Cluster** after creating it.
 
 1. **Create a cluster agent token.** In Buildkite, open your cluster, go to **Agent Tokens**, and create one. It starts with `bkct_`.
-2. **Add it to Tuist.** In your Tuist dashboard, go to **Runners → Buildkite**, enter your Buildkite organization slug and paste the token. The token is stored encrypted and is never shown again.
+2. **Add it to Tuist.** In your Tuist dashboard, go to **Settings → Runners**, switch Buildkite on, enter your Buildkite organization slug and paste the token. The token is stored encrypted and is never shown again.
 
 Tuist begins watching the cluster within a minute.
 
@@ -54,7 +54,7 @@ steps:
       queue: tuist-macos
 ```
 
-The **Runners → Buildkite** page lists the exact queue keys your profiles currently offer — copy them from there rather than constructing them by hand. Queues that match no profile are left alone, so your own agents keep serving them.
+The **Settings → Runners** page lists the exact queue keys your profiles currently offer — copy them from there rather than constructing them by hand. Queues that match no profile are left alone, so your own agents keep serving them.
 
 To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create a profile</.localized_link> for it and add a queue keyed with that profile's label.
 
@@ -73,7 +73,7 @@ The runner reports with a credential scoped to the single job it is running, min
 
 Work through these in order:
 
-1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal one of the queue keys listed on the **Runners → Buildkite** page — including the `tuist-` prefix. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
+1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal one of the queue keys listed on the **Settings → Runners** page — including the `tuist-` prefix. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
 2. **Is the pipeline in the same cluster as the queues and the token?** See the warning above. This is the most common cause and the hardest to see.
 3. **Does the Tuist settings page show an error?** A revoked or wrong-cluster token is reported there under the connection.
 
@@ -83,7 +83,7 @@ A profile with no matching Buildkite queue is fine and is skipped quietly; you d
 
 Pausing dispatch on a Buildkite queue stops Tuist from taking new jobs from it. Jobs already running are unaffected.
 
-Disconnecting the cluster in **Runners → Buildkite** stops Tuist watching it entirely.
+Switching Buildkite off in **Settings → Runners** stops Tuist watching the cluster while keeping the connection, so switching it back on is one click. Disconnecting removes the connection and its token.
 
 ## How jobs reach the fleet {#how-jobs-reach-the-fleet}
 

@@ -242,6 +242,17 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
     end
 
+    test "returns {:ignored, :github_actions_disabled} when the account switched GitHub Actions off" do
+      # Runners stay enabled for the account; only the GitHub Actions lane
+      # is off, so Buildkite jobs would still be taken.
+      account = %{enabled_account() | runner_github_actions_enabled: false}
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      assert {:ignored, :github_actions_disabled} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
     test "returns {:ignored, :no_matching_pool} when none of the pools' dispatchLabels match" do
       account = enabled_account()
 

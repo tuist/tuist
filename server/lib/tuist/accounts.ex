@@ -1963,6 +1963,16 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Turns the GitHub Actions runner lane on or off for the account. Off,
+  dispatch ignores the account's `workflow_job` webhooks.
+  """
+  def set_runner_github_actions_enabled(%Account{} = account, enabled) when is_boolean(enabled) do
+    account
+    |> Account.runner_github_actions_changeset(%{runner_github_actions_enabled: enabled})
+    |> Repo.update()
+  end
+
+  @doc """
   Updates the account's name.
   """
   def update_account(%Account{} = account, attrs) do

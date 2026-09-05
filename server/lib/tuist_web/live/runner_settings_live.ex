@@ -1,15 +1,17 @@
-defmodule TuistWeb.RunnerBuildkiteLive do
+defmodule TuistWeb.RunnerSettingsLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.VCS
 
-  # The fields the form renders an input for.
+  # The fields the Buildkite form renders an input for.
   @form_fields [:organization_slug, :cluster_name, :agent_token]
 
   @impl true
@@ -22,10 +24,9 @@ defmodule TuistWeb.RunnerBuildkiteLive do
 
     {:ok,
      socket
-     |> assign(
-       :head_title,
-       "#{dgettext("dashboard_runners", "Buildkite")} · #{selected_account.name} · Tuist"
-     )
+     |> assign(:head_title, "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist")
+     |> assign(:github_actions_enabled?, selected_account.runner_github_actions_enabled)
+     |> assign(:github_actions_connected?, github_actions_connected?(selected_account))
      |> assign(:queue_keys, queue_keys(selected_account))
      |> assign(:form_error, nil)
      |> assign(:field_errors, %{})
@@ -62,6 +63,31 @@ defmodule TuistWeb.RunnerBuildkiteLive do
     end
   end
 
+  def handle_event("toggle_github_actions", _params, %{assigns: %{selected_account: account}} = socket) do
+    {:ok, account} =
+      Accounts.set_runner_github_actions_enabled(account, not account.runner_github_actions_enabled)
+
+    {:noreply,
+     socket
+     |> assign(:selected_account, account)
+     |> assign(:github_actions_enabled?, account.runner_github_actions_enabled)}
+  end
+
+  # With no connection yet the switch only reveals the form; the state is
+  # persisted the moment there is an installation to persist it on.
+  def handle_event("toggle_buildkite", _params, %{assigns: %{installation: nil, buildkite_enabled?: enabled?}} = socket) do
+    {:noreply, assign(socket, :buildkite_enabled?, not enabled?)}
+  end
+
+  def handle_event(
+        "toggle_buildkite",
+        _params,
+        %{assigns: %{selected_account: account, buildkite_enabled?: enabled?}} = socket
+      ) do
+    :ok = Buildkite.set_installation_enabled(account.id, not enabled?)
+    {:noreply, assign_installation(socket)}
+  end
+
   def handle_event("disconnect", _params, %{assigns: %{selected_account: account}} = socket) do
     :ok = Buildkite.delete_installation(account.id)
 
@@ -70,6 +96,18 @@ defmodule TuistWeb.RunnerBuildkiteLive do
      |> assign(:form_error, nil)
      |> assign(:field_errors, %{})
      |> assign_installation()}
+  end
+
+  # GitHub Actions has nothing to configure on this page: jobs arrive through
+  # the GitHub App's `workflow_job` webhooks, so the lane is live exactly when
+  # the App is installed. A manifest-flow row exists with `installation_id:
+  # nil` until GitHub's setup callback completes, and that is not a connection
+  # yet.
+  defp github_actions_connected?(account) do
+    case VCS.get_github_app_installation_for_account(account.id) do
+      {:ok, %{installation_id: installation_id}} -> not is_nil(installation_id)
+      {:error, :not_found} -> false
+    end
   end
 
   # The stack key identifies this controller to Buildkite and scopes its
@@ -86,7 +124,16 @@ defmodule TuistWeb.RunnerBuildkiteLive do
   end
 
   defp assign_installation(%{assigns: %{selected_account: account}} = socket) do
-    assign(socket, :installation, Buildkite.get_installation(account.id))
+    installation = Buildkite.get_installation(account.id)
+
+    enabled? =
+      if installation,
+        do: installation.enabled,
+        else: Map.get(socket.assigns, :buildkite_enabled?, false)
+
+    socket
+    |> assign(:installation, installation)
+    |> assign(:buildkite_enabled?, enabled?)
   end
 
   defp queue_keys(account) do

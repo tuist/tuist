@@ -1,22 +1,70 @@
-<div id="account-runner-buildkite">
-  <div data-part="page-header">
-    <div data-part="heading">
-      <h1 data-part="title">{dgettext("dashboard_runners", "Buildkite")}</h1>
-      <span data-part="subtitle">
-        {dgettext(
-          "dashboard_runners",
-          "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-        )}
-      </span>
-    </div>
-  </div>
+<div id="runner-settings">
+  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
 
-  <.card
-    title={dgettext("dashboard_runners", "Cluster")}
-    icon="server"
-    data-part="buildkite-card"
-  >
-    <.card_section>
+  <%!-- One card per CI provider, each behind its own switch. Adding a
+        provider means adding a card here, not restructuring the page. --%>
+  <.card_section data-part="github-actions-card-section" data-enabled={@github_actions_enabled?}>
+    <div data-part="header">
+      <div data-part="heading">
+        <span data-part="title">{dgettext("dashboard_runners", "GitHub Actions")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_runners",
+            "Jobs reach the fleet through the GitHub App. Target a runner profile with runs-on in your workflow."
+          )}
+        </span>
+      </div>
+      <%!-- The state is part of the id so the toggle remounts on change:
+            its control lives under `phx-update="ignore"`. --%>
+      <.toggle
+        id={"github-actions-toggle-#{@github_actions_enabled?}"}
+        checked={@github_actions_enabled?}
+        phx-click="toggle_github_actions"
+      />
+    </div>
+    <div :if={@github_actions_enabled?} data-part="content">
+      <div data-part="connection">
+        <span
+          data-part="connection-status"
+          data-status={if @github_actions_connected?, do: "connected", else: "disconnected"}
+        >
+          {if @github_actions_connected?,
+            do: dgettext("dashboard_runners", "Connected"),
+            else: dgettext("dashboard_runners", "Not connected")}
+        </span>
+        <.button
+          label={dgettext("dashboard_runners", "Manage in Integrations")}
+          variant="secondary"
+          size="medium"
+          navigate={~p"/#{@selected_account.name}/settings/integrations"}
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="buildkite-card-section" data-enabled={@buildkite_enabled?}>
+    <div data-part="header">
+      <div data-part="heading">
+        <span data-part="title">{dgettext("dashboard_runners", "Buildkite")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_runners",
+            "Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+          )}
+        </span>
+      </div>
+      <.toggle
+        id={"buildkite-toggle-#{@buildkite_enabled?}"}
+        checked={@buildkite_enabled?}
+        phx-click="toggle_buildkite"
+      />
+    </div>
+    <div :if={@buildkite_enabled?} data-part="content">
       <form phx-submit="connect" data-part="buildkite-form">
         <.alert
           :if={@form_error}
@@ -91,12 +139,8 @@
           type="submit"
         />
       </form>
-    </.card_section>
 
-    <%!-- `card_section` takes no title, so a `title` attribute would land in
-          the DOM as a hover tooltip instead of a heading. --%>
-    <.card_section :if={@installation}>
-      <div data-part="status">
+      <div :if={@installation} data-part="status">
         <div data-part="status-row">
           <span data-part="status-label">{dgettext("dashboard_runners", "Last checked")}</span>
           <span data-part="status-value">
@@ -113,15 +157,7 @@
           phx-click="disconnect"
         />
       </div>
-    </.card_section>
-  </.card>
 
-  <.card
-    title={dgettext("dashboard_runners", "Queues")}
-    icon="list_tree"
-    data-part="buildkite-queues-card"
-  >
-    <.card_section>
       <div data-part="queues">
         <span data-part="queues-hint">
           {dgettext(
@@ -136,6 +172,6 @@
           </li>
         </ul>
       </div>
-    </.card_section>
-  </.card>
+    </div>
+  </.card_section>
 </div>

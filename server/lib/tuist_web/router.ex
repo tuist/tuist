@@ -1203,7 +1203,6 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
-      live "/runners/buildkite", RunnerBuildkiteLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1214,6 +1213,7 @@ defmodule TuistWeb.Router do
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive
+      live "/settings/runners", RunnerSettingsLive
       live "/settings/authentication", AuthenticationSettingsLive
     end
   end
