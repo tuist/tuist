@@ -10,6 +10,7 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
   alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.WorkflowJob
 
   setup do
     %{account: account} = organization_fixture(preload: [:account])
@@ -119,6 +120,74 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
     end
   end
 
+  describe "POST logs bounds" do
+    test "refuses lines past the per-job ceiling", %{conn: conn, token: token} do
+      # The byte cap bounds one request; without a ceiling on the line
+      # number the same token could keep appending fresh batches.
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/logs", %{
+          "lines" => ["x"],
+          "first_line_number" => 1_000_001
+        })
+
+      assert json_response(conn, 400)["error"] =~ "first_line_number"
+    end
+
+    test "refuses logs once the job has been settled past the grace window", %{
+      conn: conn,
+      account: account,
+      workflow_job_id: workflow_job_id,
+      token: token
+    } do
+      long_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        provider: "buildkite",
+        status: "completed",
+        fleet_name: "linux-amd64",
+        enqueued_at: long_ago,
+        completed_at: long_ago
+      })
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/logs", %{"lines" => ["x"], "first_line_number" => 1})
+
+      assert json_response(conn, 410)["error"] =~ "no longer accepting"
+    end
+
+    test "still accepts the upload that follows a job's finish report", %{
+      conn: conn,
+      account: account,
+      workflow_job_id: workflow_job_id,
+      token: token
+    } do
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        provider: "buildkite",
+        status: "completed",
+        fleet_name: "linux-amd64",
+        enqueued_at: DateTime.utc_now(),
+        completed_at: DateTime.utc_now()
+      })
+
+      expect(JobLogs, :append, fn _lines -> :ok end)
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/logs", %{"lines" => ["x"], "first_line_number" => 1})
+
+      assert response(conn, 204)
+    end
+  end
+
   describe "POST finish" do
     test "reports the job's window and outcome", %{
       conn: conn,
@@ -132,8 +201,10 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
         assert account_id == account.id
         assert report.workflow_job_id == workflow_job_id
         assert report.conclusion == "success"
-        assert report.started_at == DateTime.from_unix!(1_750_684_800)
-        assert report.ended_at == DateTime.from_unix!(1_750_684_860)
+        # The window is measured server-side, so timestamps in the body
+        # are not carried into the report at all.
+        refute Map.has_key?(report, :started_at)
+        refute Map.has_key?(report, :ended_at)
         :ok
       end)
 

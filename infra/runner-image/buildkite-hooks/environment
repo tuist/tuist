@@ -10,11 +10,10 @@
 # exported by the parent process does not necessarily survive into the
 # job. Re-exporting them here is what puts them in front of the build.
 #
-# Also stamps the job's start, which the pre-exit hook pairs with the
-# finish time to report the billable window. The agent gives us no start
-# timestamp of its own, and the Pod's own start is the wrong number: it
-# includes VM boot and cache materialization, which is our overhead and
-# not the customer's job.
+# The billable window is measured server-side and is not stamped here.
+# This hook runs inside the customer's job and its credential is readable
+# from there, so a timestamp taken at this point would be the job's own
+# claim about how long it ran.
 
 set -uo pipefail
 
@@ -22,7 +21,6 @@ STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/var/log/tuist-runner}"
 JOB_ENV="${TUIST_RUNNER_JOB_ENV:-/etc/tuist-runner-job.env}"
 
 mkdir -p "${STATE_DIR}" 2>/dev/null || true
-date +%s >"${STATE_DIR}/job-started-at" 2>/dev/null || true
 
 # Absent file, or absent variable, means the server sent nothing and the
 # build falls back to normal cache resolution.
@@ -31,7 +29,16 @@ if [ -f "${JOB_ENV}" ]; then
   source "${JOB_ENV}"
 fi
 
-[ -n "${TUIST_CACHE_ENDPOINT:-}" ] && export TUIST_CACHE_ENDPOINT
-[ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && export TUIST_CACHE_SIGNING_GRANT
+# Never `exit` from here. The agent sources this hook from a wrapper that
+# dumps the environment afterwards to learn what changed; exiting skips
+# that dump, and an empty dump is read as "the hook early-exited", so
+# every export below is discarded and the build silently loses its cache
+# settings. `if` blocks rather than `&&` so the hook also ends with a
+# zero status when a variable is absent.
+if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+  export TUIST_CACHE_ENDPOINT
+fi
 
-exit 0
+if [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then
+  export TUIST_CACHE_SIGNING_GRANT
+fi

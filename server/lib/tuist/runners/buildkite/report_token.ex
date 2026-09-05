@@ -28,10 +28,15 @@ defmodule Tuist.Runners.Buildkite.ReportToken do
 
   @salt "runner_buildkite_report"
 
-  # Long enough to outlive any job the fleet will run — billing already
-  # clamps a session at six hours — and short enough that a token
-  # recovered from a build artifact later is inert. It is bound to one
-  # job either way; the bound is defence in depth, not the control.
+  # Twice `RunnerSessions.max_session_lifetime_seconds/0`, the six-hour
+  # point at which a session is clamped for billing, and short enough
+  # that a token recovered from a build artifact later is inert.
+  #
+  # This is therefore also the supported job length on this lane: a job
+  # still running after twelve hours reports with an expired token and
+  # loses its outcome and logs, though its billable window was already
+  # clamped at six. Raising it means widening the window in which a
+  # leaked token is live, so the limit is documented rather than raised.
   @max_age_seconds 12 * 60 * 60
 
   @doc """

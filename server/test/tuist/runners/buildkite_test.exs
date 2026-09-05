@@ -15,6 +15,8 @@ defmodule Tuist.Runners.BuildkiteTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -546,6 +548,58 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
   end
 
+  describe "record_job_finished/3" do
+    test "bills the window it observed, not one the job could report", %{account: account} do
+      # The hook posting this runs inside the customer's job and can read
+      # its own credential, so a window taken from that report would let a
+      # job bill itself for nothing.
+      started_at = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      {:ok, job} =
+        %Job{}
+        |> Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme"
+        })
+        |> Repo.insert(returning: true)
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: job.workflow_job_id,
+        account_id: account.id,
+        provider: "buildkite",
+        status: "running",
+        fleet_name: "linux-amd64",
+        enqueued_at: started_at,
+        started_at: started_at
+      })
+
+      {:ok, _session} =
+        RunnerSessions.open(%{
+          workflow_job_id: job.workflow_job_id,
+          executed_workflow_job_id: job.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          platform: :linux,
+          vcpus: 2,
+          memory_gb: 8,
+          pod_name: "pod-finish-1",
+          runner_name: "runner-finish-1",
+          started_at: started_at
+        })
+
+      Buildkite.record_job_finished("runner-finish-1", account.id, %{
+        workflow_job_id: job.workflow_job_id,
+        conclusion: "success"
+      })
+
+      session = Repo.one(from(s in RunnerSession, where: s.runner_name == "runner-finish-1"))
+
+      assert DateTime.compare(session.job_started_at, started_at) == :eq
+      assert DateTime.diff(DateTime.utc_now(), session.job_ended_at, :second) <= 5
+    end
+  end
+
   describe "job_trusted?/2" do
     setup %{installation: installation, account: account, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})
@@ -570,6 +624,43 @@ defmodule Tuist.Runners.BuildkiteTest do
       end)
 
       assert Buildkite.job_trusted?(account.id, workflow_job_id)
+    end
+
+    test "does not trust a same-path repository on a different host", %{
+      account: account,
+      workflow_job_id: workflow_job_id
+    } do
+      # This comparison decides whether a job reaches the account's cache,
+      # so the host has to be part of it: an attacker who can name the
+      # same path elsewhere must not read as the same repository.
+      stub(Client, :get_job, fn _installation, _stack, _uuid ->
+        {:ok,
+         %{
+           "env" => %{
+             "BUILDKITE_REPO" => "https://github.com/acme/ios.git",
+             "BUILDKITE_PULL_REQUEST_REPO" => "https://evil.example/acme/ios.git"
+           }
+         }}
+      end)
+
+      refute Buildkite.job_trusted?(account.id, workflow_job_id)
+    end
+
+    test "does not trust a same-path repository reached over ssh on another host", %{
+      account: account,
+      workflow_job_id: workflow_job_id
+    } do
+      stub(Client, :get_job, fn _installation, _stack, _uuid ->
+        {:ok,
+         %{
+           "env" => %{
+             "BUILDKITE_REPO" => "git@github.com:acme/ios.git",
+             "BUILDKITE_PULL_REQUEST_REPO" => "git@evil.example:acme/ios.git"
+           }
+         }}
+      end)
+
+      refute Buildkite.job_trusted?(account.id, workflow_job_id)
     end
 
     test "trusts a same-repository pull request across remote spellings", %{

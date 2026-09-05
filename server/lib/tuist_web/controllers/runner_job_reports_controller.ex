@@ -58,6 +58,16 @@ defmodule TuistWeb.RunnerJobReportsController do
 
   @max_log_bytes 64 * 1024 * 1024
 
+  # The byte cap bounds one request; this bounds the job. Line numbers are
+  # the ReplacingMergeTree key, so refusing everything past the ceiling
+  # caps what a job can store however many times it posts.
+  @max_log_lines 1_000_000
+
+  # A job's log is uploaded after its finish report, so logs are still
+  # accepted for a while past completion. Past that the token can no
+  # longer add to a settled job.
+  @log_grace_seconds 900
+
   @doc """
   `POST /api/internal/runners/jobs/logs`
 
@@ -68,13 +78,14 @@ defmodule TuistWeb.RunnerJobReportsController do
   hook may retry freely.
   """
   def logs(conn, params) do
+    first_line_number = params |> Map.get("first_line_number", 1) |> to_integer(1)
+
     with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
-         {:ok, lines} <- parse_lines(params) do
+         :ok <- accepting_logs(workflow_job_id),
+         {:ok, lines} <- parse_lines(params),
+         :ok <- within_line_ceiling(first_line_number, lines) do
       lines
-      |> LogParser.parse(
-        params |> Map.get("first_line_number", 1) |> to_integer(1),
-        DateTime.utc_now()
-      )
+      |> LogParser.parse(first_line_number, DateTime.utc_now())
       |> Enum.map(&Map.merge(&1, %{workflow_job_id: workflow_job_id, account_id: account_id}))
       |> JobLogs.append()
 
@@ -102,11 +113,11 @@ defmodule TuistWeb.RunnerJobReportsController do
   def finish(conn, params) do
     with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
          {:ok, runner_name} <- Buildkite.runner_name_for_job(workflow_job_id, account_id) do
+      # The window is measured server-side; only the outcome comes from
+      # the job, which could decide it by exiting with that status anyway.
       report = %{
         workflow_job_id: workflow_job_id,
-        conclusion: Buildkite.conclusion_for(outcome(params)),
-        started_at: epoch_datetime(Map.get(params, "started_at")),
-        ended_at: epoch_datetime(Map.get(params, "finished_at"))
+        conclusion: Buildkite.conclusion_for(outcome(params))
       }
 
       case Buildkite.record_job_finished(runner_name, account_id, report) do
@@ -131,6 +142,24 @@ defmodule TuistWeb.RunnerJobReportsController do
 
       error ->
         render_error(conn, error, "buildkite finish report")
+    end
+  end
+
+  # A settled job stops accepting log lines once the upload that follows
+  # its finish report has had time to land.
+  defp accepting_logs(workflow_job_id) do
+    if Buildkite.log_window_open?(workflow_job_id, @log_grace_seconds) do
+      :ok
+    else
+      {:error, :job_settled}
+    end
+  end
+
+  defp within_line_ceiling(first_line_number, lines) do
+    if first_line_number >= 1 and first_line_number + length(lines) - 1 <= @max_log_lines do
+      :ok
+    else
+      {:error, {:invalid_field, "first_line_number"}}
     end
   end
 
@@ -161,9 +190,6 @@ defmodule TuistWeb.RunnerJobReportsController do
 
   defp byte_size_of(lines), do: Enum.reduce(lines, 0, &(byte_size(&1) + &2))
 
-  defp epoch_datetime(value) when is_number(value), do: value |> round() |> DateTime.from_unix!()
-  defp epoch_datetime(_value), do: nil
-
   defp to_integer(value, _default) when is_integer(value), do: value
 
   defp to_integer(value, default) when is_binary(value) do
@@ -189,5 +215,9 @@ defmodule TuistWeb.RunnerJobReportsController do
 
   defp render_error(conn, {:error, {:invalid_field, field}}, _context) do
     conn |> put_status(:bad_request) |> json(%{error: "invalid #{field}"})
+  end
+
+  defp render_error(conn, {:error, :job_settled}, _context) do
+    conn |> put_status(:gone) |> json(%{error: "job is no longer accepting reports"})
   end
 end

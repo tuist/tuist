@@ -113,14 +113,14 @@ json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
 }
 
 report_finish() {
-  local started body http attempt exit_status
-  started=$(cat "${STATE_DIR}/job-started-at" 2>/dev/null || echo 0)
+  local body http attempt exit_status
   body=$(mktemp)
 
-  # The billable window ends when the customer's work ends, not when our
-  # reporting finishes. FINISHED_AT is sampled before `upload_logs` runs,
-  # so shipping a large log does not inflate what the customer is charged
-  # for.
+  # The billable window is measured server-side and is not reported from
+  # here: this hook runs inside the customer's job, which can read this
+  # credential, and a job that timed its own work could bill itself for
+  # nothing. The server ends the window when this request lands, which is
+  # why the finish is posted before the log upload rather than after.
   #
   # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone.
   # BUILDKITE_LAST_HOOK_EXIT_STATUS is the exit status of the hook that
@@ -154,9 +154,7 @@ report_finish() {
   cat >"${body}" <<JSON
 {
   "exit_status": ${exit_status},
-  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false},
-  "started_at": ${started},
-  "finished_at": ${FINISHED_AT}
+  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false}
 }
 JSON
 
@@ -176,10 +174,9 @@ JSON
   echo "$(date -u +%FT%TZ) buildkite-hook: finish report gave up; job window is lost"
 }
 
-# Stamp the end of the customer's work before any reporting overhead.
-FINISHED_AT=$(date +%s)
-
-upload_logs
+# The finish closes the billable window server-side, so it goes first and
+# the log upload is not counted against the customer.
 report_finish
+upload_logs
 
 exit 0

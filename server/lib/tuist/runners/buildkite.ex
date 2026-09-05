@@ -76,6 +76,11 @@ defmodule Tuist.Runners.Buildkite do
   @acquisition_token_lifetime_seconds 900
   @list_limit 100
 
+  # The log arrives after the finish report, so archiving cannot run at
+  # the finish the way it does on the GitHub lane. This is long enough
+  # for a large log to finish uploading.
+  @archive_delay_seconds 300
+
   # Non-terminal lifecycle states a lapsed reservation can still speak to.
   @recoverable_statuses ~w(queued claimed running)
 
@@ -758,15 +763,40 @@ defmodule Tuist.Runners.Buildkite do
 
   defp normalize_remote(nil), do: nil
 
+  # `git@host:path` and `https://host/path` name the same repository, so
+  # both reduce to `host/path`. The host stays in the result: dropping it
+  # would make any host serving the same path compare equal, and this
+  # comparison is what decides whether a job reaches the account's cache.
   defp normalize_remote(remote) when is_binary(remote) do
     remote
     |> String.trim()
     |> String.downcase()
-    |> String.replace(~r{^(https?://|git://|ssh://)}, "")
-    |> String.replace(~r{^git@}, "")
-    |> String.replace(~r{^[^/:]+[:/]}, "", global: false)
+    |> String.replace(~r{^[a-z][a-z0-9+.\-]*://}, "")
+    |> String.replace(~r{^[^@/]+@}, "")
+    |> String.replace(~r{^([^/:]+):}, "\\1/", global: false)
     |> String.replace_suffix(".git", "")
     |> String.trim_trailing("/")
+  end
+
+  @doc """
+  Whether a job is still accepting log lines.
+
+  Open while the job has not completed, and for `grace_seconds` after it
+  did: the log is uploaded after the finish report, so a settled job is
+  still expecting its own upload. Past that a recovered token can no
+  longer append to a job that is done.
+
+  A job with no lifecycle row has not settled as far as we can tell, so
+  it stays open. The token already proves the job exists, and the line
+  ceiling bounds what it can store; refusing here would drop the logs of
+  any job whose lifecycle write did not land.
+  """
+  def log_window_open?(workflow_job_id, grace_seconds) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      nil -> true
+      %WorkflowJob{completed_at: nil} -> true
+      %WorkflowJob{completed_at: at} -> DateTime.diff(DateTime.utc_now(), at, :second) <= grace_seconds
+    end
   end
 
   @doc """
@@ -805,10 +835,7 @@ defmodule Tuist.Runners.Buildkite do
   def record_job_finished(runner_name, account_id, report) when is_binary(runner_name) and is_integer(account_id) do
     %{workflow_job_id: workflow_job_id, conclusion: conclusion} = report
 
-    window = %{
-      started_at: Map.get(report, :started_at),
-      ended_at: Map.get(report, :ended_at)
-    }
+    window = observed_window(workflow_job_id)
 
     case RunnerSessions.record_execution(runner_name, workflow_job_id, account_id, window) do
       {:error, changeset} ->
@@ -830,13 +857,32 @@ defmodule Tuist.Runners.Buildkite do
     end
   end
 
+  # The billable window is measured by us, never reported by the job.
+  #
+  # The report arrives from a hook running inside the customer's own job,
+  # which can read its credential and post whatever it likes. Timestamps
+  # taken from that body would let a job bill itself for zero seconds.
+  # `started_at` is the lifecycle row's, stamped server-side when the
+  # dispatch marked the job running, and the end is when this report
+  # lands. The hook posts the finish before uploading the log so that
+  # upload is not inside the window.
+  defp observed_window(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      %WorkflowJob{started_at: %DateTime{} = started_at} ->
+        %{started_at: started_at, ended_at: DateTime.utc_now()}
+
+      _ ->
+        %{started_at: nil, ended_at: nil}
+    end
+  end
+
   # The GitHub lane archives from `FetchLogsWorker`, at the end of the
   # pull that ingested the lines. Here ingestion finished before this
   # report arrived, so the finish is the point at which the log is known
   # to be whole.
   defp enqueue_archive(workflow_job_id, account_id) do
     %{workflow_job_id: workflow_job_id, account_id: account_id}
-    |> ArchiveLogsWorker.new()
+    |> ArchiveLogsWorker.new(schedule_in: @archive_delay_seconds)
     |> Oban.insert()
     |> case do
       {:ok, _job} ->
