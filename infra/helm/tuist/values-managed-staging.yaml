@@ -68,14 +68,6 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
-  config:
-    # SENTRY_HIVE 1P item exists in `tuist-k8s-staging`; the DSN (same value
-    # as canary and production) is synced in as TUIST_SENTRY_HIVE_DSN.
-    # Whether staging envelopes actually go to Hive is decided at runtime by
-    # the `hive_error_tracking_enabled` FunWithFlags flag.
-    hiveSentry:
-      enabled: true
-
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
