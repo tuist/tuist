@@ -15,6 +15,7 @@ This node covers Helm assets under `infra/helm/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- Registry managed secrets select the optional Sentry DSN from the extracted 1Password item, falling back to `SENTRY_DSN_REGISTRY` or an empty DSN. Keep optional telemetry out of required `remoteRef` lookups so it cannot block storage credentials or pod startup.
 
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`
