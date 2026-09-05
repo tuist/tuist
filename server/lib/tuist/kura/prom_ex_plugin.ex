@@ -133,6 +133,15 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:origin, :wanted, :served]
           ),
           counter(
+            @metric_prefix ++ [:placement_capacity_spill, :count],
+            event_name: Telemetry.event_name_placement_capacity_spill(),
+            description:
+              "First placements that skipped the region nearest the traffic because it had no room " <>
+                "for the instance. The other procurement signal: sustained counts on one wanted region " <>
+                "are the case for another box there.",
+            tags: [:plan, :wanted, :served]
+          ),
+          counter(
             @metric_prefix ++ [:origin_attribution, :count],
             event_name: Telemetry.event_name_origin_attribution(),
             description:

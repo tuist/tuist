@@ -9,12 +9,20 @@ defmodule Tuist.Kura.Capacity do
   forecast built from a quota table in this repo did, by a factor of about
   three, until it was replaced by this.
 
-  What is left is the question the scheduler cannot answer: whether the region
-  as a whole is tight enough that Air's inactivity window should shorten from
-  90 complete days to 60, so archival starts making room before provisioning
-  starts being declined. That is a region-level reading, and it is taken from
-  the same numbers the scheduler places against -- the ephemeral-storage the
-  region's pods have reserved, against what its Ready nodes make allocatable.
+  Two questions are left that the scheduler cannot answer, and both are
+  answered from the numbers it places against rather than from a table:
+
+    * whether the region as a whole is tight enough that Air's inactivity
+      window should shorten from 90 complete days to 60, so archival starts
+      making room before provisioning starts being declined
+      (`under_pressure?/1`). A region-level reading: the ephemeral-storage the
+      region's pods have reserved, against what its Ready nodes make
+      allocatable.
+    * whether the region has room for one more instance of a plan at all
+      (`room_for?/2`), so first placement can choose a sibling region that has
+      instead of leaving the instance Pending in one that does not. A per-node
+      reading over every resource the pod requests, because the scheduler
+      declines per node and the resource that binds differs by region.
 
   Reservations rather than live usage on purpose. A freshly provisioned
   instance holds almost nothing and fills over days, so a region full of new
@@ -22,8 +30,9 @@ defmodule Tuist.Kura.Capacity do
   the region has promised is the thing that has to fit.
 
   A region whose nodes cannot be read is unknown: pressure archival never runs,
-  so the 90-day target holds. The scheduler still refuses to overfill a node in
-  the meantime, because that has never depended on this module.
+  so the 90-day target holds, and placement chooses as it did before there was
+  a reading. The scheduler still refuses to overfill a node in the meantime,
+  because that has never depended on this module.
   """
 
   import Ecto.Query
@@ -60,6 +69,23 @@ defmodule Tuist.Kura.Capacity do
   # on Req's defaults.
   @read_timeout to_timeout(second: 5)
   @managed_by_selector "app.kubernetes.io/managed-by=kura-controller"
+
+  # What the controller requests for every cache pod besides its claim
+  # (`defaultResources` in the kura-controller): a flat CPU request, and the
+  # default memory profile where the region does not size per plan.
+  @pod_cpu_millicores 500
+  @default_memory_floor_mib 2048
+  @default_memory_ceiling_mib 4096
+  @mib 1024 * 1024
+
+  # Every resource a cache pod is scheduled against. The two extended resources
+  # are requested only where the region bin-packs them.
+  @cpu "cpu"
+  @memory "memory"
+  @ephemeral_storage "ephemeral-storage"
+  @memory_ceiling "tuist.dev/memory-ceiling-mib"
+  @egress "tuist.dev/egress-mbps"
+  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @memory_ceiling, @egress]
 
   @doc """
   Bytes of the region's disk one instance reserves, across every replica.
@@ -513,5 +539,177 @@ defmodule Tuist.Kura.Capacity do
       ),
       :count
     )
+  end
+
+  @doc """
+  Whether `region_id` can take one more instance built for `plan`: `true`,
+  `false`, or `nil` when the cluster cannot say.
+
+  Read the way the scheduler will decide it. A cache pod is placed against five
+  node resources: `cpu`, `memory` (its profile's floor), `ephemeral-storage`
+  (its claim), and on the bare-metal pools the `tuist.dev/memory-ceiling-mib`
+  and `tuist.dev/egress-mbps` extended resources. Each is checked on each Ready,
+  schedulable node of the region's pool, as allocatable less what every pod
+  already on the node requests, whoever owns that pod. The instance has room
+  when one node covers all of its replicas at once, which is the shape the
+  controller's pod affinity asks for; a node that could take one replica but
+  not the other would leave the instance half Pending, and does not count.
+
+  The request is the plan's, not the account's: the plan's starting claim
+  rather than one sizing has already grown, and the region's egress floor for
+  the plans entitled to one rather than a per-account override. Both understate
+  in the direction that admits, and the scheduler is still the last word.
+
+  `nil` covers everything that stops the reading being trusted: a region that
+  pins its instances to no pool, a cluster that cannot be read, a node whose
+  pods cannot be listed, or a pool with no Ready node in it. That last one is
+  deliberately not `false`. A box NotReady for the minutes a restart takes has
+  not run out of room, and a placement taken against it is permanent in a way
+  the restart is not.
+
+  A reading of the moment, cached for a minute per region. An instance created
+  seconds ago holds nothing on a node until its pods are scheduled, so several
+  accounts resolving inside the same minute can each be told the same region
+  has room. The scheduler still refuses to overfill a node; what this bounds is
+  how often it has to.
+  """
+  def room_for?(region_id, plan) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         [_ | _] = nodes <- node_headroom(region) do
+      request = pod_request(region, plan, nodes)
+      Enum.any?(nodes, &fits?(&1, request, replicas(region)))
+    else
+      _ -> nil
+    end
+  end
+
+  defp fits?(%{allocatable: allocatable, reserved: reserved}, request, replicas) do
+    Enum.all?(request, fn {resource, amount} ->
+      amount == 0 or Map.get(allocatable, resource, 0) - Map.get(reserved, resource, 0) >= amount * replicas
+    end)
+  end
+
+  # One replica's requests, as the controller renders them for the plan in this
+  # region.
+  defp pod_request(%Regions{} = region, plan, nodes) do
+    memory = memory_profile(region, plan)
+
+    %{
+      @cpu => @pod_cpu_millicores,
+      @memory => memory.floor_mib * @mib,
+      @ephemeral_storage => claim_bytes(region, plan),
+      @memory_ceiling => if(ceiling_bin_packed?(region, nodes), do: memory.ceiling_mib, else: 0),
+      @egress => egress_floor_mbps(region, plan)
+    }
+  end
+
+  defp memory_profile(region, plan) do
+    if Regions.memory_governed?(region),
+      do: Regions.memory_profile(plan),
+      else: %{floor_mib: @default_memory_floor_mib, ceiling_mib: @default_memory_ceiling_mib}
+  end
+
+  defp claim_bytes(region, plan) do
+    plan_claim = if Regions.storage_governed?(region), do: parse_quantity(Regions.storage_profile(plan).claim_size)
+
+    plan_claim || claim_gib(region) * @gib
+  end
+
+  # The controller requests the ceiling only where a node in the pool actually
+  # advertises the budget, whatever the region declares, so a pool the CAPI
+  # provider has not patched yet is not read as full of a resource its pods
+  # will never be asked for.
+  defp ceiling_bin_packed?(region, nodes) do
+    Regions.memory_ceiling_bin_packed?(region) and
+      Enum.any?(nodes, &(Map.get(&1.allocatable, @memory_ceiling, 0) > 0))
+  end
+
+  # Enterprise alone is entitled to the guaranteed floor
+  # (`Tuist.Billing.Entitlements`); every other plan reserves none and runs
+  # best-effort under the burst ceiling.
+  defp egress_floor_mbps(region, :enterprise), do: Regions.egress_guaranteed_mbps(region) || 0
+  defp egress_floor_mbps(_region, _plan), do: 0
+
+  # Per Ready, schedulable node of the region's pool: what it makes allocatable
+  # and what the pods already on it request, for every resource a cache pod is
+  # scheduled against. Everything on the node counts, whoever owns it, for the
+  # same reason `egress_headroom/2` reads whole boxes: the scheduler does not
+  # hand out what another namespace's pod already holds.
+  defp node_headroom(%Regions{id: region_id} = region) do
+    cached([__MODULE__, "node_headroom", region_id], fn -> measure_node_headroom(region) end)
+  end
+
+  defp measure_node_headroom(region) do
+    with selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector),
+         [_ | _] = nodes <- Enum.filter(items, &schedulable?/1),
+         headroom = Enum.map(nodes, &measure_node/1),
+         false <- Enum.any?(headroom, &is_nil/1) do
+      headroom
+    else
+      _ -> nil
+    end
+  end
+
+  defp measure_node(node) do
+    with name when is_binary(name) and name != "" <- node_name(node),
+         {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
+      %{name: name, allocatable: node_allocatable(node), reserved: pods_requested(pods)}
+    else
+      _ -> nil
+    end
+  end
+
+  # Ready and not cordoned: the scheduler places on neither.
+  defp schedulable?(node), do: ready?(node) and not match?(%{"spec" => %{"unschedulable" => true}}, node)
+
+  defp node_name(%{"metadata" => %{"name" => name}}), do: name
+  defp node_name(_node), do: nil
+
+  defp node_allocatable(%{"status" => %{"allocatable" => allocatable}}) when is_map(allocatable) do
+    Map.new(@scheduled_resources, &{&1, resource_amount(&1, Map.get(allocatable, &1))})
+  end
+
+  defp node_allocatable(_node), do: %{}
+
+  defp pods_requested(pods) do
+    scheduled = Enum.reject(pods, &terminal?/1)
+
+    Map.new(@scheduled_resources, fn resource ->
+      {resource, scheduled |> Enum.map(&pod_requested(&1, resource)) |> Enum.sum()}
+    end)
+  end
+
+  defp pod_requested(%{"spec" => %{"containers" => containers}}, resource) when is_list(containers) do
+    containers
+    |> Enum.map(&resource_amount(resource, get_in(&1, ["resources", "requests", resource])))
+    |> Enum.sum()
+  end
+
+  defp pod_requested(_pod, _resource), do: 0
+
+  # CPU is the one resource Kubernetes quotes in millicores; everything else is
+  # a plain quantity, in bytes or in units of the extended resource.
+  defp resource_amount(_resource, nil), do: 0
+  defp resource_amount(@cpu, quantity), do: parse_cpu_millicores(quantity) || 0
+  defp resource_amount(_resource, quantity), do: parse_quantity(quantity) || 0
+
+  defp parse_cpu_millicores(quantity) when is_binary(quantity) do
+    case Integer.parse(quantity) do
+      {millicores, "m"} -> millicores
+      {cores, ""} -> cores * 1000
+      {_whole, "." <> _fraction} -> parse_fractional_cores(quantity)
+      _ -> nil
+    end
+  end
+
+  defp parse_cpu_millicores(quantity) when is_integer(quantity), do: quantity * 1000
+  defp parse_cpu_millicores(_quantity), do: nil
+
+  defp parse_fractional_cores(quantity) do
+    case Float.parse(quantity) do
+      {cores, ""} -> round(cores * 1000)
+      _ -> nil
+    end
   end
 end

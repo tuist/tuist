@@ -430,4 +430,209 @@ defmodule Tuist.Kura.CapacityTest do
       assert occupancy.ratio == nil
     end
   end
+
+  # us-east sizes per plan, bin-packs the memory ceiling, reserves the
+  # Enterprise egress floor and runs two replicas, so an Enterprise instance
+  # asks each box for two of everything: 16Gi of disk, 1024 MiB of memory and
+  # a 4096 MiB ceiling, 500m of CPU and 25 Mbps, per replica.
+  describe "room_for?/2" do
+    test "has room when one node covers every replica of the instance" do
+      stub_pool([pool_box("box-1")])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "counts the claim once per replica, as the disk will" do
+      # 30 GiB left takes one Enterprise replica and not the second, and an
+      # instance half Pending is not placed. Pro's two 8Gi claims fit.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "70Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+      assert Capacity.room_for?(@region, :pro) == true
+    end
+
+    test "counts every pod on the node against it, whoever owns it" do
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "40Gi"}), pool_pod(%{"ephemeral-storage" => "40Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "any node with room is enough" do
+      stub_pool([
+        pool_box("full",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "90Gi"})]
+        ),
+        pool_box("empty")
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "reads cpu in cores, fractions and millicores" do
+      # Two replicas at 500m need a whole core; 900m is left here.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "4"},
+          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "0.5"}), pool_pod(%{"cpu" => "600m"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "4"},
+          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "0.5"}), pool_pod(%{"cpu" => "500m"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "reserves the plan's memory floor" do
+      # 1536 MiB left: Enterprise's two 1024 MiB floors do not fit, Pro's two
+      # 512 MiB floors do.
+      stub_pool([pool_box("box-1", allocatable: %{"memory" => "3Gi"}, pods: [pool_pod(%{"memory" => "1536Mi"})])])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+      assert Capacity.room_for?(@region, :pro) == true
+    end
+
+    test "reserves the egress floor for Enterprise alone" do
+      # 35 Mbps left against two 25 Mbps floors. Pro reserves none.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"tuist.dev/egress-mbps" => "60"},
+          pods: [pool_pod(%{"tuist.dev/egress-mbps" => "25"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+      assert Capacity.room_for?(@region, :pro) == true
+    end
+
+    test "bin-packs the memory ceiling only where a node advertises it" do
+      # Two Enterprise ceilings are 8192 MiB; the box advertises 6144.
+      stub_pool([pool_box("box-1", allocatable: %{"tuist.dev/memory-ceiling-mib" => "6144"})])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+
+      # A pool the provider has not patched advertises no budget, and the
+      # controller omits the request rather than leaving the pod Pending.
+      stub_pool([pool_box("box-1", without: ["tuist.dev/memory-ceiling-mib"])])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "ignores a pod that has finished, which holds nothing" do
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "90Gi"}, phase: "Failed")]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "does not place on a cordoned node" do
+      stub_pool([
+        pool_box("full",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "90Gi"})]
+        ),
+        pool_box("cordoned", unschedulable?: true)
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "is unknown when the cluster cannot be read" do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      stub(Client, :list_nodes, fn _selector -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+
+    # A box restarting is NotReady for minutes, and a placement taken against
+    # that reading would outlast the restart by the life of the account.
+    test "is unknown, not full, while no node in the pool is Ready" do
+      stub_pool([pool_box("box-1", ready?: false)])
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+
+    test "is unknown when a node's pods cannot be listed" do
+      stub_pool([pool_box("box-1")])
+      stub(Client, :list_pods_on_node, fn _node, _opts -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+  end
+
+  # `room_for?/2` reads each node of the pool and everything scheduled on it,
+  # so shaping a region here means answering both lists.
+  defp stub_pool(boxes) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+    stub(Client, :list_nodes, fn _selector -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+
+    stub(Client, :list_pods_on_node, fn name, _opts ->
+      case Enum.find(boxes, &(&1.name == name)) do
+        %{pods: pods} -> {:ok, pods}
+        nil -> {:error, :not_found}
+      end
+    end)
+  end
+
+  # A box with room for many instances on every resource unless told otherwise,
+  # so a test that fills one resource is testing that resource.
+  defp pool_box(name, opts \\ []) do
+    allocatable =
+      %{
+        "cpu" => "32",
+        "memory" => "128Gi",
+        "ephemeral-storage" => "800Gi",
+        "tuist.dev/memory-ceiling-mib" => "262144",
+        "tuist.dev/egress-mbps" => "1500"
+      }
+      |> Map.merge(Keyword.get(opts, :allocatable, %{}))
+      |> Map.drop(Keyword.get(opts, :without, []))
+
+    %{
+      name: name,
+      ready?: Keyword.get(opts, :ready?, true),
+      unschedulable?: Keyword.get(opts, :unschedulable?, false),
+      allocatable: allocatable,
+      pods: Keyword.get(opts, :pods, [])
+    }
+  end
+
+  defp pool_node(box) do
+    %{
+      "metadata" => %{"name" => box.name},
+      "spec" => %{"unschedulable" => box.unschedulable?},
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => if(box.ready?, do: "True", else: "False")}],
+        "allocatable" => box.allocatable
+      }
+    }
+  end
+
+  defp pool_pod(requests, opts \\ []) do
+    %{
+      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
+      "spec" => %{"containers" => [%{"resources" => %{"requests" => requests}}]}
+    }
+  end
 end

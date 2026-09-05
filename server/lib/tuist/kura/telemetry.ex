@@ -14,6 +14,8 @@ defmodule Tuist.Kura.Telemetry do
       reclamation, with reclaimed bytes and drain duration on the last.
     * `seed_declined` counts the accounts a speculative seed left alone,
       because the region it would have landed in has no room for it.
+    * `placement_capacity_spill` counts the first placements that skipped the
+      region nearest the traffic because it had no room for the instance.
     * `resolution_refused` counts the accounts that never reach any of the
       above, because their plan or storage region resolved to no pool.
 
@@ -37,6 +39,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_resolution_refused, do: @prefix ++ [:resolution_refused]
   def event_name_seed_declined, do: @prefix ++ [:seed_declined]
   def event_name_placement_preference_unmet, do: @prefix ++ [:placement_preference_unmet]
+  def event_name_placement_capacity_spill, do: @prefix ++ [:placement_capacity_spill]
   def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
 
   def provisioned(plan, region, cold_return?) do
@@ -123,6 +126,31 @@ defmodule Tuist.Kura.Telemetry do
       origin: origin,
       wanted: wanted,
       served: served || "none"
+    })
+  end
+
+  @doc """
+  Counts a first placement that skipped the region nearest the traffic because
+  it had no room for the instance, with the region it wanted and the one it
+  went to.
+
+  The other procurement signal, next to `placement_preference_unmet/3`: that
+  one counts a region that is missing, this one a region that is full. Both
+  answer the same question, which region to buy a box in, and sustained counts
+  on one `wanted` are the case for buying it there. An account that spills is
+  served further from its traffic than the catalog could serve it, and stays
+  there: the spill is recorded as its placement, so it does not move back when
+  the box arrives.
+
+  `plan` is tagged because room is read per plan. The instance a region has no
+  room for is a plan's instance, and a region full for Enterprise may still
+  take Air.
+  """
+  def placement_capacity_spill(plan, wanted, served) do
+    :telemetry.execute(event_name_placement_capacity_spill(), %{count: 1}, %{
+      plan: to_string(plan),
+      wanted: wanted,
+      served: served
     })
   end
 
