@@ -45,6 +45,7 @@ import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 import { BlogViewPreference } from "./hooks/blog-view-preference.js";
 import { PricingPlanSelect } from "./hooks/pricing-plan-select.js";
 import { NotFoundOutline } from "./hooks/not-found-outline.js";
+import { NewsletterForm } from "./hooks/newsletter-form.js";
 
 const Hooks = {
   PlatformBackground,
@@ -94,6 +95,7 @@ const Hooks = {
   BlogViewPreference,
   PricingPlanSelect,
   NotFoundOutline,
+  NewsletterForm,
 };
 
 export { Hooks };

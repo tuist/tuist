@@ -389,6 +389,11 @@ msgstr ""
 msgid "Effortlessly share your app with a single URL."
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr ""
+
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Email Support"
@@ -752,6 +757,11 @@ msgstr ""
 msgid "Optimized app bundles"
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter_stack.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Optimizing for joy"
+msgstr ""
+
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
@@ -1030,6 +1040,11 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter_verify.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Subscribe again"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:689
@@ -3584,6 +3599,7 @@ msgstr ""
 msgid "The page you were looking for doesn't exist or may have moved"
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter_verify.html.heex:44
 #: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Back to home"
