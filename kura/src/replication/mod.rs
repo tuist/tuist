@@ -19,7 +19,6 @@ use tokio::{
     io::AsyncWriteExt,
     time::{Instant, sleep},
 };
-use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field, warn};
 
 use crate::{
@@ -33,7 +32,7 @@ use crate::{
     failpoints::FailpointName,
     http::{ReplicateBatchItemMeta, ReplicateBatchOutcomes, encode_replicate_batch_frame},
     state::SharedState,
-    store::OUTBOX_BULK_LANE_PREFIX,
+    store::{ArtifactReader, OUTBOX_BULK_LANE_PREFIX},
     telemetry::{inject_current_trace_context, record_trace_context},
     utils::{replication_target_label, url_encode},
 };
@@ -76,7 +75,7 @@ pub async fn enqueue_replication_for_artifact(
     state: &SharedState,
     manifest: &crate::artifact::manifest::ArtifactManifest,
 ) {
-    for peer in replication_targets(state).await {
+    for peer in replication_targets(state).iter() {
         if let Err(error) = state.store.enqueue(OutboxMessage {
             target: peer.clone(),
             operation: ReplicationOperation::UpsertArtifact {
@@ -228,7 +227,8 @@ async fn outbox_task_loop(state: SharedState) {
 
         // Replication delivery runs at every pressure tier. It is not
         // sheddable background work: the outbox is depth-capped
-        // (`KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
+        // (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per peer, or a fixed
+        // `KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
         // write once that cap is reached, so a paused drain does not defer
         // work — it strands the queue and ends up rejecting writes. Both
         // write gates test only `pressure() == Critical` and test it *before*
@@ -262,8 +262,8 @@ async fn outbox_task_loop(state: SharedState) {
     }
 }
 
-pub async fn replication_targets(state: &SharedState) -> Vec<String> {
-    state.replication_targets().await
+pub fn replication_targets(state: &SharedState) -> Arc<Vec<String>> {
+    state.replication_targets()
 }
 
 pub(crate) async fn read_bounded_body(
@@ -734,9 +734,11 @@ async fn drain_metadata_batches(
                     state
                         .metrics
                         .record_replication(&target, "upsert_artifact", "ok", elapsed);
-                    for ((message_key, _message), done) in items.iter().zip(resolved) {
+                    for ((message_key, message), done) in items.iter().zip(resolved) {
                         if done {
-                            state.store.delete_outbox_message(message_key)?;
+                            state
+                                .store
+                                .delete_outbox_message(message_key, &message.target)?;
                             progressed = true;
                         }
                     }
@@ -816,7 +818,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         return Ok(());
     }
 
-    let current_targets: BTreeSet<String> = state.replication_targets().await.into_iter().collect();
+    let current_targets: BTreeSet<String> = state.replication_targets().iter().cloned().collect();
     // Discovery-only peers (in-cluster siblings, cross-region pods) are
     // treated like the static seeds: never pruned. Their absence usually
     // means a network flap, not departure, and the re-join backfill only
@@ -902,7 +904,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 && !current_targets.contains(&message.target)
                 && !discovered_history.contains(&message.target)
             {
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 state.metrics.record_replication(
                     &message.target,
                     message.operation.name(),
@@ -947,7 +951,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                     "dropped_oversized",
                     elapsed,
                 );
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 rewind_to_priority_head(state, &mut after).await?;
             }
             Ok(ReplicationOutcome::Delivered) => {
@@ -965,7 +971,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             "ok",
                             elapsed,
                         );
-                        state.store.delete_outbox_message(&message_key)?;
+                        state
+                            .store
+                            .delete_outbox_message(&message_key, &message.target)?;
                         rewind_to_priority_head(state, &mut after).await?;
                     }
                     Err(error) => {
@@ -1041,16 +1049,43 @@ impl UploadProgress {
 /// the shared replication limiter, marking `progress` for every chunk and once
 /// more when the stream terminates.
 ///
-/// Chunks are 512 KiB rather than `ReaderStream`'s 4 KiB default. A multi-GB
-/// artifact would otherwise take a bandwidth reservation hundreds of thousands
-/// of times, and the limiter is shared, so 4 KiB slivers queue behind other
-/// callers' 512 KiB reservations.
+/// Chunks are 512 KiB. A multi-GB artifact would otherwise take a bandwidth
+/// reservation hundreds of thousands of times, and the limiter is shared, so
+/// small slivers queue behind other callers' 512 KiB reservations. The owned
+/// segment-read allocation becomes the request-body chunk without an
+/// intermediate asynchronous-reader copy.
 ///
 /// The terminating mark is what gives the wait for the response a whole stall
 /// window instead of the last chunk's remainder: the receiver copies the staged
 /// body into a segment and fsyncs it under the node-wide segment write lock
 /// before it answers, and that tail scales with the artifact, not the network.
-fn upload_body_stream<R>(
+fn upload_body_stream(
+    reader: ArtifactReader,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    progress: Arc<UploadProgress>,
+) -> impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static {
+    let end_progress = progress.clone();
+    reader
+        .into_bytes_stream(RESPONSE_STREAM_CHUNK_BYTES)
+        .then(move |item| {
+            let bandwidth_limiter = bandwidth_limiter.clone();
+            let progress = progress.clone();
+            async move {
+                if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                    limiter.acquire(chunk.len()).await;
+                }
+                progress.mark();
+                item
+            }
+        })
+        .chain(
+            stream::once(async move { end_progress.mark() })
+                .filter_map(|()| std::future::ready(None)),
+        )
+}
+
+#[cfg(test)]
+fn copying_upload_body_stream<R>(
     reader: R,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     progress: Arc<UploadProgress>,
@@ -1059,7 +1094,7 @@ where
     R: tokio::io::AsyncRead + Send + Unpin + 'static,
 {
     let end_progress = progress.clone();
-    ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES)
+    tokio_util::io::ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES)
         .then(move |item| {
             let bandwidth_limiter = bandwidth_limiter.clone();
             let progress = progress.clone();
@@ -1344,17 +1379,13 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn the_end_of_the_body_stream_re_arms_the_stall_window() {
         let stall = Duration::from_millis(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
-        let directory = tempfile::tempdir().expect("temp dir should create");
-        let path = directory.path().join("artifact");
-        tokio::fs::write(&path, b"payload")
-            .await
-            .expect("artifact should write");
-        let file = tokio::fs::File::open(&path)
-            .await
-            .expect("artifact should open");
+        let reader = ArtifactReader::Inline {
+            bytes: bytes::Bytes::from_static(b"payload"),
+            offset: 0,
+        };
 
         let progress = Arc::new(UploadProgress::new());
-        let stream = upload_body_stream(file, None, progress.clone());
+        let stream = upload_body_stream(reader, None, progress.clone());
         tokio::pin!(stream);
 
         // Drain the body, then spend almost a whole window producing nothing —
@@ -1371,6 +1402,95 @@ mod tests {
         assert!(
             progress.idle() < stall,
             "the response wait must get a whole window, not the last chunk's remainder"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn replication_upload_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: futures_util::Stream<Item = std::io::Result<bytes::Bytes>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.expect("benchmark upload chunk");
+                std::hint::black_box(chunk.as_ptr());
+                read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("replication-upload-stream-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+        let reader = || {
+            ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline =
+                copying_upload_body_stream(reader(), None, Arc::new(UploadProgress::new()));
+            let candidate = upload_body_stream(reader(), None, Arc::new(UploadProgress::new()));
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC replication_upload_stream_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
         );
     }
 
@@ -1894,6 +2014,7 @@ mod tests {
             "https://gone-peer.test:7443".to_string(),
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
         local
             .state
             .store
@@ -1904,6 +2025,7 @@ mod tests {
         local.state.dynamic_peers.store(std::sync::Arc::new(vec![
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
 
         process_outbox(&local.state)
             .await

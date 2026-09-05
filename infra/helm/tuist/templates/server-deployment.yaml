@@ -177,6 +177,10 @@ spec:
             - name: TUIST_CODEBASE_SEARCH_URL
               value: {{ printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "codebase-search")) .Values.codebaseSearch.service.port | quote }}
             {{- end }}
+            {{- with .Values.server.faro.collectorUrl }}
+            - name: TUIST_FARO_COLLECTOR_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
               value: {{ . | quote }}
@@ -212,6 +216,11 @@ spec:
             # was meant to do, defeating the whole point of a separate parse
             # fleet.
             - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            # Bazel test reports have a separate queue and concurrency limit,
+            # but share the processor deployment. Keep their untrusted parsing
+            # off the web pods whenever that deployment is enabled.
+            - name: TUIST_DELEGATE_PROCESS_BAZEL_TESTS
               value: "1"
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}

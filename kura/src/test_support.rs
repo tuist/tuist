@@ -11,6 +11,7 @@ use crate::{
     analytics::Analytics,
     auth::SharedAuth,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
     io::IoController,
     memory::MemoryController,
@@ -84,7 +85,8 @@ where
         rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
-        outbox_max_depth: 100_000,
+        outbox_max_depth: None,
+        outbox_max_depth_per_peer: 50_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
         replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
@@ -137,12 +139,21 @@ where
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store =
-        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let store = Arc::new(
+        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
+    );
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .expect("failed to build Bazel test artifact delivery");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
     let peer_client_factory = PeerClientFactory::plain();
@@ -170,10 +181,12 @@ where
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -181,12 +194,14 @@ where
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),

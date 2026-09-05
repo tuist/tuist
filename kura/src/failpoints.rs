@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FailpointName {
     BeforeSegmentFsync,
+    #[cfg(test)]
+    BeforeWalFsync,
     AfterInlineManifestReadBeforeCommit,
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
@@ -20,6 +22,8 @@ impl FailpointName {
     fn as_str(self) -> &'static str {
         match self {
             Self::BeforeSegmentFsync => "before_segment_fsync",
+            #[cfg(test)]
+            Self::BeforeWalFsync => "before_wal_fsync",
             Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
                 "after_artifact_bytes_durable_before_metadata"

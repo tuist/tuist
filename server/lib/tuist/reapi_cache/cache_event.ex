@@ -2,6 +2,13 @@ defmodule Tuist.ReapiCache.CacheEvent do
   @moduledoc false
   use Ecto.Schema
 
+  @derive {
+    Flop.Schema,
+    filterable: [:project_id, :operation, :outcome, :invocation_id, :inserted_at],
+    sortable: [:inserted_at, :size, :duration_ms],
+    default_order: %{order_by: [:inserted_at], order_directions: [:desc]}
+  }
+
   @primary_key false
   schema "reapi_cache_events" do
     field :id, Ch, type: "UUID"

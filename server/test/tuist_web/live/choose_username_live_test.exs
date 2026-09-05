@@ -97,6 +97,8 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         |> init_test_session(%{"pending_oauth_signup" => oauth_data})
         |> live(~p"/users/choose-username")
 
+      render_hook(lv, "turnstile_state_changed", %{"id" => "oauth-signup-turnstile", "state" => "ready"})
+
       html =
         lv
         |> form("#choose-username-form", %{"account" => %{"name" => "missingsession"}, "cf-turnstile-response" => ""})
@@ -104,6 +106,39 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
       assert html =~ "Your session has expired"
       assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "parks the submit and shows a verifying message when the user clicks before the widget is ready",
+         %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "oauth-optimistic-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      reject(&Registration.hit/1)
+      reject(&Turnstile.verify/2)
+
+      {:ok, lv, html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      # Button is not pre-disabled.
+      refute html =~ ~s(<button[^>]*disabled)
+
+      after_submit =
+        lv
+        |> form("#choose-username-form", %{"account" => %{"name" => "optimistic"}})
+        |> render_submit()
+
+      assert after_submit =~ "Verifying, one moment"
+      refute after_submit =~ "Please complete the security check"
+      assert {:error, :not_found} = Accounts.get_user_by_email(oauth_data["email"])
     end
 
     test "does not create an OAuth user when the security check is rejected", %{conn: conn} do
@@ -127,6 +162,8 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         |> init_test_session(%{"pending_oauth_signup" => oauth_data})
         |> live(~p"/users/choose-username")
 
+      render_hook(lv, "turnstile_state_changed", %{"id" => "oauth-signup-turnstile", "state" => "ready"})
+
       html =
         lv
         |> form("#choose-username-form", %{"account" => %{"name" => "oauthrejected"}})
@@ -134,6 +171,88 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
       assert html =~ "Please complete the security check and try again."
       assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "surfaces a retry message when the Turnstile challenge itself fails", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "oauth-widget-error-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      html =
+        render_hook(lv, "turnstile_state_changed", %{"id" => "oauth-signup-turnstile", "state" => "error"})
+
+      assert html =~ "The security check failed"
+    end
+
+    test "surfaces a message when create_user returns :internal_server_error", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "oauth-internal-error-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username ->
+        {:error, :internal_server_error}
+      end)
+
+      stub(Turnstile, :required?, fn -> false end)
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      html =
+        lv
+        |> form("#choose-username-form", %{"account" => %{"name" => "internalerror"}})
+        |> render_submit()
+
+      assert html =~ "Something went wrong"
+    end
+
+    test "surfaces a message when the changeset fails on a field other than :name", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "oauth-other-field-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      changeset =
+        %Tuist.Accounts.User{}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.add_error(:email, "has already been taken")
+
+      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username -> {:error, changeset} end)
+      stub(Turnstile, :required?, fn -> false end)
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      html =
+        lv
+        |> form("#choose-username-form", %{"account" => %{"name" => "otherfield"}})
+        |> render_submit()
+
+      # Not blank: falls back to the other field's message rather than rendering nothing.
+      assert html =~ "has already been taken"
     end
 
     test "creates user and redirects to complete-signup on valid username", %{conn: conn} do

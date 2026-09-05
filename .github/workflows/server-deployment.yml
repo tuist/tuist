@@ -1241,6 +1241,52 @@ jobs:
           rm -f "$runner_pools_render"
           echo "::endgroup::"
 
+          # Push the rendered release through the API server, admission
+          # webhooks included, without persisting anything. A rejection fails
+          # the deploy here, before the real upgrade has mutated the release,
+          # so the run cannot end in an --atomic rollback. That rollback is
+          # what makes a rejected resource expensive: it reverts every other
+          # resource in the release along with it, including changes applied
+          # outside the release by a hotfix, and it restores the previous
+          # manifest under a database the pre-upgrade migration has already
+          # moved forward.
+          #
+          # Same arguments as the upgrade below, built from the same shell, so
+          # the two cannot drift. Hooks are rendered but not executed, so the
+          # migration Job does not run twice.
+          #
+          # Skipped when the namespace does not exist: a server-side dry run
+          # cannot validate namespaced resources against a namespace that is
+          # not there, and --create-namespace does not create one during a dry
+          # run. That case is a first install, where there is no live release
+          # for a rollback to damage.
+          echo "::group::helm upgrade --dry-run=server (preflight)"
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            preflight_log="$(mktemp)"
+            if helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace "$NAMESPACE" \
+              "${helm_values_args[@]}" \
+              --set server.image.tag="$IMAGE_TAG" \
+              --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+              --set registry.image.tag="$registry_image_tag" \
+              --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+              "${image_sets[@]}" \
+              --dry-run=server >"$preflight_log" 2>&1; then
+              rm -f "$preflight_log"
+              echo "Preflight passed; the API server accepts the rendered release."
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error title=Helm preflight failed::The API server rejected the rendered release. Nothing was applied and the live release is untouched."
+              tail -80 "$preflight_log"
+              rm -f "$preflight_log"
+              exit 1
+            fi
+          else
+            echo "Namespace $NAMESPACE does not exist yet; skipping the preflight for this first install."
+            echo "::endgroup::"
+          fi
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \

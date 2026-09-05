@@ -2,13 +2,14 @@ defmodule TuistWeb.Turnstile do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
 
   require Logger
 
   @endpoint "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
   def required? do
-    Environment.turnstile_required?()
+    FeatureFlags.turnstile_enabled?()
   end
 
   def site_key do
@@ -82,13 +83,12 @@ defmodule TuistWeb.Turnstile do
     |> Map.get(:host)
   end
 
-  defp validate_hostname(%{"hostname" => hostname}, expected_hostname)
-       when is_binary(expected_hostname) and expected_hostname != "" and hostname == expected_hostname, do: :ok
-
   defp validate_hostname(_body, expected_hostname) when not is_binary(expected_hostname) or expected_hostname == "" do
     Logger.error("Turnstile is enabled without a valid hosted URL")
     {:error, :misconfigured}
   end
+
+  defp validate_hostname(%{"hostname" => hostname}, expected_hostname) when hostname == expected_hostname, do: :ok
 
   defp validate_hostname(_body, _expected_hostname), do: {:error, :rejected}
 end

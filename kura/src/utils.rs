@@ -454,6 +454,35 @@ pub fn artifact_storage_id(
     namespace_id: &str,
     key: &str,
 ) -> String {
+    hex::encode(artifact_storage_digest(
+        producer,
+        tenant_id,
+        namespace_id,
+        key,
+    ))
+}
+
+pub fn artifact_storage_id_in<'a>(
+    output: &'a mut [u8; 64],
+    producer: ArtifactProducer,
+    tenant_id: &str,
+    namespace_id: &str,
+    key: &str,
+) -> &'a str {
+    hex::encode_to_slice(
+        artifact_storage_digest(producer, tenant_id, namespace_id, key),
+        output,
+    )
+    .expect("64-byte output holds one encoded SHA-256 digest");
+    std::str::from_utf8(output).expect("hexadecimal digest is valid UTF-8")
+}
+
+fn artifact_storage_digest(
+    producer: ArtifactProducer,
+    tenant_id: &str,
+    namespace_id: &str,
+    key: &str,
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(producer.as_str().as_bytes());
     hasher.update([0]);
@@ -462,7 +491,7 @@ pub fn artifact_storage_id(
     hasher.update(namespace_id.as_bytes());
     hasher.update([0]);
     hasher.update(key.as_bytes());
-    hex::encode(hasher.finalize())
+    hasher.finalize().into()
 }
 
 #[cfg(test)]
@@ -842,8 +871,17 @@ mod tests {
         let a = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
         let b = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
         let c = artifact_storage_id(ArtifactProducer::Gradle, "tenant", "ios", "abc");
+        let mut in_place = [0_u8; 64];
+        let in_place = artifact_storage_id_in(
+            &mut in_place,
+            ArtifactProducer::Xcode,
+            "tenant",
+            "ios",
+            "abc",
+        );
 
         assert_eq!(a, b);
+        assert_eq!(a, in_place);
         assert_ne!(a, c);
     }
 
@@ -861,6 +899,62 @@ mod tests {
         assert_eq!(
             artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc"),
             hex::encode(hasher.finalize())
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually during optimization"]
+    fn in_place_artifact_id_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+        let measure = |in_place: bool| {
+            let started_at = std::time::Instant::now();
+            let mut output = [0_u8; 64];
+            for _ in 0..ITERATIONS {
+                if in_place {
+                    std::hint::black_box(artifact_storage_id_in(
+                        &mut output,
+                        ArtifactProducer::Reapi,
+                        "e2e",
+                        "default",
+                        "blob/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144",
+                    ));
+                } else {
+                    std::hint::black_box(artifact_storage_id(
+                        ArtifactProducer::Reapi,
+                        "e2e",
+                        "default",
+                        "blob/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144",
+                    ));
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                speedups.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC in_place_artifact_id_speedup_ratio={:.6}\nMETRIC allocated_ids_per_second={:.3}\nMETRIC in_place_ids_per_second={:.3}",
+            speedups[speedups.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            candidate_rates[candidate_rates.len() / 2]
         );
     }
 

@@ -48,7 +48,21 @@ pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;
 pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
-pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
+// Outbox messages one replication target may hold. Every cache write
+// enqueues one message per peer, so a single node-wide cap fills in
+// proportion to the mesh and lets one slow peer's backlog consume the room
+// meant for the healthy ones. The quota is enforced per target instead: a
+// write is refused once any of its targets is at this depth, so a dead peer
+// holds at most one share and the node's total is this times the peer count.
+// A message costs about half a KiB of RocksDB (key plus JSON body), so a
+// share is ~50 MiB on disk; the in-memory cost is a counter per target.
+// KURA_OUTBOX_MAX_DEPTH replaces it with a fixed node-wide total.
+pub const DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER: usize = 100_000;
+// Node-wide ceiling on the outbox, whatever the peer count. The share bounds
+// each peer, but the depth cap is the only bound on the outbox's RocksDB
+// footprint (the free-space guard covers segment rotation, not metadata), so
+// the total must not grow without limit with the mesh: ten shares, ~500 MiB.
+pub const OUTBOX_MAX_DEPTH_CEILING: usize = 1_000_000;
 // Outbox deliveries dispatched before the drain waits for one to finish, and
 // the only throughput knob the bulk lane has: the drain moves roughly this many
 // messages per per-delivery latency. Every artifact enqueues one message per
@@ -63,8 +77,9 @@ pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 // write-primary replicating to two peers one region away runs at hundreds of
 // milliseconds per delivery, so the ceiling this sets has to be read against
 // ingest measured in tens of messages per second. A ceiling below ingest does
-// not shave the peak, it fills the outbox to `DEFAULT_OUTBOX_MAX_DEPTH` and
-// starts refusing public writes.
+// not shave the peak, it fills the outbox to its capacity
+// (`DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER` per peer) and starts refusing public
+// writes.
 //
 // The cost is per-delivery body residency: one `RESPONSE_STREAM_CHUNK_BYTES`
 // chunk for a segment-backed artifact, or up to
@@ -139,7 +154,7 @@ pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
 pub const REPLICATION_BATCH_MAX_ROUNDS: usize = 4;
 pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
-pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 64 * 1024;
 pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;
 pub const RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES: usize = 16;
 

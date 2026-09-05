@@ -365,6 +365,7 @@ use_local_cold_cache() {
   mkdir -p "${local_cache}/tuist" 2>/dev/null || true
   export TUIST_XDG_CACHE_HOME="${local_cache}"
   unset TUIST_CACHE_MAX_BYTES
+  unset TUIST_COMPILATION_CACHE_CAS_PATH
   CACHE_MOUNT=""
   CACHE_IMAGE_ACTIVE=""
   CACHE_INVENTORY_BEFORE=""
@@ -572,6 +573,17 @@ setup_cas_store() {
     fi
   } > "${CAS_XCCONFIG}"
   export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
+  # The xcconfig is not enough on its own for `tuist cache`, which passes
+  # COMPILATION_CACHE_CAS_PATH on the xcodebuild COMMAND LINE — and a command-line
+  # build setting BEATS XCODE_XCCONFIG_FILE (measured on Xcode 26.5 via
+  # `xcodebuild -showBuildSettings`). Its store therefore landed on the VM's boot
+  # volume, died with the VM, and was never promoted, which is why that job read
+  # ~35% hits with every one of them served from the remote. Naming the durable
+  # store explicitly is what the CLI honours instead of picking DerivedData; it
+  # is the same contract TUIST_XDG_CACHE_HOME and TUIST_CACHE_MAX_BYTES already
+  # ride. An older CLI ignores it and keeps its VM-local store, which is exactly
+  # today's behaviour.
+  export TUIST_COMPILATION_CACHE_CAS_PATH="${store}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
@@ -625,14 +637,22 @@ cas_spool_records() {
   find "$1" -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# cas_proxy_client finds the binary that can ask the running proxy to drain,
-# so the gate waits on the publisher itself instead of sampling a directory.
+# cas_proxy_client finds the binary that can ask the running proxy to drain (so
+# the gate waits on the publisher itself instead of sampling a directory) and to
+# prune (so the compilation cache is bounded at all).
 #
 # The launch agent `tuist setup cache` installed is the reliable pointer: its
-# `Program` IS the tuist whose bundle serves this machine's socket, and the
-# proxy binary ships beside it. Nothing found (a job that never ran `tuist setup
-# cache`, or a tuist this shell cannot see) is not a failure — the gate falls
-# back to watching the spool, which proves the same thing more slowly.
+# `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
+# binary ships beside it. It is preferred over the image's own copy because it
+# matches the proxy actually running, which is what a drain has to talk to.
+#
+# The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
+# that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
+# installs no launch agent and puts no tuist on PATH. Those jobs still write a
+# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
+# without a binary in the image they were exactly the jobs whose store nothing
+# could ever prune, which is the unbounded growth this path exists to stop. (The
+# drain is a legitimate no-op for them: no plugin means no spool.)
 cas_proxy_client() {
   local candidate program plist
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
@@ -644,7 +664,8 @@ cas_proxy_client() {
     "${TUIST_CAS_PROXY_PATH:-}" \
     "$(command -v tuist-cas-proxy 2>/dev/null)" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
-    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}"; do
+    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
+    /opt/tuist/tuist-cas-proxy; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
       return 0
@@ -746,6 +767,146 @@ EOF
   return "${status}"
 }
 
+# cas_store_dirs lists the llcas STORES inside the mounted image. A store is a
+# directory holding `v1.N` generation dirs; the compiler picks the lane name
+# under COMPILATION_CACHE_CAS_PATH (`plugin` for ours, `generic` for Xcode's
+# builtin), so discover them by that shape rather than assume the set. Both need
+# bounding: the builtin lane never loads our plugin but writes to the same image.
+cas_store_dirs() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
+    while IFS= read -r generation; do dirname "${generation}"; done | sort -u
+}
+
+# prune_cas_stores is what actually bounds the compilation cache on this image.
+#
+# COMPILATION_CACHE_LIMIT_SIZE does NOT cap the store directory, which is the
+# defect that filled this account's volume every ~2 days. Measured against Xcode
+# 26.5: the limit bounds a GENERATION, and it is enforced by ROTATION — when the
+# live chain is over it, closing the store's last handle starts a new primary and
+# demotes the old one. Nothing then deletes the generations that fall off the end
+# unless `llcas_cas_prune_ondisk_data` is called, and no part of a build ever
+# calls it, so the directory grows without bound (measured 9.4x its limit and
+# still climbing). This is the call.
+#
+# It runs at BOTH ends of a job, and the two are not redundant.
+#
+# At TEARDOWN it bounds what the fleet inherits: the image is measured and
+# promoted straight after, so every host that later clones this master starts
+# from a bounded store.
+#
+# At ATTACH it bounds what THIS job inherits, which is the case teardown cannot
+# reach. A master that is already over budget — promoted before this path
+# existed, or converged from a host still running an older image — can fill the
+# volume mid-build and FAIL the job, and a failed job never promotes, so
+# teardown is skipped and no replacement is ever published. That is the wedge
+# that leaves an account needing a manual reset. Pruning at attach gives the job
+# the headroom to succeed, and its teardown then publishes the bounded image, so
+# the account heals itself on its next job instead of on an operator's.
+#
+# Placement in teardown is load-bearing on three sides:
+#   - AFTER drain_cas_publications: a prune deletes objects, and deleting one the
+#     spool still owed the remote would strand the association naming it;
+#   - BEFORE sample_cache_fill, so the fill % that gates promotion describes the
+#     image as it will be published rather than as it was at its peak;
+#   - BEFORE the detach, since the store has to be mounted to be pruned — and it
+#     finishes here, so it cannot be the straggler that writes past
+#     capture_settled_inventory's measurement.
+#
+# The prune runs through the proxy binary rather than in this shell because llcas
+# rotates a store as its LAST handle closes, and the per-machine proxy holds one
+# open for its process lifetime. A prune driven from a handle of its own would
+# find the chain still live, collect nothing, and report success. `--prune` asks
+# the running proxy first for exactly that reason, and only prunes in-process for
+# a store no proxy holds (the builtin lane).
+#
+# Best-effort: a store we could not prune costs the volume space, which
+# sample_cache_fill's ceiling already guards. It never fails the job or blocks
+# promotion.
+#
+# The teardown call site applies an rc gate; the attach one does not need it
+# (nothing has been drained yet because nothing has been written yet).
+#
+# `$1` names the call site and is echoed into every line this emits. The two
+# passes are otherwise indistinguishable in the logs, and telling them apart is
+# what says whether an account is being saved on the way IN (it inherited a
+# store over budget) or merely kept tidy on the way OUT.
+prune_cas_stores() {
+  local when="${1:-teardown}"
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local stores
+  stores=$(cas_store_dirs)
+  [ -n "${stores}" ] || return 0
+
+  local client budget store
+  client=$(cas_proxy_client) || {
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
+    return 0
+  }
+  # The per-generation budget the host staged, from the same marker
+  # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
+  # prunes against whatever limit the store already carries rather than
+  # inventing one.
+  budget=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  case "${budget}" in ''|*[!0-9]*) budget=0 ;; esac
+
+  # SPLIT across the stores actually present, because the marker is the CAS's
+  # allowance as a whole and llcas only takes a per-generation bound per STORE.
+  # A job that used both lanes would otherwise get the full allowance twice --
+  # 2 x 5.5 GiB per generation under production's settings, so ~22 GiB of CAS
+  # inside a 20 GiB image before the binary cache gets a byte, which is the
+  # over-commit this budget exists to prevent.
+  #
+  # This is the enforcement point rather than the build-time setting because it
+  # is the only one that can count: COMPILATION_CACHE_LIMIT_SIZE is written
+  # before a single lane exists, so it cannot know how many there will be, while
+  # what the promoted image carries is settled here.
+  #
+  # An even split is deliberately crude. A tiny second lane (a `generic` store of
+  # a few KB beside a multi-GB `plugin` one is the usual shape) costs the primary
+  # half its budget, which spends warmth to keep the image's arithmetic true --
+  # the conservative direction, and the fill ceiling is not a bound to lean on.
+  local stores_count
+  stores_count=$(printf '%s\n' "${stores}" | grep -c . || true)
+  case "${stores_count}" in ''|*[!0-9]*|0) stores_count=1 ;; esac
+  budget=$((budget / stores_count))
+
+  while IFS= read -r store; do
+    [ -n "${store}" ] || continue
+    # `env -u TUIST_CAS_REMOTE_GRPC_URL` is the version-skew guard the drain uses
+    # for the same reason: a proxy binary older than this op does not recognise
+    # `--prune` and falls through to its SERVE path, which unlinks the machine's
+    # socket and binds its own — killing the live proxy from a teardown script.
+    # Without that variable it exits before reaching the bind, every time.
+    # Captured rather than left to stream: the client reports the bytes it
+    # freed and which route it took, and both belong ON this line. Loose on
+    # stderr they land in the runner's own multi-MB log, attributable to
+    # neither the store nor the pass that produced them.
+    local output reclaimed via
+    if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
+      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
+      # 0 is the ordinary healthy answer — a store inside its budget has no
+      # generation to collect — so it must stay distinguishable from "no figure
+      # reported", which would mean the client changed under us.
+      reclaimed=$(printf '%s\n' "${output}" | sed -n 's/.*reclaiming \([0-9][0-9]*\) bytes.*/\1/p' | tail -1)
+      # Which path actually ran. A store the proxy holds can ONLY be rotated
+      # through the proxy, so a `local` route on the plugin lane is the shape of
+      # a prune that collected nothing while reporting success.
+      case "${output}" in
+        *"proxy pruned"*) via="proxy" ;;
+        *"holds no handle"*) via="local, proxy holds no handle" ;;
+        *"could not ask the proxy"*) via="local, no proxy" ;;
+        *) via="local" ;;
+      esac
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
+    else
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store (${when}) ${store}: ${output}"
+    fi
+  done <<EOF
+${stores}
+EOF
+}
+
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
 # most a job's start can be delayed by the cache. The host materializes from its
 # LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
@@ -782,6 +943,24 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      # Bound the store this job INHERITED, before the job can run out of room
+      # in it. Nothing has opened it yet — `tuist setup cache` has not run, so
+      # there is no proxy, and a runner VM is single-shot so no previous one
+      # survives — which makes this the most quiescent moment in the VM's life
+      # and the only one besides teardown where a rotation can happen at all.
+      #
+      # AFTER the inventory snapshot, and that order is load-bearing: the
+      # snapshot is the baseline the dirty check compares against, so pruning
+      # first would fold the collection into the baseline and a pure-cache-hit
+      # job would then read as clean, be discarded, and leave the over-budget
+      # master in place — the opposite of the intent. Taking the baseline first
+      # makes the collection itself the change that earns the promote, which is
+      # the same reasoning that puts reclaim_cas_if_disabled at teardown.
+      #
+      # Deliberately not time-bounded. It delays the job's start only by what it
+      # frees, which is space the job was going to need, and killing an unlink
+      # midway would leave a half-collected generation behind.
+      prune_cas_stores attach
       return 0
     fi
     sleep 1
@@ -1375,6 +1554,12 @@ HOOK
       #      still read it. The image carries the associations those uploads
       #      exist to back, so promoting ahead of them hands every host that
       #      clones this master keys naming objects nothing can produce;
+      #   0b. prune the compilation-cache stores, which nothing else does: the
+      #      configured limit bounds a generation, not the directory, so without
+      #      this the folded CAS grows without bound until the volume is full and
+      #      the account wedges. After the drain (a prune must not delete an
+      #      object the spool still owed) and before the fill sample (so the
+      #      gauge describes the image that gets published);
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
@@ -1396,6 +1581,20 @@ HOOK
       # wait on, so a disabled-CAS teardown never pays for this gate.
       if ! drain_cas_publications "${rc}"; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
+      fi
+      # Bound the compilation cache before the image is measured: nothing else
+      # ever collects the generations that fall out of its chain, and an
+      # unbounded store is what fills this volume and wedges the account.
+      #
+      # Gated on rc, like the drain and for the matching reason. A non-zero rc
+      # never promotes, so there is no image for this to shrink — and the drain
+      # was skipped too, so the spool may still owe the remote objects this
+      # would delete. Nothing inherits those associations (the branch is
+      # discarded), but "prune only what has been drained" is the invariant
+      # worth being unable to get wrong later. The attach-time prune is what
+      # covers a failing job, from the other end.
+      if [ "${rc}" = "0" ]; then
+        prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting

@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     pin::Pin,
+    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -27,7 +28,6 @@ use bazel_remote_apis::{
 use futures_util::{FutureExt, StreamExt};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio_util::io::ReaderStream;
 use tonic::{Request, Response, Status};
 use tracing::Instrument;
 
@@ -36,24 +36,33 @@ use super::protobuf_shape::*;
 use super::{admission::*, snapshot::*};
 
 use crate::{
-    analytics::ReapiCacheAnalyticsEvent,
+    analytics::{ReapiCacheAnalyticsContext, ReapiCacheAnalyticsEvent},
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     auth::{AccessDecision, RequestContext},
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
-        encoded_response_stream_chunk_bytes, response_stream_chunk_bytes,
+        RESPONSE_STREAM_SEND_BUFFER_BYTES, encoded_response_stream_chunk_bytes,
+        response_stream_chunk_bytes,
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
-    store::{RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
+    store::{
+        ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
+        is_outbox_full_error, try_allocate_exact_vec,
+    },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
+// ByteStream downloads can keep the response vector and Tonic's encoded frame
+// live while Hyper retains up to its separately capped per-stream send buffer.
+// The reader fills the response vector directly, so there is no intermediate
+// reader buffer.
+const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -68,19 +77,15 @@ pub struct ReapiService {
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct GrpcRequestSpec<'a> {
-    route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
-    producer: Option<&'a str>,
-    artifact_key: Option<String>,
-    artifact_hash: Option<String>,
 }
 
 struct ReapiCacheObservation<'a> {
-    operation: &'a str,
-    outcome: &'a str,
+    operation: &'static str,
+    outcome: &'static str,
     digest: &'a str,
     size: u64,
     duration: Duration,
@@ -93,10 +98,11 @@ type ReapiServers = (
     ActionCacheServer<ReapiService>,
     ContentAddressableStorageServer<ReapiService>,
     ByteStreamServer<ReapiService>,
+    super::bep::PublishBuildEventServer,
 );
 
-// The four REAPI gRPC services with their shared decoding limits, all backed by
-// one service and snapshot cache.
+// The four Remote Execution API services and the Build Event Service share the
+// same listener and decoding limits.
 fn reapi_servers(service: ReapiService) -> ReapiServers {
     (
         CapabilitiesServer::new(service.clone())
@@ -105,7 +111,9 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
         ContentAddressableStorageServer::new(service.clone())
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
-        ByteStreamServer::new(service).max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ByteStreamServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        super::bep::server(service.state.clone()),
     )
 }
 
@@ -124,11 +132,12 @@ pub fn routes(state: SharedState) -> axum::Router {
         state: state.clone(),
     };
     spawn_snapshot_refresh_task(service.clone());
-    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(service);
+    let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
+        .add_service(build_events)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -196,7 +205,7 @@ impl ReapiService {
         let Some(auth) = self.state.auth.as_ref() else {
             return Ok(());
         };
-        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata, None);
+        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
         match auth.evaluate_access(&context).await {
             AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
@@ -280,21 +289,32 @@ impl ReapiService {
         namespace_id: &str,
         observation: ReapiCacheObservation<'_>,
     ) {
-        let Some(analytics) = self.state.analytics.as_ref() else {
+        let context = self.reapi_cache_event_context(metadata, namespace_id);
+        self.record_reapi_cache_event_with_context(context.as_ref(), observation);
+    }
+
+    fn reapi_cache_event_context(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+    ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+        self.state.analytics.as_ref()?;
+        reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id)
+    }
+
+    fn record_reapi_cache_event_with_context(
+        &self,
+        context: Option<&Arc<ReapiCacheAnalyticsContext>>,
+        observation: ReapiCacheObservation<'_>,
+    ) {
+        let (Some(analytics), Some(context)) = (self.state.analytics.as_ref(), context) else {
             return;
         };
 
-        let attribution = reapi_request_metadata(metadata);
-        if attribution.client_kind != "bazel" {
-            return;
-        }
-
-        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
-            account_handle: usage_tenant_id(metadata, &self.state.config.tenant_id),
-            project_handle: namespace_id.to_owned(),
-            client_kind: attribution.client_kind,
-            operation: observation.operation.into(),
-            outcome: observation.outcome.into(),
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::clone(context),
+            operation: observation.operation,
+            outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
             size: observation.size,
             duration_ms: observation
@@ -308,18 +328,14 @@ impl ReapiService {
                 .as_millis()
                 .try_into()
                 .unwrap_or(u64::MAX),
-            invocation_id: attribution.invocation_id,
-            action_mnemonic: attribution.action_mnemonic,
-            target_label: attribution.target_label,
-            configuration_id: attribution.configuration_id,
         });
     }
 
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
-    // (write) removes temp_path on any error this returns, so this never cleans
-    // up inline — which is what keeps transport/cancel/write/flush failures from
-    // leaking partial temp files.
-    async fn write_to_temp(
+    // (write) removes a staged path on any error this returns. Small uploads stay
+    // in their admitted memory and disarm that cleanup before any suspension can
+    // observe them as file-backed.
+    async fn write_stream(
         &self,
         temp_path: &std::path::Path,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
@@ -330,20 +346,13 @@ impl ReapiService {
         // the metadata now and authorize below, once the namespace is known, so
         // project-scoped tokens authorize against the real project (not the
         // account) — matching the namespace the blob is ultimately stored under.
-        let metadata = request.metadata().clone();
+        let (metadata, mut extensions, mut stream) = request.into_parts();
         let analytics_started_at = Instant::now();
-        let memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
+        let memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
-        let mut temp_file = self
-            .state
-            .io
-            .create_file(temp_path)
-            .await
-            .map_err(Status::internal)?;
-        let mut stream = request.into_inner();
+        let mut temp_file = None;
+        let mut memory_payload = None;
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
         let mut file_cache_policy = FileCachePolicy::Adaptive;
@@ -375,42 +384,63 @@ impl ReapiService {
                     )));
                 }
             };
-            let chunk_resource_name = if chunk.resource_name.is_empty() {
-                resource_name.clone().ok_or_else(|| {
-                    Status::invalid_argument("first write request must include resource_name")
-                })?
-            } else {
-                chunk.resource_name.clone()
-            };
             if let Some(existing) = &resource_name {
-                if existing != &chunk_resource_name {
+                if !chunk.resource_name.is_empty() && existing != &chunk.resource_name {
                     return Err(Status::invalid_argument("resource_name changed mid-stream"));
                 }
             } else {
-                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
+                if chunk.resource_name.is_empty() {
+                    return Err(Status::invalid_argument(
+                        "first write request must include resource_name",
+                    ));
+                }
+                let parsed_resource = parse_write_resource_name(&chunk.resource_name)?;
                 let write_spec = GrpcRequestSpec {
-                    route: "reapi.bytestream.write",
                     operation: "artifact.write",
                     namespace_id: Some(&parsed_resource.namespace_id),
-                    producer: Some("reapi"),
-                    artifact_key: None,
-                    artifact_hash: None,
                 };
                 self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
-                let disk_reservation = self
-                    .state
-                    .tmp_staging_budget
-                    .try_reserve(parsed_resource.size_bytes)
-                    .map_err(|error| {
-                        Status::resource_exhausted(format!(
-                            "temporary storage budget exhausted: {error}"
-                        ))
-                    })?;
-                cleanup.set_reservation(disk_reservation);
+                memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
+                    && matches!(file_cache_policy, FileCachePolicy::Foreground { .. })
+                    && self.state.store.direct_small_uploads_enabled())
+                .then(|| {
+                    usize::try_from(parsed_resource.size_bytes)
+                        .ok()
+                        .and_then(try_allocate_exact_vec)
+                })
+                .flatten();
+                if memory_payload.is_some() {
+                    cleanup.disarm();
+                } else {
+                    let disk_reservation = self
+                        .state
+                        .tmp_staging_budget
+                        .try_reserve(parsed_resource.size_bytes)
+                        .map_err(|error| {
+                            Status::resource_exhausted(format!(
+                                "temporary storage budget exhausted: {error}"
+                            ))
+                        })?;
+                    cleanup.set_reservation(disk_reservation);
+                    if let Some(parent) = temp_path.parent() {
+                        self.state
+                            .io
+                            .create_dir_all(parent)
+                            .await
+                            .map_err(Status::internal)?;
+                    }
+                    temp_file = Some(
+                        self.state
+                            .io
+                            .create_file(temp_path)
+                            .await
+                            .map_err(Status::internal)?,
+                    );
+                }
                 resource = Some(parsed_resource);
-                resource_name = Some(chunk_resource_name);
+                resource_name = Some(chunk.resource_name);
             }
             if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
                 return Err(Status::invalid_argument("unexpected write_offset"));
@@ -425,33 +455,46 @@ impl ReapiService {
                 ));
             }
             if !chunk.data.is_empty() {
-                for data in chunk
-                    .data
-                    .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
-                {
-                    tokio::io::AsyncWriteExt::write_all(&mut temp_file, data)
-                        .await
-                        .map_err(|error| {
-                            Status::internal(format!("failed to write temp blob: {error}"))
-                        })?;
-                    hasher.update(data);
-                    written = written.saturating_add(data.len() as u64);
-                    if file_cache_policy.should_drop(
-                        self.state.memory.should_reclaim_file_cache(),
-                        self.state.memory.transient_reserved_bytes(),
-                    ) && written.saturating_sub(advised_through)
-                        >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                if let Some(payload) = memory_payload.as_mut() {
+                    payload.extend_from_slice(&chunk.data);
+                    hasher.update(&chunk.data);
+                    written = written.saturating_add(chunk.data.len() as u64);
+                } else {
+                    for data in chunk
+                        .data
+                        .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
                     {
-                        temp_file = drop_staging_cache_range(
-                            temp_file,
-                            temp_path,
-                            advised_through,
-                            written - advised_through,
-                            &self.state.io,
-                        )
-                        .await
-                        .map_err(Status::internal)?;
-                        advised_through = written;
+                        let file = temp_file
+                            .as_mut()
+                            .expect("file-backed uploads initialize their staging file");
+                        tokio::io::AsyncWriteExt::write_all(file, data)
+                            .await
+                            .map_err(|error| {
+                                Status::internal(format!("failed to write temp blob: {error}"))
+                            })?;
+                        hasher.update(data);
+                        written = written.saturating_add(data.len() as u64);
+                        if file_cache_policy.should_drop(
+                            self.state.memory.should_reclaim_file_cache(),
+                            self.state.memory.transient_reserved_bytes(),
+                        ) && written.saturating_sub(advised_through)
+                            >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                        {
+                            temp_file = Some(
+                                drop_staging_cache_range(
+                                    temp_file.take().expect(
+                                        "file-backed uploads initialize their staging file",
+                                    ),
+                                    temp_path,
+                                    advised_through,
+                                    written - advised_through,
+                                    &self.state.io,
+                                )
+                                .await
+                                .map_err(Status::internal)?,
+                            );
+                            advised_through = written;
+                        }
                     }
                 }
                 // Only real byte progress extends the deadline, so a client
@@ -476,57 +519,67 @@ impl ReapiService {
                 "uploaded blob size did not match digest",
             ));
         }
-        let actual_hash = hex::encode(hasher.finalize());
-        if actual_hash != resource.hash {
+        if !digest_matches_hex(hasher.finalize().as_ref(), resource.hash()) {
             return Err(Status::invalid_argument(
                 "uploaded blob digest did not match content",
             ));
         }
 
-        // Flush tokio's internal write buffer to the OS and close the write handle before
-        // the blob is persisted. persist_artifact_from_path re-opens this path on a
-        // separate descriptor to stat and copy it into a segment; without an explicit
-        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
-        // append fails with "appended N bytes, expected M" — which silently breaks remote
-        // caching of any action that uploads many blobs concurrently (e.g. cargo build
-        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
-        tokio::io::AsyncWriteExt::flush(&mut temp_file)
-            .await
-            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
-        drop(temp_file);
+        // Flush a file-backed upload before the store opens that path on another
+        // descriptor. Memory-backed uploads already expose their complete bytes.
+        if let Some(mut file) = temp_file.take() {
+            tokio::io::AsyncWriteExt::flush(&mut file)
+                .await
+                .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+            drop(file);
+        }
 
-        let targets = replication_targets(&self.state).await;
+        let targets = replication_targets(&self.state);
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
         // blob (retry, or a client that skips FindMissingBlobs) must not be
         // billed twice — matching the HTTP upload path's `artifact_exists`
         // short-circuit — and concurrent uploads of the same missing blob
         // resolve to exactly one billed writer.
-        let persisted = self
-            .state
-            .store
-            .persist_artifact_from_path_and_enqueue(
-                ArtifactProducer::Reapi,
-                &resource.namespace_id,
-                &resource.key,
-                "application/octet-stream",
-                StagedArtifactPath::new(temp_path, file_cache_policy),
-                &targets,
-            )
-            .await
-            .map_err(|error| {
-                if is_outbox_full_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "replication backlog is full while persisting CAS blob: {error}"
-                    ))
-                } else if is_fd_pool_exhausted_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "file descriptor pool exhausted while persisting CAS blob: {error}"
-                    ))
-                } else {
-                    Status::internal(format!("failed to persist CAS blob: {error}"))
-                }
-            })?;
+        let persisted = if let Some(payload) = memory_payload.as_deref() {
+            self.state
+                .store
+                .persist_admitted_artifact_from_bytes_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    payload,
+                    file_cache_policy,
+                    &targets,
+                )
+                .await
+        } else {
+            self.state
+                .store
+                .persist_artifact_from_path_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    StagedArtifactPath::new(temp_path, file_cache_policy),
+                    &targets,
+                )
+                .await
+        }
+        .map_err(|error| {
+            if is_outbox_full_error(&error) {
+                Status::resource_exhausted(format!(
+                    "replication backlog is full while persisting CAS blob: {error}"
+                ))
+            } else if is_fd_pool_exhausted_error(&error) {
+                Status::resource_exhausted(format!(
+                    "file descriptor pool exhausted while persisting CAS blob: {error}"
+                ))
+            } else {
+                Status::internal(format!("failed to persist CAS blob: {error}"))
+            }
+        })?;
         self.state.notify.notify_one();
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
@@ -547,7 +600,7 @@ impl ReapiService {
                 ReapiCacheObservation {
                     operation: "cas",
                     outcome: "write",
-                    digest: &resource.hash,
+                    digest: resource.hash(),
                     size: persisted.manifest.size,
                     duration: analytics_started_at.elapsed(),
                 },
@@ -1052,14 +1105,10 @@ impl Capabilities for ReapiService {
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
@@ -1111,14 +1160,10 @@ impl ActionCache for ReapiService {
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
         let key = action_cache_key(&digest_key(digest)?);
         let auth = GrpcRequestSpec {
-            route: "reapi.action_cache.get",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let analytics_started_at = Instant::now();
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
@@ -1427,36 +1472,40 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
             .get_ref()
             .action_digest
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
-        let action_result = request
-            .get_ref()
-            .action_result
-            .clone()
-            .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
+        if request.get_ref().action_result.is_none() {
+            return Err(Status::invalid_argument("missing action_result"));
+        }
         let key = action_cache_key(&digest_key(digest)?);
         let auth = GrpcRequestSpec {
-            route: "reapi.action_cache.update",
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
+            namespace_id: Some(authorization_namespace_id),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let analytics_started_at = Instant::now();
+        let action_digest = digest.hash.clone();
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
+        let (metadata, mut extensions, mut message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let action_result = message
+            .action_result
+            .take()
+            .expect("action result was checked before authorization");
         let bytes = action_result.encode_to_vec();
         // Reject an action result we could never replicate. Entries are stored
         // inline and pushed to peers inline, and the inline replication path
@@ -1479,7 +1528,7 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let targets = replication_targets(&self.state).await;
+        let targets = replication_targets(&self.state);
         let (manifest, applied) = self
             .state
             .store
@@ -1508,14 +1557,14 @@ impl ActionCache for ReapiService {
         // A damped refresh (identical bytes, fresh version) applies nothing
         // and bills nothing.
         if applied {
-            self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+            self.record_reapi_upload(&metadata, namespace_id, manifest.size);
             self.record_reapi_cache_event(
-                request.metadata(),
+                &metadata,
                 namespace_id,
                 ReapiCacheObservation {
                     operation: "action_cache",
                     outcome: "write",
-                    digest: &digest.hash,
+                    digest: &action_digest,
                     size: manifest.size,
                     duration: analytics_started_at.elapsed(),
                 },
@@ -1537,14 +1586,12 @@ impl ContentAddressableStorage for ReapiService {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.find_missing",
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let message = request.into_inner();
+        let namespace_id = namespace_from_instance(&message.instance_name);
         let mut missing = Vec::new();
         // "Servers SHOULD increase the lifetimes of the referenced blobs if
         // necessary and applicable": a client told a blob is present skips
@@ -1557,14 +1604,14 @@ impl ContentAddressableStorage for ReapiService {
         // segment has aged there is nothing to promote, so the plain existence
         // check keeps its existence-cache short-circuit.
         let aging = self.state.store.segment_ring_is_aging();
-        for digest in &request.get_ref().blob_digests {
+        for digest in message.blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
             // a zero-byte blob they otherwise synthesize.
-            if is_empty_blob(digest) {
+            if is_empty_blob(&digest) {
                 continue;
             }
-            let key = blob_key(&digest_key(digest)?);
+            let key = blob_key(&digest_key(&digest)?);
             let exists = if aging {
                 self.state
                     .store
@@ -1583,7 +1630,7 @@ impl ContentAddressableStorage for ReapiService {
             }
             .map_err(|error| Status::internal(format!("failed to inspect CAS blob: {error}")))?;
             if !exists {
-                missing.push(digest.clone());
+                missing.push(digest);
             }
         }
 
@@ -1598,23 +1645,25 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.batch_update",
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
+            namespace_id: Some(authorization_namespace_id),
         };
-        self.authorize_request(&request, auth.clone()).await?;
-        let mut responses = Vec::with_capacity(request.get_ref().requests.len());
+        self.authorize_request(&request, auth).await?;
+        let (metadata, mut extensions, message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
+        let mut responses = Vec::with_capacity(message.requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
         // request per call), and so already-present blobs are not billed —
@@ -1623,10 +1672,10 @@ impl ContentAddressableStorage for ReapiService {
         let mut stored_bytes = 0_u64;
         let mut stored_any = false;
 
-        for item in &request.get_ref().requests {
+        for item in message.requests {
             let analytics_started_at = Instant::now();
-            let digest = match &item.digest {
-                Some(digest) => digest.clone(),
+            let digest = match item.digest {
+                Some(digest) => digest,
                 None => {
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: None,
@@ -1647,9 +1696,8 @@ impl ContentAddressableStorage for ReapiService {
                     if newly_stored {
                         stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
                         stored_any = true;
-                        self.record_reapi_cache_event(
-                            request.metadata(),
-                            namespace_id,
+                        self.record_reapi_cache_event_with_context(
+                            analytics_context.as_ref(),
                             ReapiCacheObservation {
                                 operation: "cas",
                                 outcome: "write",
@@ -1677,7 +1725,7 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
         self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
-            self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
+            self.record_reapi_upload(&metadata, namespace_id, stored_bytes);
         }
         Ok(response)
     }
@@ -1687,16 +1735,15 @@ impl ContentAddressableStorage for ReapiService {
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let auth = GrpcRequestSpec {
-            route: "reapi.cas.batch_read",
             operation: "artifact.read",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
+            namespace_id: Some(authorization_namespace_id),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let (metadata, _extensions, message) = request.into_parts();
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
         // Blobs are read concurrently: a sequential await per blob caps the
         // whole batch at per-read latency times batch size, which dominates
         // large read-heavy clients (measured ~4ms per blob serialized). The
@@ -1704,7 +1751,7 @@ impl ContentAddressableStorage for ReapiService {
         // never held across an await; per-blob failure semantics are
         // unchanged and response order matches request order.
         let budget = std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let digests: Vec<reapi::Digest> = request.get_ref().digests.clone();
+        let digests = message.digests;
         let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> =
             futures_util::stream::iter(digests.into_iter().map(|digest| {
                 let budget = &budget;
@@ -1713,19 +1760,19 @@ impl ContentAddressableStorage for ReapiService {
                     let response =
                         match batch_read_one(&self.state, namespace_id, &digest, budget).await {
                             Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
-                                digest: Some(digest.clone()),
+                                digest: Some(digest),
                                 data,
                                 compressor: 0,
                                 status: Some(rpc_status(0, "")),
                             },
                             Ok(None) => reapi::batch_read_blobs_response::Response {
-                                digest: Some(digest.clone()),
+                                digest: Some(digest),
                                 data: Vec::new(),
                                 compressor: 0,
                                 status: Some(rpc_status(5, "blob not found")),
                             },
                             Err(status) => reapi::batch_read_blobs_response::Response {
-                                digest: Some(digest.clone()),
+                                digest: Some(digest),
                                 data: Vec::new(),
                                 compressor: 0,
                                 status: Some(rpc_status_from_grpc_status(&status)),
@@ -1751,9 +1798,8 @@ impl ContentAddressableStorage for ReapiService {
                 });
 
             if let (Some(outcome), Some(digest)) = (outcome, response.digest.as_ref()) {
-                self.record_reapi_cache_event(
-                    request.metadata(),
-                    namespace_id,
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
                     ReapiCacheObservation {
                         operation: "cas",
                         outcome,
@@ -1795,7 +1841,7 @@ impl ContentAddressableStorage for ReapiService {
             response.extensions_mut().insert(response_memory);
         }
         if served_any {
-            self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+            self.record_reapi_download(&metadata, namespace_id, served_bytes);
         }
         Ok(response)
     }
@@ -1833,14 +1879,10 @@ impl ByteStream for ReapiService {
     ) -> Result<Response<Self::ReadStream>, Status> {
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
         let auth = GrpcRequestSpec {
-            route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let analytics_started_at = Instant::now();
         if request.get_ref().read_offset < 0 {
             return Err(Status::invalid_argument("read_offset must be non-negative"));
@@ -1851,7 +1893,7 @@ impl ByteStream for ReapiService {
         let manifest = match self
             .state
             .store
-            .fetch_artifact_for_serving(
+            .fetch_artifact_for_serving_retained(
                 ArtifactProducer::Reapi,
                 &resource.namespace_id,
                 &resource.key,
@@ -1869,7 +1911,7 @@ impl ByteStream for ReapiService {
                     ReapiCacheObservation {
                         operation: "cas",
                         outcome: "miss",
-                        digest: &resource.hash,
+                        digest: resource.hash(),
                         size: 0,
                         duration: analytics_started_at.elapsed(),
                     },
@@ -1900,9 +1942,13 @@ impl ByteStream for ReapiService {
         let inline_bytes = if manifest.inline { manifest.size } else { 0 };
         let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
         let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
-        let requested_bytes = u64::try_from(encoded_chunk_bytes.saturating_mul(4))
-            .unwrap_or(u64::MAX)
-            .saturating_add(inline_bytes);
+        let requested_bytes = u64::try_from(
+            encoded_chunk_bytes
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES),
+        )
+        .unwrap_or(u64::MAX)
+        .saturating_add(inline_bytes);
         let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
             Status::resource_exhausted("blob stream memory requirement is too large")
         })?;
@@ -1922,12 +1968,16 @@ impl ByteStream for ReapiService {
             })?;
         // Tolerates a concurrent background promotion relocating the blob
         // between the manifest fetch above and this open (see
-        // `Store::open_artifact_reader_range_tolerating_promotion`); a genuine
-        // eviction is a NOT_FOUND miss, not an internal error.
-        let Some((_, reader)) = self
+        // `Store::open_artifact_reader_range_tolerating_promotion_reader_only`);
+        // a genuine eviction is a NOT_FOUND miss, not an internal error.
+        let Some(reader) = self
             .state
             .store
-            .open_artifact_reader_range_tolerating_promotion(&manifest, read_offset, read_limit)
+            .open_artifact_reader_range_tolerating_promotion_reader_only(
+                &manifest,
+                read_offset,
+                read_limit,
+            )
             .await
             .map_err(|error| {
                 self.state
@@ -1945,7 +1995,7 @@ impl ByteStream for ReapiService {
                 ReapiCacheObservation {
                     operation: "cas",
                     outcome: "miss",
-                    digest: &resource.hash,
+                    digest: resource.hash(),
                     size: 0,
                     duration: analytics_started_at.elapsed(),
                 },
@@ -1956,17 +2006,7 @@ impl ByteStream for ReapiService {
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         self.state.metrics.record_artifact_serving_path("streaming");
-        let stream =
-            ReaderStream::with_capacity(reader, stream_chunk_bytes).map(
-                move |result| match result {
-                    Ok(bytes) => Ok(bytestream::ReadResponse {
-                        data: bytes.to_vec(),
-                    }),
-                    Err(error) => Err(Status::internal(format!(
-                        "failed to stream blob chunk: {error}"
-                    ))),
-                },
-            );
+        let stream = bytestream_read_response_stream(reader, stream_chunk_bytes);
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
         response
@@ -1983,7 +2023,7 @@ impl ByteStream for ReapiService {
             ReapiCacheObservation {
                 operation: "cas",
                 outcome: "hit",
-                digest: &resource.hash,
+                digest: resource.hash(),
                 size: bytes_to_read,
                 duration: analytics_started_at.elapsed(),
             },
@@ -1996,19 +2036,12 @@ impl ByteStream for ReapiService {
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         let temp_path = temp_file_path(&self.state.config.tmp_dir.join("uploads"), "reapi-write");
-        if let Some(parent) = temp_path.parent() {
-            self.state
-                .io
-                .create_dir_all(parent)
-                .await
-                .map_err(Status::internal)?;
-        }
         let mut cleanup = TempFileCleanup::new_unreserved(temp_path.clone());
 
         // The owned cleanup guard removes the partial even when transport
         // cancellation drops this future at an await point. On success the
         // persist step already unlinks the temp file, so its drop is a no-op.
-        let result = self.write_to_temp(&temp_path, request, &mut cleanup).await;
+        let result = self.write_stream(&temp_path, request, &mut cleanup).await;
         cleanup.remove_and_disarm(&self.state.io).await;
         if let Err(status) = &result {
             // The success path records "ok" inside write_to_temp; meter the
@@ -2028,14 +2061,10 @@ impl ByteStream for ReapiService {
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
         let auth = GrpcRequestSpec {
-            route: "reapi.bytestream.query_write_status",
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
         };
-        self.authorize_request(&request, auth.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let manifest = self
             .state
             .store
@@ -2058,6 +2087,61 @@ impl ByteStream for ReapiService {
             None => Err(Status::not_found("blob not found")),
         }
     }
+}
+
+fn bytestream_read_response_stream(
+    reader: ArtifactReader,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let data = reader
+            .read_chunk_owned(chunk_bytes)
+            .await
+            .map_err(|error| Status::internal(format!("failed to stream blob chunk: {error}")))?;
+        if data.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some((bytestream::ReadResponse { data }, reader)))
+        }
+    })
+}
+
+#[cfg(test)]
+fn direct_bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Unpin + Send,
+{
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let mut data = Vec::with_capacity(chunk_bytes);
+        match tokio::io::AsyncReadExt::read_buf(&mut reader, &mut data).await {
+            Ok(0) => Ok(None),
+            Ok(_) => Ok(Some((bytestream::ReadResponse { data }, reader))),
+            Err(error) => Err(Status::internal(format!(
+                "failed to stream blob chunk: {error}"
+            ))),
+        }
+    })
+}
+
+#[cfg(test)]
+fn copying_bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Send,
+{
+    tokio_util::io::ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
+        Ok(bytes) => Ok(bytestream::ReadResponse {
+            data: bytes.to_vec(),
+        }),
+        Err(error) => Err(Status::internal(format!(
+            "failed to stream blob chunk: {error}"
+        ))),
+    })
 }
 
 async fn fetch_keyvalue_proto<T>(
@@ -2361,7 +2445,7 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let targets = replication_targets(state).await;
+    let targets = replication_targets(state);
     let persisted = state
         .store
         .persist_artifact_from_bytes_and_enqueue(
@@ -2665,6 +2749,27 @@ fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiReque
     }
 }
 
+fn reapi_cache_event_context(
+    metadata: &tonic::metadata::MetadataMap,
+    namespace_id: &str,
+    fallback_tenant_id: &str,
+) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+    let attribution = reapi_request_metadata(metadata);
+    if attribution.client_kind != "bazel" {
+        return None;
+    }
+
+    Some(Arc::new(ReapiCacheAnalyticsContext {
+        account_handle: usage_tenant_id(metadata, fallback_tenant_id),
+        project_handle: namespace_id.to_owned(),
+        client_kind: "bazel",
+        invocation_id: attribution.invocation_id,
+        action_mnemonic: attribution.action_mnemonic,
+        target_label: attribution.target_label,
+        configuration_id: attribution.configuration_id,
+    }))
+}
+
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
 // key. Authorization (`grpc_request_context`) and billing (`usage_tenant_id`)
@@ -2691,42 +2796,53 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
+pub(super) async fn authorize_build_event_request(
+    state: &SharedState,
+    metadata: &tonic::metadata::MetadataMap,
+    project_handle: &str,
+    _route: &str,
+) -> Result<String, Status> {
+    if state.runtime.is_draining() {
+        return Err(Status::unavailable("server is draining"));
+    }
+
+    let account_handle = usage_tenant_id(metadata, &state.config.tenant_id);
+    let Some(auth) = state.auth.as_ref() else {
+        return Ok(account_handle);
+    };
+
+    let spec = GrpcRequestSpec {
+        operation: "build_event_stream",
+        namespace_id: Some(project_handle),
+    };
+    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+
+    match auth.evaluate_access(&context).await {
+        AccessDecision::Allow => Ok(account_handle),
+        AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
+    }
+}
+
 fn grpc_request_context(
     server_tenant_id: &str,
     spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
-    status_code: Option<u16>,
 ) -> RequestContext {
-    let headers = metadata_to_btree(metadata);
+    let authorization = metadata
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
     let tenant_id = tenant_id_from_metadata(metadata);
     RequestContext {
         transport: "grpc".into(),
-        route: spec.route.to_owned(),
         method: "RPC".into(),
         operation: spec.operation.to_owned(),
         server_tenant_id: server_tenant_id.to_owned(),
         tenant_id,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
-        producer: spec.producer.map(ToOwned::to_owned),
-        artifact_key: spec.artifact_key.clone(),
-        artifact_hash: spec.artifact_hash.clone(),
-        headers,
-        query: BTreeMap::new(),
-        status_code,
+        authorization,
+        headers: BTreeMap::new(),
     }
-}
-
-fn metadata_to_btree(metadata: &tonic::metadata::MetadataMap) -> BTreeMap<String, String> {
-    metadata
-        .iter()
-        .filter_map(|entry| match entry {
-            tonic::metadata::KeyAndValueRef::Ascii(key, value) => value
-                .to_str()
-                .ok()
-                .map(|value| (key.as_str().to_ascii_lowercase(), value.to_string())),
-            tonic::metadata::KeyAndValueRef::Binary(_, _) => None,
-        })
-        .collect()
 }
 
 /// gRPC has no code for payment required, so an exhausted plan would arrive as
@@ -2760,9 +2876,27 @@ fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
 #[derive(Debug, PartialEq, Eq)]
 struct BlobResource {
     namespace_id: String,
-    hash: String,
+    hash_range: std::ops::Range<usize>,
     size_bytes: u64,
     key: String,
+}
+
+impl BlobResource {
+    fn hash(&self) -> &str {
+        &self.key[self.hash_range.clone()]
+    }
+}
+
+fn digest_matches_hex(actual: &[u8], expected_hex: &str) -> bool {
+    if expected_hex.len() != 64
+        || !expected_hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return false;
+    }
+    let mut expected = [0_u8; 32];
+    hex::decode_to_slice(expected_hex, &mut expected).is_ok() && actual == expected
 }
 
 fn parse_read_resource_name(resource_name: &str) -> Result<BlobResource, Status> {
@@ -2774,6 +2908,121 @@ fn parse_write_resource_name(resource_name: &str) -> Result<BlobResource, Status
 }
 
 fn parse_blob_resource_name(
+    resource_name: &str,
+    require_upload_prefix: bool,
+) -> Result<BlobResource, Status> {
+    let mut blob_index = None;
+    let mut hash = None;
+    let mut encoded_size = None;
+    let mut has_upload_prefix = false;
+    let mut namespace_capacity = 0;
+    let mut previous = None;
+    let mut second_previous = None;
+    let mut normalized_prefix_len = 0_usize;
+    for (index, part) in resource_name
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .enumerate()
+    {
+        if part == "blobs" {
+            blob_index = Some(index);
+            hash = None;
+            encoded_size = None;
+            has_upload_prefix = index >= 2 && second_previous == Some("uploads");
+            namespace_capacity = if has_upload_prefix {
+                let upload_bytes = second_previous.map_or(0, str::len);
+                let upload_id_bytes = previous.map_or(0, str::len);
+                let separators = if index == 2 { 1 } else { 2 };
+                normalized_prefix_len
+                    .saturating_sub(upload_bytes)
+                    .saturating_sub(upload_id_bytes)
+                    .saturating_sub(separators)
+            } else {
+                normalized_prefix_len
+            };
+        } else if blob_index.is_some() {
+            if hash.is_none() {
+                hash = Some(part);
+            } else if encoded_size.is_none() {
+                encoded_size = Some(part);
+            }
+        }
+
+        if index > 0 {
+            normalized_prefix_len = normalized_prefix_len.saturating_add(1);
+        }
+        normalized_prefix_len = normalized_prefix_len.saturating_add(part.len());
+        second_previous = previous;
+        previous = Some(part);
+    }
+
+    let Some(blob_index) = blob_index else {
+        return Err(Status::invalid_argument(
+            "resource_name must contain /blobs/",
+        ));
+    };
+    let Some(hash) = hash else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+    let Some(encoded_size) = encoded_size else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+
+    let namespace_len = if has_upload_prefix {
+        blob_index - 2
+    } else {
+        if require_upload_prefix {
+            return Err(Status::invalid_argument(
+                "write resource_name must include uploads/{uuid}/blobs/{hash}/{size}",
+            ));
+        }
+        blob_index
+    };
+    let size_bytes = encoded_size
+        .parse::<u64>()
+        .map_err(|error| Status::invalid_argument(format!("invalid blob size: {error}")))?;
+    let namespace_id = if namespace_len == 0 {
+        DEFAULT_INSTANCE_NAME.to_string()
+    } else {
+        let mut namespace_id = String::with_capacity(namespace_capacity);
+        for part in resource_name
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .take(namespace_len)
+        {
+            if !namespace_id.is_empty() {
+                namespace_id.push('/');
+            }
+            namespace_id.push_str(part);
+        }
+        namespace_id
+    };
+    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
+    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
+    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
+    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
+    let mut key = String::with_capacity("blob/".len() + hash.len() + 1 + encoded_size.len());
+    key.push_str("blob/");
+    key.push_str(hash);
+    key.push('/');
+    use std::fmt::Write as _;
+    write!(&mut key, "{size_bytes}").expect("writing to a string cannot fail");
+
+    Ok(BlobResource {
+        namespace_id,
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
+        size_bytes,
+        key,
+    })
+}
+
+#[cfg(test)]
+fn parse_blob_resource_name_allocating(
     resource_name: &str,
     require_upload_prefix: bool,
 ) -> Result<BlobResource, Status> {
@@ -2811,16 +3060,11 @@ fn parse_blob_resource_name(
     } else {
         namespace_parts.join("/")
     };
-    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
-    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
-    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
-    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
-    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
     let key = blob_key(&format!("{hash}/{size_bytes}"));
 
     Ok(BlobResource {
         namespace_id,
-        hash,
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
         size_bytes,
         key,
     })
@@ -2869,6 +3113,381 @@ mod tests {
         framed
     }
 
+    #[tokio::test]
+    async fn bytestream_read_response_stream_preserves_bytes_and_chunk_bound() {
+        let reader = ArtifactReader::Inline {
+            bytes: bytes::Bytes::from(vec![0x5a; 10_001]),
+            offset: 0,
+        };
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert_eq!(responses.len(), 10);
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, vec![0x5a; 10_001]);
+    }
+
+    #[tokio::test]
+    async fn segment_reader_owned_chunks_preserve_file_range_and_chunk_bound() {
+        let context = test_context(|_| {}).await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-test");
+        let contents = (0..10_001)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::write(&path, &contents).expect("write segment reader fixture");
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open segment reader fixture"),
+        );
+        let offset = 17_usize;
+        let length = 9_001_usize;
+        let reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+            handle,
+            offset as u64,
+            length as u64,
+        ));
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert!(
+            responses
+                .iter()
+                .all(|response| response.as_ref().expect("stream response").data.len() <= 1_024)
+        );
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, contents[offset..offset + length]);
+    }
+
+    #[tokio::test]
+    async fn artifact_reader_inline_bytes_stream_reuses_the_source_allocation() {
+        let bytes = Bytes::from(vec![0x5a; 2_048]);
+        let source = bytes.as_ptr();
+        let stream = ArtifactReader::Inline { bytes, offset: 0 }.into_bytes_stream(1_024);
+        tokio::pin!(stream);
+
+        let chunk = stream
+            .next()
+            .await
+            .expect("one inline chunk")
+            .expect("successful inline chunk");
+
+        assert_eq!(chunk.as_ptr(), source);
+        assert_eq!(chunk.len(), 1_024);
+    }
+
+    #[tokio::test]
+    async fn bytestream_read_response_owns_the_buffer_filled_by_the_reader() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        use std::task::Poll;
+
+        struct PointerRecordingReader {
+            destination: Arc<AtomicUsize>,
+            remaining: usize,
+        }
+
+        impl tokio::io::AsyncRead for PointerRecordingReader {
+            fn poll_read(
+                mut self: std::pin::Pin<&mut Self>,
+                _context: &mut std::task::Context<'_>,
+                buffer: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                if self.remaining == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+                let length = self.remaining.min(buffer.remaining());
+                let destination = buffer.initialize_unfilled_to(length);
+                self.destination
+                    .store(destination.as_ptr() as usize, Ordering::Relaxed);
+                destination.fill(0x5a);
+                buffer.advance(length);
+                self.remaining -= length;
+                Poll::Ready(Ok(()))
+            }
+        }
+
+        let destination = Arc::new(AtomicUsize::new(0));
+        let reader = PointerRecordingReader {
+            destination: destination.clone(),
+            remaining: 1_024,
+        };
+        let stream = direct_bytestream_read_response_stream(reader, 1_024);
+        tokio::pin!(stream);
+        let response = stream
+            .next()
+            .await
+            .expect("one response")
+            .expect("successful response");
+
+        assert_eq!(
+            response.data.as_ptr() as usize,
+            destination.load(Ordering::Relaxed)
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn bytestream_read_chunk_materialization_benchmark() {
+        use tokio::io::AsyncReadExt as _;
+
+        const SAMPLE_BYTES: u64 = 4 * 1_024 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = copying_bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let candidate = direct_bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC bytestream_read_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn segment_reader_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+        let reader = || {
+            ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = direct_bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let candidate = bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_reader_owned_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn artifact_reader_inline_bytes_stream_benchmark() {
+        const ARTIFACT_BYTES: usize = 4 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const REPETITIONS: usize = 256;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure_copying(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let mut reader = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                };
+                loop {
+                    let chunk = reader
+                        .read_chunk_owned(CHUNK_BYTES)
+                        .await
+                        .expect("benchmark copied inline chunk");
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        async fn measure_owned(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let stream = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                }
+                .into_bytes_stream(CHUNK_BYTES);
+                tokio::pin!(stream);
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.expect("benchmark owned inline chunk");
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        let bytes = Bytes::from(vec![0x5a; ARTIFACT_BYTES]);
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure_copying(&bytes).await, measure_owned(&bytes).await)
+            } else {
+                let candidate_elapsed = measure_owned(&bytes).await;
+                let baseline_elapsed = measure_copying(&bytes).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = (ARTIFACT_BYTES * REPETITIONS) as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC inline_bytes_stream_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
     fn grpc_request<T: Message>(path: &str, message: &T) -> http::Request<axum::body::Body> {
         let encoded = message.encode_to_vec();
         let mut framed = Vec::with_capacity(GRPC_MESSAGE_HEADER_BYTES + encoded.len());
@@ -2904,7 +3523,7 @@ mod tests {
     #[tokio::test]
     async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
         let context = crate::test_support::test_context(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         })
         .await;
         context
@@ -2970,8 +3589,12 @@ mod tests {
             hard_limit_bytes,
         );
         memory.observe(0);
-        let admission = GrpcWriteAdmission::new(&memory, decode_copy_multiplier, metrics)
-            .expect("zero-byte initial reservation should fit");
+        let admission = GrpcWriteAdmission::new(
+            &memory,
+            decode_copy_multiplier,
+            metrics.grpc_write_admission_metrics(),
+        )
+        .expect("zero-byte initial reservation should fit");
         (memory, admission)
     }
 
@@ -2981,8 +3604,12 @@ mod tests {
         decode_copy_multiplier: u64,
     ) {
         request.extensions_mut().insert(
-            GrpcWriteAdmission::new(&state.memory, decode_copy_multiplier, state.metrics.clone())
-                .expect("test write admission should fit"),
+            GrpcWriteAdmission::new(
+                &state.memory,
+                decode_copy_multiplier,
+                state.metrics.grpc_write_admission_metrics(),
+            )
+            .expect("test write admission should fit"),
         );
     }
 
@@ -3577,6 +4204,184 @@ mod tests {
         assert_eq!(
             reapi_request_metadata(request.metadata()).client_kind,
             "other"
+        );
+    }
+
+    #[test]
+    fn cache_analytics_events_share_batch_request_context() {
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "invocation-1".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let context = reapi_cache_event_context(request.metadata(), "ios", "fallback")
+            .expect("Bazel metadata should produce analytics context");
+        let first = ReapiCacheAnalyticsEvent {
+            context: Arc::clone(&context),
+            operation: "cas",
+            outcome: "hit",
+            action_digest: "digest-a".into(),
+            size: 1,
+            duration_ms: 2,
+            observed_at_ms: 3,
+        };
+        let second = ReapiCacheAnalyticsEvent {
+            context,
+            operation: "cas",
+            outcome: "miss",
+            action_digest: "digest-b".into(),
+            size: 0,
+            duration_ms: 4,
+            observed_at_ms: 5,
+        };
+
+        assert!(Arc::ptr_eq(&first.context, &second.context));
+        assert_eq!(first.context.account_handle, "acme");
+        assert_eq!(first.context.project_handle, "ios");
+        assert_eq!(first.context.invocation_id, "invocation-1");
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn reapi_batch_analytics_context_benchmark() {
+        const EVENTS_PER_BATCH: usize = 4_096;
+        const BATCHES: usize = 32;
+        const SAMPLES: usize = 7;
+
+        fn measure_baseline(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                for _ in 0..EVENTS_PER_BATCH {
+                    let attribution = reapi_request_metadata(std::hint::black_box(metadata));
+                    assert_eq!(attribution.client_kind, "bazel");
+                    std::hint::black_box((
+                        usage_tenant_id(metadata, "fallback"),
+                        namespace_id.to_owned(),
+                        attribution.client_kind,
+                        "cas".to_owned(),
+                        "hit".to_owned(),
+                        digest.to_owned(),
+                        attribution.invocation_id,
+                        attribution.action_mnemonic,
+                        attribution.target_label,
+                        attribution.configuration_id,
+                    ));
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_candidate(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                let context = reapi_cache_event_context(metadata, namespace_id, "fallback")
+                    .expect("Bazel metadata should produce analytics context");
+                for _ in 0..EVENTS_PER_BATCH {
+                    std::hint::black_box(ReapiCacheAnalyticsEvent {
+                        context: Arc::clone(&context),
+                        operation: "cas",
+                        outcome: "hit",
+                        action_digest: digest.to_owned(),
+                        size: 4_096,
+                        duration_ms: 1,
+                        observed_at_ms: 1,
+                    });
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//Sources/App:App".into(),
+            configuration_id: "darwin-arm64-fastbuild".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        let digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_baseline(request.metadata(), "ios", digest)
+            } else {
+                measure_candidate(request.metadata(), "ios", digest)
+            };
+            let second = if baseline_first {
+                measure_candidate(request.metadata(), "ios", digest)
+            } else {
+                measure_baseline(request.metadata(), "ios", digest)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC reapi_batch_analytics_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC baseline_events_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC shared_context_events_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
         );
     }
 
@@ -5072,6 +5877,227 @@ mod tests {
             .await;
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn direct_memory_bytestream_write_benchmark() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        const CONNECTIONS: usize = 4;
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+        const BLOB_BYTES: usize = SEGMENT_COPY_BUFFER_BYTES;
+        const CHUNK_BYTES: usize = 64 * 1024;
+
+        struct BenchmarkServer {
+            _context: TestContext,
+            channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+            shutdown: tokio::sync::oneshot::Sender<()>,
+            task: tokio::task::JoinHandle<()>,
+        }
+
+        async fn start_server(direct: bool) -> BenchmarkServer {
+            let context = test_context(|_| {}).await;
+            context.state.store.set_direct_small_uploads_enabled(direct);
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind benchmark listener");
+            let address = listener.local_addr().expect("benchmark listener address");
+            let (shutdown, stopped) = tokio::sync::oneshot::channel();
+            let state = context.state.clone();
+            let task = tokio::spawn(async move {
+                serve_routes(listener, state, async move {
+                    let _ = stopped.await;
+                })
+                .await;
+            });
+            let endpoint = format!("http://{address}");
+            let mut channels = Vec::with_capacity(CONNECTIONS);
+            for _ in 0..CONNECTIONS {
+                let mut channel = None;
+                for _ in 0..50 {
+                    match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                        .expect("valid benchmark endpoint")
+                        .connect()
+                        .await
+                    {
+                        Ok(connected) => {
+                            channel = Some(connected);
+                            break;
+                        }
+                        Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+                    }
+                }
+                channels.push(channel.expect("benchmark server should accept connections"));
+            }
+            BenchmarkServer {
+                _context: context,
+                channels: std::sync::Arc::new(channels),
+                shutdown,
+                task,
+            }
+        }
+
+        async fn stop_server(server: BenchmarkServer) {
+            let BenchmarkServer {
+                _context,
+                channels,
+                shutdown,
+                task,
+            } = server;
+            drop(channels);
+            let _ = shutdown.send(());
+            tokio::time::timeout(Duration::from_secs(10), task)
+                .await
+                .expect("benchmark server should stop")
+                .expect("benchmark server should not panic");
+        }
+
+        async fn measure(
+            server: &BenchmarkServer,
+            sample: usize,
+            label: &'static str,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+                sample: usize,
+                index: usize,
+                label: &'static str,
+            ) {
+                writes.spawn(async move {
+                    let mut blob = vec![0x5a; BLOB_BYTES];
+                    blob[..8].copy_from_slice(&((sample * WRITES + index) as u64).to_le_bytes());
+                    let hash = hex::encode(Sha256::digest(&blob));
+                    let resource = format!(
+                        "ios/uploads/{label}-{sample}-{index}/blobs/{hash}/{}",
+                        blob.len()
+                    );
+                    let mut requests = Vec::with_capacity(blob.len().div_ceil(CHUNK_BYTES));
+                    for (chunk_index, data) in blob.chunks(CHUNK_BYTES).enumerate() {
+                        let offset = chunk_index * CHUNK_BYTES;
+                        requests.push(bytestream::WriteRequest {
+                            resource_name: if offset == 0 {
+                                resource.clone()
+                            } else {
+                                String::new()
+                            },
+                            write_offset: offset as i64,
+                            finish_write: offset + data.len() == blob.len(),
+                            data: data.to_vec(),
+                        });
+                    }
+                    drop(blob);
+                    let request = Request::new(tokio_stream::iter(requests));
+                    let mut client =
+                        ByteStreamClient::new(channels[index % channels.len()].clone());
+                    let started_at = std::time::Instant::now();
+                    let committed = client
+                        .write(request)
+                        .await
+                        .expect("benchmark ByteStream write should persist")
+                        .into_inner()
+                        .committed_size;
+                    assert_eq!(committed as usize, BLOB_BYTES);
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let staged = start_server(false).await;
+        let direct = start_server(true).await;
+        let mut staged_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut direct_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (staged_result, direct_result) = if sample % 2 == 0 {
+                (
+                    measure(&staged, sample, "staged").await,
+                    measure(&direct, sample, "direct").await,
+                )
+            } else {
+                let direct_result = measure(&direct, sample, "direct").await;
+                (measure(&staged, sample, "staged").await, direct_result)
+            };
+            if sample > 0 {
+                speedups.push(direct_result.0 / staged_result.0);
+                staged_samples.push(staged_result);
+                direct_samples.push(direct_result);
+            }
+        }
+        stop_server(staged).await;
+        stop_server(direct).await;
+
+        staged_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        direct_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let staged_median = staged_samples[median];
+        let direct_median = direct_samples[median];
+        println!(
+            "METRIC direct_memory_bytestream_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC staged_bytestream_writes_per_second={:.3}",
+            staged_median.0
+        );
+        println!(
+            "METRIC direct_memory_bytestream_writes_per_second={:.3}",
+            direct_median.0
+        );
+        println!(
+            "METRIC staged_bytestream_write_p50_microseconds={}",
+            staged_median.1
+        );
+        println!(
+            "METRIC staged_bytestream_write_p95_microseconds={}",
+            staged_median.2
+        );
+        println!(
+            "METRIC staged_bytestream_write_p99_microseconds={}",
+            staged_median.3
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p50_microseconds={}",
+            direct_median.1
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p95_microseconds={}",
+            direct_median.2
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p99_microseconds={}",
+            direct_median.3
+        );
+    }
+
     #[tokio::test]
     async fn grpc_request_accounting_layer_keeps_guard_until_response_body_drops() {
         let context = test_context(|_| {}).await;
@@ -5149,7 +6175,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
         let hash = hex::encode(Sha256::digest(&blob));
-        context
+        let manifest = context
             .state
             .store
             .persist_artifact_from_bytes(
@@ -5161,6 +6187,7 @@ mod tests {
             )
             .await
             .expect("CAS blob should persist");
+        assert!(!manifest.inline);
 
         let mut response = routes(context.state.clone())
             .oneshot(grpc_request(
@@ -5175,7 +6202,13 @@ mod tests {
             .expect("ByteStream route should respond");
         assert_eq!(response.status(), http::StatusCode::OK);
         let reserved_bytes = context.state.memory.transient_reserved_bytes();
-        assert!(reserved_bytes > 0);
+        assert_eq!(
+            reserved_bytes,
+            encoded_response_stream_chunk_bytes(blob.len() as u64)
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
+            "ByteStream admission should charge two chunks plus the capped send buffer"
+        );
 
         let frame = response
             .body_mut()
@@ -5730,7 +6763,7 @@ mod tests {
             parse_read_resource_name("blobs/abc/10").expect("resource should parse"),
             BlobResource {
                 namespace_id: "default".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
@@ -5740,10 +6773,219 @@ mod tests {
                 .expect("instance-scoped resource should parse"),
             BlobResource {
                 namespace_id: "bazel/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
+        );
+    }
+
+    #[test]
+    fn digest_comparison_accepts_exact_bytes_and_rejects_invalid_hashes() {
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        assert!(digest_matches_hex(&actual, &expected));
+        assert!(!digest_matches_hex(&[0xAC; 32], &expected));
+        assert!(!digest_matches_hex(&actual, "not-a-digest"));
+        assert!(!digest_matches_hex(&actual, &"ab".repeat(31)));
+        assert!(!digest_matches_hex(&actual, &"AB".repeat(32)));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn digest_comparison_without_hex_allocation_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        let measure = |candidate| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let matches = if candidate {
+                    digest_matches_hex(std::hint::black_box(&actual), &expected)
+                } else {
+                    hex::encode(std::hint::black_box(actual)) == expected
+                };
+                std::hint::black_box(matches);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC digest_comparison_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    fn allocation_free_resource_scan_preserves_normalization_and_last_blob_marker() {
+        for (resource_name, require_upload_prefix) in [
+            ("//bazel///cache/blobs/abc/00010/trailing", false),
+            ("first/blobs/ignored/buck/uploads/uuid-1/blobs/abc/10", true),
+            ("blobs/abc", false),
+            ("buck/cache/blobs/abc/invalid", false),
+        ] {
+            let candidate = parse_blob_resource_name(resource_name, require_upload_prefix);
+            let baseline =
+                parse_blob_resource_name_allocating(resource_name, require_upload_prefix);
+            match (candidate, baseline) {
+                (Ok(candidate), Ok(baseline)) => assert_eq!(candidate, baseline),
+                (Err(candidate), Err(baseline)) => {
+                    assert_eq!(candidate.code(), baseline.code());
+                    assert_eq!(candidate.message(), baseline.message());
+                }
+                (candidate, baseline) => {
+                    panic!("parser results differ: candidate={candidate:?}, baseline={baseline:?}")
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn blob_resource_name_parser_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const RESOURCE_NAME: &str = concat!(
+            "bazel/cache/uploads/018f5f8d-7f2b-7ee5-8c42-6b62475558a3/blobs/",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144"
+        );
+
+        let measure = |allocating| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let resource = if allocating {
+                    parse_blob_resource_name_allocating(RESOURCE_NAME, true)
+                } else {
+                    parse_blob_resource_name(RESOURCE_NAME, true)
+                }
+                .expect("benchmark resource should parse");
+                std::hint::black_box(resource);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_parse_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn blob_resource_construction_without_duplicate_hash_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+        const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        const ENCODED_SIZE: &str = "262144";
+
+        let measure = |duplicate_hash: bool| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let hash = duplicate_hash.then(|| HASH.to_owned());
+                let mut key =
+                    String::with_capacity("blob/".len() + HASH.len() + 1 + ENCODED_SIZE.len());
+                key.push_str("blob/");
+                key.push_str(HASH);
+                key.push('/');
+                key.push_str(ENCODED_SIZE);
+                let hash_range = "blob/".len().."blob/".len() + HASH.len();
+                std::hint::black_box((hash, hash_range, key));
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_construction_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 
@@ -5754,7 +6996,7 @@ mod tests {
                 .expect("write resource should parse"),
             BlobResource {
                 namespace_id: "buck/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
             }
@@ -5770,12 +7012,8 @@ mod tests {
 
     fn grpc_spec() -> GrpcRequestSpec<'static> {
         GrpcRequestSpec {
-            route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         }
     }
 
@@ -5790,7 +7028,7 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_kura_header() {
         let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -5798,14 +7036,14 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
         let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
     }
 
     #[test]
     fn grpc_context_without_tenant_header_leaves_tenant_unset() {
         let metadata = tonic::metadata::MetadataMap::new();
-        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id, None);
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -6600,6 +7838,8 @@ mod tests {
         let mut metadata = tonic::metadata::MetadataMap::new();
         metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
         metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
+        metadata.insert("authorization", "Bearer credential".parse().unwrap());
+        metadata.insert("x-unrelated", "not copied".parse().unwrap());
 
         // The authorization path (grpc_request_context) and the billing path
         // (usage_tenant_id) read the same value.
@@ -6607,15 +7847,13 @@ mod tests {
         assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
 
         let spec = GrpcRequestSpec {
-            route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        let context = grpc_request_context("acme", &spec, &metadata, None);
+        let context = grpc_request_context("acme", &spec, &metadata);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(context.authorization.as_deref(), Some("Bearer credential"));
+        assert!(context.headers.is_empty());
     }
 
     fn test_usage_config() -> crate::config::UsageConfig {

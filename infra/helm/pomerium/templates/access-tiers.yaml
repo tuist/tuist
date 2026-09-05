@@ -8,13 +8,37 @@ The chart that introduces the groups (this one) owns the bindings
 for them, so deploying this chart to a fresh cluster gets the
 identity → RBAC story end-to-end with no external dependency.
 
-Tier shape (matches what tuist-ops's PolicyController returns):
+LOAD-BEARING BEYOND THIS CHART. In staging, human kubectl no longer
+arrives through Pomerium at all — it comes over the tailnet via
+Tailscale's API server proxy, which injects these same group names
+from the `tailscale.com/cap/kubernetes` grants in
+infra/tailscale/acls.json (see
+infra/helm/tailscale-operator/values-staging.yaml). The bindings
+below are what those grants resolve against, so uninstalling the
+Pomerium release in staging would silently drop every human to no
+tier at all — through either door. Move this file before removing
+that release, don't delete it with it.
+
+Tier shape (matches what tuist-ops's PolicyController returns, and
+what the staging ACL grants name):
 
   tuist-admins         → view   (Owner / Admin tailnet role)
   tuist-eng            → view   (Member tailnet role)
-  tuist-<env>-write    → edit   (elevation grant; per-env so a
-                                 prod elevation can't unlock
-                                 staging or vice versa)
+  tuist-<env>-write    → edit   (per-env so a prod elevation
+                                 can't unlock canary or vice
+                                 versa)
+
+On canary and production the write group is only ever injected
+against an active JIT elevation, so every comment below that
+talks about "an active elevation" holds there. On STAGING the
+policy endpoint injects `tuist-staging-write` unconditionally
+(`TuistOps.JIT.Policy.always_write_env?/1`), so everything this
+file binds to the write group — including the directly-bound
+`tuist-cnpg-decommission`, `tuist-volume-decommission`,
+`tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
+access for every engineering identity in the staging cluster.
+That is intended: staging serves no customers and is the env we
+break on purpose.
 
 View tier excludes Secrets by Kubernetes' built-in role definition.
 Edit allows reads/writes on Secrets + most resources but cannot

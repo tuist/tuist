@@ -54,18 +54,33 @@ registry:
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-staging` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
   kuraCapacityAdmission:
     enabled: true
 
-  replicaCount: 1
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
+    enabled: true
 
-  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
-  config:
-    posthog:
-      enabled: false
+  replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
@@ -255,6 +270,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  bazelEvents:
+    enabled: true
+    host: build-staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   autoscaling:
     enabled: false

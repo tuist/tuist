@@ -552,6 +552,10 @@ end
 seed_self_hosted_cache.(Repo.preload(user, :account).account)
 seed_self_hosted_cache.(organization.account)
 
+# Kept local because the shared `branches` list is defined further down, after
+# this generator runs.
+build_branches = ["main", "develop", "feature/new-ui", "feature/caching", "release/v2.0"]
+
 build_generator = fn _i ->
   status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
   is_ci = Enum.random([true, false])
@@ -606,6 +610,8 @@ build_generator = fn _i ->
     account_id: if(is_ci, do: org_account_id, else: user_account_id),
     scheme: Enum.random(["App", "AppTests"]),
     configuration: if(is_pending, do: "", else: Enum.random(["Debug", "Release"])),
+    git_branch: Enum.random(build_branches),
+    git_commit_sha: SeedHelpers.random_hex(40),
     inserted_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
@@ -1802,6 +1808,18 @@ create_xcode_data_for_events = fn events, label ->
   if length(events) > 0 do
     xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
     product_types = ["app", "framework", "static_library", "unit_test_bundle"]
+    # Dependency edges (within a project) so demo modules have a downstream blast
+    # radius. Keyed by bare target name; prefixed with the project name when emitted.
+    generic_module_deps = %{
+      "App" => ["Core", "UI", "Networking"],
+      "Framework" => ["Core"],
+      "UI" => ["Core"],
+      "Networking" => ["Core"],
+      "Core" => [],
+      "AppTests" => ["App"],
+      "FrameworkTests" => ["Framework"]
+    }
+
     dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
     hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
     subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
@@ -1848,10 +1866,27 @@ create_xcode_data_for_events = fn events, label ->
         xcode_target_names
         |> Enum.with_index()
         |> Enum.map(fn {target_name, idx} ->
-          hit_value = rem(idx, 3)
           is_external = rem(idx, 7) == 0
           hash_idx = rem(idx, 100)
           is_test_target = String.ends_with?(target_name, "Tests")
+
+          # Vary the outcome per build rather than per target, so a module's
+          # history reads like a real one: mostly cache hits, the occasional
+          # miss because its own sources changed, and the occasional cold miss.
+          build_seed = :erlang.phash2({project.command_event_id, target_name})
+          sources_changed = rem(build_seed, 7) == 0
+
+          hit_value =
+            cond do
+              sources_changed -> 0
+              rem(build_seed, 11) == 0 -> 0
+              rem(build_seed, 2) == 0 -> 1
+              true -> 2
+            end
+
+          # A changed target hashes differently from the build before it, which
+          # is what makes the miss classify as "changed" rather than "cold".
+          sources_idx = rem(hash_idx + 1 + if(sources_changed, do: div(build_seed, 7), else: 0), 100)
 
           product =
             if is_test_target,
@@ -1861,7 +1896,7 @@ create_xcode_data_for_events = fn events, label ->
           %{
             id: UUIDv7.generate(),
             name: "#{project.name}_#{target_name}",
-            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, hash_idx)),
+            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, sources_idx)),
             binary_cache_hit: if(is_test_target, do: 0, else: hit_value),
             binary_build_duration: 5000 + rem(idx * 17, 25_000),
             selective_testing_hash: if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100))),
@@ -1874,7 +1909,7 @@ create_xcode_data_for_events = fn events, label ->
             product_name: target_name,
             destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
             external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
-            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
+            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, sources_idx)),
             resources_hash:
               if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
             copy_files_hash: "",
@@ -1890,7 +1925,8 @@ create_xcode_data_for_events = fn events, label ->
             project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
             target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
             buildable_folders_hash: "",
-            additional_strings: []
+            additional_strings: [],
+            dependencies: Enum.map(Map.get(generic_module_deps, target_name, []), &"#{project.name}_#{&1}")
           }
         end)
       end)
@@ -1906,9 +1942,15 @@ end
 # Create command events for test runs that don't have them yet
 test_run_command_events =
   Enum.map(test_runs_without_events, fn test_run ->
+    # `tuist test` produces an activity log, so in production these events carry
+    # the build run they belong to. That link is where the module cache's Builds
+    # table reads the scheme from.
+    test_build_run = Enum.random(completed_builds)
+
     %{
       id: UUIDv7.generate(),
       test_run_id: test_run.id,
+      build_run_id: test_build_run.id,
       name: "test",
       duration: Enum.random(10_000..100_000),
       tuist_version: "4.1.0",
@@ -1981,6 +2023,134 @@ IO.puts(
 create_xcode_data_for_events.(generate_events, "Generate runs")
 create_xcode_data_for_events.(cache_events, "Cache runs")
 
+# --- Module invalidation analytics demo data --------------------------------
+# A self-consistent 30-day series on `main` for a handful of modules with
+# distinct invalidation profiles, so the Module Cache dashboard's invalidation
+# card tells a clear story in local dev. For each module a build is a cache miss
+# when its own content hash or one of its dependency hashes changes that day; the
+# dashboard's window query reclassifies each miss as self-change vs
+# dependency-induced by diffing consecutive builds.
+IO.puts("Generating module invalidation demo data...")
+
+# {name, product, own_period, dep_period, dep_offset}
+# own/dep hashes change every Nth day (0 = never), offset shifts the dep cadence.
+invalidation_modules = [
+  {"Core", "framework", 2, 0, 0},
+  {"Networking", "framework", 0, 2, 1},
+  {"DesignSystem", "framework", 3, 6, 0},
+  {"Analytics", "framework", 8, 3, 2},
+  {"Features", "app", 9, 2, 0},
+  {"Persistence", "static_library", 18, 22, 4}
+]
+
+# Direct dependency edges (depends-on). Core is foundational, so it has the
+# widest downstream blast radius; Features sits at the top and invalidates nothing.
+invalidation_deps = %{
+  "Core" => [],
+  "Persistence" => ["Core"],
+  "Networking" => ["Core"],
+  "DesignSystem" => ["Core"],
+  "Analytics" => ["Core", "Networking"],
+  "Features" => ["Networking", "Analytics", "DesignSystem", "Persistence"]
+}
+
+invalidation_days = 30
+# Events use DateTime64(6) columns (microsecond precision); xcode_targets'
+# inserted_at is second precision, so it is truncated per-target below.
+invalidation_now = NaiveDateTime.utc_now()
+
+module_version = fn
+  0, _day, _offset -> 0
+  period, day, offset -> div(day + offset, period)
+end
+
+day_changed = fn
+  0, _day, _offset -> false
+  period, day, offset -> day > 0 and rem(day + offset, period) == 0
+end
+
+invalidation_rows =
+  Enum.map(0..(invalidation_days - 1), fn day ->
+    ran_at = NaiveDateTime.add(invalidation_now, -(invalidation_days - 1 - day) * 86_400, :second)
+    event_id = UUIDv7.generate()
+    xcode_project_id = UUIDv7.generate()
+
+    targets =
+      Enum.map(invalidation_modules, fn {name, product, own_p, dep_p, dep_off} ->
+        own_changed = day_changed.(own_p, day, 0)
+        dep_changed = day_changed.(dep_p, day, dep_off)
+        miss? = day == 0 or own_changed or dep_changed
+        hit = if miss?, do: 0, else: Enum.random([1, 2])
+        own_hash = "own-#{name}-#{module_version.(own_p, day, 0)}"
+        dep_hash = "dep-#{name}-#{module_version.(dep_p, day, dep_off)}"
+
+        %{
+          id: UUIDv7.generate(),
+          name: name,
+          product: product,
+          binary_cache_hash: "bh-#{name}-#{own_hash}-#{dep_hash}",
+          binary_cache_hit: hit,
+          selective_testing_hash: nil,
+          selective_testing_hit: 0,
+          binary_build_duration: Enum.random(5_000..40_000),
+          xcode_project_id: xcode_project_id,
+          command_event_id: event_id,
+          inserted_at: NaiveDateTime.truncate(ran_at, :second),
+          bundle_id: "com.tuist.demo.#{String.downcase(name)}",
+          product_name: name,
+          destinations: ["iphone"],
+          sources_hash: own_hash,
+          dependencies_hash: dep_hash,
+          external_hash: "",
+          additional_strings: [],
+          dependencies: Map.get(invalidation_deps, name, [])
+        }
+      end)
+
+    %{event_id: event_id, ran_at: ran_at, is_ci: rem(day, 3) == 0, targets: targets}
+  end)
+
+invalidation_events =
+  Enum.map(invalidation_rows, fn row ->
+    %{
+      id: row.event_id,
+      name: "generate",
+      duration: Enum.random(20_000..120_000),
+      tuist_version: "4.1.0",
+      project_id: tuist_project.id,
+      cacheable_targets: Enum.map(row.targets, & &1.name),
+      local_cache_target_hits: for(t <- row.targets, t.binary_cache_hit == 1, do: t.name),
+      remote_cache_target_hits: for(t <- row.targets, t.binary_cache_hit == 2, do: t.name),
+      test_targets: [],
+      local_test_target_hits: [],
+      remote_test_target_hits: [],
+      swift_version: "5.9",
+      macos_version: "14.0",
+      subcommand: "",
+      command_arguments: ["generate"],
+      is_ci: row.is_ci,
+      user_id: nil,
+      client_id: "client-id",
+      status: 0,
+      error_message: nil,
+      preview_id: nil,
+      git_ref: "refs/heads/main",
+      git_commit_sha: SeedHelpers.random_hex(40),
+      git_branch: "main",
+      created_at: row.ran_at,
+      updated_at: row.ran_at,
+      ran_at: row.ran_at,
+      build_run_id: nil
+    }
+  end)
+
+invalidation_targets = Enum.flat_map(invalidation_rows, & &1.targets)
+
+IngestRepo.insert_all(Event, invalidation_events, timeout: 120_000)
+IngestRepo.insert_all(XcodeTarget, invalidation_targets, timeout: 120_000)
+
+IO.puts("  - Module invalidation: #{length(invalidation_events)} runs, #{length(invalidation_targets)} targets")
+
 # Create command events with build_run_id and xcode data for build runs so
 # the build detail page surfaces the Module Cache tab.
 IO.puts("Generating command events with module cache data for build runs...")
@@ -2014,9 +2184,9 @@ build_run_command_events =
       status: if(build.status == "success", do: 0, else: 1),
       error_message: nil,
       preview_id: nil,
-      git_ref: nil,
-      git_commit_sha: "build-#{idx}",
-      git_branch: nil,
+      git_ref: "refs/heads/#{build.git_branch || "main"}",
+      git_commit_sha: build.git_commit_sha || SeedHelpers.random_hex(40),
+      git_branch: build.git_branch || "main",
       created_at: build.inserted_at,
       updated_at: build.inserted_at,
       ran_at: build.inserted_at,
@@ -2461,6 +2631,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 
       day_offset = Enum.random(0..400)
       created_at = base_date |> Date.add(-day_offset) |> DateTime.new!(~T[12:00:00.000000]) |> DateTime.to_naive()
+      event_branch = Enum.random(branches)
 
       %{
         id: UUIDv7.generate(),
@@ -2484,21 +2655,27 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
         status: status,
         error_message: nil,
         preview_id: nil,
-        git_ref: nil,
-        git_commit_sha: nil,
-        git_branch: nil,
+        git_ref: "refs/heads/#{event_branch}",
+        git_commit_sha: SeedHelpers.random_hex(40),
+        git_branch: event_branch,
         created_at: created_at,
         updated_at: created_at,
         ran_at: created_at,
-        build_run_id: nil
+        # `tuist test` produces an activity log and so carries the build run it
+        # belongs to; `generate` and `cache` produce none. That link is where
+        # the module cache's Builds table reads the scheme from.
+        build_run_id: if(name == "test", do: Enum.random(completed_builds).id)
       }
     end)
 
   IngestRepo.insert_all(Event, events, timeout: 120_000)
   :counters.add(event_counter, 1, length(events))
 
-  # Collect generate and cache events for xcode data creation
-  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache"]))
+  # Collect the events that report cacheable targets. `test` belongs here too:
+  # in production it reports them as often as `generate` does, and it is the
+  # only one of the three that carries a build run, which is where the module
+  # cache's Builds table reads the scheme from.
+  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache", "test"]))
   Enum.each(generate_cache_events, fn event -> :ets.insert(all_generate_cache_events, {:event, event}) end)
   :counters.add(generate_cache_event_counter, 1, length(generate_cache_events))
 
