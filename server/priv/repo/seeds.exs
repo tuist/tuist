@@ -1830,6 +1830,7 @@ create_xcode_data_for_events = fn events, label ->
           id: UUIDv7.generate(),
           name: "Workspace",
           command_event_id: event.id,
+          project_id: event.project_id,
           binary_build_duration: Enum.random(30_000..180_000),
           inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
         }
@@ -1846,6 +1847,7 @@ create_xcode_data_for_events = fn events, label ->
             path: "/App/App.xcodeproj",
             xcode_graph_id: graph.id,
             command_event_id: graph.command_event_id,
+            project_id: graph.project_id,
             inserted_at: graph.inserted_at
           },
           %{
@@ -1854,6 +1856,7 @@ create_xcode_data_for_events = fn events, label ->
             path: "/Framework/Framework.xcodeproj",
             xcode_graph_id: graph.id,
             command_event_id: graph.command_event_id,
+            project_id: graph.project_id,
             inserted_at: graph.inserted_at
           }
         ]
@@ -1903,6 +1906,7 @@ create_xcode_data_for_events = fn events, label ->
             selective_testing_hit: if(is_test_target, do: hit_value, else: 0),
             xcode_project_id: project.id,
             command_event_id: project.command_event_id,
+            project_id: project.project_id,
             inserted_at: project.inserted_at,
             product: product,
             bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
@@ -2095,6 +2099,7 @@ invalidation_rows =
           binary_build_duration: Enum.random(5_000..40_000),
           xcode_project_id: xcode_project_id,
           command_event_id: event_id,
+          project_id: tuist_project.id,
           inserted_at: NaiveDateTime.truncate(ran_at, :second),
           bundle_id: "com.tuist.demo.#{String.downcase(name)}",
           product_name: name,
@@ -2794,6 +2799,7 @@ make_target = fn project, target_idx, target_name ->
     selective_testing_hit: 0,
     xcode_project_id: project.id,
     command_event_id: project.command_event_id,
+    project_id: project.project_id,
     inserted_at: project.inserted_at,
     product: Enum.at(product_types, rem(target_idx, length(product_types))),
     bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
@@ -2835,6 +2841,7 @@ end
           id: UUIDv7.generate(),
           name: "Workspace",
           command_event_id: UUIDv7.generate(),
+          project_id: tuist_project.id,
           binary_build_duration: Enum.random(10_000..300_000),
           inserted_at: inserted_at
         }
@@ -2857,6 +2864,7 @@ end
           path: "/#{project_name}/#{project_name}.xcodeproj",
           xcode_graph_id: graph.id,
           command_event_id: graph.command_event_id,
+          project_id: graph.project_id,
           inserted_at: graph.inserted_at
         }
       end)

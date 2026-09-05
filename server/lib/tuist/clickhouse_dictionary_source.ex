@@ -35,6 +35,18 @@ defmodule Tuist.ClickHouseDictionarySource do
     "CLICKHOUSE(TABLE #{literal(table)}#{credentials(config[:username], config[:password])})"
   end
 
+  @doc """
+  Like `local_table/2`, but the dictionary holds the result of `query` rather
+  than a whole table. A backfill that only needs a fraction of a large table's
+  rows keeps its dictionary, and the memory it pins on the server while the
+  mutation runs, proportionally smaller.
+  """
+  def local_query(repo, query) do
+    config = repo.config()
+
+    "CLICKHOUSE(QUERY #{literal(query)}#{credentials(config[:username], config[:password])})"
+  end
+
   defp credentials(nil, _password), do: ""
 
   defp credentials(username, password) do
