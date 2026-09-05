@@ -37,7 +37,20 @@ defmodule Tuist.Sandboxes.AgentSessionsTest do
         assert attrs.environment_id == "env_start"
         assert attrs.title == "Fix the build"
         assert attrs.budget_cents == 500
-        assert attrs.initial_events == [%{type: "user.message", content: [%{type: "text", text: "Fix the build."}]}]
+
+        assert attrs.initial_events == [
+                 %{
+                   type: "user.message",
+                   content: [
+                     %{
+                       type: "text",
+                       text: "The repository https://github.com/tuist/tuist.git is cloned at /workspace/tuist.
+
+Fix the build."
+                     }
+                   ]
+                 }
+               ]
 
         assert %{
                  "tuist_account" => handle,

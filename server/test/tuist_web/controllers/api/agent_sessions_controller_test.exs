@@ -41,7 +41,21 @@ defmodule TuistWeb.API.AgentSessionsControllerTest do
         assert attrs.agent == "agent_cached"
         assert attrs.environment_id == "env_ctrl"
         assert attrs.budget_cents == 1000
-        assert attrs.initial_events == [%{type: "user.message", content: [%{type: "text", text: "Fix the build."}]}]
+
+        assert attrs.initial_events == [
+                 %{
+                   type: "user.message",
+                   content: [
+                     %{
+                       type: "text",
+                       text: "The repository https://github.com/tuist/tuist.git is cloned at /workspace/tuist.
+
+Fix the build."
+                     }
+                   ]
+                 }
+               ]
+
         {:ok, %{"id" => "sesn_ctrl", "status" => "running"}}
       end)
 
