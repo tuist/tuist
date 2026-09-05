@@ -322,6 +322,76 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Control-plane desired and ready replica telemetry is missing`
 
+### Orphan Hetzner servers
+
+Servers with no owning CAPI `Machine`, from the `reconciliation-checks`
+CronJob (`infra/k8s/mgmt/reconciliation-checks.yaml`).
+
+The check emits one series per offending server, so the alert names it rather
+than reporting a bare count. This cluster's own nodes are excluded — the
+management cluster does not self-manage, so its VM has no owning `Machine`.
+
+```promql
+max by (cluster, id, name) (
+  capi_reconciliation_orphan_server{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `Hetzner server {{ $labels.name }} (id {{ $labels.id }}) has no owning CAPI Machine — billed but untracked`
+
+### Cluster removed from git still live
+
+Live `Cluster` objects absent from git — the never-prune blind spot the
+Hetzner orphan check misses (their servers still have valid `Machine` owners).
+
+Only Clusters that Flux has actually managed are considered: membership is read
+from the `kustomize.toolkit.fluxcd.io/name` label, so Clusters owned by
+`mgmt-cluster-apply.yml` (preview, pentest, any future flat `cluster-*.yaml`)
+are never counted and no exclusion list has to be maintained.
+
+```promql
+max by (cluster, name) (
+  capi_reconciliation_stale_cluster{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `Cluster {{ $labels.name }} is live but no longer in git — remove it deliberately (see infra/flux/mgmt/README.md) or restore the manifest`
+
+### Reconciliation checks stopped running
+
+The CronJob pushes to a Pushgateway, which is a **store, not a scrape target**:
+once a value is pushed it is served indefinitely, so `absent()` /
+`absent_over_time()` on the gauges can never fire even if the job has been dead
+for days. Alert on the age of the completion stamp instead.
+
+```promql
+time() - max by (cluster) (
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}
+) > 5400
+```
+
+- Pending period: 0 minutes
+- Summary: `Orphan-server / stale-cluster checks have not completed for {{ $value | humanizeDuration }} (CronJob failing, or Pushgateway lost its store)`
+
+Threshold is 3× the 30-minute schedule, so a single missed run does not page.
+
+The Pushgateway store is deliberately ephemeral (no persistence file — it would
+sit on an `emptyDir` and be wiped on restart anyway). After a bounce the series
+are simply absent until the next run, at most 30 minutes later, which is well
+inside the 1-hour window below — so a restart plus one missed run does not page
+on healthy reconciliation:
+
+```promql
+absent_over_time(
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}[1h]
+)
+```
+
+- Pending period: 0 minutes
+- Summary: `Reconciliation-check telemetry absent entirely (Pushgateway reset or never scraped)`
+
 ### Cluster API admission webhook failing (fleet-wide write freeze)
 
 The management cluster serves the CAPI/CAPH admission webhooks with a
