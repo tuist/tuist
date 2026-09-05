@@ -134,6 +134,78 @@
     }
   }
 
+  /* Title and subtitle on the left, the actions on the same line to the
+     right; when connected, the fields run the full width underneath. */
+  & > [data-part="buildkite-card-section"] {
+    display: flex;
+    flex-direction: column;
+
+    & > #buildkite-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+
+      /* A notice is as wide as its message, not as wide as the card. */
+      & > .noora-alert {
+        align-self: flex-start;
+      }
+
+      & > [data-part="fields"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        gap: var(--noora-spacing-4);
+      }
+    }
+
+    & [data-part="header-row"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--noora-spacing-8);
+
+      & > [data-part="header"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+      }
+    }
+  }
+
+  & #connect-buildkite-modal [data-part="connect-buildkite"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  }
+
   & > [data-part="slack-card-section"] {
     display: flex;
     flex-direction: row;

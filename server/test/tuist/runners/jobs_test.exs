@@ -284,6 +284,24 @@ defmodule Tuist.Runners.JobsTest do
       assert {:error, :not_found} = Jobs.projects_for_runner_job(account, %{repository: "missing-owner"})
       assert {:error, :not_found} = Jobs.projects_for_runner_job(account, %{})
     end
+
+    test "falls back to the account's projects for a Buildkite job" do
+      # Buildkite's scheduled-jobs payload has no repository at all, so
+      # `repository` holds a pipeline slug that matches no VCS connection.
+      # The narrowing happens on ci_project_handle in the run queries.
+      account = account_fixture()
+      other_account = account_fixture()
+
+      project = ProjectsFixtures.project_fixture(account: account, name: "bk-#{System.unique_integer([:positive])}")
+
+      _other_account_project =
+        ProjectsFixtures.project_fixture(account: other_account, name: "bk-other-#{System.unique_integer([:positive])}")
+
+      buildkite_job = %{organization_slug: "acme", pipeline_slug: "ios-app"}
+
+      assert {:ok, projects} = Jobs.projects_for_runner_job(account, %{repository: "ios-app"}, buildkite_job)
+      assert Enum.map(projects, & &1.id) == [project.id]
+    end
   end
 
   describe "list_runner_build_runs/2" do
@@ -364,6 +382,54 @@ defmodule Tuist.Runners.JobsTest do
       build_runs = Jobs.list_runner_build_runs([project, second_project], workflow_run_id)
 
       assert Enum.map(build_runs, & &1.scheme) == ["App", "SDK", "AppClip"]
+    end
+
+    test "matches Buildkite runs on the pipeline handle, not just the build number" do
+      account = account_fixture()
+      project = ProjectsFixtures.project_fixture(account: account, name: "bk-#{System.unique_integer([:positive])}")
+      build_number = System.unique_integer([:positive])
+      ci_run_id = Integer.to_string(build_number)
+      buildkite_job = %{organization_slug: "acme", pipeline_slug: "ios-app"}
+
+      {:ok, _ours} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          scheme: "App",
+          inserted_at: ~N[2026-05-28 10:00:00.000000],
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: ci_run_id
+        )
+
+      # A build number is unique only within its pipeline, so a sibling
+      # pipeline at the same number must not be linked in.
+      {:ok, _sibling_pipeline} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          scheme: "OtherPipeline",
+          inserted_at: ~N[2026-05-28 10:01:00.000000],
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/android-app",
+          ci_run_id: ci_run_id
+        )
+
+      # And a GitHub run at the same number is a different lane entirely.
+      {:ok, _github_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          scheme: "GitHubRun",
+          inserted_at: ~N[2026-05-28 10:02:00.000000],
+          ci_provider: "github",
+          ci_run_id: ci_run_id
+        )
+
+      assert [project] |> Jobs.list_runner_build_runs(build_number, buildkite_job) |> Enum.map(& &1.scheme) == ["App"]
+
+      # The GitHub path is unchanged by the new argument.
+      assert [project] |> Jobs.list_runner_build_runs(build_number) |> Enum.map(& &1.scheme) == ["GitHubRun"]
     end
   end
 

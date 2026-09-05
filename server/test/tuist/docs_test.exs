@@ -22,7 +22,7 @@ defmodule Tuist.DocsTest do
         {"/en/guides/get-started/existing-xcode-project", "/guides/features/cache/xcode-cache"},
         {"/en/guides/get-started/generated-xcode-project", "/tutorials/xcode/create-a-generated-project"},
         {"/en/guides/get-started/gradle-project", "/guides/install-gradle-plugin"},
-        {"/en/guides/get-started/tuist-runners", "/guides/features/runners/getting-started"}
+        {"/en/guides/get-started/tuist-runners", "/guides/features/runners/github-actions"}
       ]
 
       for {slug, canonical_guide} <- journeys do
