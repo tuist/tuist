@@ -8,10 +8,12 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Blog.CoverArtwork
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.MarketingBlogCovers
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
@@ -43,6 +45,19 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     author = Blog.get_authors()[post.author]
     post_image_url = post_image_url(post)
 
+    # The redesign swaps a post's raster image for its generated cover
+    # artwork (dark variant on the social card); crawlers see it once the
+    # page's flag flips for anonymous traffic.
+    head_image_url =
+      if socket.assigns.new_design and MarketingBlogCovers.cover?(post) do
+        Tuist.Environment.app_url(
+          path: OpenGraph.image_path(:marketing_blog_cover, slug: CoverArtwork.basename(post)),
+          marketing: true
+        )
+      else
+        post_image_url
+      end
+
     # The redesigned page closes with the three most recent other posts;
     # get_posts/0 is already newest-first.
     read_next_posts =
@@ -62,10 +77,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
       |> assign(:head_fediverse_creator, author["fediverse_username"])
-      |> assign(
-        :head_image,
-        post_image_url
-      )
+      |> assign(:head_image, head_image_url)
       |> assign(:post_image_url, post_image_url)
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_article_head_meta(published_at: post.date, author_url: Blog.get_post_author_url(post))

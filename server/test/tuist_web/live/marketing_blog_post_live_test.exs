@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Blog.CoverArtwork
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /blog/:year/:month/:day/:slug" do
@@ -49,6 +50,29 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
       assert html =~ "/marketing/assets/bundle-new.css"
       refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "the new design renders the post's cover artwork inline and on the social card", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_blog_post -> true
+        _ -> false
+      end)
+
+      stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
+      stub(CoverArtwork, :svg, fn "smart-before-fast", _theme -> ~s(<svg data-part="artwork">cover</svg>) end)
+
+      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
+
+      assert html =~ ~s(<div data-part="image"><svg data-part="artwork">cover</svg></div>)
+      assert html =~ ~s(property="og:image" content=") <> Tuist.Environment.app_url(path: "/open-graph-images/")
+    end
+
+    test "the legacy design keeps the raster image on the social card", %{conn: conn} do
+      stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
+
+      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
+
+      refute html =~ "/open-graph-images/"
     end
 
     test "the new design closes with the three most recent other posts", %{conn: conn} do

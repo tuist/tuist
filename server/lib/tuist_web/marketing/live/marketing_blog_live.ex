@@ -201,6 +201,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     Content.get_entry_image_url(entry, &post_image_url/1)
   end
 
+  # Raster fallback for cards without cover artwork (see MarketingBlogCovers).
   defp post_image_url(post) do
     path =
       post.og_image_path ||

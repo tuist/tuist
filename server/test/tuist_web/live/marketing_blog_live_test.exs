@@ -4,6 +4,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Marketing.Blog.CoverArtwork
   alias Tuist.Marketing.Content
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -59,6 +60,36 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
       assert new_html |> posts_section() |> String.contains?(latest_post_title)
       refute legacy_html |> posts_section() |> String.contains?(latest_post_title)
+    end
+  end
+
+  describe "GET /blog (cover artwork)" do
+    setup do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_blog -> true
+        _ -> false
+      end)
+
+      :ok
+    end
+
+    test "cards render the inline SVG cover for posts with artwork and the image otherwise", %{conn: conn} do
+      stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
+      stub(CoverArtwork, :svg, fn "smart-before-fast", :page -> ~s(<svg data-part="artwork">cover</svg>) end)
+
+      {:ok, _lv, html} = live(conn, ~p"/blog?category=learn")
+
+      assert html =~ ~s(<svg data-part="artwork">cover</svg>)
+      assert html =~ ~s(data-part="image")
+    end
+
+    test "case study cards render the customers page's cover artwork", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog?category=case-studies")
+
+      # Monzo has a logo under priv/marketing/customers/logos, so its card
+      # carries the generated dot-field artwork rather than the OG photo.
+      assert html =~ ~s(<svg data-part="artwork")
+      assert html =~ "Monzo"
     end
   end
 

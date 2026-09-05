@@ -17,6 +17,10 @@
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
 @import "css/shared/pages.css";
+/* Colocated style blocks (TuistWeb.ColocatedCSS) from LiveView components,
+   e.g. the blog posts' interactive labs — the same extract the legacy
+   bundle links. */
+@import "phoenix-colocated/tuist/colocated.css";
 @import "css/new/routes/home.css";
 @import "css/new/routes/about.css";
 @import "css/new/routes/home-hero.css";
@@ -109,6 +113,70 @@
    one, same flip as the site-wide focus ring. */
 [data-fill="purple"] {
   fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+/* Page-white paints in the blog cover artwork (MarketingBlogCovers) follow
+   the surface. */
+[data-fill="surface"] {
+  fill: var(--noora-surface-background-primary);
+}
+
+[data-fill="surface-tertiary"] {
+  fill: var(--noora-surface-background-tertiary);
+}
+
+/* The same ramp for strokes: the blog covers are drawn illustrations, so
+   their hairlines carry data-stroke the way their fills carry data-fill. */
+[data-stroke="neutral-1"] {
+  stroke: var(--marketing-illustration-neutral-1);
+}
+
+[data-stroke="neutral-2"] {
+  stroke: var(--marketing-illustration-neutral-2);
+}
+
+[data-stroke="neutral-3"] {
+  stroke: var(--marketing-illustration-neutral-3);
+}
+
+[data-stroke="neutral-4"] {
+  stroke: var(--marketing-illustration-neutral-4);
+}
+
+[data-stroke="neutral-5"] {
+  stroke: var(--marketing-illustration-neutral-5);
+}
+
+[data-stroke="neutral-6"] {
+  stroke: var(--marketing-illustration-neutral-6);
+}
+
+[data-stroke="neutral-7"] {
+  stroke: var(--marketing-illustration-neutral-7);
+}
+
+[data-stroke="neutral-8"] {
+  stroke: var(--marketing-illustration-neutral-8);
+}
+
+[data-stroke="neutral-9"] {
+  stroke: var(--marketing-illustration-neutral-9);
+}
+
+[data-stroke="neutral-10"] {
+  stroke: var(--marketing-illustration-neutral-10);
+}
+
+[data-stroke="purple"] {
+  stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+[data-stroke="surface"] {
+  stroke: var(--noora-surface-background-primary);
+}
+
+[data-stroke="surface-tertiary"] {
+  stroke: var(--noora-surface-background-tertiary);
 }
 
 /* One focus treatment for the whole redesign, noora components included:
