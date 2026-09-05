@@ -36,27 +36,40 @@ defmodule Tuist.Tests.XcresultProcessing do
   def serialize_ran_at(_ran_at), do: NaiveDateTime.to_iso8601(NaiveDateTime.utc_now())
 
   def base_test_attrs(args) do
-    %{
-      id: args["test_run_id"],
-      project_id: args["project_id"],
-      account_id: args["account_id"],
-      is_ci: Map.get(args, "is_ci", false),
-      git_branch: Map.get(args, "git_branch"),
-      git_commit_sha: Map.get(args, "git_commit_sha"),
-      git_ref: Map.get(args, "git_ref"),
-      macos_version: Map.get(args, "macos_version"),
-      xcode_version: Map.get(args, "xcode_version"),
-      model_identifier: Map.get(args, "model_identifier"),
-      scheme: Map.get(args, "scheme"),
-      ci_run_id: Map.get(args, "ci_run_id"),
-      ci_project_handle: Map.get(args, "ci_project_handle"),
-      ci_host: Map.get(args, "ci_host"),
-      ci_provider: Map.get(args, "ci_provider"),
-      build_run_id: Map.get(args, "build_run_id"),
-      shard_plan_id: Map.get(args, "shard_plan_id"),
-      shard_index: Map.get(args, "shard_index"),
-      ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
-    }
+    Map.merge(
+      %{
+        id: args["test_run_id"],
+        project_id: args["project_id"],
+        account_id: args["account_id"],
+        is_ci: Map.get(args, "is_ci", false),
+        git_branch: Map.get(args, "git_branch"),
+        git_commit_sha: Map.get(args, "git_commit_sha"),
+        git_ref: Map.get(args, "git_ref"),
+        macos_version: Map.get(args, "macos_version"),
+        xcode_version: Map.get(args, "xcode_version"),
+        model_identifier: Map.get(args, "model_identifier"),
+        scheme: Map.get(args, "scheme"),
+        ci_run_id: Map.get(args, "ci_run_id"),
+        ci_project_handle: Map.get(args, "ci_project_handle"),
+        ci_host: Map.get(args, "ci_host"),
+        ci_provider: Map.get(args, "ci_provider"),
+        build_run_id: Map.get(args, "build_run_id"),
+        shard_plan_id: Map.get(args, "shard_plan_id"),
+        shard_index: Map.get(args, "shard_index"),
+        ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
+      },
+      stress_attrs(args)
+    )
+  end
+
+  @stress_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_inventory_count)
+
+  # Only what the job carried: a job enqueued without them leaves the columns to
+  # their defaults, exactly as before the gate existed.
+  defp stress_attrs(args) do
+    args
+    |> Map.take(@stress_keys)
+    |> Map.new(fn {key, value} -> {String.to_existing_atom(key), value} end)
   end
 
   defp deserialize_ran_at(nil), do: NaiveDateTime.utc_now()

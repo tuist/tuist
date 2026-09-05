@@ -24,6 +24,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -93,6 +94,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
+      |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -119,6 +121,56 @@ defmodule TuistWeb.TestRunLive do
 
     {:ok, socket}
   end
+
+  # The gate's verdict rides the badge on each stressed test case. Its findings need
+  # no surface of their own: a test case whose reruns disagreed is flaky, and those
+  # reruns are repetitions of its test case run, so it appears with the run's flaky
+  # tests through the same path as any other.
+  defp assign_stress_gate(socket, %{stress_mode: ""}) do
+    assign(socket, :stress_candidates_by_identity, %{})
+  end
+
+  defp assign_stress_gate(socket, run) do
+    assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
+  end
+
+  @doc false
+  def stress_candidate_for(candidates_by_identity, test_case_run) do
+    Map.get(
+      candidates_by_identity,
+      {test_case_run.module_name, test_case_run.suite_name || "", test_case_run.name}
+    )
+  end
+
+  @doc false
+  def stress_badge_label(%{outcome: "disagreed"} = candidate) do
+    dgettext("dashboard_tests", "%{failed} of %{total} repetitions failed",
+      failed: candidate.failed_repetitions,
+      total: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "passed"} = candidate) do
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition",
+      "%{count} repetitions",
+      candidate.repetitions,
+      count: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "excluded_too_slow"}), do: dgettext("dashboard_tests", "Too slow to stress")
+
+  def stress_badge_label(%{outcome: "excluded_candidate_cap"}),
+    do: dgettext("dashboard_tests", "Beyond the candidate cap")
+
+  def stress_badge_label(_), do: dgettext("dashboard_tests", "Not stressed")
+
+  @doc false
+  def stress_badge_color(%{outcome: "disagreed", is_quarantined: false}), do: "attention"
+  def stress_badge_color(%{outcome: "passed"}), do: "neutral"
+  def stress_badge_color(_), do: "neutral"
 
   # The `Download result` button and its route are keyed on the id under which
   # the bundle was stored: the command_event id for CLI `tuist test` runs, and

@@ -14,6 +14,7 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.StressNewTests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -71,6 +72,12 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_run, test_run)
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
+      # The gate's reruns are repetitions of this test case run like any other; the
+      # column says which of them it asked for.
+      |> assign(
+        :stress_repetitions,
+        Enum.filter(test_case_run.repetitions || [], &(&1.source == "stress"))
+      )
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
       |> assign_text_attachment_urls(test_case_run)
 
@@ -88,6 +95,25 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:uri, uri)
 
     {:noreply, socket}
+  end
+
+  @doc false
+  def stress_repetitions_failed?(repetitions), do: Enum.any?(repetitions, &(&1.status == "failure"))
+
+  @doc false
+  def stress_repetitions_duration(repetitions), do: Enum.sum_by(repetitions, & &1.duration)
+
+  @doc false
+  def stress_repetitions_summary(repetitions) do
+    count = length(repetitions)
+
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition passed",
+      "All %{count} repetitions passed",
+      count,
+      count: count
+    )
   end
 
   # Renders a failure message span without whitespace around the content.

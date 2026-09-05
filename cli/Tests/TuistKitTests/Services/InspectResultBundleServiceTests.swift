@@ -109,7 +109,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -190,7 +191,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -325,7 +327,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -399,7 +402,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -476,7 +480,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -539,7 +544,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -626,7 +632,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -767,7 +774,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -879,7 +887,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .value(nil),
                 shardIndex: .value(nil),
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }

@@ -21,6 +21,45 @@ defmodule Tuist.Tests.XcresultProcessingTest do
     %{account: account, project: project}
   end
 
+  test "base_test_attrs carries the stress gate's verdict when the job has it", %{
+    account: account,
+    project: project
+  } do
+    args = %{
+      "test_run_id" => UUIDv7.generate(),
+      "project_id" => project.id,
+      "account_id" => account.id,
+      "stress_mode" => "enforce",
+      "stress_outcome" => "passed",
+      "stress_skip_reason" => "",
+      "stress_new_count" => 3,
+      "stress_stressed_count" => 3,
+      "stress_excluded_count" => 0,
+      "stress_inventory_count" => 50
+    }
+
+    attrs = XcresultProcessing.base_test_attrs(args)
+
+    assert attrs.stress_mode == "enforce"
+    assert attrs.stress_outcome == "passed"
+    assert attrs.stress_new_count == 3
+    assert attrs.stress_inventory_count == 50
+  end
+
+  test "base_test_attrs leaves the stress columns alone when the job has none", %{
+    account: account,
+    project: project
+  } do
+    attrs =
+      XcresultProcessing.base_test_attrs(%{
+        "test_run_id" => UUIDv7.generate(),
+        "project_id" => project.id,
+        "account_id" => account.id
+      })
+
+    refute Map.has_key?(attrs, :stress_mode)
+  end
+
   test "enqueues the processing job", %{account: account, project: project} do
     args = processing_args(account.id, project.id)
 

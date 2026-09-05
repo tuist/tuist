@@ -32,7 +32,7 @@ public struct ServerCommandEvent: Codable, Equatable {
         }
 
         public enum ArtifactType {
-            case resultBundle, invocationRecord, resultBundleObject, session
+            case resultBundle, stressResultBundle, invocationRecord, resultBundleObject, session
         }
     }
 
@@ -75,6 +75,8 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
         switch type {
         case .resultBundle:
             self = .result_bundle
+        case .stressResultBundle:
+            self = .stress_result_bundle
         case .invocationRecord:
             self = .invocation_record
         case .resultBundleObject:

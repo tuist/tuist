@@ -1096,6 +1096,9 @@ defmodule TuistWeb.API.AnalyticsController do
         "result_bundle" ->
           CommandEvents.get_result_bundle_key(run_id, project)
 
+        "stress_result_bundle" ->
+          CommandEvents.get_stress_result_bundle_key(run_id, project)
+
         "invocation_record" ->
           CommandEvents.get_result_bundle_invocation_record_key(
             run_id,

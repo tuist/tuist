@@ -31,7 +31,8 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -86,7 +87,8 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -102,6 +104,25 @@ import TuistHTTP
                 case .processing:
                     .processing
                 }
+
+            // The gate's reruns are executions of the test case like any other, so they ride
+            // along with the test case they belong to rather than as a payload of their own.
+            // They are numbered after the run's own attempts and tagged `stress`, which is
+            // what lets the dashboard say which executions were solicited. Remote runs send
+            // no test cases here; their bundle carries the same information instead.
+            let stressRepetitionsByTestCase = Dictionary(
+                (stressNewTests?.test_cases ?? []).map { candidate in
+                    (
+                        StressRepetitionKey(
+                            module: candidate.module_name,
+                            suite: candidate.suite_name,
+                            name: candidate.name
+                        ),
+                        candidate.repetition_results ?? []
+                    )
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
 
             let testModules = testSummary.testModules.map { module in
                 let testSuites = module.testSuites.map { suite in
@@ -143,9 +164,19 @@ import TuistHTTP
                                     duration: repetition.duration,
                                     name: repetition.name,
                                     repetition_number: repetition.repetitionNumber,
+                                    source: .run,
                                     status: repetitionStatusToServerStatus(repetition.status)
                                 )
                         }
+                        + stressRepetitions(
+                            for: StressRepetitionKey(
+                                module: module.name,
+                                suite: testCase.testSuite,
+                                name: testCase.name
+                            ),
+                            in: stressRepetitionsByTestCase,
+                            after: testCase.repetitions.count
+                        )
 
                     let arguments = testCase.arguments.map { argument in
                         let argFailures = argument.failures.map { failure in
@@ -186,7 +217,14 @@ import TuistHTTP
                         .test_casesPayloadPayload(
                             arguments: arguments,
                             duration: testCase.duration ?? 0,
-                            failures: failures,
+                            failures: failures + stressFailures(
+                                for: StressRepetitionKey(
+                                    module: module.name,
+                                    suite: testCase.testSuite,
+                                    name: testCase.name
+                                ),
+                                in: stressRepetitionsByTestCase
+                            ),
                             is_quarantined: testCase.isQuarantined,
                             name: testCase.name,
                             repetitions: repetitions,
@@ -252,6 +290,7 @@ import TuistHTTP
                             shard_plan_id: shardPlanId,
                             skip_test_identifiers: skipTestIdentifiers,
                             status: status,
+                            stress_new_tests: stressNewTests,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
                         )
@@ -397,3 +436,58 @@ import TuistHTTP
     }
 
 #endif
+
+struct StressRepetitionKey: Hashable {
+    let module: String?
+    let suite: String?
+    let name: String
+
+    init(module: String?, suite: String?, name: String) {
+        self.module = module
+        self.suite = (suite?.isEmpty ?? true) ? nil : suite
+        self.name = name
+    }
+}
+
+private func stressRepetitions(
+    for key: StressRepetitionKey,
+    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+            .repetition_resultsPayloadPayload]],
+    after ownCount: Int
+) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
+    .repetitionsPayloadPayload]
+{
+    (repetitionsByTestCase[key] ?? []).enumerated().map { index, repetition in
+        Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload
+            .test_casesPayloadPayload.repetitionsPayloadPayload(
+                duration: repetition.duration,
+                name: "Stress \(index + 1)",
+                repetition_number: ownCount + index + 1,
+                source: .stress,
+                status: repetition.status == .success ? .success : .failure
+            )
+    }
+}
+
+/// A rerun's failure is kept on the test case beside the first pass's, which is where the
+/// run page reads failures from. Without it a stressed test keeps its status and duration
+/// and loses what it said when it broke.
+private func stressFailures(
+    for key: StressRepetitionKey,
+    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+            .repetition_resultsPayloadPayload]]
+) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
+    .failuresPayloadPayload]
+{
+    (repetitionsByTestCase[key] ?? []).compactMap { repetition -> Operations.createTest.Input.Body.jsonPayload
+        .test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload? in
+        guard repetition.status == .failure, let failure = repetition.failure else { return nil }
+        return .init(
+            issue_type: failure.issue_type.flatMap { .init(rawValue: $0.rawValue) },
+            line_number: failure.line_number ?? 0,
+            message: failure.message,
+            path: failure.path
+        )
+    }
+}

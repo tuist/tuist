@@ -226,6 +226,70 @@
     </.card>
 
     <.card
+      :if={@stress_repetitions != []}
+      title={dgettext("dashboard_tests", "Repetitions")}
+      icon="history"
+      data-part="repetitions-card"
+    >
+      <.card_section data-part="repetitions-card-section">
+        <div data-part="repetitions">
+          <%!-- A pass where every repetition agreed needs one line, not ten identical rows.
+                The per-repetition list earns its space only once something disagreed. --%>
+          <div :if={!stress_repetitions_failed?(@stress_repetitions)} data-part="repetition-item">
+            <.badge
+              label={dgettext("dashboard_tests", "Passed")}
+              color="success"
+              style="light-fill"
+              size="small"
+            />
+            <span data-part="repetition-name">
+              {stress_repetitions_summary(@stress_repetitions)}
+            </span>
+            <span data-part="repetition-duration">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                stress_repetitions_duration(@stress_repetitions)
+              )}
+            </span>
+          </div>
+          <div
+            :for={repetition <- @stress_repetitions}
+            :if={stress_repetitions_failed?(@stress_repetitions)}
+            data-part="repetition-wrapper"
+          >
+            <div data-part="repetition-item">
+              <.badge
+                :if={repetition.status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="light-fill"
+                size="small"
+              />
+              <.badge
+                :if={repetition.status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="light-fill"
+                size="small"
+              />
+              <span data-part="repetition-name">
+                {dgettext("dashboard_tests", "Repetition %{number}",
+                  number: repetition.repetition_number
+                )}
+              </span>
+              <span data-part="repetition-duration">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  repetition.duration
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
       :if={Enum.any?(@test_case_run.failures)}
       title={dgettext("dashboard_tests", "Failures")}
       icon="alert_circle"

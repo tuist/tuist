@@ -28,6 +28,13 @@
             serverURL: URL
         ) async throws
 
+        func uploadStressResultBundle(
+            _ resultBundle: AbsolutePath,
+            fullHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws
+
         func uploadSession(
             _ sessionDirectory: AbsolutePath,
             accountHandle: String,
@@ -227,6 +234,25 @@
             )
         }
 
+        public func uploadStressResultBundle(
+            _ resultBundle: AbsolutePath,
+            fullHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws {
+            let handles = try fullHandleService.parse(fullHandle)
+            try await uploadAnalyticsArtifact(
+                ServerCommandEvent.Artifact(
+                    type: .stressResultBundle
+                ),
+                artifactPath: resultBundle,
+                accountHandle: handles.accountHandle,
+                projectHandle: handles.projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
+        }
+
         public func uploadSession(
             _ sessionDirectory: AbsolutePath,
             accountHandle: String,
@@ -261,7 +287,7 @@
 
             let archiveStart = Date()
             switch artifact.type {
-            case .resultBundle:
+            case .resultBundle, .stressResultBundle:
                 #if canImport(TuistAppleArchiver)
                     // AppleArchive (LZFSE) is substantially faster than deflate for xcresult
                     // bundles and skips the pre-copy the zip path needs. The server-side
@@ -291,7 +317,7 @@
             case .invocationRecord, .resultBundleObject:
                 artifactPath = passedArtifactPath
             }
-            if artifact.type == .resultBundle || artifact.type == .session {
+            if artifact.type == .resultBundle || artifact.type == .stressResultBundle || artifact.type == .session {
                 let archiveElapsed = Date().timeIntervalSince(archiveStart)
                 Logger.current.debug(
                     "Archived \(artifactLabel) in \(String(format: "%.2fs", archiveElapsed))"

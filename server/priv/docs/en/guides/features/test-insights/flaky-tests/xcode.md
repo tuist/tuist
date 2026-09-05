@@ -100,6 +100,29 @@ xcodebuild test \
 
 This is the safe default outside `tuist xcodebuild test`: failure masking for muted tests only happens when you go through that command, so skipping both modes avoids spurious CI failures. If you need finer control, go through `tuist xcodebuild test` instead.
 
+## Stress-testing new tests {#stress-testing-new-tests}
+
+Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that prove flaky before the change merges. Tuist decides what counts as new by checking which test cases have not run in CI on the project's default branch in the last 90 days, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
+
+The gate is off unless you enable it, and it takes a mode rather than a switch so anyone reading the pipeline can see whether the job can fail on flakiness:
+
+- **`report`**: prints a warning for each flaky test case and exits on the first pass's own result. Start here and watch what the gate would have blocked for a couple of weeks.
+- **`enforce`**: identical, but a flaky test case fails the run with the same exit code as a failed test.
+
+Pass the option ahead of the passthrough arguments, or set the `TUIST_TEST_STRESS_NEW_TESTS` environment variable to vary it per matrix lane:
+
+```sh
+tuist xcodebuild test --stress-new-tests report -scheme MyScheme
+```
+
+Each new test case is rerun according to its own duration: up to 5 seconds earns 10 repetitions, up to 10 seconds 5, up to 30 seconds 3, up to 5 minutes 2, and slower test cases are excluded and reported as such. The pass reuses what the first pass built, is capped at 200 candidates and 10 minutes of wall-clock time, and every bound reports when it bites. The parameters are stored on the project and tuned by Tuist from telemetry, so they never require a CLI release.
+
+The gate runs nothing, and says so, when the first pass already failed, when the project has no default branch or no CI history on it yet, or when more than 30% of the project's test inventory reads as new (a renamed module, for example). A branch that adds no tests prints nothing and costs one request. If the server cannot be reached, the run's own result stands: the gate never blocks a merge because Tuist was down.
+
+Muted tests are stressed and recorded but cannot fail the gate, and skipped tests never become candidates. The gate's reruns are recorded as repetitions of the test case run that produced them, like the retries of a run that retries on failure, so a test case whose reruns disagreed is flaky and says so on the dashboard. It cannot be quarantined for it: automations only act on a test case that has already passed on the default branch, and a test the gate calls new has not.
+
+In the dashboard, every stressed test case is badged in the run's test case list. A test case that failed some of its reruns is flaky, so it appears with the run's flaky tests like any other. Opening it shows every execution the gate asked for, in order, beside the run's own.
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
