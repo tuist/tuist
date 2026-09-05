@@ -74,6 +74,8 @@ defmodule Tuist.PromEx do
         Tuist.AppBuilds.PromExPlugin,
         Tuist.Tests.PromExPlugin,
         Tuist.Repo.PromExPlugin,
+        Tuist.ClickHouseRepo.PromExPlugin,
+        Tuist.LiveView.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,

@@ -2,6 +2,7 @@
 @import "./components/chart_type_toggle.css";
 @import "./components/empty_state.css";
 @import "./components/empty_card_section.css";
+@import "./components/error_card_section.css";
 @import "./components/terminal.css";
 @import "./components/logs.css";
 @import "./components/ci_context_card.css";

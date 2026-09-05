@@ -15,6 +15,17 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - Routes without `:robots_txt` metadata default to `Disallow` entries derived from the router.
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
 
+## Asynchronous Loading
+- LiveViews call `assign_async/3,4` from `TuistWeb.Async`, imported by
+  `use TuistWeb, :live_view` in place of `Phoenix.LiveView.assign_async/3,4`. It
+  runs the function the same way and additionally records its duration and
+  outcome per view, which `Tuist.LiveView.PromExPlugin` exports and Grafana
+  alerts on. Do not import `Phoenix.LiveView.assign_async` back in.
+- Let a failing load fail. A function that raises leaves the assign in
+  `AsyncResult.failed`, which the template renders with
+  `TuistWeb.Components.ErrorCardSection` and which reaches the error tracker.
+  Returning an empty result instead renders an empty page that no alert sees.
+
 ## Boundaries
 - Business logic should remain in `server/lib/tuist`.
 - Frontend assets (JS/CSS) are in `server/assets`.

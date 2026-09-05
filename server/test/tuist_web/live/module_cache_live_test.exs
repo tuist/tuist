@@ -6,6 +6,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Builds.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Runs.ModuleCacheTab
@@ -131,6 +132,29 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       },
       Map.new(attrs)
     )
+  end
+
+  test "shows an error in place of the modules card when the module query fails", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Analytics, :module_invalidations, fn _opts ->
+      raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+    end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "[data-part=\"module-invalidation\"] [data-error]")
+    refute has_element?(lv, "[data-part=\"module-invalidation-skeleton\"]")
+    refute has_element?(lv, ~s([data-part="module-invalidation"] [data-part="widgets"]))
+
+    # The analytics card is unaffected.
+    assert has_element?(lv, ~s([data-part="analytics-card"] [data-part="widgets"]))
+    refute has_element?(lv, "[data-part=\"analytics-error\"]")
   end
 
   test "the module summary looks past the rows the card lists", %{

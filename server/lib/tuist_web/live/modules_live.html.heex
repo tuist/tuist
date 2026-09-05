@@ -88,7 +88,7 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <div data-part="widgets">
+    <div :if={!@timeseries.failed} data-part="widgets">
       <.widget
         loading={!analytics_ready}
         id="widget-modules"
@@ -162,9 +162,13 @@
       </.widget>
     </div>
 
-    <.card_section :if={!@timeseries.ok?} data-part="analytics-chart-section">
+    <.card_section
+      :if={!@timeseries.ok? and !@timeseries.failed}
+      data-part="analytics-chart-section"
+    >
       <.skeleton_chart />
     </.card_section>
+    <.error_card_section :if={@timeseries.failed} data-part="analytics-error" />
 
     <.card_section
       :if={@timeseries.ok? && @analytics_selected_widget == "modules"}
@@ -351,13 +355,15 @@
         </.dropdown>
       </div>
 
-      <div :if={!@modules.ok?} data-part="skeleton">
+      <div :if={!@modules.ok? and !@modules.failed} data-part="skeleton">
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
       </div>
+
+      <.error_card_section :if={@modules.failed} data-part="error" />
 
       <.empty_card_section
         :if={@modules.ok? && Enum.empty?(@modules.result)}

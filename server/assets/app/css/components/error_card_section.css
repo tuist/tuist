@@ -1,0 +1,6 @@
+.noora-card__section {
+  &[data-error] {
+    padding-top: var(--noora-spacing-7);
+    padding-bottom: var(--noora-spacing-7);
+  }
+}

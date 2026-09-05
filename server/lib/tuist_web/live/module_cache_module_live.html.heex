@@ -110,7 +110,7 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <div data-part="widgets">
+    <div :if={!@module.failed} data-part="widgets">
       <.widget
         loading={!@module.ok?}
         id="widget-cache-activity"
@@ -208,9 +208,13 @@
       </.widget>
     </div>
 
-    <.card_section :if={!@timeseries.ok?} data-part="analytics-chart-section">
+    <.card_section
+      :if={!@timeseries.ok? and !@timeseries.failed}
+      data-part="analytics-chart-section"
+    >
       <.skeleton_chart />
     </.card_section>
+    <.error_card_section :if={@timeseries.failed} data-part="analytics-error" />
 
     <.card_section
       :if={@timeseries.ok? && @analytics_selected_widget == "cache_activity"}
@@ -471,13 +475,15 @@
         </.dropdown>
       </div>
 
-      <div :if={!@build_history.ok?} data-part="skeleton">
+      <div :if={!@build_history.ok? and !@build_history.failed} data-part="skeleton">
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
       </div>
+
+      <.error_card_section :if={@build_history.failed} data-part="error" />
 
       <.empty_card_section
         :if={@build_history.ok? && Enum.empty?(@build_history.result.rows)}
