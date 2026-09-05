@@ -4,6 +4,8 @@
 public struct BuildAction: Equatable, Codable, Sendable {
     /// A list of targets to build, which are defined in the project.
     public var targets: [TargetReference]
+    /// The build purposes enabled for each target. Targets absent from this dictionary are built for all purposes.
+    public var buildFor: [TargetReference: Set<BuildActionTarget.BuildFor>]
     /// A list of actions that are executed before starting the build process.
     public var preActions: [ExecutionAction]
     /// A list of actions that are executed after the build process.
@@ -34,11 +36,61 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ) -> BuildAction {
         BuildAction(
             targets: targets,
+            buildFor: [:],
             preActions: preActions,
             postActions: postActions,
             buildOrder: buildOrder,
             runPostActionsOnFailure: runPostActionsOnFailure,
             findImplicitDependencies: findImplicitDependencies
         )
+    }
+
+    /// Returns a build action with independently configurable build purposes for each target.
+    public static func buildAction(
+        buildActionTargets: [BuildActionTarget],
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        buildOrder: BuildOrder = .dependency,
+        runPostActionsOnFailure: Bool = false,
+        findImplicitDependencies: Bool = true
+    ) -> BuildAction {
+        BuildAction(
+            targets: buildActionTargets.map(\.target),
+            buildFor: Dictionary(uniqueKeysWithValues: buildActionTargets.map { ($0.target, $0.buildFor) }),
+            preActions: preActions,
+            postActions: postActions,
+            buildOrder: buildOrder,
+            runPostActionsOnFailure: runPostActionsOnFailure,
+            findImplicitDependencies: findImplicitDependencies
+        )
+    }
+}
+
+/// A target in a scheme's build action and the purposes for which Xcode should build it.
+public struct BuildActionTarget: Equatable, Codable, Sendable {
+    public enum BuildFor: String, Codable, CaseIterable, Sendable {
+        case analyzing
+        case archiving
+        case profiling
+        case running
+        case testing
+    }
+
+    public var target: TargetReference
+    public var buildFor: Set<BuildFor>
+
+    public static func target(
+        _ name: String,
+        buildFor: Set<BuildFor> = Set(BuildFor.allCases)
+    ) -> BuildActionTarget {
+        .init(target: .target(name), buildFor: buildFor)
+    }
+
+    public static func project(
+        path: Path,
+        target: String,
+        buildFor: Set<BuildFor> = Set(BuildFor.allCases)
+    ) -> BuildActionTarget {
+        .init(target: .project(path: path, target: target), buildFor: buildFor)
     }
 }
