@@ -74,7 +74,7 @@ struct BazelrcFileTests {
 
     @Test func adds_bounded_event_settings_to_an_existing_build_event_service_configuration() throws {
         let existing = rendered()
-            .replacingOccurrences(of: "build --bes_outerr_chunk_size=1048576\n", with: "")
+            .replacingOccurrences(of: "build --bes_outerr_chunk_size=262144\n", with: "")
             .replacingOccurrences(of: "build --build_event_max_named_set_of_file_entries=500\n", with: "")
             .replacingOccurrences(of: "build --build_event_publish_all_actions\n", with: "")
         let unchangedEndpoint = GRPCEndpoint(
@@ -85,7 +85,7 @@ struct BazelrcFileTests {
 
         let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: unchangedEndpoint))
 
-        #expect(rewritten.contains("build --bes_outerr_chunk_size=1048576"))
+        #expect(rewritten.contains("build --bes_outerr_chunk_size=262144"))
         #expect(rewritten.contains("build --build_event_max_named_set_of_file_entries=500"))
         #expect(rewritten.contains("build --build_event_publish_all_actions"))
     }

@@ -1523,6 +1523,150 @@ mod tests {
 
     use crate::test_support::test_context;
 
+    #[tokio::test]
+    async fn accepts_generated_bazel_cjk_output_chunks_over_the_wire() {
+        let context = test_context(|_| {}).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("listener should have an address");
+        let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(server(context.state))
+                .serve_with_incoming_shutdown(
+                    tokio_stream::wrappers::TcpListenerStream::new(listener),
+                    async {
+                        let _ = shutdown_receiver.await;
+                    },
+                )
+                .await
+        });
+
+        let mut client = proto::publish_build_event_client::PublishBuildEventClient::connect(
+            format!("http://{address}"),
+        )
+        .await
+        .expect("build event client should connect");
+        let output = "界".repeat(262_144);
+        let events = [
+            BazelBuildEvent {
+                id: None,
+                progress: None,
+                started: Some(BazelBuildStarted {
+                    uuid: "started-uuid".into(),
+                    start_time_millis: 1_700_000_000_000,
+                    build_tool_version: "9.1.0".into(),
+                    command: "build".into(),
+                    start_time: None,
+                }),
+                action: None,
+                test_summary: None,
+                test_result: None,
+                finished: None,
+                workspace_status: None,
+                build_tool_logs: None,
+                build_metrics: None,
+                build_metadata: None,
+            },
+            BazelBuildEvent {
+                id: None,
+                progress: Some(BazelProgress {
+                    stdout: output,
+                    stderr: String::new(),
+                }),
+                started: None,
+                action: None,
+                test_summary: None,
+                test_result: None,
+                finished: None,
+                workspace_status: None,
+                build_tool_logs: None,
+                build_metrics: None,
+                build_metadata: None,
+            },
+            BazelBuildEvent {
+                id: None,
+                progress: None,
+                started: None,
+                action: None,
+                test_summary: None,
+                test_result: None,
+                finished: Some(BazelBuildFinished {
+                    overall_success: true,
+                    finish_time_millis: 1_700_000_001_000,
+                    exit_code: Some(BazelExitCode {
+                        name: "SUCCESS".into(),
+                        code: 0,
+                    }),
+                    finish_time: None,
+                }),
+                workspace_status: None,
+                build_tool_logs: None,
+                build_metrics: None,
+                build_metadata: None,
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| PublishBuildToolEventStreamRequest {
+            ordered_build_event: Some(OrderedBuildEvent {
+                stream_id: Some(proto::StreamId {
+                    build_id: "build-1".into(),
+                    invocation_id: "invocation-1".into(),
+                    component: 3,
+                }),
+                sequence_number: (index + 1) as i64,
+                event: Some(proto::BuildEvent {
+                    event_time: None,
+                    event: Some(BuildEventServiceEvent::BazelEvent(prost_types::Any {
+                        type_url: BAZEL_BUILD_EVENT_TYPE_URL.into(),
+                        value: event.encode_to_vec(),
+                    })),
+                }),
+            }),
+            project_id: String::new(),
+        })
+        .collect::<Vec<_>>();
+        assert!(events[1].encoded_len() <= MAX_BUILD_EVENT_MESSAGE_BYTES);
+
+        let mut request = Request::new(tokio_stream::iter(events));
+        request
+            .metadata_mut()
+            .insert(PROJECT_HANDLE_HEADER, "ios".parse().unwrap());
+        let mut responses = client
+            .publish_build_tool_event_stream(request)
+            .await
+            .expect("bounded UTF-8 output should be accepted")
+            .into_inner();
+
+        for expected_sequence_number in 1..=3 {
+            let response = responses
+                .message()
+                .await
+                .expect("response stream should remain valid")
+                .expect("each event should be acknowledged");
+            assert_eq!(response.sequence_number, expected_sequence_number);
+        }
+        assert!(
+            responses
+                .message()
+                .await
+                .expect("response stream should close cleanly")
+                .is_none()
+        );
+
+        drop(responses);
+        drop(client);
+        let _ = shutdown_sender.send(());
+        server_task
+            .await
+            .expect("server task should finish")
+            .expect("server should shut down cleanly");
+    }
+
     #[test]
     fn extracts_invocation_identity_from_the_build_event_stream() {
         let event = OrderedBuildEvent {

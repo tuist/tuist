@@ -23,7 +23,7 @@ enum BazelrcFile {
     private static let publishAllActionsFlag = "build --build_event_publish_all_actions"
     private static let publishAllActionsOption = "--build_event_publish_all_actions"
     private static let doNotPublishAllActionsOption = "--nobuild_event_publish_all_actions"
-    private static let outputChunkFlag = "build --bes_outerr_chunk_size=1048576"
+    private static let outputChunkFlag = "build --bes_outerr_chunk_size=262144"
     private static let outputChunkOption = "--bes_outerr_chunk_size"
     private static let namedSetEntriesFlag = "build --build_event_max_named_set_of_file_entries=500"
     private static let namedSetEntriesOption = "--build_event_max_named_set_of_file_entries"
