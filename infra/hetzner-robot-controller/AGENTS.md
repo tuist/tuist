@@ -19,7 +19,7 @@ controller does the two things caph deliberately doesn't:
    only writes them to `spec.status.hardwareDetails` (a deliberate
    safety — `spec` is operator intent). The controller watches
    for hosts where `hardwareDetails` is populated but
-   `rootDeviceHints` is empty, and patches the first two WWNs
+   `rootDeviceHints` is empty, and patches every discovered WWN
    into `spec.rootDeviceHints.raid.wwn` (RAID 1 layout matching
    Hetzner's default for AX-class hardware).
 
