@@ -1,3 +1,16 @@
+/*
+ * Page container for the redesigned pages: yields exactly
+ * --marketing-page-width of content on wide viewports, with
+ * --marketing-page-margin as the gutter on narrow ones.
+ */
+.marketing-page-container {
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding-inline: var(--marketing-page-margin);
+  width: 100%;
+  max-width: var(--marketing-page-width-with-margin);
+}
+
 [id^="marketing-"] {
   display: flex;
   flex-direction: column;

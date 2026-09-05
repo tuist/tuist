@@ -1,0 +1,623 @@
+<% # Row-flow 3x2 grid: the top row items carry a 400x152 illustration.
+features_items = [
+  %{
+    icon: :database,
+    title: dgettext("marketing", "Cache"),
+    subtitle:
+      dgettext(
+        "marketing",
+        "Reuse build artifacts across your team and CI to avoid recompiling the same code"
+      ),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/cache"),
+    illustration: "cache"
+  },
+  %{
+    icon: :dashboard,
+    title: dgettext("marketing", "Compute"),
+    subtitle:
+      dgettext("marketing", "Spin up runners in seconds and scale with your team and agents"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/compute"),
+    illustration: "compute"
+  },
+  %{
+    icon: :progress_x,
+    title: dgettext("marketing", "Tests"),
+    subtitle: dgettext("marketing", "Test only what changed and catch flaky tests automatically"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/tests"),
+    illustration: "tests"
+  },
+  %{
+    icon: :devices,
+    title: dgettext("marketing", "Previews"),
+    subtitle:
+      dgettext("marketing", "Share your app instantly with a URL—click and run on any device"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/previews")
+  },
+  %{
+    icon: :versions,
+    title: dgettext("marketing", "Generated projects"),
+    subtitle:
+      dgettext(
+        "marketing",
+        "Simplify modular Xcode projects for easier maintenance and scaling"
+      ),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://tuist.dev/en/docs/guides/features/projects"
+      )
+  },
+  %{
+    icon: :download,
+    title: dgettext("marketing", "Registry"),
+    subtitle:
+      dgettext(
+        "marketing",
+        "Download only what you need — faster, lighter builds locally and on CI"
+      ),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://tuist.dev/en/docs/guides/features/registry"
+      )
+  }
+]
+
+developers_items = [
+  %{
+    icon: :book,
+    title: dgettext("marketing", "Documentation"),
+    subtitle: dgettext("marketing", "How to set up and use Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("https://tuist.dev/en/docs/")
+  },
+  %{
+    icon: :api,
+    title: dgettext("marketing", "API documentation"),
+    subtitle: dgettext("marketing", "Build on our REST API"),
+    href: "/api/docs"
+  },
+  %{
+    icon: :dashboard,
+    title: dgettext("marketing", "Public dashboard"),
+    subtitle: dgettext("marketing", "Explore Tuist's features on public dashboard"),
+    href: "/tuist/tuist"
+  },
+  %{
+    icon: :download,
+    title: dgettext("marketing", "Download"),
+    subtitle: dgettext("marketing", "Download Tuist app on different devices"),
+    href: "/download"
+  }
+]
+
+# Ordered for the dropdown's row-flow 2-column grid: left column is
+# About/Hive/Customers, right column Slack/Forum/Newsletter/GitHub.
+resources_items = [
+  %{
+    icon: :users,
+    title: dgettext("marketing", "About"),
+    subtitle: dgettext("marketing", "Learn about Tuist and meet the team"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")
+  },
+  %{
+    icon: :brand_slack,
+    title: dgettext("marketing", "Slack"),
+    subtitle: dgettext("marketing", "Join the community slack"),
+    href: "https://slack.tuist.dev"
+  },
+  %{
+    icon: :subtask,
+    title: dgettext("marketing", "Hive"),
+    subtitle:
+      dgettext(
+        "marketing",
+        "Track requests, bug reports, feedback and Grafana alerts in one place"
+      ),
+    href: "https://hive.tuist.dev"
+  },
+  %{
+    icon: :message_circle,
+    title: dgettext("marketing", "Community forum"),
+    subtitle: dgettext("marketing", "Join discussions and share ideas on our community forum"),
+    href: "https://community.tuist.dev"
+  },
+  %{
+    icon: :building,
+    title: dgettext("marketing", "Customers"),
+    subtitle: dgettext("marketing", "See how leading teams scale with Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/customers")
+  },
+  %{
+    icon: :news,
+    title: dgettext("marketing", "Newsletter"),
+    subtitle: dgettext("marketing", "Stay updated - subscribe to our newsletter"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
+  },
+  %{
+    icon: :brand_github,
+    title: dgettext("marketing", "GitHub"),
+    subtitle: dgettext("marketing", "Check our sources, issues and PRs"),
+    href: "https://github.com/tuist"
+  }
+] %>
+<header id="marketing-navbar" phx-update="ignore">
+  <div data-part="bar">
+    <div data-part="brand" id="marketing-navbar-brand" phx-hook="LogoContextMenu">
+      <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
+        <img
+          data-part="logo"
+          data-theme="light"
+          src={~p"/marketing/images/components/navbar/logo-light.svg"}
+          alt="Tuist"
+        />
+        <img
+          data-part="logo"
+          data-theme="dark"
+          src={~p"/marketing/images/components/navbar/logo-dark.svg"}
+          alt="Tuist"
+        />
+      </.link>
+      <%!-- Right-click (context) menu on the logo: brand asset shortcuts,
+      built from Noora dropdown items inside a statically-open Noora content
+      panel — the wrapper only positions it and drives visibility. Copy
+      actions always serve the light-mode SVGs regardless of theme. --%>
+      <div data-part="logo-menu" data-open="false" role="menu" aria-label="Brand assets">
+        <div class="noora-dropdown-content" data-state="open">
+          <div data-part="items">
+            <%!-- The hook's data-copied flag fades in the check icon as
+            copy feedback; the label itself never changes. --%>
+            <Noora.Dropdown.dropdown_item
+              value="copy-logo"
+              label={dgettext("marketing", "Copy logo as SVG")}
+              data-copy-url={~p"/marketing/images/brand/tuist-logo.svg"}
+            >
+              <:left_icon>
+                <svg viewBox="0 0 27 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M13.3336 29.3336C13.3212 29.328 13.3095 29.3215 13.297 29.3107C12.9978 29.0527 12.7438 26.089 12.6741 25.5423C12.1819 21.4671 11.5533 17.4099 10.7895 13.3775C10.5169 11.9469 10.2363 10.5178 9.94793 9.09033C9.70154 7.86241 9.49273 6.7469 9.3602 5.4996C9.10744 3.1216 10.8454 2.79677 12.8115 2.68128C12.9625 2.67287 13.1392 2.66713 13.3336 2.66641C13.528 2.66713 13.7047 2.67287 13.8557 2.68128C15.8218 2.79677 17.5598 3.1216 17.3071 5.4996C17.1744 6.7469 16.9656 7.86241 16.7192 9.09033C16.431 10.5178 16.1503 11.9469 15.8776 13.3775C15.1138 17.4099 14.4852 21.4671 13.9931 25.5423C13.9234 26.089 13.6694 29.0527 13.3701 29.3107C13.3577 29.3215 13.346 29.328 13.3336 29.3336Z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M5.7917 5.48267C6.69881 5.37303 7.12403 6.05366 7.43345 6.79388C7.74893 7.54815 8.00343 8.35103 8.24253 9.13382C8.53706 10.0902 8.81753 11.051 9.08383 12.0159C10.3081 16.3724 11.3206 20.7871 12.1177 25.2434C12.2399 25.9204 12.3582 26.5981 12.4726 27.2763C12.5771 27.9004 12.6951 28.5801 12.7018 29.2095C12.2531 28.9148 11.9932 28.1465 11.7767 27.6526C11.5642 27.17 11.3494 26.6887 11.132 26.2085C10.8675 25.5709 10.483 24.7966 10.1811 24.1737C8.68777 21.0905 6.91779 18.1516 4.89382 15.3947C4.32755 14.6183 3.74022 13.8578 3.13257 13.1141C2.59606 12.4449 1.82939 11.5799 1.54718 10.7831C0.994757 9.22367 2.51445 7.61779 3.58407 6.6788C4.18577 6.15079 4.98827 5.61283 5.7917 5.48267Z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M1.14947 13.9095C1.41669 13.8888 1.68238 13.9968 1.89725 14.1501C2.43561 14.5343 2.93772 15.0522 3.38707 15.533C6.70466 19.0834 9.22602 23.3143 11.3492 27.6784C11.6033 28.2013 11.8571 28.7348 12.0661 29.2772C11.7944 29.143 11.572 28.9964 11.3212 28.8307C10.6712 28.3813 9.97154 27.8218 9.34613 27.3323C8.34159 26.5333 7.3274 25.7473 6.30367 24.9736C5.43249 24.3204 4.55586 23.675 3.67411 23.0368C2.02825 21.8443 0.857808 21.1807 0.305799 19.0528C-0.0129636 17.8243 -0.449581 14.3325 1.14947 13.9095Z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M25.5177 13.9095C25.2505 13.8888 24.9848 13.9968 24.7699 14.1501C24.2316 14.5343 23.7295 15.0522 23.2801 15.533C19.9625 19.0834 17.4412 23.3143 15.318 27.6784C15.0638 28.2013 14.8101 28.7348 14.601 29.2772C14.8728 29.143 15.0952 28.9964 15.346 28.8307C15.996 28.3813 16.6956 27.8218 17.321 27.3323C18.3256 26.5333 19.3398 25.7473 20.3635 24.9736C21.2347 24.3204 22.1113 23.675 22.9931 23.0368C24.6389 21.8443 25.8094 21.1807 26.3614 19.0528C26.6801 17.8243 27.1168 14.3325 25.5177 13.9095Z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M20.8755 5.48267C19.9684 5.37303 19.5431 6.05366 19.2337 6.79388C18.9182 7.54815 18.6638 8.35103 18.4247 9.13382C18.1301 10.0902 17.8497 11.051 17.5833 12.0159C16.3591 16.3724 15.3466 20.7871 14.5495 25.2434C14.4272 25.9204 14.309 26.5981 14.1946 27.2763C14.0901 27.9004 13.972 28.5801 13.9654 29.2095C14.4141 28.9148 14.6739 28.1465 14.8904 27.6526C15.103 27.17 15.3178 26.6887 15.5352 26.2085C15.7997 25.5709 16.1842 24.7966 16.4861 24.1737C17.9794 21.0905 19.7494 18.1516 21.7734 15.3947C22.3396 14.6183 22.927 13.8578 23.5346 13.1141C24.0711 12.4449 24.8378 11.5799 25.12 10.7831C25.6724 9.22367 24.1527 7.61779 23.0831 6.6788C22.4814 6.15079 21.6789 5.61283 20.8755 5.48267Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </:left_icon>
+              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_item
+              value="copy-wordmark"
+              label={dgettext("marketing", "Copy wordmark as SVG")}
+              data-copy-url={~p"/marketing/images/brand/tuist-wordmark.svg"}
+            >
+              <:left_icon><Noora.Icon.icon name="copy" /></:left_icon>
+              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_item
+              value="download-brand-assets"
+              label={dgettext("marketing", "Download brand assets")}
+              href={~p"/marketing/images/brand/tuist-brand-assets.zip"}
+              {[download: true]}
+            >
+              <:left_icon><Noora.Icon.icon name="download" /></:left_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_separator />
+            <%!-- Points at the upcoming /brand marketing page (not built
+            yet); swap in nothing here when it ships — the route just needs
+            to exist. --%>
+            <Noora.Dropdown.dropdown_item
+              value="brand-guidelines"
+              label={dgettext("marketing", "Brand guidelines")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/brand")}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
+      <div data-part="menu">
+        <button
+          type="button"
+          data-part="action"
+          data-nav-trigger="features"
+          data-open="false"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-controls="marketing-navbar-viewport"
+        >
+          <span data-part="title">
+            {dgettext("marketing", "Features")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </button>
+      </div>
+      <div data-part="menu">
+        <button
+          type="button"
+          data-part="action"
+          data-nav-trigger="developers"
+          data-open="false"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-controls="marketing-navbar-viewport"
+        >
+          <span data-part="title">
+            {dgettext("marketing", "Developers")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </button>
+      </div>
+      <div data-part="menu">
+        <button
+          type="button"
+          data-part="action"
+          data-nav-trigger="resources"
+          data-open="false"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-controls="marketing-navbar-viewport"
+        >
+          <span data-part="title">
+            {dgettext("marketing", "Resources")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </button>
+      </div>
+      <div data-part="menu">
+        <div data-part="action">
+          <.link
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
+            data-part="title"
+          >
+            {dgettext("marketing", "Pricing")}
+          </.link>
+        </div>
+      </div>
+      <div data-part="menu">
+        <div data-part="action">
+          <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")} data-part="title">
+            {dgettext("marketing", "Blog")}
+          </.link>
+        </div>
+      </div>
+    </nav>
+    <nav data-part="actions" aria-label="Call to action">
+      <.neutral_button
+        href="https://slack.tuist.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        size="large"
+        aria-label="Slack"
+        data-part="icon"
+      >
+        <.brand_slack />
+      </.neutral_button>
+      <.neutral_button
+        href="https://github.com/tuist"
+        target="_blank"
+        rel="noopener noreferrer"
+        size="large"
+        aria-label="GitHub"
+        data-part="icon"
+      >
+        <.brand_github />
+      </.neutral_button>
+      <%!-- Language selector hidden during the redesign. Locale routing and
+      Accept-Language detection keep working; restore this block to bring the
+      switcher back. --%>
+      <%!-- <div
+        data-part="menu"
+        phx-hook="NavbarDropdown"
+        id="marketing-navbar-languages-menu"
+        data-open="false"
+      >
+        <div data-part="action" data-open="false">
+          <span data-part="title">
+            <.language />
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="languages" data-open="false">
+          <.link
+            :for={lang <- TuistWeb.Marketing.Localization.languages()}
+            href={
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                lang.code
+              )
+            }
+          >
+            {lang.native}
+            <span :if={lang.code != "en"}>({lang.label})</span>
+          </.link>
+        </div>
+      </div> --%>
+      <.neutral_button
+        :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
+        size="large"
+        href={~p"/users/log_in"}
+        data-part="log-in"
+        label={dgettext("marketing", "Log in")}
+      />
+      <.button
+        variant={
+          if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+            do: "primary",
+            else: "secondary"
+          )
+        }
+        size="large"
+        href={
+          if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+            do: ~p"/users/register",
+            else:
+              TuistWeb.Authentication.signed_in_path(
+                TuistWeb.Authentication.current_user(assigns)
+              )
+          )
+        }
+        label={
+          if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+            do: dgettext("marketing", "Sign up"),
+            else: dgettext("marketing", "Dashboard")
+          )
+        }
+      >
+      </.button>
+
+      <.neutral_button
+        size="large"
+        data-part="mobile-menu-button"
+        phx-hook="MobileMenu"
+        id="mobile-menu-button"
+        data-state="closed"
+      >
+        <Noora.Icon.icon
+          id="mobile-menu-icon"
+          name="menu"
+          active_name="close"
+          transition="morph"
+          watch="[data-part='mobile-menu-button']"
+          active_state="open"
+        />
+      </.neutral_button>
+    </nav>
+  </div>
+  <%!-- Shared dropdown viewport (Radix NavigationMenu pattern): one panel
+  that stays in place while the active content animates in/out with
+  direction-aware motion, driven by the NavbarMegaMenu hook. --%>
+  <div
+    data-part="viewport"
+    id="marketing-navbar-viewport"
+    phx-hook="NavbarMegaMenu"
+    phx-update="ignore"
+    data-open="false"
+  >
+    <div data-part="panel">
+      <div data-part="content" data-dropdown="features" data-state="closed">
+        <.link
+          :for={item <- features_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="feature"
+        >
+          <h3 data-part="title">
+            {item.title} <.arrow_right />
+          </h3>
+          <p data-part="subtitle">
+            {item.subtitle}
+          </p>
+          <div
+            :if={Map.has_key?(item, :illustration)}
+            data-part="illustration"
+            data-illustration={item.illustration}
+            aria-hidden="true"
+          >
+            <TuistWeb.Marketing.MarketingIllustrations.illustration name={item.illustration} />
+          </div>
+        </.link>
+      </div>
+      <div data-part="content" data-dropdown="developers" data-state="closed">
+        <nav data-part="links">
+          <.link
+            :for={item <- developers_items}
+            href={item.href}
+            target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+            rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+            data-part="link"
+          >
+            <h3 data-part="title">
+              {item.title} <.arrow_right />
+            </h3>
+            <p data-part="subtitle">
+              {item.subtitle}
+            </p>
+          </.link>
+        </nav>
+        <aside data-part="changelog">
+          <canvas
+            data-part="dither"
+            id="marketing-navbar-changelog-dither"
+            phx-hook="DitherTexture"
+            data-pitch="2"
+            data-dot="2"
+            data-top="0"
+            data-bottom="0.95"
+            data-wave="0.335"
+            data-wave-scale="2.5"
+            data-levels="0"
+            data-speed="1"
+            data-dither="on"
+            data-opacity="0.3"
+            aria-hidden="true"
+          >
+          </canvas>
+          <header data-part="header">
+            <h3 data-part="title">{dgettext("marketing", "Changelog")}</h3>
+            <.link_button
+              label={dgettext("marketing", "View all")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+              variant="secondary"
+            />
+          </header>
+          <ul data-part="list">
+            <li
+              :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+              data-part="entry"
+            >
+              <.link href={
+                TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+              }>
+                <div data-part="content">
+                  <p data-part="title">{entry.title}</p>
+                  <time data-part="date">
+                    {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+                  </time>
+                </div>
+                <.tag label={entry.category} />
+              </.link>
+            </li>
+          </ul>
+        </aside>
+      </div>
+      <div data-part="content" data-dropdown="resources" data-state="closed">
+        <.link
+          :for={item <- resources_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="resource"
+        >
+          <h3 data-part="title">
+            {item.title} <.arrow_right />
+          </h3>
+          <p data-part="subtitle">
+            {item.subtitle}
+          </p>
+        </.link>
+        <div data-part="spacer" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+  <nav data-part="mobile-menus" aria-label="Mobile navigation">
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-features">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- features_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          {item.title}
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-developers">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Developers")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- developers_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          {item.title}
+        </.link>
+        <%!-- The desktop dropdown surfaces the changelog as a dedicated
+        aside, which the mobile menu doesn't have — so it's a plain link
+        here. --%>
+        <.link
+          href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+          data-part="item"
+        >
+          {dgettext("marketing", "Changelog")}
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-resources">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Resources")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- resources_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          {item.title}
+        </.link>
+      </div>
+    </div>
+    <.link
+      href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
+      data-part="item"
+    >
+      {dgettext("marketing", "Pricing")}
+    </.link>
+    <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")} data-part="item">
+      {dgettext("marketing", "Blog")}
+    </.link>
+    <.link
+      href="https://slack.tuist.dev"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-part="item"
+    >
+      Slack
+    </.link>
+    <.link
+      href="https://github.com/tuist"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-part="item"
+    >
+      GitHub
+    </.link>
+    <div data-part="theme">
+      <h3 data-part="title">{dgettext("marketing", "Theme")}</h3>
+      <%!-- "system" (the default) renders selected; the hook re-syncs the
+      selection from the stored preference at mount. The id must not start
+      with "marketing-": pages.css lays out [id^="marketing-"] containers as
+      flex columns, which would stack the button group vertically. --%>
+      <.button_group size="small" id="mobile-menu-theme-switcher" phx-hook="ThemeSwitcher">
+        <.button_group_item
+          icon_only
+          data-theme-option="system"
+          data-selected
+          aria-label="System theme"
+        >
+          <Noora.Icon.icon name="device_desktop" />
+        </.button_group_item>
+        <.button_group_item icon_only data-theme-option="light" aria-label="Light theme">
+          <Noora.Icon.icon name="sun_high" />
+        </.button_group_item>
+        <.button_group_item icon_only data-theme-option="dark" aria-label="Dark theme">
+          <Noora.Icon.icon name="moon" />
+        </.button_group_item>
+      </.button_group>
+    </div>
+  </nav>
+</header>

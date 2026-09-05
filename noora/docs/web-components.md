@@ -69,7 +69,7 @@ Component contracts are consumed during the build. Applications do not fetch the
 - [LineDivider](./components/linedivider.md): Separates adjacent content with an optional inline label.
 - [LinkButton](./components/linkbutton.md): Presents a text-oriented button or link.
 - [Modal](./components/modal.md): Presents focused content above the current page.
-- [NeutralButton](./components/neutralbutton.md): Provides a low-emphasis compact control.
+- [NeutralButton](./components/neutralbutton.md): Provides a low-emphasis compact control, either icon-only or with a text label.
 - [PaginationGroup](./components/paginationgroup.md): Navigates a finite collection of numbered pages.
 - [Popover](./components/popover.md): Displays contextual content anchored to a trigger.
 - [ProgressBar](./components/progressbar.md): Visualizes progress toward a maximum value.

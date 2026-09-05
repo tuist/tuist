@@ -1,2 +1,12 @@
+<%!-- The navbar renders outside the page's <main>: position: sticky only
+sticks while its containing block is in view, so inside <main> the navbar
+would scroll away once the (tall) footer below <main> comes in. --%>
+<%= if assigns[:new_design] do %>
+  <TuistWeb.Marketing.MarketingComponents.navbar_new {assigns} />
+<% end %>
 {render_slot(@inner_block)}
-<TuistWeb.Marketing.MarketingComponents.footer />
+<%= if assigns[:new_design] do %>
+  <TuistWeb.Marketing.MarketingComponents.footer_new {assigns} />
+<% else %>
+  <TuistWeb.Marketing.MarketingComponents.footer />
+<% end %>

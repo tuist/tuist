@@ -2,7 +2,7 @@
 
 # NeutralButton
 
-Provides a low-emphasis compact control.
+Provides a low-emphasis compact control, either icon-only or with a text label.
 
 ```html
 <noora-neutral-button aria-label="Previous page"><noora-icon name="chevron_left"></noora-icon></noora-neutral-button>
@@ -12,6 +12,7 @@ Provides a low-emphasis compact control.
 
 | Attribute | Type or allowed values | Default | Description |
 | --- | --- | --- | --- |
+| `label` | `string` | `""` | Sets the visible label. When set, the default slot is replaced by the label and the icon-left/icon-right slots. |
 | `size` | `small`, `medium`, `large` | `"large"` | Controls the dimensions. |
 | `href` | `string` | None | Renders a native link to this location. |
 | `disabled` | `boolean` | `false` | Disables activation. |
@@ -21,7 +22,9 @@ Provides a low-emphasis compact control.
 
 | Slot | Description |
 | --- | --- |
-| `default` | The complete control content. |
+| `default` | The complete control content when no label is set. |
+| `icon-left` | An icon before the label. Only rendered when a label is set. |
+| `icon-right` | An icon after the label. Only rendered when a label is set. |
 
 ## Styling parts
 
@@ -57,4 +60,16 @@ Use the icon that matches the navigation direction.
 ```html
 <noora-neutral-button size="medium" aria-label="Previous"><noora-icon name="chevron_left"></noora-icon></noora-neutral-button>
 <noora-neutral-button size="medium" aria-label="Next"><noora-icon name="chevron_right"></noora-icon></noora-neutral-button>
+```
+
+## Text labels
+
+Use a label, optionally with icons, for low-emphasis text actions. The spacing matches the standard button sizes.
+
+```html
+<noora-neutral-button size="small" label="Button"></noora-neutral-button>
+<noora-neutral-button size="medium" label="Button"></noora-neutral-button>
+<noora-neutral-button size="large" label="Button"></noora-neutral-button>
+<noora-neutral-button size="large" label="Button"><noora-icon slot="icon-left" name="chevron_left"></noora-icon><noora-icon slot="icon-right" name="chevron_right"></noora-icon></noora-neutral-button>
+<noora-neutral-button size="large" label="Button" disabled></noora-neutral-button>
 ```

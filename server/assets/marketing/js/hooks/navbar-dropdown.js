@@ -52,6 +52,10 @@ export const NavbarDropdown = {
     const dropdown = menu.querySelector('[data-part="dropdown"]');
     const action = menu.querySelector('[data-part="action"]');
     let isOpen = false;
+    // A click-opened dropdown is pinned: it ignores hover-out (which would
+    // otherwise close it as soon as the pointer leaves, e.g. into devtools)
+    // and only closes on outside click, Escape, or another dropdown opening.
+    let isPinned = false;
 
     // Initialize listeners array
     this.listeners = [];
@@ -103,6 +107,7 @@ export const NavbarDropdown = {
       }
 
       isOpen = state;
+      if (!state) isPinned = false;
 
       // Update global tracker
       if (state) {
@@ -158,20 +163,32 @@ export const NavbarDropdown = {
 
     const hideDropdown = () => {
       clearTimeout(this.hoverTimeout);
+      if (isPinned) return;
       this.hoverTimeout = setTimeout(() => {
         setOpenState(false);
       }, 100);
     };
 
+    // Not a blind toggle: hover (or the emulated tap's mouseenter) may have
+    // just opened the dropdown, and toggling would immediately close it
+    // again. Clicking an unpinned dropdown always pins it open; only a
+    // click on an already-pinned dropdown closes it.
     const toggleDropdown = (e) => {
       e.stopPropagation();
-      setOpenState(!isOpen, { fromMenu: window.activeNavbarDropdown });
+      if (isPinned) {
+        setOpenState(false);
+      } else {
+        setOpenState(true, { fromMenu: window.activeNavbarDropdown });
+        isPinned = true;
+      }
     };
 
     const keydownHandler = (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         toggleDropdown(e);
+      } else if (e.key === "Escape" && isOpen) {
+        setOpenState(false);
       }
     };
 
