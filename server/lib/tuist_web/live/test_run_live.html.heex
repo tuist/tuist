@@ -96,6 +96,17 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.build_system == "bazel" && @run.bazel_invocation_id != ""}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
+        }
+        label={dgettext("dashboard_projects", "Bazel invocation")}
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button
@@ -1108,6 +1119,7 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@show_test_suites}
         label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}

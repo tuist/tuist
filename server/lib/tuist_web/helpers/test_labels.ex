@@ -11,10 +11,13 @@ defmodule TuistWeb.Helpers.TestLabels do
 
   alias Tuist.Projects.Project
 
+  def module_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test target")
   def module_label(_), do: dgettext("dashboard_tests", "Module")
 
+  def modules_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test targets")
   def modules_label(_), do: dgettext("dashboard_tests", "Modules")
 
+  def test_modules_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test targets")
   def test_modules_label(_), do: dgettext("dashboard_tests", "Test Modules")
 
   def suite_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Class")

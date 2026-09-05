@@ -182,6 +182,7 @@ defmodule Tuist do
       KeyValueStore,
       ClickHouseRepo,
       ClickHouseFlop,
+      ClickHouseTimeSeries,
       OpsClickHouseRepo,
       Markdown,
       Cldr,

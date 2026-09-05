@@ -181,6 +181,16 @@ defmodule TuistWeb.Utilities.QueryTest do
     end
   end
 
+  describe "positive_integer/2" do
+    test "parses positive integers and rejects invalid values" do
+      assert Query.positive_integer("2") == 2
+      assert Query.positive_integer(3) == 3
+      assert Query.positive_integer("0") == 1
+      assert Query.positive_integer("invalid", 4) == 4
+      assert Query.positive_integer(nil) == 1
+    end
+  end
+
   describe "clear_incompatible_cursors/2" do
     test "preserves a cursor whose fields match the sort order" do
       cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17]})

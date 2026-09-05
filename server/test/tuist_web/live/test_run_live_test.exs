@@ -14,6 +14,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
@@ -214,6 +215,24 @@ defmodule TuistWeb.TestRunLiveTest do
 
     # Then
     assert has_element?(lv, "#test-suites-table")
+  end
+
+  test "hides framework test suites for Bazel projects", %{
+    conn: conn,
+    organization: organization
+  } do
+    bazel_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: bazel_project.id, build_system: "bazel")
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{bazel_project.name}/tests/test-runs/#{test_run.id}?test-tab=test-suites"
+      )
+
+    refute has_element?(lv, "#test-suites-table")
+    assert has_element?(lv, "#test-cases-table")
+    refute has_element?(lv, "[data-part='test-suites-card']")
   end
 
   test "renders the test modules table when the sort order query param is invalid", %{
