@@ -410,7 +410,11 @@ defmodule Tuist.Kura.Lifecycle do
   # Nothing here decides whether the region has room. Every cache pod requests
   # its claim's worth of ephemeral storage, so the scheduler declines to place
   # an instance that does not fit and the KuraInstance stays Pending, which is
-  # exact per node in a way a forecast computed here never was.
+  # exact per node in a way a forecast computed here never was. Room is read
+  # one step earlier, where the region is chosen: `AccountPolicies` steers a
+  # first placement away from a region the cluster says is full when the
+  # account's residency admits another. What reaches here is an account whose
+  # region is decided, and a full region is then something to buy a box for.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
     # The lifecycle row records where demand *was* served; placement decides
     # where the account belongs *now*. They diverge when an account changes

@@ -118,7 +118,9 @@ defmodule Tuist.Kura.Placement do
     * `:rollups` - `Tuist.Kura.OriginRollup` rows (or maps with the same keys)
       covering the policy windows
     * `:permitted` - the regions the account may be placed in, after residency,
-      availability and any per-plan budget have had their say
+      availability, any per-plan budget and room have had their say; a region
+      with no room for its instance is left out unless the account already
+      holds it
     * `:primary` - the region serving the account today, or `nil`
     * `:serving` - every region it holds, primary and retiring ones included
     * `:retiring` - the ones already on their way out, which no transition

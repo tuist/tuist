@@ -4,6 +4,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.OriginRollup
@@ -11,6 +13,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -100,6 +103,48 @@ defmodule Tuist.Kura.PlacementProposalsTest do
                PlacementProposal
                |> Repo.all()
                |> Enum.filter(&(&1.kind == :relocate and &1.status == :applied))
+    end
+
+    test "corrects a first placement that spilled for room once the preferred region has it" do
+      # The spill row holds the account against a room reading that moves, but
+      # it is a guess like any first placement, so the fast rung still applies.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :correct, from_region: "us-west", to_region: "us-east", status: :open} =
+               PlacementProposals.open_proposal_for(account)
+    end
+
+    test "proposes nothing into a region that has no room" do
+      # The traffic still points at the preferred region, but the scheduler
+      # could not place an instance there; it maps onto the region the account
+      # already serves until the preferred one has room again.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "keeps mapping traffic onto a region the account already serves, however full" do
+      # Full means no room for a newcomer. The instance already there needs
+      # none, and dropping the region from the map would read the account's
+      # own traffic as a reason to move it out.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
     end
 
     test "opens nothing for an account whose traffic is where it already is" do
@@ -285,6 +330,25 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert PlacerRegions.primary_region(account) == "us-west"
     end
 
+    test "refuses a proposal into a region that filled up since it was opened" do
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+      {:ok, _summary} = PlacementProposals.sweep(@today)
+      proposal = PlacementProposals.open_proposal_for(account)
+
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert Kura.apply_placement_proposal(proposal, "operator@tuist.dev") == {:error, :stale_proposal}
+
+      assert %PlacementProposal{status: :superseded, resolved_by: "stale_on_apply"} =
+               Repo.get!(PlacementProposal, proposal.id)
+
+      assert PlacerRegions.primary_region(account) == "us-west"
+    end
+
     test "refuses a proposal that is no longer open" do
       account = paid_account()
       insert_server!(account, "us-east")
@@ -391,6 +455,62 @@ defmodule Tuist.Kura.PlacementProposalsTest do
         |> Ecto.Changeset.change(inserted_at: inserted_at)
         |> Repo.update!()
     end
+  end
+
+  defp spill!(account, region, preferred: preferred) do
+    {:ok, _row} =
+      PlacerRegions.put_primary(account, region, %{
+        "signal" => PlacerRegion.capacity_spill_signal(),
+        "preferred_region" => preferred,
+        "plan" => "pro"
+      })
+
+    account
+  end
+
+  # Room is read from a region's nodes and what is scheduled on them, so a
+  # region here is one box named after it: a full one carries a pod holding its
+  # whole disk, a roomy one carries nothing, and a region left out cannot be
+  # read, which the placer treats as room.
+  defp room(rooms) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector, _opts ->
+      region = Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector))
+
+      if region && Map.has_key?(rooms, region.id) do
+        {:ok, %{"items" => [box(region.id)]}}
+      else
+        {:error, :unavailable}
+      end
+    end)
+
+    stub(Client, :list_pods_on_node, fn name, _opts ->
+      if Map.fetch!(rooms, name), do: {:ok, []}, else: {:ok, [pod_holding_disk("800Gi")]}
+    end)
+  end
+
+  defp box(name) do
+    %{
+      "metadata" => %{"name" => name},
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => "True"}],
+        "allocatable" => %{
+          "cpu" => "32",
+          "memory" => "128Gi",
+          "ephemeral-storage" => "800Gi",
+          "tuist.dev/memory-ceiling-mib" => "262144",
+          "tuist.dev/egress-mbps" => "1500"
+        }
+      }
+    }
+  end
+
+  defp pod_holding_disk(disk) do
+    %{
+      "status" => %{"phase" => "Running"},
+      "spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => disk}}}]}
+    }
   end
 
   defp seed_runs(account, origin, days, runs_per_day) do

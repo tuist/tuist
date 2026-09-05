@@ -308,8 +308,8 @@ defmodule Tuist.Kubernetes.Client do
   overcommits. The server SA is granted `nodes: [get, list]` by the
   runners-fleet-reader ClusterRole.
   """
-  def list_nodes(label_selector) when is_binary(label_selector) do
-    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector})
+  def list_nodes(label_selector, opts \\ []) when is_binary(label_selector) do
+    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector}, timeout: opts[:timeout])
   end
 
   @doc """

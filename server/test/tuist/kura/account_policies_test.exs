@@ -4,10 +4,13 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Kura.Origins
   alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
@@ -15,6 +18,8 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   alias TuistTestSupport.Fixtures.BillingFixtures
 
   setup :set_mimic_from_context
+
+  @box_disk_gib 800
 
   # Resolution refuses a region the deployment does not serve, so every test
   # states the deployment it assumes rather than inheriting the test env's
@@ -504,6 +509,58 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     stub(Environment, :kura_available_region_ids, fn -> region_ids end)
   end
 
+  # Room is read from a region's nodes and what is scheduled on them, so a
+  # region here is one box named after it: a full one carries a pod holding its
+  # whole disk, a roomy one carries nothing, and a region left out cannot be
+  # read at all.
+  defp room(rooms, opts \\ []) do
+    while_reading = Keyword.get(opts, :while_reading, fn -> :ok end)
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector, _opts ->
+      while_reading.()
+      region = Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector))
+
+      if region && Map.has_key?(rooms, region.id) do
+        {:ok, %{"items" => [box(region.id)]}}
+      else
+        {:error, :unavailable}
+      end
+    end)
+
+    stub(Client, :list_pods_on_node, fn name, _opts ->
+      if Map.fetch!(rooms, name), do: {:ok, []}, else: {:ok, [pod_holding_disk("#{@box_disk_gib}Gi")]}
+    end)
+  end
+
+  defp unreadable_cluster do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+    stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
+  end
+
+  defp box(name) do
+    %{
+      "metadata" => %{"name" => name},
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => "True"}],
+        "allocatable" => %{
+          "cpu" => "32",
+          "memory" => "128Gi",
+          "ephemeral-storage" => "#{@box_disk_gib}Gi",
+          "tuist.dev/memory-ceiling-mib" => "262144",
+          "tuist.dev/egress-mbps" => "1500"
+        }
+      }
+    }
+  end
+
+  defp pod_holding_disk(disk) do
+    %{
+      "status" => %{"phase" => "Running"},
+      "spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => disk}}}]}
+    }
+  end
+
   describe "residency admits no served region" do
     test "refuses rather than resolving into the residency default the deployment does not serve" do
       # The trap the availability filter on `placeable` exists to close, reached
@@ -687,6 +744,199 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       seed_origin(account, "FR")
 
       assert AccountPolicies.resolve_all([account]) == %{account.id => AccountPolicies.resolve(account)}
+    end
+  end
+
+  describe "placement by capacity" do
+    test "spills to a permitted sibling with room when the preferred region is full" do
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "us-west", "eu-central"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-west"}}
+
+      assert_receive {[:tuist, :kura, :lifecycle, :placement_capacity_spill], ^event_ref, %{count: 1},
+                      %{plan: "enterprise", wanted: "us-east", served: "us-west"}}
+    end
+
+    test "records the spill, so the account does not flip back when the reading moves" do
+      # Without the record the next resolution would re-read room, find the
+      # preferred region open again and resolve there, recording demand in two
+      # regions for an account that has yet to be provisioned in either.
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
+
+      assert [%{role: :primary, status: :desired, region: "us-west", evidence: evidence}] =
+               PlacerRegions.all_for(account)
+
+      assert evidence == %{"signal" => "capacity_spill", "preferred_region" => "us-east", "plan" => "pro"}
+
+      room(%{"us-east" => true, "us-west" => true})
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
+    end
+
+    test "waits in the preferred region when no permitted region has room" do
+      # Europe has room, and residency puts it out of reach. The instance stays
+      # Pending where it is, which is what a region with no room has to look
+      # like to whoever buys the next box.
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "us-west", "eu-central"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => false, "eu-central" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+    end
+
+    test "keeps Air among the regions funded for it" do
+      # United States West is nearer and has room; nobody funds Air there.
+      account = update_region!(organization_account(), :all)
+      serving(["us-east", "us-west", "eu-central"])
+      stub(Environment, :kura_air_region_ids, fn -> ["us-east", "eu-central"] end)
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true, "eu-central" => true})
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-central"}}
+    end
+
+    test "leaves Air with a single funded region where it is" do
+      account = update_region!(organization_account(), :all)
+      serving(["us-east", "us-west"])
+      stub(Environment, :kura_air_region_ids, fn -> ["us-east"] end)
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "us-east"}}
+      assert PlacerRegions.all_for(account) == []
+    end
+
+    test "steers an unattributed account off the full default region without binding it" do
+      # A first request is resolved before the flush that carries its origin.
+      # The default order still moves it off the full region, to the other
+      # American region rather than Europe, but nothing is recorded: a decision
+      # taken on no origin would outrank the origin once it lands.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west", "eu-central"])
+      room(%{"us-east" => false, "us-west" => true, "eu-central" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+
+      # The origin lands: the account is European, and Europe has room.
+      seed_origin(account, "FR")
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+    end
+
+    test "a spill racing itself follows the placement the other resolution recorded" do
+      # Two demand flushes on two nodes read the same account with no primary
+      # and, from separately cached room readings, spill it into different
+      # regions. Demoting the first to a secondary would provision the account
+      # in both. The one-primary index decides, and the loser follows.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west", "eu-central"])
+      seed_origin(account, "US-VA")
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      # The other node records eu-central while this one is still reading room.
+      room(%{"us-east" => false, "us-west" => true, "eu-central" => true},
+        while_reading: fn ->
+          PlacerRegions.record_first_primary(account, "eu-central", %{"signal" => "capacity_spill"})
+        end
+      )
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+
+      assert [%{role: :primary, region: "eu-central"}] = PlacerRegions.all_for(account)
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+    end
+
+    test "resolvable?/1 answers without reading room or recording a placement" do
+      # The request path asks whether an instance is expected, not where, and
+      # room cannot change that answer. Reading it there would put the
+      # apiserver on the request path, and recording there would bind the
+      # account before its origin has flushed.
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      stub(Client, :list_nodes, fn _selector, _opts -> flunk("room was read on the request path") end)
+
+      assert AccountPolicies.resolvable?(account)
+      assert PlacerRegions.all_for(account) == []
+
+      unsupported = organization_account()
+      BillingFixtures.subscription_fixture(account_id: unsupported.id, plan: :open_source)
+
+      refute AccountPolicies.resolvable?(unsupported)
+    end
+
+    test "places as it did before when the cluster cannot be read" do
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      unreadable_cluster()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+    end
+
+    test "skips only a region known to be full, never one that cannot be read" do
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false})
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-west"}}
+    end
+
+    test "never moves an account that already has an instance" do
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "us-west"])
+      live_instance(account, "us-east")
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+    end
+
+    test "resolves the same answer in batch as it does one at a time" do
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert AccountPolicies.resolve_all([account]) == %{account.id => {:ok, %{plan: :pro, service_region: "us-west"}}}
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
     end
   end
 
