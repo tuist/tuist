@@ -249,6 +249,12 @@ spec:
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
             {{- end }}
+            {{- if .Values.sandboxes.enabled }}
+            # Sandboxes namespace: the principal namespace the server requires
+            # on the sandboxd node connection's TokenReview.
+            - name: TUIST_SANDBOXES_NAMESPACE
+              value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+            {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
             # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).

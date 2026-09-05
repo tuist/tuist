@@ -120,6 +120,22 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @dispatch_audience, opts)
   end
 
+  # Audience the sandboxd DaemonSet's projected SA token carries when it
+  # dials the node WebSocket endpoint. Same single-purpose reasoning as
+  # the dispatch audience: the token validates here and nowhere else.
+  @sandbox_node_audience "tuist-sandboxes"
+
+  def sandbox_node_audience, do: @sandbox_node_audience
+
+  @doc """
+  TokenReview for the sandboxd node connection. Same contract as
+  `create_token_review/2` but validated against the `tuist-sandboxes`
+  audience.
+  """
+  def create_sandbox_node_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @sandbox_node_audience, opts)
+  end
+
   defp create_audience_token_review(token, audience, opts) do
     body =
       JSON.encode!(%{

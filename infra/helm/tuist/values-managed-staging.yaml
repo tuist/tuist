@@ -885,6 +885,30 @@ buildersFleet:
   externalSecrets:
     enabled: false
 
+# Firecracker sandboxes for coding-agent sessions, on the OVH RISE-S that also
+# hosts the Linux runner pool. 20 GiB of the box's 64 GB is reserved for
+# guests; the kata runner pools keep the rest. Tags are pinned to
+# `sha-<git-sha>` builds from sandboxd-image.yml / sandbox-image.yml on the
+# branch under validation. The admin API is on so validation Jobs can drive
+# the daemon without going through the server.
+sandboxes:
+  enabled: true
+  image:
+    tag: "sha-f74a8248bc57"
+  templateImage:
+    tag: "sha-56965cb61732"
+  nodePools:
+    - runners-linux
+  tolerations:
+    - key: tuist.dev/runner-tier
+      operator: Equal
+      value: bare-metal
+      effect: NoSchedule
+  memoryGiB: 20
+  admin:
+    enabled: true
+  logLevel: debug
+
 # Kata Containers + Firecracker runtime for Linux bare-metal nodes.
 # The `kataContainers` block above defaults to disabled; staging
 # flips it on so the kata-deploy DaemonSet installs the runtime on

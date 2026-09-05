@@ -1888,6 +1888,63 @@ macosFleet:
 # the runners namespace (templates/runners-namespace.yaml); a
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
+# Firecracker microVM sandboxes for coding-agent sessions (Claude Managed
+# Agents self-hosted environments). A privileged `sandboxd` DaemonSet on the
+# selected bare-metal pools creates one persistent VM per agent session from a
+# golden template snapshot, pauses it to the node's NVMe when the session goes
+# idle and resumes it on the next turn. Runners stay on Kata; this is a
+# separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
+sandboxes:
+  enabled: false
+  namespace: tuist-sandboxes
+  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
+  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  image:
+    repository: ghcr.io/tuist/sandboxd
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateImage:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateName: default
+  # Pull secrets for the two images, e.g. while a freshly created ghcr package
+  # is still private. Names of docker-registry Secrets in the sandboxes
+  # namespace.
+  imagePullSecrets: []
+  # `node.cluster.x-k8s.io/pool` values the DaemonSet may land on. Required.
+  nodePools: []
+  tolerations: []
+  # Memory the DaemonSet Pod reserves for guests (request == limit), so
+  # kube-scheduler keeps kata runner Pods out of it. Guests only consume the
+  # pages they touch, so this is a ceiling, not a per-sandbox reservation.
+  memoryGiB: 16
+  cpu: "2"
+  # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
+  # startup instead of on the first create.
+  prebuildShapes: "2x4096"
+  metricsPort: 9470
+  # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
+  # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
+  # namespace. Off outside staging.
+  admin:
+    enabled: false
+    port: 9471
+  # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
+  # turn off to debug a jailer problem on a staging box.
+  jailer: true
+  logLevel: info
+  networkPolicy:
+    enabled: true
+    # Cluster ranges the guests must not reach; the public 80/443 allow
+    # carves these out. Match runnersFleet.networkPolicy.exceptCIDRs.
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+    # Let guests reach in-cluster Kura cache pods on :4000.
+    kuraEgress: true
+
 runnersFleet:
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool

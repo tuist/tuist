@@ -28,6 +28,8 @@ use (
 	./infra/macos-log-shipper
 	./infra/runner-image
 	./infra/runners-controller
+	./infra/sandbox-image
+	./infra/sandboxd
 	./infra/stable-egress-controller
 	./infra/tart-kubelet
 	./kube-impersonator
