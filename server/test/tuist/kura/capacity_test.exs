@@ -433,8 +433,8 @@ defmodule Tuist.Kura.CapacityTest do
 
   # us-east sizes per plan, bin-packs the memory ceiling, reserves the
   # Enterprise egress floor and runs two replicas, so an Enterprise instance
-  # asks each box for two of everything: 16Gi of disk, 1024 MiB of memory and
-  # a 4096 MiB ceiling, 500m of CPU and 25 Mbps, per replica.
+  # asks the pool for two replicas of: 16Gi of disk, 1024 MiB of memory and a
+  # 4096 MiB ceiling, 500m of CPU and 25 Mbps.
   describe "room_for?/2" do
     test "has room when one node covers every replica of the instance" do
       stub_pool([pool_box("box-1")])
@@ -443,8 +443,8 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "counts the claim once per replica, as the disk will" do
-      # 30 GiB left takes one Enterprise replica and not the second, and an
-      # instance half Pending is not placed. Pro's two 8Gi claims fit.
+      # 30 GiB left takes one Enterprise replica, and there is no other node
+      # for the second. Pro's two 8Gi claims fit.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"ephemeral-storage" => "100Gi"},
@@ -454,6 +454,39 @@ defmodule Tuist.Kura.CapacityTest do
 
       assert Capacity.room_for?(@region, :enterprise) == false
       assert Capacity.room_for?(@region, :pro) == true
+    end
+
+    test "places replicas split across nodes, since the affinity only prefers co-location" do
+      # Neither box takes both Enterprise replicas; each takes one, and the
+      # scheduler will split them rather than leave the instance Pending.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "80Gi"})]
+        ),
+        pool_box("box-2",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "80Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "bounds every read, so a hanging apiserver costs seconds" do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Client, :list_nodes, fn _selector, opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, %{"items" => [pool_node(pool_box("box-1"))]}}
+      end)
+
+      stub(Client, :list_pods_on_node, fn "box-1", opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, []}
+      end)
+
+      assert Capacity.room_for?(@region, :enterprise) == true
     end
 
     test "counts every pod on the node against it, whoever owns it" do
@@ -535,6 +568,26 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.room_for?(@region, :enterprise) == true
     end
 
+    test "reads the ceiling budget from every node the selector matches, as the controller does" do
+      # Only the cordoned box advertises the budget. The controller lists every
+      # matching node, finds it, and puts the request on the pod, which the
+      # Ready box cannot then take. Reading only the schedulable nodes would
+      # omit the request and report room the scheduler will not find.
+      stub_pool([
+        pool_box("ready", without: ["tuist.dev/memory-ceiling-mib"]),
+        pool_box("cordoned", unschedulable?: true)
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+
+      stub_pool([
+        pool_box("ready", without: ["tuist.dev/memory-ceiling-mib"]),
+        pool_box("restarting", ready?: false)
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
     test "ignores a pod that has finished, which holds nothing" do
       stub_pool([
         pool_box("box-1",
@@ -560,7 +613,7 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "is unknown when the cluster cannot be read" do
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
-      stub(Client, :list_nodes, fn _selector -> {:error, :unavailable} end)
+      stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
 
       assert Capacity.room_for?(@region, :enterprise) == nil
     end
@@ -585,7 +638,7 @@ defmodule Tuist.Kura.CapacityTest do
   # so shaping a region here means answering both lists.
   defp stub_pool(boxes) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
-    stub(Client, :list_nodes, fn _selector -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+    stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
 
     stub(Client, :list_pods_on_node, fn name, _opts ->
       case Enum.find(boxes, &(&1.name == name)) do

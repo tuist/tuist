@@ -516,7 +516,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   defp room(rooms) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
-    stub(Client, :list_nodes, fn selector ->
+    stub(Client, :list_nodes, fn selector, _opts ->
       region = Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector))
 
       if region && Map.has_key?(rooms, region.id) do
@@ -533,7 +533,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
   defp unreadable_cluster do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
-    stub(Client, :list_nodes, fn _selector -> {:error, :unavailable} end)
+    stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
   end
 
   defp box(name) do
@@ -820,15 +820,47 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       assert PlacerRegions.all_for(account) == []
     end
 
-    test "spills an unattributed account off the default region when it is full" do
-      # The default order is the mapping table's, so the other American region
-      # comes before Europe.
+    test "steers an unattributed account off the full default region without binding it" do
+      # A first request is resolved before the flush that carries its origin.
+      # The default order still moves it off the full region, to the other
+      # American region rather than Europe, but nothing is recorded: a decision
+      # taken on no origin would outrank the origin once it lands.
       account = organization_account()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       serving(["us-east", "us-west", "eu-central"])
       room(%{"us-east" => false, "us-west" => true, "eu-central" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+
+      # The origin lands: the account is European, and Europe has room.
+      seed_origin(account, "FR")
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+    end
+
+    test "resolvable?/1 answers without reading room or recording a placement" do
+      # The request path asks whether an instance is expected, not where, and
+      # room cannot change that answer. Reading it there would put the
+      # apiserver on the request path, and recording there would bind the
+      # account before its origin has flushed.
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-VA")
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      stub(Client, :list_nodes, fn _selector, _opts -> flunk("room was read on the request path") end)
+
+      assert AccountPolicies.resolvable?(account)
+      assert PlacerRegions.all_for(account) == []
+
+      unsupported = organization_account()
+      BillingFixtures.subscription_fixture(account_id: unsupported.id, plan: :open_source)
+
+      refute AccountPolicies.resolvable?(unsupported)
     end
 
     test "places as it did before when the cluster cannot be read" do

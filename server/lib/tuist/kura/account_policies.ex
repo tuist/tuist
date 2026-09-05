@@ -48,11 +48,13 @@ defmodule Tuist.Kura.AccountPolicies do
   First placement, an account with nothing running and no decision recorded
   for it, goes to the region nearest its traffic that has room for it. A
   preferred region the cluster says is full is skipped for a permitted sibling
-  that is not (`Tuist.Kura.Capacity.room_for?/2`), the skip is counted
-  (`Tuist.Kura.Telemetry.placement_capacity_spill/3`), and the region chosen is
-  recorded as a placement decision so the account does not flip back once the
-  reading moves. Residency and Air's funding are never crossed for room: an
-  account whose residency admits one region waits in it, exactly as before.
+  that is not (`Tuist.Kura.Capacity.room_for?/2`). Once the account's origin is
+  known, the skip is counted (`Tuist.Kura.Telemetry.placement_capacity_spill/3`)
+  and the region chosen is recorded as a placement decision, so the account
+  does not flip back once the reading moves. Residency and Air's funding are
+  never crossed for room: an account whose residency admits one region waits in
+  it, exactly as before. `resolvable?/1` answers whether an account resolves at
+  all without reading room or recording anything, for the request path.
   """
 
   import Ecto.Query
@@ -93,12 +95,34 @@ defmodule Tuist.Kura.AccountPolicies do
   no signal that they are.
   """
   def resolve(%Account{} = account) do
-    resolve(account, %{
+    resolve(account, default_lookups())
+  end
+
+  @doc """
+  Whether the account resolves to a service region at all.
+
+  The request path's question: an endpoint answer for an account with no
+  instance yet says whether one is expected, and re-asks every 30 seconds.
+  Which region it would be is not part of the answer, and room cannot change
+  whether there is one, since a region known to be full is only ever skipped
+  for another the account may use. So room is not read here, which keeps a
+  slow apiserver off the request path, and no spill is recorded, which keeps a
+  request that carries no origin yet from binding the account to a region its
+  traffic never asked for. Both wait for the demand flush, which folds origins
+  in before it resolves.
+  """
+  def resolvable?(%Account{} = account) do
+    match?({:ok, _resolution}, resolve(account, %{default_lookups() | room: fn _region, _plan -> nil end}))
+  end
+
+  defp default_lookups do
+    %{
       assignment: &current_service_region_assignment/1,
       live_region: &current_live_service_region/1,
       placer_region: &PlacerRegions.primary_region/1,
-      origin: &majority_origin/1
-    })
+      origin: &majority_origin/1,
+      room: &Capacity.room_for?/2
+    }
   end
 
   @doc """
@@ -122,7 +146,8 @@ defmodule Tuist.Kura.AccountPolicies do
          assignment: fn _account -> Map.get(assignments, id) end,
          live_region: fn _account -> Map.get(live_regions, id) end,
          placer_region: fn _account -> Map.get(placer_regions, id) end,
-         origin: fn _account -> Map.get(origins, id) end
+         origin: fn _account -> Map.get(origins, id) end,
+         room: &Capacity.room_for?/2
        })}
     end)
   end
@@ -360,10 +385,10 @@ defmodule Tuist.Kura.AccountPolicies do
       if preferred != wanted, do: Telemetry.placement_preference_unmet(origin, wanted, preferred)
     end
 
-    case OriginMap.preferred(origin, with_room(placeable, account)) do
+    case OriginMap.preferred(origin, with_room(placeable, account, lookups)) do
       nil -> preferred
       ^preferred -> preferred
-      spilled -> spill(account, plan, preferred, spilled)
+      spilled -> spill(account, plan, origin, preferred, spilled)
     end
   end
 
@@ -371,10 +396,10 @@ defmodule Tuist.Kura.AccountPolicies do
   # of the account's plan, or `placeable` itself when that is all of them. A
   # region whose room cannot be read keeps its place, so a cluster that cannot
   # be reached leaves placement exactly as it was.
-  defp with_room(placeable, account) do
+  defp with_room(placeable, account, lookups) do
     sizing_plan = sizing_plan(account)
 
-    case Enum.reject(placeable, &(Capacity.room_for?(&1, sizing_plan) == false)) do
+    case Enum.reject(placeable, &(lookups.room.(&1, sizing_plan) == false)) do
       [] -> placeable
       roomy -> roomy
     end
@@ -383,7 +408,18 @@ defmodule Tuist.Kura.AccountPolicies do
   # The preferred region was skipped for room, which is the evidence that it
   # needs another box: the account is served further from its traffic than the
   # catalog could serve it, for as long as the box is missing.
-  defp spill(account, plan, wanted, served) do
+  #
+  # Counted and recorded only once the account is attributed. An unattributed
+  # spill is usually the account's first request, resolved before the flush
+  # that carries its origin, and a decision recorded then would outrank the
+  # origin once it lands: a European account arriving while the default
+  # region is full would be bound to the other American region for good, with
+  # Europe standing open. The demand flush folds origins in before it
+  # resolves, so the resolution that writes the lifecycle row is the attributed
+  # one. Until then the spill steers this resolution and binds nothing.
+  defp spill(_account, _plan, nil, _wanted, served), do: served
+
+  defp spill(account, plan, _origin, wanted, served) do
     Telemetry.placement_capacity_spill(plan, wanted, served)
 
     PlacerRegions.put_primary(account, served, %{
