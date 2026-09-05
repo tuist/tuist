@@ -171,9 +171,9 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
-## Gradle authentication uses two credentials
+## Build-system integrations use two credentials
 
-The credential used for Model Context Protocol tools does not authenticate the Gradle plugin. Before an agent edits or verifies a Gradle integration, it should run:
+The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:
 
 ```bash
 tuist auth whoami --url https://tuist.dev
@@ -288,6 +288,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
+| `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
 | `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations and their correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
 | `get_bazel_invocation` | Get one completed Bazel invocation and its correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
 | `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
@@ -364,10 +365,11 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `compare_generations` | Guides you through comparing two generation runs to identify performance regressions and module cache changes. |
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 | `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. It includes separate tool and Gradle authentication, account discovery, project creation, remote cache policy, build insights, and read-back verification. |
+| `integrate_bazel_project` | Guides you through creating or selecting a Bazel project, authenticating the command line, configuring the remote cache and build insights, and verifying the integration through Tuist build data. |
 | `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
 | `ask_tuist` | Answers a Tuist question using public material for context and focused implementation and test evidence as the source of truth for current behavior. It requires a `question` and cites revision-pinned evidence. |
 
-Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_bazel_project` accepts an optional `server_url` for self-hosted or local installations. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
 
 #### Gradle integration prompt features
 
