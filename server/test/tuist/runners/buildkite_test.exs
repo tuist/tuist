@@ -387,6 +387,66 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
   end
 
+  describe "poll/1 batching" do
+    test "enqueues a burst without a round trip per job", %{
+      installation: installation,
+      account: account,
+      queue_key: queue_key
+    } do
+      # A poll can reserve up to a hundred jobs. Doing the mapping insert,
+      # read back, completion check and lifecycle write per job put that
+      # burst into the hundreds of statements.
+      jobs = Enum.map(1..25, fn _ -> scheduled_job(%{queue_key: queue_key}) end)
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->
+        {:ok, %{jobs: jobs, dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      test_pid = self()
+      handler_id = "buildkite-batch-#{System.unique_integer([:positive])}"
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          [:tuist, :repo, :query],
+          # The handler runs in whichever process issued the query, and this
+          # file is async, so without this it also counts the statements of
+          # every test running beside it.
+          fn _name, _measurements, _metadata, _ ->
+            if self() == test_pid, do: send(test_pid, :query)
+          end,
+          nil
+        )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      assert {:ok, 25} = Buildkite.poll(installation)
+
+      queries = drain_queries(0)
+
+      # Every job still lands, and the statement count does not scale with
+      # the burst the way a per-job path would.
+      assert Repo.aggregate(from(j in Job, where: j.account_id == ^account.id), :count) == 25
+
+      assert Repo.aggregate(
+               from(w in WorkflowJob, where: w.account_id == ^account.id and w.status == "queued"),
+               :count
+             ) == 25
+
+      assert queries < 25, "expected fewer statements than jobs, saw #{queries}"
+    end
+
+    defp drain_queries(count) do
+      receive do
+        :query -> drain_queries(count + 1)
+      after
+        0 -> count
+      end
+    end
+  end
+
   describe "poll/1 reservation renewal" do
     setup %{installation: installation, queue_key: queue_key} do
       job = scheduled_job(%{queue_key: queue_key})

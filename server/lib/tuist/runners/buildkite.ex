@@ -513,12 +513,7 @@ defmodule Tuist.Runners.Buildkite do
       count =
         jobs
         |> Enum.filter(&MapSet.member?(reserved_set, &1.job_uuid))
-        |> Enum.reduce(0, fn job, acc ->
-          case enqueue(installation, account, target, job, reserved_until) do
-            :ok -> acc + 1
-            :error -> acc
-          end
-        end)
+        |> enqueue_all(installation, account, target, reserved_until)
 
       if count > 0 do
         Logger.info("runners: buildkite enqueued",
@@ -548,54 +543,93 @@ defmodule Tuist.Runners.Buildkite do
     end
   end
 
-  defp enqueue(installation, account, target, job, reserved_until) do
-    attrs = %{
-      job_uuid: job.job_uuid,
-      account_id: account.id,
-      organization_slug: installation.organization_slug,
-      pipeline_slug: job.pipeline_slug,
-      build_uuid: job.build_uuid,
-      build_number: job.build_number,
-      queue_key: job.queue_key,
-      reserved_until: DateTime.truncate(reserved_until, :second)
-    }
+  # One insert for the batch, one read back, one lifecycle write. A poll
+  # can reserve up to `@list_limit` jobs, and doing this per job cost an
+  # advisory lock, several existence queries and a transaction each.
+  #
+  # The surrogate id comes from a database default and `ON CONFLICT DO
+  # NOTHING` returns no row for a mapping that already existed, so the ids
+  # are read back rather than taken from what the insert returned. That
+  # read is authoritative whether this pass created the rows or an earlier
+  # one did.
+  #
+  # An earlier shape treated "no surrogate returned" as "already queued"
+  # and skipped the lifecycle write. Since the mapping row was already
+  # there, the job could never be picked up again: it sat scheduled on
+  # Buildkite forever while every later pass filtered it out as known.
+  defp enqueue_all([], _installation, _account, _target, _reserved_until), do: 0
 
-    # The surrogate id comes from a database default, and an insert that
-    # hits `ON CONFLICT DO NOTHING` returns no row to read it from. Rather
-    # than infer the id from what the insert hands back, write the mapping
-    # and then read it, which is authoritative whether this pass created
-    # the row or an earlier one did.
-    #
-    # The previous shape treated "no surrogate returned" as "already
-    # queued" and returned `:ok`. That silently skipped creating the
-    # lifecycle row, and since the mapping row was already written the job
-    # could never be picked up again: it sat scheduled on Buildkite
-    # forever while every later pass filtered it out as known.
-    with {:ok, _inserted} <-
-           %Job{} |> Job.changeset(attrs) |> Repo.insert(on_conflict: :nothing),
-         %Job{workflow_job_id: workflow_job_id} when is_integer(workflow_job_id) <-
-           Repo.get(Job, job.job_uuid) do
-      Jobs.enqueue_if_missing(lifecycle_attrs(account, target, job, workflow_job_id))
-      :ok
-    else
-      {:error, changeset} ->
-        Logger.warning("runners: buildkite job insert failed",
-          account: account.name,
-          job_uuid: job.job_uuid,
-          errors: inspect(changeset.errors)
-        )
+  defp enqueue_all(jobs, installation, account, target, reserved_until) do
+    {rows, rejected} = mapping_rows(jobs, installation, account, reserved_until)
 
-        :error
+    Enum.each(rejected, fn {job, errors} ->
+      Logger.warning("runners: buildkite job insert failed",
+        account: account.name,
+        job_uuid: job.job_uuid,
+        errors: inspect(errors)
+      )
+    end)
 
-      other ->
-        Logger.warning("runners: buildkite job mapping unreadable after write",
-          account: account.name,
-          job_uuid: job.job_uuid,
-          errors: inspect(other)
-        )
+    Repo.insert_all(Job, rows, on_conflict: :nothing)
 
-        :error
-    end
+    uuids = Enum.map(rows, & &1.job_uuid)
+    ids_by_uuid = mapping_ids(uuids)
+
+    {ready, unreadable} = Enum.split_with(jobs, &Map.has_key?(ids_by_uuid, &1.job_uuid))
+
+    Enum.each(unreadable, fn job ->
+      Logger.warning("runners: buildkite job mapping unreadable after write",
+        account: account.name,
+        job_uuid: job.job_uuid
+      )
+    end)
+
+    :ok =
+      ready
+      |> Enum.map(&lifecycle_attrs(account, target, &1, Map.fetch!(ids_by_uuid, &1.job_uuid)))
+      |> WorkflowJobs.enqueue_many_if_missing()
+
+    length(ready)
+  end
+
+  # `insert_all` bypasses the changeset, so the rows are validated in
+  # memory first and an invalid one is dropped rather than written.
+  defp mapping_rows(jobs, installation, account, reserved_until) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    reserved_until = DateTime.truncate(reserved_until, :second)
+
+    jobs
+    |> Enum.map(fn job ->
+      attrs = %{
+        job_uuid: job.job_uuid,
+        account_id: account.id,
+        organization_slug: installation.organization_slug,
+        pipeline_slug: job.pipeline_slug,
+        build_uuid: job.build_uuid,
+        build_number: job.build_number,
+        queue_key: job.queue_key,
+        reserved_until: reserved_until
+      }
+
+      case %Job{} |> Job.changeset(attrs) |> Ecto.Changeset.apply_action(:insert) do
+        {:ok, _valid} -> {:ok, Map.merge(attrs, %{inserted_at: now, updated_at: now})}
+        {:error, changeset} -> {:error, {job, changeset.errors}}
+      end
+    end)
+    |> Enum.split_with(&match?({:ok, _}, &1))
+    |> then(fn {ok, errors} ->
+      {Enum.map(ok, fn {:ok, row} -> row end), Enum.map(errors, fn {:error, pair} -> pair end)}
+    end)
+  end
+
+  defp mapping_ids([]), do: %{}
+
+  defp mapping_ids(uuids) do
+    Job
+    |> where([j], j.job_uuid in ^uuids)
+    |> select([j], {j.job_uuid, j.workflow_job_id})
+    |> Repo.all()
+    |> Map.new()
   end
 
   # Buildkite's coordinates are mapped onto the lifecycle table's
