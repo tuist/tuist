@@ -1,0 +1,93 @@
+{{- $host := required "host is required" .Values.host -}}
+{{- $fullname := include "mdm.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-nanomdm
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm
+spec:
+  replicas: {{ .Values.nanomdm.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nanomdm
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nanomdm
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      containers:
+        - name: nanomdm
+          image: "{{ .Values.images.nanomdm.repository }}:{{ .Values.images.nanomdm.tag }}"
+          imagePullPolicy: {{ .Values.images.nanomdm.pullPolicy }}
+          args:
+            - -listen
+            - :9000
+            - -api
+            - $(NANOMDM_API_KEY)
+            - -ca
+            - /scep-ca/ca.pem
+            - -storage
+            - pgsql
+            - -storage-dsn
+            - $(STORAGE_DSN)
+            {{- with .Values.nanomdm.storageOptions }}
+            - -storage-options
+            - {{ . | quote }}
+            {{- end }}
+            - -webhook-url
+            - http://{{ $fullname }}-enroller:9004/webhook
+          env:
+            - name: NANOMDM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: nanomdm-api-key
+            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9000
+          volumeMounts:
+            - name: scep-ca
+              mountPath: /scep-ca
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            {{- toYaml .Values.nanomdm.resources | nindent 12 }}
+      volumes:
+        - name: scep-ca
+          secret:
+            secretName: {{ $fullname }}-scep-ca
+            items:
+              - key: ca.pem
+                path: ca.pem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-nanomdm
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+  selector:
+    {{- include "mdm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm

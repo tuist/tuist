@@ -1,0 +1,82 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := required "host is required when ingress.enabled is true" .Values.host -}}
+{{- $depHost := required "depHost is required when ingress.enabled is true" .Values.depHost -}}
+{{- $fullname := include "mdm.fullname" . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+        - {{ $depHost | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    # Device-facing host. Deliberately path-scoped: the enroller's
+    # /webhook stays cluster-internal because it is not listed here.
+    # nanomdm's /v1 API is exposed for the operator ceremonies (push
+    # cert upload, ad-hoc enqueue); nanomdm itself enforces HTTP Basic
+    # auth on it.
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /mdm
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-nanomdm
+                port: { number: 9000 }
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-nanomdm
+                port: { number: 9000 }
+          - path: /version
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $fullname }}-nanomdm
+                port: { number: 9000 }
+          - path: /scep
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-scep
+                port: { number: 8080 }
+          - path: /enroll
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $fullname }}-enroller
+                port: { number: 9004 }
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-enroller
+                port: { number: 9004 }
+    # Operator-facing nanodep depserver (token ceremonies, DEP proxy);
+    # Basic auth enforced by depserver.
+    - host: {{ $depHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-nanodep
+                port: { number: 9001 }
+{{- end }}

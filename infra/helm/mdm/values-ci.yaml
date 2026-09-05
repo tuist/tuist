@@ -1,0 +1,23 @@
+# Lint/template validation values only; never deployed.
+host: validation.mdm.example.com
+depHost: validation.mdm-dep.example.com
+
+images:
+  scep:
+    tag: validation
+  enroller:
+    tag: validation
+
+runtimeSecrets:
+  inline:
+    nanomdmAPIKey: validation
+    nanodepAPIKey: validation
+    scepChallenge: validation
+    scepCACertPEM: |
+      -----BEGIN CERTIFICATE-----
+      validation
+      -----END CERTIFICATE-----
+    scepCAKeyPEM: |
+      -----BEGIN RSA PRIVATE KEY-----
+      validation
+      -----END RSA PRIVATE KEY-----

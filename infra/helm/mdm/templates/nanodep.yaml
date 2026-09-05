@@ -1,0 +1,117 @@
+{{- $fullname := include "mdm.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-nanodep
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanodep
+spec:
+  replicas: {{ .Values.nanodep.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nanodep
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nanodep
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      containers:
+        - name: depserver
+          image: "{{ .Values.images.nanodep.repository }}:{{ .Values.images.nanodep.tag }}"
+          imagePullPolicy: {{ .Values.images.nanodep.pullPolicy }}
+          args:
+            - -listen
+            - :9001
+            - -api
+            - $(NANODEP_API_KEY)
+            - -storage
+            - pgsql
+            - -storage-dsn
+            - $(STORAGE_DSN)
+          env:
+            - name: NANODEP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: nanodep-api-key
+            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9001
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            {{- toYaml .Values.nanodep.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-nanodep
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanodep
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9001
+      targetPort: http
+  selector:
+    {{- include "mdm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nanodep
+{{- if .Values.nanodep.syncer.enabled }}
+---
+{{- /* depsyncer polls Apple's DEP sync endpoint and auto-assigns the
+stored assigner profile UUID to newly added devices. Same image and
+storage as depserver, different entrypoint. */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-depsyncer
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: depsyncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: depsyncer
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: depsyncer
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      containers:
+        - name: depsyncer
+          image: "{{ .Values.images.nanodep.repository }}:{{ .Values.images.nanodep.tag }}"
+          imagePullPolicy: {{ .Values.images.nanodep.pullPolicy }}
+          command: ["/app/depsyncer"]
+          args:
+            - -storage
+            - pgsql
+            - -storage-dsn
+            - $(STORAGE_DSN)
+          env:
+            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.nanodep.resources | nindent 12 }}
+{{- end }}

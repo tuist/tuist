@@ -1,0 +1,17 @@
+# Staging overlay. Deployed to the staging workload cluster (namespace
+# `mdm`) by .github/workflows/mdm-deployment.yml. The hostname follows
+# the staging leaf-suffix convention (registry-staging.tuist.dev, not
+# registry.staging.tuist.dev); external-dns creates the records and
+# cert-manager issues the certificate from the annotation.
+host: mdm-staging.tuist.dev
+depHost: mdm-dep-staging.tuist.dev
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: MDM
