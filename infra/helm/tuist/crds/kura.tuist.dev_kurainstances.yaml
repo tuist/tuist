@@ -246,6 +246,12 @@ spec:
                       items:
                         type: integer
                         format: int32
+                    scheduleCapMilli:
+                      type: integer
+                      format: int32
+                    scheduleCapSetAt:
+                      type: string
+                      format: date-time
                 rolloutHealth:
                   type: object
                   properties:

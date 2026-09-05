@@ -254,14 +254,21 @@ type KuraInstanceStatus struct {
 
 // KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a
 // ring of fixed-length windows, oldest first, with BucketStartedAt the start
-// of the last. The peak is taken across the instance's pods rather than per
-// pod: the pod template is shared, and primary selection can hand the role to
-// either replica.
+// of the last. A window that closed with no reading holds -1, which is not
+// the same as a reading of zero. The peak is taken across the instance's pods
+// rather than per pod: the pod template is shared, and primary selection can
+// hand the role to either replica.
+//
+// ScheduleCapMilli bounds the template request at what the scheduler has
+// shown it will admit, and expires so a box that has since freed up is
+// retried.
 type KuraInstanceCPUAutosize struct {
 	RequestMilli     int32        `json:"requestMilli,omitempty"`
 	PeakMilli        int32        `json:"peakMilli,omitempty"`
 	BucketStartedAt  *metav1.Time `json:"bucketStartedAt,omitempty"`
 	BucketPeaksMilli []int32      `json:"bucketPeaksMilli,omitempty"`
+	ScheduleCapMilli int32        `json:"scheduleCapMilli,omitempty"`
+	ScheduleCapSetAt *metav1.Time `json:"scheduleCapSetAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

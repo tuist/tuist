@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -171,13 +172,16 @@ func TestObserveCPUPeakLeavesUnobservedWindowsEmpty(t *testing.T) {
 	if len(state.BucketPeaksMilli) != 5 {
 		t.Fatalf("retained %d windows, want 5", len(state.BucketPeaksMilli))
 	}
-	for i, want := range []int32{631, 0, 0, 0, 4} {
+	for i, want := range []int32{631, cpuUnobservedWindow, cpuUnobservedWindow, cpuUnobservedWindow, 4} {
 		if state.BucketPeaksMilli[i] != want {
 			t.Fatalf("window %d = %dm, want %dm", i, state.BucketPeaksMilli[i], want)
 		}
 	}
 	if state.PeakMilli != 631 {
 		t.Fatalf("peak = %dm, want the surviving 631m", state.PeakMilli)
+	}
+	if got := observedWindows(state); got != 2 {
+		t.Fatalf("observed windows = %d, want the 2 that carry a reading", got)
 	}
 }
 
@@ -281,5 +285,184 @@ func TestCPURequestSurvivesAControllerRestart(t *testing.T) {
 	next := observeCPUPeak(restarted.Status.CPUAutosize, 1, now.Add(cpuShrinkMinBuckets*2*cpuBucketDuration))
 	if next.RequestMilli != 600 {
 		t.Fatalf("request = %dm, want 600m while the ring still holds the peak", next.RequestMilli)
+	}
+}
+
+func pendingPod(name string, milli int64, reason string) corev1.Pod {
+	pod := runningPod(name, milli)
+	pod.Spec.NodeName = ""
+	pod.Status.Phase = corev1.PodPending
+	pod.Status.Conditions = []corev1.PodCondition{{
+		Type:   corev1.PodScheduled,
+		Status: corev1.ConditionFalse,
+		Reason: reason,
+	}}
+	return pod
+}
+
+func runningPod(name string, milli int64) corev1.Pod {
+	return corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec: corev1.PodSpec{
+			NodeName: "node-a",
+			Containers: []corev1.Container{{
+				Name: kuraContainerName,
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU: *resource.NewMilliQuantity(milli, resource.DecimalSI),
+					},
+				},
+			}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+}
+
+// Windows the controller never observed must not count as history, or two
+// quiet samples either side of a gap would look like two days of evidence.
+func TestCPURequestIgnoresGapsWhenCountingHistory(t *testing.T) {
+	now := time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)
+
+	state := observeCPUPeak(nil, 2, now)
+	state = observeCPUPeak(state, 2, now.Add(42*time.Hour))
+
+	if state.RequestMilli != cpuColdStartMilli {
+		t.Fatalf("request = %dm after two readings, want the cold-start %dm", state.RequestMilli, cpuColdStartMilli)
+	}
+}
+
+// A metrics outage longer than the ring must not discard the peak and shrink
+// on the first reading back.
+func TestCPURequestSurvivesAnOutageLongerThanTheRing(t *testing.T) {
+	now := time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)
+
+	var state *kurav1alpha1.KuraInstanceCPUAutosize
+	for i := 0; i < cpuBucketCount; i++ {
+		state = observeCPUPeak(state, 800, now.Add(time.Duration(i)*cpuBucketDuration))
+	}
+	if state.RequestMilli != 1000 {
+		t.Fatalf("request = %dm, want 1000m", state.RequestMilli)
+	}
+
+	state = observeCPUPeak(state, 1, now.Add(time.Duration(cpuBucketCount)*cpuBucketDuration+7*24*time.Hour))
+
+	if state.RequestMilli != 1000 {
+		t.Fatalf("request = %dm on the first reading after the outage, want it held at 1000m", state.RequestMilli)
+	}
+}
+
+// A raise the node cannot fit deletes the running pod and leaves the
+// replacement Pending. Nothing then reports metrics, so without this the
+// oversized request is held forever and a single-replica instance stays down.
+func TestScheduleCapBacksOffAnUnschedulableRequest(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000, PeakMilli: 800},
+		},
+	}
+	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}
+
+	applyScheduleCap(instance, pods, time.Now())
+
+	if got := cpuRequestMilli(instance); got >= 1000 {
+		t.Fatalf("template request = %dm, want it backed off below 1000m", got)
+	}
+	if instance.Status.CPUAutosize.RequestMilli != 1000 {
+		t.Fatal("the observation itself should be untouched; only the cap bounds the template")
+	}
+}
+
+// A sibling that is scheduled proves what fits, so recovery is one step
+// rather than a walk down the ladder.
+func TestScheduleCapPrefersASchedulableSiblingsRequest(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+		},
+	}
+	pods := []corev1.Pod{
+		runningPod("kura-acme-us-east-1-0", 100),
+		pendingPod("kura-acme-us-east-1-1", 1000, corev1.PodReasonUnschedulable),
+	}
+
+	applyScheduleCap(instance, pods, time.Now())
+
+	if got := cpuRequestMilli(instance); got != 100 {
+		t.Fatalf("template request = %dm, want the sibling's 100m", got)
+	}
+}
+
+// Without a memory of what failed, the next pass would raise the request
+// again and roll the pod back into Pending, forever.
+func TestScheduleCapDoesNotOscillate(t *testing.T) {
+	now := time.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+		},
+	}
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, now)
+	capped := cpuRequestMilli(instance)
+
+	// The pod schedules at the capped size and the ring still wants 1000m.
+	applyScheduleCap(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", int64(capped))}, now.Add(time.Minute))
+
+	if got := cpuRequestMilli(instance); got != capped {
+		t.Fatalf("template request = %dm, want it held at the capped %dm", got, capped)
+	}
+}
+
+// The cap is knowledge about one moment's occupancy, so it is forgotten and
+// the wanted request retried once the box has had time to change.
+func TestScheduleCapExpires(t *testing.T) {
+	now := time.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+		},
+	}
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, now)
+
+	applyScheduleCap(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", 100)}, now.Add(cpuScheduleCapTTL+time.Minute))
+
+	if got := cpuRequestMilli(instance); got != 1000 {
+		t.Fatalf("template request = %dm, want the wanted 1000m once the cap expired", got)
+	}
+}
+
+// A pod Pending for any other reason is not evidence about sizing.
+func TestScheduleCapIgnoresOtherPendingReasons(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+		},
+	}
+	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, "SchedulerError")}
+
+	applyScheduleCap(instance, pods, time.Now())
+
+	if got := cpuRequestMilli(instance); got != 1000 {
+		t.Fatalf("template request = %dm, want 1000m untouched", got)
+	}
+}
+
+// observeCPUUsage rewrites the same struct each pass, so the cap has to
+// survive it or the next reading would restore the request that did not fit.
+func TestScheduleCapSurvivesAnObservationPass(t *testing.T) {
+	instance, pods := instanceWithPods("kura-acme-us-east-1-0")
+	instance.Status.CPUAutosize = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000}
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, time.Now())
+	capped := cpuRequestMilli(instance)
+
+	r := &KuraInstanceReconciler{MetricsClient: &stubMetricsClient{usage: map[string]int64{
+		"kura-acme-us-east-1-0": 800,
+	}}}
+	r.observeCPUUsage(context.Background(), instance, pods)
+
+	if got := instance.Status.CPUAutosize.ScheduleCapMilli; got != capped {
+		t.Fatalf("cap = %dm after an observation, want %dm", got, capped)
+	}
+	if got := cpuRequestMilli(instance); got != capped {
+		t.Fatalf("template request = %dm, want it still capped at %dm", got, capped)
 	}
 }

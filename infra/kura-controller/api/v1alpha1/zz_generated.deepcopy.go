@@ -145,6 +145,9 @@ func (in *KuraInstanceCPUAutosize) DeepCopyInto(out *KuraInstanceCPUAutosize) {
 		out.BucketPeaksMilli = make([]int32, len(in.BucketPeaksMilli))
 		copy(out.BucketPeaksMilli, in.BucketPeaksMilli)
 	}
+	if in.ScheduleCapSetAt != nil {
+		out.ScheduleCapSetAt = in.ScheduleCapSetAt.DeepCopy()
+	}
 }
 
 func (in *KuraInstanceCPUAutosize) DeepCopy() *KuraInstanceCPUAutosize {

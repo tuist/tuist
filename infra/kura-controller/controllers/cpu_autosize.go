@@ -21,7 +21,13 @@ const (
 	cpuColdStartMilli = 100
 
 	cpuShrinkMinBuckets = 8
+
+	cpuScheduleCapTTL = 24 * time.Hour
 )
+
+// cpuUnobservedWindow marks a window that closed with no reading. It is
+// distinct from a reading of zero, which an idle pod genuinely produces.
+const cpuUnobservedWindow int32 = -1
 
 // Requests land on a band so load drifting within one does not re-template
 // the StatefulSet and roll its pods. The ends are the floor and the ceiling.
@@ -80,10 +86,11 @@ func observeCPUPeak(state *kurav1alpha1.KuraInstanceCPUAutosize, peakMilli int64
 		if steps > cpuBucketCount {
 			steps = cpuBucketCount
 		}
-		// Windows nothing was observed in stay empty rather than being
-		// backfilled, so a gap contributes no peak of its own.
+		// Windows nothing was observed in are marked rather than
+		// backfilled: they contribute no peak, and they are not history
+		// either, so a gap cannot pass the shrink gate on its own.
 		for i := 1; i < steps; i++ {
-			next.BucketPeaksMilli = append(next.BucketPeaksMilli, 0)
+			next.BucketPeaksMilli = append(next.BucketPeaksMilli, cpuUnobservedWindow)
 		}
 		next.BucketPeaksMilli = append(next.BucketPeaksMilli, sample)
 	default:
@@ -118,10 +125,20 @@ func nextCPURequestMilli(state *kurav1alpha1.KuraInstanceCPUAutosize) int32 {
 	if want > current {
 		return want
 	}
-	if want < current && len(state.BucketPeaksMilli) >= cpuShrinkMinBuckets {
+	if want < current && observedWindows(state) >= cpuShrinkMinBuckets {
 		return want
 	}
 	return current
+}
+
+func observedWindows(state *kurav1alpha1.KuraInstanceCPUAutosize) int {
+	observed := 0
+	for _, bucket := range state.BucketPeaksMilli {
+		if bucket != cpuUnobservedWindow {
+			observed++
+		}
+	}
+	return observed
 }
 
 func cpuBand(milli int64) int32 {
@@ -131,6 +148,19 @@ func cpuBand(milli int64) int32 {
 		}
 	}
 	return cpuRequestBands[len(cpuRequestBands)-1]
+}
+
+// bandBelow is the largest band under milli, floored at the ladder's first
+// entry.
+func bandBelow(milli int32) int32 {
+	below := cpuRequestBands[0]
+	for _, band := range cpuRequestBands {
+		if band >= milli {
+			break
+		}
+		below = band
+	}
+	return below
 }
 
 func clampMilli(milli int64) int32 {
@@ -146,8 +176,93 @@ func clampMilli(milli int64) int32 {
 }
 
 func cpuRequestMilli(instance *kurav1alpha1.KuraInstance) int32 {
-	if a := instance.Status.CPUAutosize; a != nil && a.RequestMilli > 0 {
-		return a.RequestMilli
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		return cpuColdStartMilli
 	}
-	return cpuColdStartMilli
+	milli := state.RequestMilli
+	if milli == 0 {
+		milli = cpuColdStartMilli
+	}
+	if state.ScheduleCapMilli > 0 && state.ScheduleCapMilli < milli {
+		return state.ScheduleCapMilli
+	}
+	return milli
+}
+
+// applyScheduleCap bounds the template request by what the scheduler has
+// shown it will admit. A raise the node cannot fit deletes the running pod
+// and leaves the replacement Pending, and a Pending pod reports no metrics,
+// so the observation that asked for the raise would otherwise hold it
+// forever. The cap is remembered, or the next pass would raise the request
+// again and roll the pod straight back into Pending.
+func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, now time.Time) {
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		state = &kurav1alpha1.KuraInstanceCPUAutosize{}
+	}
+
+	// The cap describes one moment's occupancy of one box, so it is
+	// forgotten once that box has had time to change.
+	if state.ScheduleCapSetAt != nil && now.Sub(state.ScheduleCapSetAt.Time) >= cpuScheduleCapTTL {
+		state.ScheduleCapMilli = 0
+		state.ScheduleCapSetAt = nil
+	}
+
+	var stuck, admitted int32
+	for i := range pods {
+		milli := podCPURequestMilli(&pods[i])
+		if podUnschedulable(&pods[i]) {
+			if stuck == 0 || milli < stuck {
+				stuck = milli
+			}
+			continue
+		}
+		if pods[i].Spec.NodeName != "" && milli > admitted {
+			admitted = milli
+		}
+	}
+
+	if stuck > 0 {
+		capped := bandBelow(stuck)
+		// A scheduled sibling is proof of what fits, so recovery is one
+		// step instead of a walk down the ladder.
+		if admitted > 0 && admitted < capped {
+			capped = admitted
+		}
+		if state.ScheduleCapMilli == 0 || capped < state.ScheduleCapMilli {
+			state.ScheduleCapMilli = capped
+			state.ScheduleCapSetAt = &metav1.Time{Time: now.UTC()}
+		}
+	}
+
+	if state.ScheduleCapMilli == 0 && state.RequestMilli == 0 && len(state.BucketPeaksMilli) == 0 {
+		return
+	}
+	instance.Status.CPUAutosize = state
+}
+
+func podUnschedulable(pod *corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled &&
+			condition.Status == corev1.ConditionFalse &&
+			condition.Reason == corev1.PodReasonUnschedulable {
+			return true
+		}
+	}
+	return false
+}
+
+func podCPURequestMilli(pod *corev1.Pod) int32 {
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name != kuraContainerName {
+			continue
+		}
+		request := pod.Spec.Containers[i].Resources.Requests.Cpu()
+		return int32(request.MilliValue())
+	}
+	return 0
 }
