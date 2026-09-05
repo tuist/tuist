@@ -313,6 +313,32 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /newsletter" do
+    test "renders the legacy newsletter page by default", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Tuist Digest"
+      refute html =~ ~s(id="marketing-newsletter-form")
+    end
+
+    test "renders the redesigned newsletter page when the flag is on", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_newsletter -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Tuist Digest"
+      assert html =~ ~s(id="marketing-newsletter-form")
+      assert html =~ ~s(phx-hook="NewsletterForm")
+      assert html =~ "Supercharge your app development"
+      assert html =~ "/marketing/assets/bundle-new.css"
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given
@@ -496,6 +522,53 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle-new.css"
       refute html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /newsletter/verify with the redesign flag on" do
+    setup do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_newsletter -> true
+        _flag -> false
+      end)
+
+      :ok
+    end
+
+    test "renders the confirm state", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Confirm Subscription"
+      assert html =~ "Confirm subscription"
+      assert html =~ ~s(name="token" value="#{token}")
+      assert html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the failed state for an invalid token", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter/verify?token=invalid")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Newsletter Verification Failed"
+      assert html =~ "Subscribe again"
+    end
+
+    test "renders the subscribed state after confirming", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+      expect(Email, :add_to_newsletter_list, fn ^email -> :ok end)
+
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Successfully Subscribed!"
+      assert html =~ "Back to home"
     end
   end
 

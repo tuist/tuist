@@ -1,0 +1,318 @@
+/* Newsletter page (/newsletter, behind new_marketing_newsletter): one
+   centered hero card on the 1200px page shell — title, description and the
+   inline subscribe form — over a 300px illustration slot flush with the
+   card's bottom edge, then the closing CTA between two dithered divider
+   bands; the same skeleton as routes/previews.css. The legacy design lives
+   in routes/newsletter.css. The verify page (/newsletter/verify) is the same
+   hero card with a single action instead of the form, so it shares every
+   rule here. */
+#marketing-newsletter,
+#marketing-newsletter-verify {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Every frame shares the page shell: stroke border, primary surface, the
+     same margin/width override that beats pages.css. */
+  & > header[data-part="header"],
+  & > [data-part="divider"],
+  & > [data-part="cta"] {
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  /* Hero card (Figma: 1200x610): 64px above the centered copy, 8px sides,
+     32px gaps, and the 300px illustration slot flush against the bottom
+     edge (0 bottom padding). */
+  & > header[data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+
+    /* The illustration reads the header's width (cqw) to shrink its stack
+       on narrow cards. */
+    container-type: inline-size;
+    padding: var(--noora-spacing-13) var(--noora-spacing-4) 0;
+    overflow: hidden;
+
+    /* Mobile and tablet keep everything centered like desktop, with 20px
+       sides for the copy; the illustration stays and keeps the bottom edge. */
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-7) 0;
+    }
+
+    & > [data-part="copy"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-9);
+      width: 100%;
+    }
+
+    & [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.01em;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    & [data-part="description"] {
+      max-width: 748px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-align: center;
+      text-wrap: pretty;
+    }
+
+    /* The verify page's one action (a button, or the confirm form). */
+    & [data-part="actions"] {
+      display: flex;
+      justify-content: center;
+      margin: 0;
+    }
+
+    /* The subscribe row: a 300px email field and the button, 8px apart,
+       centered under the copy. On mobile the row keeps both at their own
+       size, still centered, and lets the button wrap under the field on the
+       narrowest screens. The server's reply lands in the status line under
+       the row. */
+    & [data-part="form"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      width: 100%;
+
+      & > [data-part="row"] {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        gap: var(--noora-spacing-4);
+
+        & > .noora-text-input {
+          width: 300px;
+          max-width: 100%;
+        }
+      }
+
+      & > [data-part="status"] {
+        max-width: 748px;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-align: center;
+        text-wrap: pretty;
+
+        &[data-status="error"] {
+          color: var(--noora-surface-label-destructive);
+        }
+      }
+    }
+
+    /* Illustration: the comp's 1200x300 frame, edge to edge (the negative
+       margins cancel the card's side padding), clipped at the card's bottom
+       edge. The 476px stack is laid out at full size and scaled down, with
+       the slot's height, once the card is narrower than it (phones): the
+       tan(atan2()) pair turns the two lengths into a unitless ratio. */
+    & > [data-part="illustration"] {
+      --stack-scale: min(1, tan(atan2(100cqw, 476px)));
+
+      position: relative;
+      align-self: stretch;
+      margin: 0 calc(-1 * var(--noora-spacing-4));
+      height: calc(300px * var(--stack-scale));
+      overflow: hidden;
+
+      @media (max-width: 720px) {
+        margin: 0 calc(-1 * var(--noora-spacing-7));
+      }
+
+      /* Three pages, horizontally centered, each 13px higher and a notch
+         smaller than the one in front (Figma: 476 / 457 / 438 wide at
+         64 / 51 / 38 from the top, all lifted 16px so more of the article
+         shows before the fade). One page's worth of markup at the front
+         page's size, scaled from its top edge for the two behind. */
+      & > [data-part="stack"] {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%) scale(var(--stack-scale));
+        transform-origin: 50% 0;
+        width: 476px;
+      }
+
+      & [data-part="page"] {
+        --page-scale: 1;
+
+        display: flex;
+        position: absolute;
+        top: 48px;
+        left: 0;
+        flex-direction: column;
+        transform: scale(var(--page-scale));
+        transform-origin: 50% 0;
+        box-sizing: border-box;
+        border: 1.2px solid var(--marketing-illustration-neutral-4);
+        background: var(--noora-surface-background-primary);
+        padding: 19px 10px;
+        width: 476px;
+        overflow: hidden;
+
+        &[data-page="middle"] {
+          --page-scale: 0.96;
+
+          top: 35px;
+        }
+
+        &[data-page="back"] {
+          --page-scale: 0.92;
+
+          top: 22px;
+        }
+
+        /* Masthead: the issue's title between two hairlines, tertiary on
+           the front page and secondary on the ones behind (they show only
+           their top strip, so the rule reads as a darker edge). */
+        & > [data-part="masthead"] {
+          display: block;
+          border-top: 1.2px solid var(--marketing-illustration-neutral-3);
+          border-bottom: 1.2px solid var(--marketing-illustration-neutral-3);
+          padding: 10px;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) 39px/46px var(--noora-font-heading);
+          text-align: center;
+          white-space: nowrap;
+        }
+
+        &[data-page="front"] > [data-part="masthead"] {
+          color: var(--noora-surface-label-tertiary);
+        }
+
+        /* Volume and date strip in the mono font under the masthead. */
+        & > [data-part="strip"] {
+          display: flex;
+          justify-content: space-between;
+          border-bottom: 1.2px solid var(--marketing-illustration-neutral-3);
+          padding: 7px 0;
+          color: var(--marketing-illustration-neutral-6);
+          font: var(--noora-font-weight-regular) 12px/15px var(--noora-font-code);
+          white-space: nowrap;
+        }
+
+        /* Article skeleton: a headline, a deck and a byline on the left,
+           a cover image on the right. */
+        & > [data-part="body"] {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 29px 5px;
+        }
+
+        & [data-part="column"] {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        & [data-part="block"] {
+          display: block;
+          border-radius: 7px;
+          background: var(--marketing-illustration-neutral-2);
+
+          &[data-block="short"] {
+            width: 145px;
+            height: 24px;
+          }
+
+          &[data-block="long"] {
+            width: 188px;
+            height: 24px;
+          }
+
+          &[data-block="thin"] {
+            width: 188px;
+            height: 12px;
+          }
+
+          &[data-block="cover"] {
+            width: 247px;
+            height: 113px;
+          }
+        }
+      }
+
+      /* The pages dissolve into the card's bottom edge. */
+      & > [data-part="fade"] {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: linear-gradient(to top, var(--noora-surface-background-primary) 6%, transparent 91%);
+        height: 55px;
+        pointer-events: none;
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    height: 120px;
+    overflow: hidden;
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: the cache/previews page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
