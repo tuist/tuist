@@ -142,6 +142,10 @@ type KuraInstanceReconciler struct {
 	PeerDNSResolver     PeerDNSResolver
 	PeerPathProber      PeerPathProber
 
+	// MetricsClient sources the readings behind requests.cpu. Nil leaves
+	// every instance on the cold-start constant.
+	MetricsClient PodMetricsClient
+
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
 	// temporarily stops answering keeps contributing its last report (with
@@ -329,6 +333,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -421,6 +426,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	r.observeCPUUsage(ctx, instance, pods)
+	applyScheduleCap(instance, pods, time.Now())
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
@@ -3460,14 +3467,26 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 		ceilingMib = floorMib
 	}
 
+	// The request is observed per instance (see cpu_autosize.go); the ceiling
+	// is the plan's, and bounds it because the API rejects a limit under its
+	// request.
+	cpuMilli := cpuRequestMilli(instance)
+	cpuCeilingMilli := instance.Spec.CPUCeilingMilli
+	if cpuCeilingMilli > 0 && cpuMilli > cpuCeilingMilli {
+		cpuMilli = cpuCeilingMilli
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("500m"),
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuMilli), resource.DecimalSI),
 			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
 			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	if cpuCeilingMilli > 0 {
+		r.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(cpuCeilingMilli), resource.DecimalSI)
 	}
 	// Ceiling bin-packing is opt-in per region, for the same reason the egress
 	// floor is: a pod that requests an extended resource its node does not

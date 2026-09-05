@@ -142,6 +142,12 @@ spec:
                 memoryCeilingMib:
                   type: integer
                   format: int32
+                # limits.cpu. requests.cpu has no field here: the controller
+                # observes it per instance. Zero sets no CPU limit.
+                cpuCeilingMilli:
+                  type: integer
+                  format: int32
+                  minimum: 0
                 # Ceilings oversubscribe the box. When true the pod also
                 # requests its ceiling as the tuist.dev/memory-ceiling-mib
                 # extended resource so the scheduler bounds that
@@ -229,6 +235,29 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                cpuAutosize:
+                  type: object
+                  properties:
+                    requestMilli:
+                      type: integer
+                      format: int32
+                    peakMilli:
+                      type: integer
+                      format: int32
+                    bucketStartedAt:
+                      type: string
+                      format: date-time
+                    bucketPeaksMilli:
+                      type: array
+                      items:
+                        type: integer
+                        format: int32
+                    scheduleCapMilli:
+                      type: integer
+                      format: int32
+                    scheduleCapSetAt:
+                      type: string
+                      format: date-time
                 rolloutHealth:
                   type: object
                   properties:

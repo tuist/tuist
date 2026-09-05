@@ -368,6 +368,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => claim,
@@ -447,12 +448,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         do: nil,
         else: EgressLimits.region_floor_mbps(region, MapSet.member?(allowed_features, :guaranteed_egress_floor))
 
-    memory = if memory_governed?, do: Regions.memory_profile(AccountPolicies.sizing_plan(account))
+    # Resolved together, and only when governed: both are per-tier sizing of the
+    # same box, a region that sizes every instance alike wants neither, and an
+    # ungoverned region must not reach for a plan at all.
+    {memory, cpu_ceiling_milli} =
+      if memory_governed? do
+        plan = AccountPolicies.sizing_plan(account)
+        {Regions.memory_profile(plan), Regions.cpu_ceiling_milli(plan)}
+      else
+        {nil, nil}
+      end
 
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
-      memory: memory
+      memory: memory,
+      cpu_ceiling_milli: cpu_ceiling_milli
     }
   end
 
