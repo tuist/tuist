@@ -3062,4 +3062,8 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist · Build infrastructure for productive teams"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Hola! Hello! Hallo! Olá! Namaste!"
 msgstr ""

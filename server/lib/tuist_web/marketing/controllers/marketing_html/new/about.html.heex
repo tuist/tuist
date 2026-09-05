@@ -1,0 +1,227 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-about">
+    <header data-part="header">
+      <h1 data-part="title">
+        {dgettext("marketing", "Building the future of scalable app development")}
+      </h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges, so you can deliver exceptional apps at speed."
+        )}
+      </p>
+    </header>
+    <div data-part="blueprint" aria-hidden="true">
+      <div data-part="cluster">
+        <div data-part="row">
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+        </div>
+        <div data-part="row">
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+        </div>
+      </div>
+      <div data-part="panel"></div>
+      <div data-part="cluster">
+        <div data-part="row">
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+        </div>
+        <div data-part="row">
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+          <div data-part="box"></div>
+        </div>
+      </div>
+    </div>
+    <section data-part="content">
+      <span data-part="eyebrow">{dgettext("marketing", "Mission")}</span>
+      <div data-part="main">
+        <h2 data-part="title">
+          <span data-part="line">{dgettext("marketing", "We want to enable")}</span>
+          <span data-part="line">{dgettext("marketing", "teams to scale with joy")}</span>
+        </h2>
+        <article data-part="body">
+          <p>
+            {dgettext(
+              "marketing",
+              "We believe building apps should be a joyful experience. But as teams and products grow, developers often spend more time managing fragmented tools, infrastructure, and workflows than creating great software. Tuist brings these pieces together so teams can build and share high-quality apps with greater speed and scale."
+            )}
+          </p>
+          <p>
+            {dgettext(
+              "marketing",
+              "We are building an integrated platform for the entire app development lifecycle, from the first idea to production. By combining continuous integration, testing, caching, analytics, and release automation into one cohesive experience, Tuist removes unnecessary complexity and lets developers focus on building."
+            )}
+          </p>
+          <p>
+            {dgettext(
+              "marketing",
+              "Tuist was born in the Apple ecosystem, but our ambition goes beyond a single platform. We want to make building software at scale delightful for every developer, with an open and flexible platform that integrates seamlessly into their repository and simply works."
+            )}
+          </p>
+          <.link_button
+            label={dgettext("marketing", "Learn more")}
+            href="https://handbook.tuist.dev/"
+            variant="secondary"
+            size="large"
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.link_button>
+        </article>
+      </div>
+      <div data-part="team">
+        <span data-part="eyebrow">{dgettext("marketing", "Team")}</span>
+        <header data-part="header">
+          <h2 data-part="title">{dgettext("marketing", "Meet the team behind Tuist")}</h2>
+          <p data-part="subtitle">
+            {dgettext(
+              "marketing",
+              "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+            )}
+          </p>
+        </header>
+        <ul data-part="members">
+          <li data-part="member">
+            <figure data-part="photo" data-member="pedro" aria-hidden="true">
+              <canvas
+                data-part="dither"
+                id="member-dither-pedro"
+                phx-hook="DitherBlocks"
+                data-seed="11"
+                data-blocks="26"
+                data-pitch="2"
+                data-dot="1"
+                data-opacity="1"
+              >
+              </canvas>
+              <span data-part="portrait"></span>
+            </figure>
+            <div data-part="info">
+              <h3 data-part="name">Pedro Piñera</h3>
+              <p data-part="role">{dgettext("marketing", "Founder and CEO")}</p>
+            </div>
+          </li>
+          <li data-part="member">
+            <figure data-part="photo" data-member="marek" aria-hidden="true">
+              <canvas
+                data-part="dither"
+                id="member-dither-marek"
+                phx-hook="DitherBlocks"
+                data-seed="42"
+                data-blocks="26"
+                data-pitch="2"
+                data-dot="1"
+                data-opacity="1"
+              >
+              </canvas>
+              <span data-part="portrait"></span>
+            </figure>
+            <div data-part="info">
+              <h3 data-part="name">Marek Fořt</h3>
+              <p data-part="role">{dgettext("marketing", "Founder and CTO")}</p>
+            </div>
+          </li>
+          <li data-part="member">
+            <figure data-part="photo" data-member="asmit" aria-hidden="true">
+              <canvas
+                data-part="dither"
+                id="member-dither-asmit"
+                phx-hook="DitherBlocks"
+                data-seed="73"
+                data-blocks="26"
+                data-pitch="2"
+                data-dot="1"
+                data-opacity="1"
+              >
+              </canvas>
+              <span data-part="portrait"></span>
+            </figure>
+            <div data-part="info">
+              <h3 data-part="name">Asmit Malakannawar</h3>
+              <p data-part="role">{dgettext("marketing", "Senior Product Designer")}</p>
+            </div>
+          </li>
+          <li data-part="member">
+            <figure data-part="photo" data-member="eduardo" aria-hidden="true">
+              <canvas
+                data-part="dither"
+                id="member-dither-eduardo"
+                phx-hook="DitherBlocks"
+                data-seed="104"
+                data-blocks="26"
+                data-pitch="2"
+                data-dot="1"
+                data-opacity="1"
+              >
+              </canvas>
+              <span data-part="portrait"></span>
+            </figure>
+            <div data-part="info">
+              <h3 data-part="name">Eduardo Nunes</h3>
+              <p data-part="role">{dgettext("marketing", "Senior Software Engineer")}</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="about-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="about-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
