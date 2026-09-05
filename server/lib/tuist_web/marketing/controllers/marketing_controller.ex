@@ -629,7 +629,17 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       Newsletter.description()
     )
-    |> render(:newsletter, layout: false)
+    |> render_newsletter()
+  end
+
+  defp render_newsletter(conn) do
+    if Design.new?(conn, :newsletter) do
+      conn
+      |> assign(:new_design, true)
+      |> render(:newsletter_new, layout: false)
+    else
+      render(conn, :newsletter, layout: false)
+    end
   end
 
   def newsletter_signup(conn, %{"email" => email}) do
@@ -668,7 +678,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(:verification_token, token)
         |> assign(:subscription_confirmed, false)
         |> assign(:error_message, nil)
-        |> render(:newsletter_verify, layout: false)
+        |> render_newsletter_verify()
 
       {:error, _reason} ->
         render_newsletter_verify_error(
@@ -697,7 +707,7 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(:verification_token, nil)
             |> assign(:subscription_confirmed, true)
             |> assign(:error_message, nil)
-            |> render(:newsletter_verify, layout: false)
+            |> render_newsletter_verify()
 
           {:error, _reason} ->
             render_newsletter_verify_error(
@@ -1249,7 +1259,17 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:verification_token, nil)
     |> assign(:subscription_confirmed, false)
     |> assign(:error_message, error_message)
-    |> render(:newsletter_verify, layout: false)
+    |> render_newsletter_verify()
+  end
+
+  defp render_newsletter_verify(conn) do
+    if Design.new?(conn, :newsletter) do
+      conn
+      |> assign(:new_design, true)
+      |> render(:newsletter_verify_new, layout: false)
+    else
+      render(conn, :newsletter_verify, layout: false)
+    end
   end
 
   defp home_open_graph_image_path do

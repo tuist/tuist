@@ -1,0 +1,111 @@
+<%!-- Redesigned newsletter page (/newsletter, behind :new_marketing_newsletter):
+one centered hero card on the 1200px page shell — title, description and the
+inline subscribe form — over a 300px illustration slot flush with the card's
+bottom edge, then the closing CTA framed by the dithered divider bands the
+feature pages use. The form posts through NewsletterForm (fetch + JSON) so
+the page stays put and the server's message shows under the row. --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-newsletter">
+    <header data-part="header">
+      <div data-part="copy">
+        <h1 data-part="title">{dgettext("marketing", "Tuist Digest")}</h1>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
+          )}
+        </p>
+        <form
+          id="marketing-newsletter-form"
+          data-part="form"
+          method="post"
+          action={~p"/newsletter"}
+          phx-hook="NewsletterForm"
+          data-error-message={dgettext("marketing", "Something went wrong. Please try again.")}
+        >
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <div data-part="row">
+            <.text_input
+              id="marketing-newsletter-email"
+              name="email"
+              type="email"
+              placeholder="hello@tuist.dev"
+              aria-label={dgettext("marketing", "Email")}
+              autocomplete="email"
+              required
+            />
+            <.button label={dgettext("marketing", "Subscribe")} variant="primary" type="submit" />
+          </div>
+          <p data-part="status" role="status" aria-live="polite" hidden></p>
+        </form>
+      </div>
+      <%!-- Illustration (Figma: 1200x300): a stack of three newspaper front
+      pages, the latest issue on top and two older ones peeking out above it,
+      fading into the card's bottom edge. Each page is the same markup —
+      masthead, volume/date strip, skeleton article blocks — scaled down a
+      notch per step back. Real text rather than the SVG export's outlined
+      glyphs, so it follows the theme and the fonts. --%>
+      <div data-part="illustration" aria-hidden="true">
+        <.newsletter_stack_new />
+        <div data-part="fade"></div>
+      </div>
+    </header>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the previews
+    page's closing CTA. --%>
+    <div data-part="divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="newsletter-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="newsletter-cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="newsletter-cta-title">
+        {dgettext("marketing", "Supercharge your app development")}
+      </h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="newsletter-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
