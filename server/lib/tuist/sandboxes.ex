@@ -2,18 +2,21 @@ defmodule Tuist.Sandboxes do
   @moduledoc """
   Control plane for Firecracker sandboxes (see `infra/sandboxd/AGENTS.md`).
 
-  Owns the `sandboxes` and `sandbox_agent_environments` tables and drives
-  the sandboxd nodes through `Tuist.Sandboxes.Nodes`. Every state
-  transition here mirrors one node command: `create`, `resume`, `pause`,
-  `delete`, `exec`, `start_worker`. Node-originated changes arrive as
-  events (`worker_exited`, `sandbox_died`) and periodic reports, which
-  reconcile what the database believes against what the node holds.
+  Owns the `sandboxes`, `sandbox_agent_environments` and
+  `sandbox_agent_sessions` tables and drives the sandboxd nodes through
+  `Tuist.Sandboxes.Nodes`. Every state transition here mirrors one node
+  command: `create`, `resume`, `pause`, `delete`, `exec`, `start_worker`.
+  Node-originated changes arrive as events (`worker_exited`,
+  `sandbox_died`) and periodic reports, which reconcile what the database
+  believes against what the node holds. Agent sessions started through
+  Tuist are delegated to `Tuist.Sandboxes.AgentSessions`.
   """
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -64,6 +67,23 @@ defmodule Tuist.Sandboxes do
       agent_environment -> {:ok, agent_environment}
     end
   end
+
+  def update_agent_environment(%AgentEnvironment{} = agent_environment, attrs) when is_map(attrs) do
+    agent_environment
+    |> AgentEnvironment.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  # ----- Agent sessions -----
+
+  defdelegate start_agent_session(account, attrs, opts \\ []), to: AgentSessions
+  defdelegate list_agent_sessions(account), to: AgentSessions
+  defdelegate get_agent_session(account, id), to: AgentSessions
+  defdelegate get_agent_session!(account, id), to: AgentSessions
+  defdelegate refresh_agent_session(agent_session), to: AgentSessions
+  defdelegate send_agent_session_message(agent_session, text), to: AgentSessions
+  defdelegate list_agent_session_events(agent_session, opts \\ []), to: AgentSessions
+  defdelegate archive_agent_session(agent_session), to: AgentSessions
 
   @doc """
   Deletes the environment and, best effort, every sandbox created for its

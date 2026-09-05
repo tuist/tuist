@@ -41,6 +41,17 @@ defmodule TuistWeb.API.SandboxesController do
       max_idle_seconds: %Schema{type: :integer},
       pause_grace_seconds: %Schema{type: :integer},
       enabled: %Schema{type: :boolean},
+      has_api_key: %Schema{
+        type: :boolean,
+        description: "Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions."
+      },
+      anthropic_agent_id: %Schema{
+        type: :string,
+        nullable: true,
+        description: "The Anthropic agent Tuist created for this environment's model and system prompt."
+      },
+      agent_model: %Schema{type: :string},
+      agent_system_prompt: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
@@ -54,9 +65,27 @@ defmodule TuistWeb.API.SandboxesController do
       :max_idle_seconds,
       :pause_grace_seconds,
       :enabled,
+      :has_api_key,
+      :anthropic_agent_id,
+      :agent_model,
+      :agent_system_prompt,
       :inserted_at,
       :updated_at
     ]
+  }
+
+  @agent_properties %{
+    anthropic_api_key: %Schema{
+      type: :string,
+      description: "An Anthropic API key with access to the environment's organization. Never returned."
+    },
+    agent_model: %Schema{type: :string, minLength: 1, maxLength: 255, description: "The model agent sessions run."},
+    agent_system_prompt: %Schema{
+      type: :string,
+      maxLength: 100_000,
+      nullable: true,
+      description: "System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt."
+    }
   }
 
   @sandbox_schema %Schema{
@@ -134,7 +163,9 @@ defmodule TuistWeb.API.SandboxesController do
          title: "CreateSandboxAgentEnvironment",
          type: :object,
          properties:
-           Map.merge(@shape_properties, %{
+           @shape_properties
+           |> Map.merge(@agent_properties)
+           |> Map.merge(%{
              anthropic_environment_id: %Schema{type: :string, description: "The Anthropic environment identifier."},
              environment_key: %Schema{type: :string, description: "The Anthropic environment key. Never returned."},
              name: %Schema{type: :string, maxLength: 100, nullable: true},
@@ -155,6 +186,9 @@ defmodule TuistWeb.API.SandboxesController do
       Map.take(body_params, [
         :anthropic_environment_id,
         :environment_key,
+        :anthropic_api_key,
+        :agent_model,
+        :agent_system_prompt,
         :name,
         :template,
         :vcpus,
@@ -170,6 +204,44 @@ defmodule TuistWeb.API.SandboxesController do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
+    end
+  end
+
+  operation(:update_agent_environment,
+    summary: "Update the agent settings of a connected environment.",
+    description:
+      "Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+    operation_id: "updateSandboxAgentEnvironment",
+    parameters:
+      @account_parameters ++
+        [agent_environment_id: [in: :path, type: :integer, required: true, description: "The agent environment id."]],
+    request_body:
+      {"Agent environment params", "application/json",
+       %Schema{title: "UpdateSandboxAgentEnvironment", type: :object, properties: @agent_properties}},
+    responses:
+      Map.merge(@error_responses, %{
+        ok: {"Agent environment", "application/json", @agent_environment_schema},
+        bad_request: {"Invalid params", "application/json", Error},
+        not_found: {"The agent environment was not found", "application/json", Error}
+      })
+  )
+
+  def update_agent_environment(
+        %{
+          assigns: %{selected_account: account},
+          params: %{agent_environment_id: agent_environment_id},
+          body_params: body_params
+        } = conn,
+        _params
+      ) do
+    attrs = Map.take(body_params, [:anthropic_api_key, :agent_model, :agent_system_prompt])
+
+    with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
+         {:ok, agent_environment} <- Sandboxes.update_agent_environment(agent_environment, attrs) do
+      json(conn, serialize_agent_environment(agent_environment))
+    else
+      {:error, :not_found} -> not_found(conn, "Agent environment not found.")
+      {:error, %Ecto.Changeset{} = changeset} -> sandbox_error(conn, changeset)
     end
   end
 
@@ -453,7 +525,8 @@ defmodule TuistWeb.API.SandboxesController do
   end
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
-    Map.take(agent_environment, [
+    agent_environment
+    |> Map.take([
       :id,
       :anthropic_environment_id,
       :name,
@@ -464,9 +537,13 @@ defmodule TuistWeb.API.SandboxesController do
       :max_idle_seconds,
       :pause_grace_seconds,
       :enabled,
+      :anthropic_agent_id,
+      :agent_model,
+      :agent_system_prompt,
       :inserted_at,
       :updated_at
     ])
+    |> Map.put(:has_api_key, is_binary(agent_environment.anthropic_api_key))
   end
 
   defp serialize_sandbox(%Sandbox{} = sandbox) do

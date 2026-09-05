@@ -336,6 +336,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks/get(listBuildCacheTasks)`.
     func listBuildCacheTasks(_ input: Operations.listBuildCacheTasks.Input) async throws -> Operations.listBuildCacheTasks.Output
+    /// Send a message to an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)`.
+    func sendSandboxAgentSessionMessage(_ input: Operations.sendSandboxAgentSessionMessage.Input) async throws -> Operations.sendSandboxAgentSessionMessage.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -484,6 +489,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURLProject)`.
     func generateAnalyticsArtifactMultipartUploadURLProject(_ input: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output
+    /// Get an agent session with its live status.
+    ///
+    /// Reads the session back from Anthropic and returns its status, usage and the state of its sandbox.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)`.
+    func getSandboxAgentSession(_ input: Operations.getSandboxAgentSession.Input) async throws -> Operations.getSandboxAgentSession.Output
+    /// Archive an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)`.
+    func archiveSandboxAgentSession(_ input: Operations.archiveSandboxAgentSession.Input) async throws -> Operations.archiveSandboxAgentSession.Output
     /// It generates a signed URL for uploading a part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -582,6 +599,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/post(pauseSandbox)`.
     func pauseSandbox(_ input: Operations.pauseSandbox.Input) async throws -> Operations.pauseSandbox.Output
+    /// Update the agent settings of a connected environment.
+    ///
+    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
+    func updateSandboxAgentEnvironment(_ input: Operations.updateSandboxAgentEnvironment.Input) async throws -> Operations.updateSandboxAgentEnvironment.Output
     /// Disconnect an Anthropic environment and delete its sandboxes.
     ///
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
@@ -704,6 +728,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
     @available(*, deprecated)
     func completeAnalyticsArtifactsUploads(_ input: Operations.completeAnalyticsArtifactsUploads.Input) async throws -> Operations.completeAnalyticsArtifactsUploads.Output
+    /// List the account's agent sessions.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)`.
+    func listSandboxAgentSessions(_ input: Operations.listSandboxAgentSessions.Input) async throws -> Operations.listSandboxAgentSessions.Output
+    /// Start an agent session.
+    ///
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
+    func createSandboxAgentSession(_ input: Operations.createSandboxAgentSession.Input) async throws -> Operations.createSandboxAgentSession.Output
     /// List module cache targets for a run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets`.
@@ -818,6 +854,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/revisions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/revisions/get(listAutomationAlertRevisions)`.
     func listAutomationAlertRevisions(_ input: Operations.listAutomationAlertRevisions.Input) async throws -> Operations.listAutomationAlertRevisions.Output
+    /// List an agent session's events.
+    ///
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
+    func listSandboxAgentSessionEvents(_ input: Operations.listSandboxAgentSessionEvents.Input) async throws -> Operations.listSandboxAgentSessionEvents.Output
     /// Get a Bazel remote-cache event by its identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
@@ -1708,6 +1751,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Send a message to an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)`.
+    public func sendSandboxAgentSessionMessage(
+        path: Operations.sendSandboxAgentSessionMessage.Input.Path,
+        headers: Operations.sendSandboxAgentSessionMessage.Input.Headers = .init(),
+        body: Operations.sendSandboxAgentSessionMessage.Input.Body? = nil
+    ) async throws -> Operations.sendSandboxAgentSessionMessage.Output {
+        try await sendSandboxAgentSessionMessage(Operations.sendSandboxAgentSessionMessage.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -2092,6 +2150,34 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get an agent session with its live status.
+    ///
+    /// Reads the session back from Anthropic and returns its status, usage and the state of its sandbox.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)`.
+    public func getSandboxAgentSession(
+        path: Operations.getSandboxAgentSession.Input.Path,
+        headers: Operations.getSandboxAgentSession.Input.Headers = .init()
+    ) async throws -> Operations.getSandboxAgentSession.Output {
+        try await getSandboxAgentSession(Operations.getSandboxAgentSession.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Archive an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)`.
+    public func archiveSandboxAgentSession(
+        path: Operations.archiveSandboxAgentSession.Input.Path,
+        headers: Operations.archiveSandboxAgentSession.Input.Headers = .init()
+    ) async throws -> Operations.archiveSandboxAgentSession.Output {
+        try await archiveSandboxAgentSession(Operations.archiveSandboxAgentSession.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// It generates a signed URL for uploading a part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -2328,6 +2414,23 @@ extension APIProtocol {
         try await pauseSandbox(Operations.pauseSandbox.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Update the agent settings of a connected environment.
+    ///
+    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
+    public func updateSandboxAgentEnvironment(
+        path: Operations.updateSandboxAgentEnvironment.Input.Path,
+        headers: Operations.updateSandboxAgentEnvironment.Input.Headers = .init(),
+        body: Operations.updateSandboxAgentEnvironment.Input.Body? = nil
+    ) async throws -> Operations.updateSandboxAgentEnvironment.Output {
+        try await updateSandboxAgentEnvironment(Operations.updateSandboxAgentEnvironment.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Disconnect an Anthropic environment and delete its sandboxes.
@@ -2636,6 +2739,36 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List the account's agent sessions.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)`.
+    public func listSandboxAgentSessions(
+        path: Operations.listSandboxAgentSessions.Input.Path,
+        headers: Operations.listSandboxAgentSessions.Input.Headers = .init()
+    ) async throws -> Operations.listSandboxAgentSessions.Output {
+        try await listSandboxAgentSessions(Operations.listSandboxAgentSessions.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Start an agent session.
+    ///
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
+    public func createSandboxAgentSession(
+        path: Operations.createSandboxAgentSession.Input.Path,
+        headers: Operations.createSandboxAgentSession.Input.Headers = .init(),
+        body: Operations.createSandboxAgentSession.Input.Body? = nil
+    ) async throws -> Operations.createSandboxAgentSession.Output {
+        try await createSandboxAgentSession(Operations.createSandboxAgentSession.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// List module cache targets for a run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets`.
@@ -2919,6 +3052,23 @@ extension APIProtocol {
         headers: Operations.listAutomationAlertRevisions.Input.Headers = .init()
     ) async throws -> Operations.listAutomationAlertRevisions.Output {
         try await listAutomationAlertRevisions(Operations.listAutomationAlertRevisions.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// List an agent session's events.
+    ///
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
+    public func listSandboxAgentSessionEvents(
+        path: Operations.listSandboxAgentSessionEvents.Input.Path,
+        query: Operations.listSandboxAgentSessionEvents.Input.Query = .init(),
+        headers: Operations.listSandboxAgentSessionEvents.Input.Headers = .init()
+    ) async throws -> Operations.listSandboxAgentSessionEvents.Output {
+        try await listSandboxAgentSessionEvents(Operations.listSandboxAgentSessionEvents.Input(
             path: path,
             query: query,
             headers: headers
@@ -4591,6 +4741,107 @@ public enum Components {
                 case id
                 case object
                 case _type = "type"
+            }
+        }
+        /// A Managed Agents session Tuist started on one of the account's connected environments.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAgentSession`.
+        public struct SandboxAgentSession: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/agent_environment_id`.
+            public var agent_environment_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/anthropic_agent_id`.
+            public var anthropic_agent_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/anthropic_session_id`.
+            public var anthropic_session_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/budget_cents`.
+            public var budget_cents: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/inserted_at`.
+            public var inserted_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/model`.
+            public var model: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/repository_ref`.
+            public var repository_ref: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/repository_url`.
+            public var repository_url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/sandbox_id`.
+            public var sandbox_id: Swift.String?
+            /// The last session status the server saw (running, idle, terminated, archived).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/status`.
+            public var status: Swift.String?
+            /// The stop reason of the latest idle event the server saw.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/stop_reason`.
+            public var stop_reason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/title`.
+            public var title: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/updated_at`.
+            public var updated_at: Foundation.Date
+            /// Creates a new `SandboxAgentSession`.
+            ///
+            /// - Parameters:
+            ///   - agent_environment_id:
+            ///   - anthropic_agent_id:
+            ///   - anthropic_session_id:
+            ///   - budget_cents:
+            ///   - id:
+            ///   - inserted_at:
+            ///   - model:
+            ///   - repository_ref:
+            ///   - repository_url:
+            ///   - sandbox_id:
+            ///   - status: The last session status the server saw (running, idle, terminated, archived).
+            ///   - stop_reason: The stop reason of the latest idle event the server saw.
+            ///   - title:
+            ///   - updated_at:
+            public init(
+                agent_environment_id: Swift.Int,
+                anthropic_agent_id: Swift.String,
+                anthropic_session_id: Swift.String,
+                budget_cents: Swift.Int? = nil,
+                id: Swift.String,
+                inserted_at: Foundation.Date,
+                model: Swift.String? = nil,
+                repository_ref: Swift.String? = nil,
+                repository_url: Swift.String? = nil,
+                sandbox_id: Swift.String? = nil,
+                status: Swift.String? = nil,
+                stop_reason: Swift.String? = nil,
+                title: Swift.String? = nil,
+                updated_at: Foundation.Date
+            ) {
+                self.agent_environment_id = agent_environment_id
+                self.anthropic_agent_id = anthropic_agent_id
+                self.anthropic_session_id = anthropic_session_id
+                self.budget_cents = budget_cents
+                self.id = id
+                self.inserted_at = inserted_at
+                self.model = model
+                self.repository_ref = repository_ref
+                self.repository_url = repository_url
+                self.sandbox_id = sandbox_id
+                self.status = status
+                self.stop_reason = stop_reason
+                self.title = title
+                self.updated_at = updated_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case agent_environment_id
+                case anthropic_agent_id
+                case anthropic_session_id
+                case budget_cents
+                case id
+                case inserted_at
+                case model
+                case repository_ref
+                case repository_url
+                case sandbox_id
+                case status
+                case stop_reason
+                case title
+                case updated_at
             }
         }
         /// Represents a single build run.
@@ -6726,6 +6977,87 @@ public enum Components {
                 case suite_name
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SendSandboxAgentSessionMessage`.
+        public struct SendSandboxAgentSessionMessage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SendSandboxAgentSessionMessage/text`.
+            public var text: Swift.String
+            /// Creates a new `SendSandboxAgentSessionMessage`.
+            ///
+            /// - Parameters:
+            ///   - text:
+            public init(text: Swift.String) {
+                self.text = text
+            }
+            public enum CodingKeys: String, CodingKey {
+                case text
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage`.
+        public struct SandboxAgentSessionUsage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/active_seconds`.
+            public var active_seconds: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/cache_read_input_tokens`.
+            public var cache_read_input_tokens: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/input_tokens`.
+            public var input_tokens: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/list_cost`.
+            public struct list_costPayload: Codable, Hashable, Sendable {
+                /// Minor units of the currency as a decimal string.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/list_cost/amount`.
+                public var amount: Swift.String
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/list_cost/currency`.
+                public var currency: Swift.String
+                /// Creates a new `list_costPayload`.
+                ///
+                /// - Parameters:
+                ///   - amount: Minor units of the currency as a decimal string.
+                ///   - currency:
+                public init(
+                    amount: Swift.String,
+                    currency: Swift.String
+                ) {
+                    self.amount = amount
+                    self.currency = currency
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case amount
+                    case currency
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/list_cost`.
+            public var list_cost: Components.Schemas.SandboxAgentSessionUsage.list_costPayload?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionUsage/output_tokens`.
+            public var output_tokens: Swift.Int?
+            /// Creates a new `SandboxAgentSessionUsage`.
+            ///
+            /// - Parameters:
+            ///   - active_seconds:
+            ///   - cache_read_input_tokens:
+            ///   - input_tokens:
+            ///   - list_cost:
+            ///   - output_tokens:
+            public init(
+                active_seconds: Swift.Double? = nil,
+                cache_read_input_tokens: Swift.Int? = nil,
+                input_tokens: Swift.Int? = nil,
+                list_cost: Components.Schemas.SandboxAgentSessionUsage.list_costPayload? = nil,
+                output_tokens: Swift.Int? = nil
+            ) {
+                self.active_seconds = active_seconds
+                self.cache_read_input_tokens = cache_read_input_tokens
+                self.input_tokens = input_tokens
+                self.list_cost = list_cost
+                self.output_tokens = output_tokens
+            }
+            public enum CodingKeys: String, CodingKey {
+                case active_seconds
+                case cache_read_input_tokens
+                case input_tokens
+                case list_cost
+                case output_tokens
+            }
+        }
         /// A paginated list of test case runs.
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsList`.
@@ -7759,10 +8091,22 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment`.
         public struct SandboxAgentEnvironment: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/agent_model`.
+            public var agent_model: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/agent_system_prompt`.
+            public var agent_system_prompt: Swift.String?
+            /// The Anthropic agent Tuist created for this environment's model and system prompt.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_agent_id`.
+            public var anthropic_agent_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_environment_id`.
             public var anthropic_environment_id: Swift.String
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/enabled`.
             public var enabled: Swift.Bool
+            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/has_api_key`.
+            public var has_api_key: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/id`.
             public var id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/inserted_at`.
@@ -7786,8 +8130,12 @@ public enum Components {
             /// Creates a new `SandboxAgentEnvironment`.
             ///
             /// - Parameters:
+            ///   - agent_model:
+            ///   - agent_system_prompt:
+            ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
             ///   - anthropic_environment_id:
             ///   - enabled:
+            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
             ///   - id:
             ///   - inserted_at:
             ///   - max_idle_seconds:
@@ -7799,8 +8147,12 @@ public enum Components {
             ///   - vcpus:
             ///   - workspace_gb:
             public init(
+                agent_model: Swift.String,
+                agent_system_prompt: Swift.String? = nil,
+                anthropic_agent_id: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
                 enabled: Swift.Bool,
+                has_api_key: Swift.Bool,
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
                 max_idle_seconds: Swift.Int,
@@ -7812,8 +8164,12 @@ public enum Components {
                 vcpus: Swift.Int,
                 workspace_gb: Swift.Int
             ) {
+                self.agent_model = agent_model
+                self.agent_system_prompt = agent_system_prompt
+                self.anthropic_agent_id = anthropic_agent_id
                 self.anthropic_environment_id = anthropic_environment_id
                 self.enabled = enabled
+                self.has_api_key = has_api_key
                 self.id = id
                 self.inserted_at = inserted_at
                 self.max_idle_seconds = max_idle_seconds
@@ -7826,8 +8182,12 @@ public enum Components {
                 self.workspace_gb = workspace_gb
             }
             public enum CodingKeys: String, CodingKey {
+                case agent_model
+                case agent_system_prompt
+                case anthropic_agent_id
                 case anthropic_environment_id
                 case enabled
+                case has_api_key
                 case id
                 case inserted_at
                 case max_idle_seconds
@@ -8254,6 +8614,18 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment`.
         public struct CreateSandboxAgentEnvironment: Codable, Hashable, Sendable {
+            /// The model agent sessions run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/agent_model`.
+            public var agent_model: Swift.String?
+            /// System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/agent_system_prompt`.
+            public var agent_system_prompt: Swift.String?
+            /// An Anthropic API key with access to the environment's organization. Never returned.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_api_key`.
+            public var anthropic_api_key: Swift.String?
             /// The Anthropic environment identifier.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_environment_id`.
@@ -8281,6 +8653,9 @@ public enum Components {
             /// Creates a new `CreateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
+            ///   - agent_model: The model agent sessions run.
+            ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+            ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
             ///   - anthropic_environment_id: The Anthropic environment identifier.
             ///   - environment_key: The Anthropic environment key. Never returned.
             ///   - max_idle_seconds:
@@ -8291,6 +8666,9 @@ public enum Components {
             ///   - vcpus:
             ///   - workspace_gb:
             public init(
+                agent_model: Swift.String? = nil,
+                agent_system_prompt: Swift.String? = nil,
+                anthropic_api_key: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
                 environment_key: Swift.String,
                 max_idle_seconds: Swift.Int? = nil,
@@ -8301,6 +8679,9 @@ public enum Components {
                 vcpus: Swift.Int? = nil,
                 workspace_gb: Swift.Int? = nil
             ) {
+                self.agent_model = agent_model
+                self.agent_system_prompt = agent_system_prompt
+                self.anthropic_api_key = anthropic_api_key
                 self.anthropic_environment_id = anthropic_environment_id
                 self.environment_key = environment_key
                 self.max_idle_seconds = max_idle_seconds
@@ -8312,6 +8693,9 @@ public enum Components {
                 self.workspace_gb = workspace_gb
             }
             public enum CodingKeys: String, CodingKey {
+                case agent_model
+                case agent_system_prompt
+                case anthropic_api_key
                 case anthropic_environment_id
                 case environment_key
                 case max_idle_seconds
@@ -10262,6 +10646,185 @@ public enum Components {
             case assembly = "assembly"
             case unknown = "unknown"
         }
+        /// An agent session with its live status, usage and the state of its sandbox.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail`.
+        public struct SandboxAgentSessionDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/agent_environment_id`.
+            public var agent_environment_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/anthropic_agent_id`.
+            public var anthropic_agent_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/anthropic_session_id`.
+            public var anthropic_session_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/budget_cents`.
+            public var budget_cents: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/inserted_at`.
+            public var inserted_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/model`.
+            public var model: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/repository_ref`.
+            public var repository_ref: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/repository_url`.
+            public var repository_url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/sandbox_id`.
+            public var sandbox_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/sandbox_state`.
+            public var sandbox_state: Swift.String?
+            /// The last session status the server saw (running, idle, terminated, archived).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/status`.
+            public var status: Swift.String?
+            /// The stop reason of the latest idle event the server saw.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/stop_reason`.
+            public var stop_reason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/title`.
+            public var title: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/updated_at`.
+            public var updated_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage`.
+            public struct usagePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/active_seconds`.
+                public var active_seconds: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/cache_read_input_tokens`.
+                public var cache_read_input_tokens: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/input_tokens`.
+                public var input_tokens: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/list_cost`.
+                public struct list_costPayload: Codable, Hashable, Sendable {
+                    /// Minor units of the currency as a decimal string.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/list_cost/amount`.
+                    public var amount: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/list_cost/currency`.
+                    public var currency: Swift.String
+                    /// Creates a new `list_costPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - amount: Minor units of the currency as a decimal string.
+                    ///   - currency:
+                    public init(
+                        amount: Swift.String,
+                        currency: Swift.String
+                    ) {
+                        self.amount = amount
+                        self.currency = currency
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case amount
+                        case currency
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/list_cost`.
+                public var list_cost: Components.Schemas.SandboxAgentSessionDetail.usagePayload.list_costPayload?
+                /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage/output_tokens`.
+                public var output_tokens: Swift.Int?
+                /// Creates a new `usagePayload`.
+                ///
+                /// - Parameters:
+                ///   - active_seconds:
+                ///   - cache_read_input_tokens:
+                ///   - input_tokens:
+                ///   - list_cost:
+                ///   - output_tokens:
+                public init(
+                    active_seconds: Swift.Double? = nil,
+                    cache_read_input_tokens: Swift.Int? = nil,
+                    input_tokens: Swift.Int? = nil,
+                    list_cost: Components.Schemas.SandboxAgentSessionDetail.usagePayload.list_costPayload? = nil,
+                    output_tokens: Swift.Int? = nil
+                ) {
+                    self.active_seconds = active_seconds
+                    self.cache_read_input_tokens = cache_read_input_tokens
+                    self.input_tokens = input_tokens
+                    self.list_cost = list_cost
+                    self.output_tokens = output_tokens
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case active_seconds
+                    case cache_read_input_tokens
+                    case input_tokens
+                    case list_cost
+                    case output_tokens
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage`.
+            public var usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload?
+            /// Creates a new `SandboxAgentSessionDetail`.
+            ///
+            /// - Parameters:
+            ///   - agent_environment_id:
+            ///   - anthropic_agent_id:
+            ///   - anthropic_session_id:
+            ///   - budget_cents:
+            ///   - id:
+            ///   - inserted_at:
+            ///   - model:
+            ///   - repository_ref:
+            ///   - repository_url:
+            ///   - sandbox_id:
+            ///   - sandbox_state:
+            ///   - status: The last session status the server saw (running, idle, terminated, archived).
+            ///   - stop_reason: The stop reason of the latest idle event the server saw.
+            ///   - title:
+            ///   - updated_at:
+            ///   - usage:
+            public init(
+                agent_environment_id: Swift.Int,
+                anthropic_agent_id: Swift.String,
+                anthropic_session_id: Swift.String,
+                budget_cents: Swift.Int? = nil,
+                id: Swift.String,
+                inserted_at: Foundation.Date,
+                model: Swift.String? = nil,
+                repository_ref: Swift.String? = nil,
+                repository_url: Swift.String? = nil,
+                sandbox_id: Swift.String? = nil,
+                sandbox_state: Swift.String? = nil,
+                status: Swift.String? = nil,
+                stop_reason: Swift.String? = nil,
+                title: Swift.String? = nil,
+                updated_at: Foundation.Date,
+                usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload? = nil
+            ) {
+                self.agent_environment_id = agent_environment_id
+                self.anthropic_agent_id = anthropic_agent_id
+                self.anthropic_session_id = anthropic_session_id
+                self.budget_cents = budget_cents
+                self.id = id
+                self.inserted_at = inserted_at
+                self.model = model
+                self.repository_ref = repository_ref
+                self.repository_url = repository_url
+                self.sandbox_id = sandbox_id
+                self.sandbox_state = sandbox_state
+                self.status = status
+                self.stop_reason = stop_reason
+                self.title = title
+                self.updated_at = updated_at
+                self.usage = usage
+            }
+            public enum CodingKeys: String, CodingKey {
+                case agent_environment_id
+                case anthropic_agent_id
+                case anthropic_session_id
+                case budget_cents
+                case id
+                case inserted_at
+                case model
+                case repository_ref
+                case repository_url
+                case sandbox_id
+                case sandbox_state
+                case status
+                case stop_reason
+                case title
+                case updated_at
+                case usage
+            }
+        }
         /// The schema for a Tuist run.
         ///
         /// - Remark: Generated from `#/components/schemas/Run`.
@@ -11054,6 +11617,79 @@ public enum Components {
             case failure = "failure"
             case cancelled = "cancelled"
         }
+        /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession`.
+        public struct CreateSandboxAgentSession: Codable, Hashable, Sendable {
+            /// The agent environment to run on. Defaults to the account's single enabled environment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/agent_environment_id`.
+            public var agent_environment_id: Swift.Int?
+            /// An existing Anthropic agent to run instead of the one Tuist manages.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/agent_id`.
+            public var agent_id: Swift.String?
+            /// Hard list-cost ceiling for the session in USD cents.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/budget_cents`.
+            public var budget_cents: Swift.Int?
+            /// Overrides the environment's model.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/model`.
+            public var model: Swift.String?
+            /// The first user message of the session.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/prompt`.
+            public var prompt: Swift.String
+            /// Branch, tag or commit sha to check out.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/repository_ref`.
+            public var repository_ref: Swift.String?
+            /// HTTPS URL of a repository to clone under /workspace before the agent starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/repository_url`.
+            public var repository_url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/title`.
+            public var title: Swift.String?
+            /// Creates a new `CreateSandboxAgentSession`.
+            ///
+            /// - Parameters:
+            ///   - agent_environment_id: The agent environment to run on. Defaults to the account's single enabled environment.
+            ///   - agent_id: An existing Anthropic agent to run instead of the one Tuist manages.
+            ///   - budget_cents: Hard list-cost ceiling for the session in USD cents.
+            ///   - model: Overrides the environment's model.
+            ///   - prompt: The first user message of the session.
+            ///   - repository_ref: Branch, tag or commit sha to check out.
+            ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
+            ///   - title:
+            public init(
+                agent_environment_id: Swift.Int? = nil,
+                agent_id: Swift.String? = nil,
+                budget_cents: Swift.Int? = nil,
+                model: Swift.String? = nil,
+                prompt: Swift.String,
+                repository_ref: Swift.String? = nil,
+                repository_url: Swift.String? = nil,
+                title: Swift.String? = nil
+            ) {
+                self.agent_environment_id = agent_environment_id
+                self.agent_id = agent_id
+                self.budget_cents = budget_cents
+                self.model = model
+                self.prompt = prompt
+                self.repository_ref = repository_ref
+                self.repository_url = repository_url
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case agent_environment_id
+                case agent_id
+                case budget_cents
+                case model
+                case prompt
+                case repository_ref
+                case repository_url
+                case title
+            }
+        }
         /// The maximum number of generations to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPageSize`.
@@ -11179,6 +11815,67 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case meta
                 case tokens
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent`.
+        public struct SandboxAgentSessionEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/at`.
+            public var at: Foundation.Date?
+            /// The command of a bash tool use.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/command`.
+            public var command: Swift.String?
+            /// Position in the session's event list, oldest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/index`.
+            public var index: Swift.Int
+            /// Set on session.status_idle events.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/stop_reason`.
+            public var stop_reason: Swift.String?
+            /// Text of message and tool result events.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/text`.
+            public var text: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/tool_name`.
+            public var tool_name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/type`.
+            public var _type: Swift.String
+            /// Creates a new `SandboxAgentSessionEvent`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - command: The command of a bash tool use.
+            ///   - index: Position in the session's event list, oldest first.
+            ///   - stop_reason: Set on session.status_idle events.
+            ///   - text: Text of message and tool result events.
+            ///   - tool_name:
+            ///   - _type:
+            public init(
+                at: Foundation.Date? = nil,
+                command: Swift.String? = nil,
+                index: Swift.Int,
+                stop_reason: Swift.String? = nil,
+                text: Swift.String? = nil,
+                tool_name: Swift.String? = nil,
+                _type: Swift.String
+            ) {
+                self.at = at
+                self.command = command
+                self.index = index
+                self.stop_reason = stop_reason
+                self.text = text
+                self.tool_name = tool_name
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case command
+                case index
+                case stop_reason
+                case text
+                case tool_name
+                case _type = "type"
             }
         }
         /// - Remark: Generated from `#/components/schemas/GradleTaskOutcome`.
@@ -11461,6 +12158,41 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPageSize`.
         public typealias BuildIssuesIndexPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment`.
+        public struct UpdateSandboxAgentEnvironment: Codable, Hashable, Sendable {
+            /// The model agent sessions run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/agent_model`.
+            public var agent_model: Swift.String?
+            /// System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/agent_system_prompt`.
+            public var agent_system_prompt: Swift.String?
+            /// An Anthropic API key with access to the environment's organization. Never returned.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_api_key`.
+            public var anthropic_api_key: Swift.String?
+            /// Creates a new `UpdateSandboxAgentEnvironment`.
+            ///
+            /// - Parameters:
+            ///   - agent_model: The model agent sessions run.
+            ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+            ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+            public init(
+                agent_model: Swift.String? = nil,
+                agent_system_prompt: Swift.String? = nil,
+                anthropic_api_key: Swift.String? = nil
+            ) {
+                self.agent_model = agent_model
+                self.agent_system_prompt = agent_system_prompt
+                self.anthropic_api_key = anthropic_api_key
+            }
+            public enum CodingKeys: String, CodingKey {
+                case agent_model
+                case agent_system_prompt
+                case anthropic_api_key
+            }
+        }
         /// The maximum number of targets to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/ModuleCacheTargetsPageSize`.
@@ -38545,6 +39277,387 @@ public enum Operations {
             }
         }
     }
+    /// Send a message to an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)`.
+    public enum sendSandboxAgentSessionMessage {
+        public static let id: Swift.String = "sendSandboxAgentSessionMessage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The agent session id.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/path/agent_session_id`.
+                public var agent_session_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - agent_session_id: The agent session id.
+                public init(
+                    account_handle: Swift.String,
+                    agent_session_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.agent_session_id = agent_session_id
+                }
+            }
+            public var path: Operations.sendSandboxAgentSessionMessage.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.sendSandboxAgentSessionMessage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.sendSandboxAgentSessionMessage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.sendSandboxAgentSessionMessage.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/requestBody/json/text`.
+                    public var text: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - text:
+                    public init(text: Swift.String) {
+                        self.text = text
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case text
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/requestBody/content/application\/json`.
+                case json(Operations.sendSandboxAgentSessionMessage.Input.Body.jsonPayload)
+            }
+            public var body: Operations.sendSandboxAgentSessionMessage.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.sendSandboxAgentSessionMessage.Input.Path,
+                headers: Operations.sendSandboxAgentSessionMessage.Input.Headers = .init(),
+                body: Operations.sendSandboxAgentSessionMessage.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// Creates a new `Accepted`.
+                public init() {}
+            }
+            /// The message was queued for the session
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.sendSandboxAgentSessionMessage.Output.Accepted)
+            /// The message was queued for the session
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            public static var accepted: Self {
+                .accepted(.init())
+            }
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.sendSandboxAgentSessionMessage.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.sendSandboxAgentSessionMessage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.sendSandboxAgentSessionMessage.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.sendSandboxAgentSessionMessage.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.sendSandboxAgentSessionMessage.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.sendSandboxAgentSessionMessage.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.sendSandboxAgentSessionMessage.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The agent session was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.sendSandboxAgentSessionMessage.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.sendSandboxAgentSessionMessage.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.sendSandboxAgentSessionMessage.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.sendSandboxAgentSessionMessage.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.sendSandboxAgentSessionMessage.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic rejected the request
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.sendSandboxAgentSessionMessage.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.sendSandboxAgentSessionMessage.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -48915,10 +50028,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload`.
                         public struct agent_environmentsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/agent_model`.
+                            public var agent_model: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/agent_system_prompt`.
+                            public var agent_system_prompt: Swift.String?
+                            /// The Anthropic agent Tuist created for this environment's model and system prompt.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_agent_id`.
+                            public var anthropic_agent_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_environment_id`.
                             public var anthropic_environment_id: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/enabled`.
                             public var enabled: Swift.Bool
+                            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/has_api_key`.
+                            public var has_api_key: Swift.Bool
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/id`.
                             public var id: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/inserted_at`.
@@ -48942,8 +50067,12 @@ public enum Operations {
                             /// Creates a new `agent_environmentsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - agent_model:
+                            ///   - agent_system_prompt:
+                            ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                             ///   - anthropic_environment_id:
                             ///   - enabled:
+                            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - max_idle_seconds:
@@ -48955,8 +50084,12 @@ public enum Operations {
                             ///   - vcpus:
                             ///   - workspace_gb:
                             public init(
+                                agent_model: Swift.String,
+                                agent_system_prompt: Swift.String? = nil,
+                                anthropic_agent_id: Swift.String? = nil,
                                 anthropic_environment_id: Swift.String,
                                 enabled: Swift.Bool,
+                                has_api_key: Swift.Bool,
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
                                 max_idle_seconds: Swift.Int,
@@ -48968,8 +50101,12 @@ public enum Operations {
                                 vcpus: Swift.Int,
                                 workspace_gb: Swift.Int
                             ) {
+                                self.agent_model = agent_model
+                                self.agent_system_prompt = agent_system_prompt
+                                self.anthropic_agent_id = anthropic_agent_id
                                 self.anthropic_environment_id = anthropic_environment_id
                                 self.enabled = enabled
+                                self.has_api_key = has_api_key
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.max_idle_seconds = max_idle_seconds
@@ -48982,8 +50119,12 @@ public enum Operations {
                                 self.workspace_gb = workspace_gb
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case agent_model
+                                case agent_system_prompt
+                                case anthropic_agent_id
                                 case anthropic_environment_id
                                 case enabled
+                                case has_api_key
                                 case id
                                 case inserted_at
                                 case max_idle_seconds
@@ -49262,6 +50403,18 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The model agent sessions run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/agent_model`.
+                    public var agent_model: Swift.String?
+                    /// System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/agent_system_prompt`.
+                    public var agent_system_prompt: Swift.String?
+                    /// An Anthropic API key with access to the environment's organization. Never returned.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_api_key`.
+                    public var anthropic_api_key: Swift.String?
                     /// The Anthropic environment identifier.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_environment_id`.
@@ -49289,6 +50442,9 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - agent_model: The model agent sessions run.
+                    ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+                    ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
                     ///   - anthropic_environment_id: The Anthropic environment identifier.
                     ///   - environment_key: The Anthropic environment key. Never returned.
                     ///   - max_idle_seconds:
@@ -49299,6 +50455,9 @@ public enum Operations {
                     ///   - vcpus:
                     ///   - workspace_gb:
                     public init(
+                        agent_model: Swift.String? = nil,
+                        agent_system_prompt: Swift.String? = nil,
+                        anthropic_api_key: Swift.String? = nil,
                         anthropic_environment_id: Swift.String,
                         environment_key: Swift.String,
                         max_idle_seconds: Swift.Int? = nil,
@@ -49309,6 +50468,9 @@ public enum Operations {
                         vcpus: Swift.Int? = nil,
                         workspace_gb: Swift.Int? = nil
                     ) {
+                        self.agent_model = agent_model
+                        self.agent_system_prompt = agent_system_prompt
+                        self.anthropic_api_key = anthropic_api_key
                         self.anthropic_environment_id = anthropic_environment_id
                         self.environment_key = environment_key
                         self.max_idle_seconds = max_idle_seconds
@@ -49320,6 +50482,9 @@ public enum Operations {
                         self.workspace_gb = workspace_gb
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case agent_model
+                        case agent_system_prompt
+                        case anthropic_api_key
                         case anthropic_environment_id
                         case environment_key
                         case max_idle_seconds
@@ -49359,10 +50524,22 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/agent_model`.
+                        public var agent_model: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/agent_system_prompt`.
+                        public var agent_system_prompt: Swift.String?
+                        /// The Anthropic agent Tuist created for this environment's model and system prompt.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_agent_id`.
+                        public var anthropic_agent_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_environment_id`.
                         public var anthropic_environment_id: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/enabled`.
                         public var enabled: Swift.Bool
+                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/has_api_key`.
+                        public var has_api_key: Swift.Bool
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/id`.
                         public var id: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/inserted_at`.
@@ -49386,8 +50563,12 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - agent_model:
+                        ///   - agent_system_prompt:
+                        ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                         ///   - anthropic_environment_id:
                         ///   - enabled:
+                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - max_idle_seconds:
@@ -49399,8 +50580,12 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - workspace_gb:
                         public init(
+                            agent_model: Swift.String,
+                            agent_system_prompt: Swift.String? = nil,
+                            anthropic_agent_id: Swift.String? = nil,
                             anthropic_environment_id: Swift.String,
                             enabled: Swift.Bool,
+                            has_api_key: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
                             max_idle_seconds: Swift.Int,
@@ -49412,8 +50597,12 @@ public enum Operations {
                             vcpus: Swift.Int,
                             workspace_gb: Swift.Int
                         ) {
+                            self.agent_model = agent_model
+                            self.agent_system_prompt = agent_system_prompt
+                            self.anthropic_agent_id = anthropic_agent_id
                             self.anthropic_environment_id = anthropic_environment_id
                             self.enabled = enabled
+                            self.has_api_key = has_api_key
                             self.id = id
                             self.inserted_at = inserted_at
                             self.max_idle_seconds = max_idle_seconds
@@ -49426,8 +50615,12 @@ public enum Operations {
                             self.workspace_gb = workspace_gb
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case agent_model
+                            case agent_system_prompt
+                            case anthropic_agent_id
                             case anthropic_environment_id
                             case enabled
+                            case has_api_key
                             case id
                             case inserted_at
                             case max_idle_seconds
@@ -50446,6 +51639,1034 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get an agent session with its live status.
+    ///
+    /// Reads the session back from Anthropic and returns its status, usage and the state of its sandbox.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)`.
+    public enum getSandboxAgentSession {
+        public static let id: Swift.String = "getSandboxAgentSession"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The agent session id.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/path/agent_session_id`.
+                public var agent_session_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - agent_session_id: The agent session id.
+                public init(
+                    account_handle: Swift.String,
+                    agent_session_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.agent_session_id = agent_session_id
+                }
+            }
+            public var path: Operations.getSandboxAgentSession.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAgentSession.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAgentSession.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSandboxAgentSession.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getSandboxAgentSession.Input.Path,
+                headers: Operations.getSandboxAgentSession.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// An agent session with its live status, usage and the state of its sandbox.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/anthropic_agent_id`.
+                        public var anthropic_agent_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/budget_cents`.
+                        public var budget_cents: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/model`.
+                        public var model: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/repository_ref`.
+                        public var repository_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/repository_url`.
+                        public var repository_url: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/sandbox_id`.
+                        public var sandbox_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/sandbox_state`.
+                        public var sandbox_state: Swift.String?
+                        /// The last session status the server saw (running, idle, terminated, archived).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String?
+                        /// The stop reason of the latest idle event the server saw.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/stop_reason`.
+                        public var stop_reason: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/title`.
+                        public var title: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage`.
+                        public struct usagePayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/active_seconds`.
+                            public var active_seconds: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/cache_read_input_tokens`.
+                            public var cache_read_input_tokens: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/input_tokens`.
+                            public var input_tokens: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/list_cost`.
+                            public struct list_costPayload: Codable, Hashable, Sendable {
+                                /// Minor units of the currency as a decimal string.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/list_cost/amount`.
+                                public var amount: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/list_cost/currency`.
+                                public var currency: Swift.String
+                                /// Creates a new `list_costPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - amount: Minor units of the currency as a decimal string.
+                                ///   - currency:
+                                public init(
+                                    amount: Swift.String,
+                                    currency: Swift.String
+                                ) {
+                                    self.amount = amount
+                                    self.currency = currency
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case amount
+                                    case currency
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/list_cost`.
+                            public var list_cost: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload.list_costPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage/output_tokens`.
+                            public var output_tokens: Swift.Int?
+                            /// Creates a new `usagePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - active_seconds:
+                            ///   - cache_read_input_tokens:
+                            ///   - input_tokens:
+                            ///   - list_cost:
+                            ///   - output_tokens:
+                            public init(
+                                active_seconds: Swift.Double? = nil,
+                                cache_read_input_tokens: Swift.Int? = nil,
+                                input_tokens: Swift.Int? = nil,
+                                list_cost: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload.list_costPayload? = nil,
+                                output_tokens: Swift.Int? = nil
+                            ) {
+                                self.active_seconds = active_seconds
+                                self.cache_read_input_tokens = cache_read_input_tokens
+                                self.input_tokens = input_tokens
+                                self.list_cost = list_cost
+                                self.output_tokens = output_tokens
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case active_seconds
+                                case cache_read_input_tokens
+                                case input_tokens
+                                case list_cost
+                                case output_tokens
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage`.
+                        public var usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - anthropic_agent_id:
+                        ///   - anthropic_session_id:
+                        ///   - budget_cents:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - model:
+                        ///   - repository_ref:
+                        ///   - repository_url:
+                        ///   - sandbox_id:
+                        ///   - sandbox_state:
+                        ///   - status: The last session status the server saw (running, idle, terminated, archived).
+                        ///   - stop_reason: The stop reason of the latest idle event the server saw.
+                        ///   - title:
+                        ///   - updated_at:
+                        ///   - usage:
+                        public init(
+                            agent_environment_id: Swift.Int,
+                            anthropic_agent_id: Swift.String,
+                            anthropic_session_id: Swift.String,
+                            budget_cents: Swift.Int? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            model: Swift.String? = nil,
+                            repository_ref: Swift.String? = nil,
+                            repository_url: Swift.String? = nil,
+                            sandbox_id: Swift.String? = nil,
+                            sandbox_state: Swift.String? = nil,
+                            status: Swift.String? = nil,
+                            stop_reason: Swift.String? = nil,
+                            title: Swift.String? = nil,
+                            updated_at: Foundation.Date,
+                            usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload? = nil
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.anthropic_agent_id = anthropic_agent_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.budget_cents = budget_cents
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.model = model
+                            self.repository_ref = repository_ref
+                            self.repository_url = repository_url
+                            self.sandbox_id = sandbox_id
+                            self.sandbox_state = sandbox_state
+                            self.status = status
+                            self.stop_reason = stop_reason
+                            self.title = title
+                            self.updated_at = updated_at
+                            self.usage = usage
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case anthropic_agent_id
+                            case anthropic_session_id
+                            case budget_cents
+                            case id
+                            case inserted_at
+                            case model
+                            case repository_ref
+                            case repository_url
+                            case sandbox_id
+                            case sandbox_state
+                            case status
+                            case stop_reason
+                            case title
+                            case updated_at
+                            case usage
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAgentSession.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAgentSession.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent session
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSandboxAgentSession.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSandboxAgentSession.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAgentSession.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAgentSession.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSandboxAgentSession.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSandboxAgentSession.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAgentSession.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAgentSession.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The agent session was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getSandboxAgentSession.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getSandboxAgentSession.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getSandboxAgentSession.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAgentSession.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getSandboxAgentSession.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getSandboxAgentSession.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getSandboxAgentSession.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getSandboxAgentSession.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAgentSession.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAgentSession.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic rejected the request
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/get(getSandboxAgentSession)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.getSandboxAgentSession.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.getSandboxAgentSession.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Archive an agent session.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)`.
+    public enum archiveSandboxAgentSession {
+        public static let id: Swift.String = "archiveSandboxAgentSession"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The agent session id.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/path/agent_session_id`.
+                public var agent_session_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - agent_session_id: The agent session id.
+                public init(
+                    account_handle: Swift.String,
+                    agent_session_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.agent_session_id = agent_session_id
+                }
+            }
+            public var path: Operations.archiveSandboxAgentSession.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandboxAgentSession.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandboxAgentSession.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.archiveSandboxAgentSession.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.archiveSandboxAgentSession.Input.Path,
+                headers: Operations.archiveSandboxAgentSession.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A Managed Agents session Tuist started on one of the account's connected environments.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/anthropic_agent_id`.
+                        public var anthropic_agent_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/budget_cents`.
+                        public var budget_cents: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/model`.
+                        public var model: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/repository_ref`.
+                        public var repository_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/repository_url`.
+                        public var repository_url: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/sandbox_id`.
+                        public var sandbox_id: Swift.String?
+                        /// The last session status the server saw (running, idle, terminated, archived).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
+                        /// The stop reason of the latest idle event the server saw.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/stop_reason`.
+                        public var stop_reason: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/title`.
+                        public var title: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - anthropic_agent_id:
+                        ///   - anthropic_session_id:
+                        ///   - budget_cents:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - model:
+                        ///   - repository_ref:
+                        ///   - repository_url:
+                        ///   - sandbox_id:
+                        ///   - status: The last session status the server saw (running, idle, terminated, archived).
+                        ///   - stop_reason: The stop reason of the latest idle event the server saw.
+                        ///   - title:
+                        ///   - updated_at:
+                        public init(
+                            agent_environment_id: Swift.Int,
+                            anthropic_agent_id: Swift.String,
+                            anthropic_session_id: Swift.String,
+                            budget_cents: Swift.Int? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            model: Swift.String? = nil,
+                            repository_ref: Swift.String? = nil,
+                            repository_url: Swift.String? = nil,
+                            sandbox_id: Swift.String? = nil,
+                            status: Swift.String? = nil,
+                            stop_reason: Swift.String? = nil,
+                            title: Swift.String? = nil,
+                            updated_at: Foundation.Date
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.anthropic_agent_id = anthropic_agent_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.budget_cents = budget_cents
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.model = model
+                            self.repository_ref = repository_ref
+                            self.repository_url = repository_url
+                            self.sandbox_id = sandbox_id
+                            self.status = status
+                            self.stop_reason = stop_reason
+                            self.title = title
+                            self.updated_at = updated_at
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case anthropic_agent_id
+                            case anthropic_session_id
+                            case budget_cents
+                            case id
+                            case inserted_at
+                            case model
+                            case repository_ref
+                            case repository_url
+                            case sandbox_id
+                            case status
+                            case stop_reason
+                            case title
+                            case updated_at
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/application\/json`.
+                    case json(Operations.archiveSandboxAgentSession.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.archiveSandboxAgentSession.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandboxAgentSession.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandboxAgentSession.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent session
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.archiveSandboxAgentSession.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.archiveSandboxAgentSession.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandboxAgentSession.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandboxAgentSession.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.archiveSandboxAgentSession.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.archiveSandboxAgentSession.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandboxAgentSession.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandboxAgentSession.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The agent session was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.archiveSandboxAgentSession.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.archiveSandboxAgentSession.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.archiveSandboxAgentSession.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandboxAgentSession.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.archiveSandboxAgentSession.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.archiveSandboxAgentSession.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.archiveSandboxAgentSession.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.archiveSandboxAgentSession.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandboxAgentSession.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandboxAgentSession.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic rejected the request
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/post(archiveSandboxAgentSession)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.archiveSandboxAgentSession.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.archiveSandboxAgentSession.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
                             response: self
                         )
                     }
@@ -57174,6 +59395,538 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "gatewayTimeout",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update the agent settings of a connected environment.
+    ///
+    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
+    public enum updateSandboxAgentEnvironment {
+        public static let id: Swift.String = "updateSandboxAgentEnvironment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The agent environment id.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/path/agent_environment_id`.
+                public var agent_environment_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - agent_environment_id: The agent environment id.
+                public init(
+                    account_handle: Swift.String,
+                    agent_environment_id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.agent_environment_id = agent_environment_id
+                }
+            }
+            public var path: Operations.updateSandboxAgentEnvironment.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateSandboxAgentEnvironment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateSandboxAgentEnvironment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateSandboxAgentEnvironment.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The model agent sessions run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/agent_model`.
+                    public var agent_model: Swift.String?
+                    /// System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/agent_system_prompt`.
+                    public var agent_system_prompt: Swift.String?
+                    /// An Anthropic API key with access to the environment's organization. Never returned.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_api_key`.
+                    public var anthropic_api_key: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - agent_model: The model agent sessions run.
+                    ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
+                    ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+                    public init(
+                        agent_model: Swift.String? = nil,
+                        agent_system_prompt: Swift.String? = nil,
+                        anthropic_api_key: Swift.String? = nil
+                    ) {
+                        self.agent_model = agent_model
+                        self.agent_system_prompt = agent_system_prompt
+                        self.anthropic_api_key = anthropic_api_key
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case agent_model
+                        case agent_system_prompt
+                        case anthropic_api_key
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateSandboxAgentEnvironment.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateSandboxAgentEnvironment.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateSandboxAgentEnvironment.Input.Path,
+                headers: Operations.updateSandboxAgentEnvironment.Input.Headers = .init(),
+                body: Operations.updateSandboxAgentEnvironment.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/agent_model`.
+                        public var agent_model: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/agent_system_prompt`.
+                        public var agent_system_prompt: Swift.String?
+                        /// The Anthropic agent Tuist created for this environment's model and system prompt.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_agent_id`.
+                        public var anthropic_agent_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_environment_id`.
+                        public var anthropic_environment_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/enabled`.
+                        public var enabled: Swift.Bool
+                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/has_api_key`.
+                        public var has_api_key: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/id`.
+                        public var id: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/max_idle_seconds`.
+                        public var max_idle_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/memory_mb`.
+                        public var memory_mb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/name`.
+                        public var name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/pause_grace_seconds`.
+                        public var pause_grace_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/template`.
+                        public var template: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/vcpus`.
+                        public var vcpus: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/workspace_gb`.
+                        public var workspace_gb: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_model:
+                        ///   - agent_system_prompt:
+                        ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
+                        ///   - anthropic_environment_id:
+                        ///   - enabled:
+                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - max_idle_seconds:
+                        ///   - memory_mb:
+                        ///   - name:
+                        ///   - pause_grace_seconds:
+                        ///   - template:
+                        ///   - updated_at:
+                        ///   - vcpus:
+                        ///   - workspace_gb:
+                        public init(
+                            agent_model: Swift.String,
+                            agent_system_prompt: Swift.String? = nil,
+                            anthropic_agent_id: Swift.String? = nil,
+                            anthropic_environment_id: Swift.String,
+                            enabled: Swift.Bool,
+                            has_api_key: Swift.Bool,
+                            id: Swift.Int,
+                            inserted_at: Foundation.Date,
+                            max_idle_seconds: Swift.Int,
+                            memory_mb: Swift.Int,
+                            name: Swift.String? = nil,
+                            pause_grace_seconds: Swift.Int,
+                            template: Swift.String,
+                            updated_at: Foundation.Date,
+                            vcpus: Swift.Int,
+                            workspace_gb: Swift.Int
+                        ) {
+                            self.agent_model = agent_model
+                            self.agent_system_prompt = agent_system_prompt
+                            self.anthropic_agent_id = anthropic_agent_id
+                            self.anthropic_environment_id = anthropic_environment_id
+                            self.enabled = enabled
+                            self.has_api_key = has_api_key
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.max_idle_seconds = max_idle_seconds
+                            self.memory_mb = memory_mb
+                            self.name = name
+                            self.pause_grace_seconds = pause_grace_seconds
+                            self.template = template
+                            self.updated_at = updated_at
+                            self.vcpus = vcpus
+                            self.workspace_gb = workspace_gb
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_model
+                            case agent_system_prompt
+                            case anthropic_agent_id
+                            case anthropic_environment_id
+                            case enabled
+                            case has_api_key
+                            case id
+                            case inserted_at
+                            case max_idle_seconds
+                            case memory_mb
+                            case name
+                            case pause_grace_seconds
+                            case template
+                            case updated_at
+                            case vcpus
+                            case workspace_gb
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateSandboxAgentEnvironment.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateSandboxAgentEnvironment.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent environment
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateSandboxAgentEnvironment.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateSandboxAgentEnvironment.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateSandboxAgentEnvironment.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateSandboxAgentEnvironment.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid params
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateSandboxAgentEnvironment.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.updateSandboxAgentEnvironment.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateSandboxAgentEnvironment.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateSandboxAgentEnvironment.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateSandboxAgentEnvironment.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateSandboxAgentEnvironment.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateSandboxAgentEnvironment.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateSandboxAgentEnvironment.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The agent environment was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateSandboxAgentEnvironment.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateSandboxAgentEnvironment.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateSandboxAgentEnvironment.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateSandboxAgentEnvironment.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateSandboxAgentEnvironment.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.updateSandboxAgentEnvironment.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.updateSandboxAgentEnvironment.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.updateSandboxAgentEnvironment.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -66745,6 +69498,935 @@ public enum Operations {
             }
         }
     }
+    /// List the account's agent sessions.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)`.
+    public enum listSandboxAgentSessions {
+        public static let id: Swift.String = "listSandboxAgentSessions"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.listSandboxAgentSessions.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxAgentSessions.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxAgentSessions.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listSandboxAgentSessions.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.listSandboxAgentSessions.Input.Path,
+                headers: Operations.listSandboxAgentSessions.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// A Managed Agents session Tuist started on one of the account's connected environments.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload`.
+                        public struct agent_sessionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/agent_environment_id`.
+                            public var agent_environment_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/anthropic_agent_id`.
+                            public var anthropic_agent_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/anthropic_session_id`.
+                            public var anthropic_session_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/budget_cents`.
+                            public var budget_cents: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/inserted_at`.
+                            public var inserted_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/model`.
+                            public var model: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/repository_ref`.
+                            public var repository_ref: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/repository_url`.
+                            public var repository_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/sandbox_id`.
+                            public var sandbox_id: Swift.String?
+                            /// The last session status the server saw (running, idle, terminated, archived).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/status`.
+                            public var status: Swift.String?
+                            /// The stop reason of the latest idle event the server saw.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/stop_reason`.
+                            public var stop_reason: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/title`.
+                            public var title: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `agent_sessionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - agent_environment_id:
+                            ///   - anthropic_agent_id:
+                            ///   - anthropic_session_id:
+                            ///   - budget_cents:
+                            ///   - id:
+                            ///   - inserted_at:
+                            ///   - model:
+                            ///   - repository_ref:
+                            ///   - repository_url:
+                            ///   - sandbox_id:
+                            ///   - status: The last session status the server saw (running, idle, terminated, archived).
+                            ///   - stop_reason: The stop reason of the latest idle event the server saw.
+                            ///   - title:
+                            ///   - updated_at:
+                            public init(
+                                agent_environment_id: Swift.Int,
+                                anthropic_agent_id: Swift.String,
+                                anthropic_session_id: Swift.String,
+                                budget_cents: Swift.Int? = nil,
+                                id: Swift.String,
+                                inserted_at: Foundation.Date,
+                                model: Swift.String? = nil,
+                                repository_ref: Swift.String? = nil,
+                                repository_url: Swift.String? = nil,
+                                sandbox_id: Swift.String? = nil,
+                                status: Swift.String? = nil,
+                                stop_reason: Swift.String? = nil,
+                                title: Swift.String? = nil,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.agent_environment_id = agent_environment_id
+                                self.anthropic_agent_id = anthropic_agent_id
+                                self.anthropic_session_id = anthropic_session_id
+                                self.budget_cents = budget_cents
+                                self.id = id
+                                self.inserted_at = inserted_at
+                                self.model = model
+                                self.repository_ref = repository_ref
+                                self.repository_url = repository_url
+                                self.sandbox_id = sandbox_id
+                                self.status = status
+                                self.stop_reason = stop_reason
+                                self.title = title
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case agent_environment_id
+                                case anthropic_agent_id
+                                case anthropic_session_id
+                                case budget_cents
+                                case id
+                                case inserted_at
+                                case model
+                                case repository_ref
+                                case repository_url
+                                case sandbox_id
+                                case status
+                                case stop_reason
+                                case title
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessions`.
+                        public typealias agent_sessionsPayload = [Operations.listSandboxAgentSessions.Output.Ok.Body.jsonPayload.agent_sessionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessions`.
+                        public var agent_sessions: Operations.listSandboxAgentSessions.Output.Ok.Body.jsonPayload.agent_sessionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_sessions:
+                        public init(agent_sessions: Operations.listSandboxAgentSessions.Output.Ok.Body.jsonPayload.agent_sessionsPayload) {
+                            self.agent_sessions = agent_sessions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_sessions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/application\/json`.
+                    case json(Operations.listSandboxAgentSessions.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listSandboxAgentSessions.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessions.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessions.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent sessions
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listSandboxAgentSessions.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listSandboxAgentSessions.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessions.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessions.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listSandboxAgentSessions.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listSandboxAgentSessions.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listSandboxAgentSessions.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessions.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listSandboxAgentSessions.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listSandboxAgentSessions.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/get(listSandboxAgentSessions)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listSandboxAgentSessions.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listSandboxAgentSessions.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Start an agent session.
+    ///
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
+    public enum createSandboxAgentSession {
+        public static let id: Swift.String = "createSandboxAgentSession"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.createSandboxAgentSession.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxAgentSession.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxAgentSession.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createSandboxAgentSession.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The agent environment to run on. Defaults to the account's single enabled environment.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/agent_environment_id`.
+                    public var agent_environment_id: Swift.Int?
+                    /// An existing Anthropic agent to run instead of the one Tuist manages.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/agent_id`.
+                    public var agent_id: Swift.String?
+                    /// Hard list-cost ceiling for the session in USD cents.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/budget_cents`.
+                    public var budget_cents: Swift.Int?
+                    /// Overrides the environment's model.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/model`.
+                    public var model: Swift.String?
+                    /// The first user message of the session.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/prompt`.
+                    public var prompt: Swift.String
+                    /// Branch, tag or commit sha to check out.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/repository_ref`.
+                    public var repository_ref: Swift.String?
+                    /// HTTPS URL of a repository to clone under /workspace before the agent starts.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/repository_url`.
+                    public var repository_url: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/title`.
+                    public var title: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - agent_environment_id: The agent environment to run on. Defaults to the account's single enabled environment.
+                    ///   - agent_id: An existing Anthropic agent to run instead of the one Tuist manages.
+                    ///   - budget_cents: Hard list-cost ceiling for the session in USD cents.
+                    ///   - model: Overrides the environment's model.
+                    ///   - prompt: The first user message of the session.
+                    ///   - repository_ref: Branch, tag or commit sha to check out.
+                    ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
+                    ///   - title:
+                    public init(
+                        agent_environment_id: Swift.Int? = nil,
+                        agent_id: Swift.String? = nil,
+                        budget_cents: Swift.Int? = nil,
+                        model: Swift.String? = nil,
+                        prompt: Swift.String,
+                        repository_ref: Swift.String? = nil,
+                        repository_url: Swift.String? = nil,
+                        title: Swift.String? = nil
+                    ) {
+                        self.agent_environment_id = agent_environment_id
+                        self.agent_id = agent_id
+                        self.budget_cents = budget_cents
+                        self.model = model
+                        self.prompt = prompt
+                        self.repository_ref = repository_ref
+                        self.repository_url = repository_url
+                        self.title = title
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case agent_environment_id
+                        case agent_id
+                        case budget_cents
+                        case model
+                        case prompt
+                        case repository_ref
+                        case repository_url
+                        case title
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/content/application\/json`.
+                case json(Operations.createSandboxAgentSession.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createSandboxAgentSession.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createSandboxAgentSession.Input.Path,
+                headers: Operations.createSandboxAgentSession.Input.Headers = .init(),
+                body: Operations.createSandboxAgentSession.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A Managed Agents session Tuist started on one of the account's connected environments.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/anthropic_agent_id`.
+                        public var anthropic_agent_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/budget_cents`.
+                        public var budget_cents: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/model`.
+                        public var model: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/repository_ref`.
+                        public var repository_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/repository_url`.
+                        public var repository_url: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/sandbox_id`.
+                        public var sandbox_id: Swift.String?
+                        /// The last session status the server saw (running, idle, terminated, archived).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/status`.
+                        public var status: Swift.String?
+                        /// The stop reason of the latest idle event the server saw.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/stop_reason`.
+                        public var stop_reason: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/title`.
+                        public var title: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - anthropic_agent_id:
+                        ///   - anthropic_session_id:
+                        ///   - budget_cents:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - model:
+                        ///   - repository_ref:
+                        ///   - repository_url:
+                        ///   - sandbox_id:
+                        ///   - status: The last session status the server saw (running, idle, terminated, archived).
+                        ///   - stop_reason: The stop reason of the latest idle event the server saw.
+                        ///   - title:
+                        ///   - updated_at:
+                        public init(
+                            agent_environment_id: Swift.Int,
+                            anthropic_agent_id: Swift.String,
+                            anthropic_session_id: Swift.String,
+                            budget_cents: Swift.Int? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            model: Swift.String? = nil,
+                            repository_ref: Swift.String? = nil,
+                            repository_url: Swift.String? = nil,
+                            sandbox_id: Swift.String? = nil,
+                            status: Swift.String? = nil,
+                            stop_reason: Swift.String? = nil,
+                            title: Swift.String? = nil,
+                            updated_at: Foundation.Date
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.anthropic_agent_id = anthropic_agent_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.budget_cents = budget_cents
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.model = model
+                            self.repository_ref = repository_ref
+                            self.repository_url = repository_url
+                            self.sandbox_id = sandbox_id
+                            self.status = status
+                            self.stop_reason = stop_reason
+                            self.title = title
+                            self.updated_at = updated_at
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case anthropic_agent_id
+                            case anthropic_session_id
+                            case budget_cents
+                            case id
+                            case inserted_at
+                            case model
+                            case repository_ref
+                            case repository_url
+                            case sandbox_id
+                            case status
+                            case stop_reason
+                            case title
+                            case updated_at
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/application\/json`.
+                    case json(Operations.createSandboxAgentSession.Output.Created.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createSandboxAgentSession.Output.Created.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxAgentSession.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxAgentSession.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent session
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createSandboxAgentSession.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createSandboxAgentSession.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxAgentSession.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxAgentSession.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid params or no usable agent environment
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createSandboxAgentSession.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createSandboxAgentSession.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxAgentSession.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxAgentSession.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createSandboxAgentSession.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createSandboxAgentSession.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createSandboxAgentSession.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxAgentSession.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createSandboxAgentSession.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createSandboxAgentSession.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createSandboxAgentSession.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createSandboxAgentSession.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxAgentSession.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxAgentSession.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic rejected the request
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.createSandboxAgentSession.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.createSandboxAgentSession.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List module cache targets for a run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets`.
@@ -74734,6 +78416,487 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List an agent session's events.
+    ///
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
+    public enum listSandboxAgentSessionEvents {
+        public static let id: Swift.String = "listSandboxAgentSessionEvents"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The agent session id.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/path/agent_session_id`.
+                public var agent_session_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - agent_session_id: The agent session id.
+                public init(
+                    account_handle: Swift.String,
+                    agent_session_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.agent_session_id = agent_session_id
+                }
+            }
+            public var path: Operations.listSandboxAgentSessionEvents.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Only return events with an index greater than this value.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/query/after`.
+                public var after: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - after: Only return events with an index greater than this value.
+                public init(after: Swift.Int? = nil) {
+                    self.after = after
+                }
+            }
+            public var query: Operations.listSandboxAgentSessionEvents.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxAgentSessionEvents.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxAgentSessionEvents.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listSandboxAgentSessionEvents.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listSandboxAgentSessionEvents.Input.Path,
+                query: Operations.listSandboxAgentSessionEvents.Input.Query = .init(),
+                headers: Operations.listSandboxAgentSessionEvents.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload`.
+                        public struct eventsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/at`.
+                            public var at: Foundation.Date?
+                            /// The command of a bash tool use.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/command`.
+                            public var command: Swift.String?
+                            /// Position in the session's event list, oldest first.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/index`.
+                            public var index: Swift.Int
+                            /// Set on session.status_idle events.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/stop_reason`.
+                            public var stop_reason: Swift.String?
+                            /// Text of message and tool result events.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/text`.
+                            public var text: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/tool_name`.
+                            public var tool_name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/type`.
+                            public var _type: Swift.String
+                            /// Creates a new `eventsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - at:
+                            ///   - command: The command of a bash tool use.
+                            ///   - index: Position in the session's event list, oldest first.
+                            ///   - stop_reason: Set on session.status_idle events.
+                            ///   - text: Text of message and tool result events.
+                            ///   - tool_name:
+                            ///   - _type:
+                            public init(
+                                at: Foundation.Date? = nil,
+                                command: Swift.String? = nil,
+                                index: Swift.Int,
+                                stop_reason: Swift.String? = nil,
+                                text: Swift.String? = nil,
+                                tool_name: Swift.String? = nil,
+                                _type: Swift.String
+                            ) {
+                                self.at = at
+                                self.command = command
+                                self.index = index
+                                self.stop_reason = stop_reason
+                                self.text = text
+                                self.tool_name = tool_name
+                                self._type = _type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case at
+                                case command
+                                case index
+                                case stop_reason
+                                case text
+                                case tool_name
+                                case _type = "type"
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/events`.
+                        public typealias eventsPayload = [Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/events`.
+                        public var events: Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayload
+                        /// Pass as `after` on the next call.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/next_after`.
+                        public var next_after: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - events:
+                        ///   - next_after: Pass as `after` on the next call.
+                        public init(
+                            events: Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayload,
+                            next_after: Swift.Int
+                        ) {
+                            self.events = events
+                            self.next_after = next_after
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case events
+                            case next_after
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/application\/json`.
+                    case json(Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessionEvents.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessionEvents.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Agent session events
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listSandboxAgentSessionEvents.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listSandboxAgentSessionEvents.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessionEvents.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessionEvents.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listSandboxAgentSessionEvents.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listSandboxAgentSessionEvents.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessionEvents.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessionEvents.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The agent session was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listSandboxAgentSessionEvents.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listSandboxAgentSessionEvents.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listSandboxAgentSessionEvents.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessionEvents.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listSandboxAgentSessionEvents.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listSandboxAgentSessionEvents.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listSandboxAgentSessionEvents.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listSandboxAgentSessionEvents.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxAgentSessionEvents.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxAgentSessionEvents.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic rejected the request
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.listSandboxAgentSessionEvents.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.listSandboxAgentSessionEvents.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
                             response: self
                         )
                     }

@@ -89,6 +89,74 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       conn
       |> delete(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{other.id}")
       |> json_response(:not_found)
+
+      conn
+      |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{other.id}", %{agent_model: "claude-opus-5"})
+      |> json_response(:not_found)
+    end
+
+    test "stores the agent settings, reports has_api_key and drops the cached agent when the model changes", %{
+      conn: conn,
+      account: account
+    } do
+      created =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+          anthropic_environment_id: "env_agent",
+          environment_key: "sk-ant-secret",
+          anthropic_api_key: "sk-ant-api",
+          agent_model: "claude-opus-5",
+          agent_system_prompt: "Be brief."
+        })
+        |> json_response(:created)
+
+      assert %{
+               "has_api_key" => true,
+               "agent_model" => "claude-opus-5",
+               "agent_system_prompt" => "Be brief.",
+               "anthropic_agent_id" => nil
+             } = created
+
+      refute Map.has_key?(created, "anthropic_api_key")
+      refute inspect(created) =~ "sk-ant-api"
+
+      agent_environment = agent_environment_fixture(account: account, anthropic_agent_id: "agent_cached")
+
+      listed =
+        conn
+        |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments")
+        |> json_response(:ok)
+
+      assert %{"has_api_key" => false, "anthropic_agent_id" => "agent_cached", "agent_model" => "claude-sonnet-5"} =
+               Enum.find(listed["agent_environments"], &(&1["id"] == agent_environment.id))
+
+      updated =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{agent_environment.id}", %{
+          anthropic_api_key: "sk-ant-api-2"
+        })
+        |> json_response(:ok)
+
+      assert %{"has_api_key" => true, "anthropic_agent_id" => "agent_cached", "agent_model" => "claude-sonnet-5"} =
+               updated
+
+      refute inspect(updated) =~ "sk-ant-api-2"
+
+      assert %{"anthropic_agent_id" => nil, "agent_model" => "claude-opus-5", "has_api_key" => true} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{agent_environment.id}", %{
+                 agent_model: "claude-opus-5"
+               })
+               |> json_response(:ok)
+
+      response =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{agent_environment.id}", %{
+          agent_model: ""
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "minLength"
     end
   end
 

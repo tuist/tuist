@@ -600,11 +600,19 @@ defmodule TuistWeb.Router do
             :show_delivery_attempt
       end
 
-      # The literal agent-environments routes must precede `/:sandbox_id`.
+      # The literal agent-environments and agent-sessions routes must
+      # precede `/:sandbox_id`.
       scope "/sandboxes" do
         post "/agent-environments", SandboxesController, :create_agent_environment
         get "/agent-environments", SandboxesController, :index_agent_environments
+        patch "/agent-environments/:agent_environment_id", SandboxesController, :update_agent_environment
         delete "/agent-environments/:agent_environment_id", SandboxesController, :delete_agent_environment
+        post "/agent-sessions", AgentSessionsController, :create
+        get "/agent-sessions", AgentSessionsController, :index
+        get "/agent-sessions/:agent_session_id", AgentSessionsController, :show
+        post "/agent-sessions/:agent_session_id/messages", AgentSessionsController, :create_message
+        get "/agent-sessions/:agent_session_id/events", AgentSessionsController, :index_events
+        post "/agent-sessions/:agent_session_id/archive", AgentSessionsController, :archive
         get "/", SandboxesController, :index
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
