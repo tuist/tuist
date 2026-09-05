@@ -206,10 +206,29 @@ node count — it changes which controller owns it.
 
 ## Health of Flux itself
 
-A down reconciler stops correcting drift, so Flux's controllers are scraped
-and heartbeat-alerted via Pillar 2 (`infra/helm/k8s-monitoring/values-management.yaml`
-+ `infra/helm/k8s-monitoring/alerts.md`). Grafana Cloud evaluates the alerts
-outside this single-node cluster.
+A down reconciler stops correcting drift without breaking anything visible, so
+Flux is watched from Grafana Cloud, which evaluates outside this single-node
+cluster. Two rules are live (`infra/helm/k8s-monitoring/alerts.md`):
+
+- **`Flux - reconciliation has stalled fleet-wide`** on
+  `gotk_reconcile_duration_seconds_count`. A fleet total, so suspending one
+  Kustomization does not page.
+- **`Flux - telemetry missing from the management cluster`**, the paired
+  `absent_over_time` rule. The stall rule compares a counter, so if the
+  controllers vanish the series goes too and that comparison returns No Data,
+  which is Normal here; this rule is what catches Flux not running at all.
+
+Both read metrics collected by pod-annotation autodiscovery, not an explicit
+scrape config.
+
+Neither detects a reconcile that runs and **fails**: the duration histogram
+counts failed reconciles too, and Flux 2.9.5 does not export
+`gotk_reconcile_condition`. That gap is closed by a kube-state-metrics
+custom-resource-state config for Kustomizations in `values-management.yaml`,
+using the same mechanism as the CAPI custom-resource metrics. The rule that
+consumes it is written up in `alerts.md` and is deliberately **not created until
+the series is confirmed flowing**, because a rule whose query matches nothing
+reads as passing.
 
 ## Removing a cluster (explicit destroy flow)
 
