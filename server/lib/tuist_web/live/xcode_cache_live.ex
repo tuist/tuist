@@ -26,7 +26,12 @@ defmodule TuistWeb.XcodeCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Xcode Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("xcode-cache"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_cache", "Xcode Cache"),
+          fallback: "xcode-cache"
+        )
+      )
 
     {:ok, socket}
   end

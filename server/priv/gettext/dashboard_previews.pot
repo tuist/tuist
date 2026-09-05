@@ -16,13 +16,13 @@ msgstr ""
 msgid "%{app_name} icon"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.ex:40
+#: lib/tuist_web/live/preview_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:154
-#: lib/tuist_web/live/previews_live.ex:175
+#: lib/tuist_web/live/previews_live.ex:180
 #: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -33,6 +33,7 @@ msgstr ""
 msgid "Built at"
 msgstr ""
 
+#: lib/tuist_web/live/preview_live.ex:59
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
@@ -86,7 +87,7 @@ msgid "Name"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:157
-#: lib/tuist_web/live/previews_live.ex:183
+#: lib/tuist_web/live/previews_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
@@ -103,6 +104,7 @@ msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:30
 #: lib/tuist_web/live/previews_live.ex:25
+#: lib/tuist_web/live/previews_live.ex:29
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
@@ -187,7 +189,7 @@ msgid "Search..."
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:169
-#: lib/tuist_web/live/previews_live.ex:167
+#: lib/tuist_web/live/previews_live.ex:172
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Track"
@@ -211,4 +213,19 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "App preview"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Preview"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Version"
 msgstr ""

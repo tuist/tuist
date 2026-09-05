@@ -26,7 +26,12 @@ defmodule TuistWeb.TestsLive do
         :head_title,
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("tests"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Tests"),
+          fallback: "tests"
+        )
+      )
       |> assign_slowest_test_cases()
       |> assign_most_flaky_test_cases()
 

@@ -19,6 +19,7 @@ defmodule TuistWeb.TestCaseLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -58,6 +59,20 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: test_case_detail.name,
+          subtitle:
+            Enum.join(Enum.reject([test_case_detail.module_name, test_case_detail.suite_name], &(&1 in [nil, ""])), " · "),
+          badge: test_case_detail.last_status |> to_string() |> String.capitalize(),
+          metric_one_label: dgettext("dashboard_tests", "Last duration"),
+          metric_one_value: DateFormatter.format_duration_from_milliseconds(test_case_detail.last_duration),
+          metric_two_label: dgettext("dashboard_tests", "Average duration"),
+          metric_two_value: DateFormatter.format_duration_from_milliseconds(test_case_detail.avg_duration),
+          chart: Enum.take(test_case_detail.recent_durations || [], -16),
+          chart_label: dgettext("dashboard_tests", "Recent test duration")
+        )
+      )
       |> assign(:available_filters, define_filters(project))
       |> assign(:can_update_test_case, can_update_test_case?(socket.assigns[:current_user], project))
 

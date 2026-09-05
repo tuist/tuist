@@ -14,7 +14,12 @@ defmodule TuistWeb.OverviewLive do
         :head_title,
         "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_projects", "Overview"),
+          subtitle: dgettext("dashboard_projects", "Project dashboard")
+        )
+      )
 
     socket =
       if Project.xcode_project?(project) do

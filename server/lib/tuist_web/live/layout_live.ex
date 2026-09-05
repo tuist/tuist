@@ -14,6 +14,7 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.GitHub.Releases
   alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
 
   def on_mount(
         :optional_project,
@@ -138,6 +139,12 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
      |> assign(:current_user, current_user)
+     |> assign(
+       OpenGraph.project_image_assigns(selected_project,
+         title: selected_project.name,
+         subtitle: dgettext("dashboard_projects", "Project dashboard")
+       )
+     )
      |> assign(
        :selected_projects,
        selected_projects

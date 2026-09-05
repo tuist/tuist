@@ -3,13 +3,22 @@ defmodule TuistWeb.ConnectLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias TuistWeb.Helpers.OpenGraph
+
   @impl true
   def mount(_params, _uri, socket) do
     socket =
-      assign(socket,
+      socket
+      |> assign(
         sidebar_enabled?: false,
         connected?: false,
         head_title: "#{dgettext("dashboard_auth", "Connect")} · Tuist"
+      )
+      |> assign(
+        OpenGraph.project_image_assigns(socket.assigns.selected_project,
+          title: dgettext("dashboard_auth", "Connect"),
+          subtitle: dgettext("dashboard_auth", "Connect your project to the dashboard")
+        )
       )
 
     if connected?(socket) do
