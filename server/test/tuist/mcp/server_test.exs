@@ -6,6 +6,7 @@ defmodule Tuist.MCP.ServerTest do
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
+  alias Tuist.MCP.Components.Tools.GetBazelIntegrationGuide
   alias Tuist.MCP.Components.Tools.GetGradleIntegrationGuide
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.MCP.Server
@@ -18,6 +19,7 @@ defmodule Tuist.MCP.ServerTest do
       tool_names = server.tools |> Map.keys() |> Enum.sort()
 
       assert "get_gradle_integration_guide" in tool_names
+      assert "get_bazel_integration_guide" in tool_names
       assert "list_accounts" in tool_names
       assert "get_organization" in tool_names
       assert "list_account_tokens" in tool_names
@@ -76,14 +78,16 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.25.0"
+      assert server.version == "1.26.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"
       assert server.instructions =~ "explicitly ask the user to confirm the email address"
 
       assert server.instructions =~
-               "get_gradle_integration_guide` tool provides the Gradle and Android integration workflow"
+               "The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows"
+
+      assert server.instructions =~ "Gradle and Bazel require separate `tuist auth whoami --url` authentication"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -152,6 +156,7 @@ defmodule Tuist.MCP.ServerTest do
       assert CreateOrganization.annotations()[:readOnlyHint] == false
       assert CreateProject.annotations()[:readOnlyHint] == false
       assert GetGradleIntegrationGuide.annotations()[:readOnlyHint] == true
+      assert GetBazelIntegrationGuide.annotations()[:readOnlyHint] == true
       assert AddOrganizationMember.annotations()[:readOnlyHint] == false
       assert AddOrganizationMember.annotations()[:destructiveHint] == true
     end
@@ -169,6 +174,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "compare_generations" in prompt_names
       assert "compare_cache_runs" in prompt_names
       assert "integrate_gradle_project" in prompt_names
+      assert "integrate_bazel_project" in prompt_names
       assert "integrate_xcode_project" in prompt_names
     end
 
