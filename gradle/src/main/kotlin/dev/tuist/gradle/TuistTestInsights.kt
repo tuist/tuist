@@ -67,7 +67,8 @@ data class TestCaseRepetition(
     @SerializedName("repetition_number") val repetitionNumber: Int,
     val name: String,
     val status: String,
-    val duration: Long
+    val duration: Long,
+    val source: String = "run"
 )
 
 data class TestFailure(
@@ -148,7 +149,14 @@ internal class TestReportCollector {
                     moduleName = moduleName,
                     className = it.className,
                     testName = it.testName,
-                    status = if (it.resultType == TestResult.ResultType.SUCCESS) "success" else "failure",
+                    // A rerun that aborted through an assumption did not fail: it said nothing.
+                    // Counting it as a failure would let a test block the build without a
+                    // single assertion failing.
+                    status = when (it.resultType) {
+                        TestResult.ResultType.SUCCESS -> "success"
+                        TestResult.ResultType.SKIPPED -> "skipped"
+                        else -> "failure"
+                    },
                     duration = it.endTime - it.startTime,
                     failureMessage = it.exception?.message
                 )
@@ -170,7 +178,7 @@ internal class TestReportCollector {
         stressNewTests: StressNewTestsReport? = null
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
-            val testCases = buildTestCases(attempts)
+            val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
             val moduleStatus = if (testCases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
@@ -213,6 +221,36 @@ internal class TestReportCollector {
             stressNewTests = stressNewTests,
             testModules = testModules
         )
+    }
+
+    // The gate's reruns are executions of the test case like its retries, so they are
+    // reported with it, numbered after its own attempts and tagged so the dashboard can
+    // say which were solicited. A rerun's failure is kept on the test case beside the
+    // others, which is where the run page reads failures from.
+    private fun withStressReruns(testCase: TestCase, moduleName: String, stress: StressNewTestsReport?): TestCase {
+        val candidate = stress?.testCases?.firstOrNull {
+            it.moduleName == moduleName &&
+                it.name == testCase.name &&
+                (it.suiteName?.takeIf { s -> s.isNotBlank() }) == testCase.testSuiteName
+        } ?: return testCase
+        if (candidate.repetitionResults.isEmpty()) return testCase
+
+        val own = testCase.repetitions.orEmpty()
+        val reruns = candidate.repetitionResults.mapIndexed { index, result ->
+            TestCaseRepetition(
+                repetitionNumber = own.size + index + 1,
+                name = "Stress ${index + 1}",
+                status = result.status,
+                duration = result.duration,
+                source = "stress"
+            )
+        }
+        val failures = candidate.repetitionResults
+            .filter { it.status == "failure" }
+            .mapNotNull { it.failure }
+            .map { TestFailure(message = it.message, path = null, lineNumber = 0, issueType = it.issueType) }
+
+        return testCase.copy(repetitions = own + reruns, failures = testCase.failures + failures)
     }
 
     private fun buildTestCases(attempts: List<TestAttempt>): List<TestCase> {

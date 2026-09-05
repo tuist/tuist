@@ -331,9 +331,16 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       test_cases =
         Enum.map(module["test_cases"] || [], fn test_case ->
           case Map.get(repetitions_by_case, case_identity(module, test_case)) do
-            nil -> test_case
-            [] -> test_case
-            stress_repetitions -> Map.put(test_case, "repetitions", append_stress(test_case, stress_repetitions))
+            nil ->
+              test_case
+
+            [] ->
+              test_case
+
+            stress_repetitions ->
+              test_case
+              |> Map.put("repetitions", append_stress(test_case, stress_repetitions))
+              |> Map.put("failures", (test_case["failures"] || []) ++ stress_failures(stress_repetitions))
           end
         end)
 
@@ -358,6 +365,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     own ++ numbered
   end
 
+  # A rerun's failure is kept on the test case, where every other execution's
+  # failure lives, so the run page shows what a stressed test said when it broke.
+  defp stress_failures(stress_repetitions) do
+    Enum.flat_map(stress_repetitions, fn repetition ->
+      if repetition["status"] == "failure", do: repetition["failures"] || [], else: []
+    end)
+  end
+
   # A pass that ran a test case once produces no repetition nodes, so the test
   # case's own result is the execution.
   defp case_executions(test_case) do
@@ -376,8 +391,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
+  # The parser writes the suite under `test_suite_name`. Reading any other key
+  # collapses every suite in a module onto nil, and two tests that share a method
+  # name then share an identity, so one's reruns land on the other.
   defp case_identity(module, test_case) do
-    {module["name"], test_case["test_suite"], test_case["name"]}
+    {module["name"], test_case["test_suite_name"], test_case["name"]}
   end
 
   defp storage_account(project_id) do

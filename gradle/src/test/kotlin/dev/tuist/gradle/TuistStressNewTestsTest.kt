@@ -169,6 +169,67 @@ class StressNewTestsGateTest {
     }
 
     @Test
+    fun `a pass that dies partway reports what ran, not what was asked for`() {
+        var reruns = 0
+        val gate = StressNewTestsGate(
+            "report",
+            { response(candidate("testNew()", 10)) },
+            { filters, _, _ ->
+                reruns += 1
+                if (reruns > 1) throw RuntimeException("nested build failed")
+                filters.values.flatten().map { StressRepetitionResult(":app", "com.example.CheckoutTest", "testNew()", "success") }
+            },
+            logger
+        )
+
+        val report = gate.run(listOf(executed("testNew()")), taskPaths)!!
+
+        val candidate = report.testCases.single()
+        assertEquals(1, candidate.repetitions)
+        assertEquals("not_stressed_error", candidate.outcome)
+        assertEquals(0, report.stressedCount)
+    }
+
+    @Test
+    fun `a disagreement observed before the pass died still counts`() {
+        var reruns = 0
+        val gate = StressNewTestsGate(
+            "enforce",
+            { response(candidate("testNew()", 10)) },
+            { _, _, _ ->
+                reruns += 1
+                if (reruns > 1) throw RuntimeException("nested build failed")
+                listOf(StressRepetitionResult(":app", "com.example.CheckoutTest", "testNew()", "failure", 5, "boom"))
+            },
+            logger
+        )
+
+        val report = gate.run(listOf(executed("testNew()")), taskPaths)!!
+
+        val candidate = report.testCases.single()
+        assertEquals("disagreed", candidate.outcome)
+        assertEquals(1, candidate.failedRepetitions)
+        assertTrue(report.blocks)
+    }
+
+    @Test
+    fun `a rerun that aborted through an assumption is not a failure`() {
+        val gate = StressNewTestsGate(
+            "enforce",
+            { response(candidate("testNew()", 2)) },
+            { _, _, _ -> listOf(StressRepetitionResult(":app", "com.example.CheckoutTest", "testNew()", "skipped")) },
+            logger
+        )
+
+        val report = gate.run(listOf(executed("testNew()")), taskPaths)!!
+
+        val candidate = report.testCases.single()
+        assertEquals(0, candidate.failedRepetitions)
+        assertEquals(listOf("skipped", "skipped"), candidate.repetitionResults.map { it.status })
+        assertTrue(!report.blocks)
+    }
+
+    @Test
     fun `an unreachable server skips the gate without failing the build`() {
         val gate = StressNewTestsGate("enforce", { throw RuntimeException("connection refused") }, { _, _, _ -> emptyList() }, logger)
         val report = gate.run(listOf(executed("testNew")), taskPaths)!!

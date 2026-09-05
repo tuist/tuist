@@ -133,6 +133,148 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed} end)
   end
 
+  defp stress_parsed(module, suite, name, statuses) do
+    %{
+      "test_plan_name" => "AppTests",
+      "status" => "success",
+      "duration" => 1.0,
+      "test_modules" => [
+        %{
+          "name" => module,
+          "status" => "success",
+          "duration" => 1.0,
+          "test_suites" => [],
+          "test_cases" => [
+            %{
+              "name" => name,
+              "test_suite_name" => suite,
+              "status" => "success",
+              "duration" => 1,
+              "failures" => [],
+              "repetitions" =>
+                statuses
+                |> Enum.with_index(1)
+                |> Enum.map(fn {status, number} ->
+                  failures =
+                    if status == "failure",
+                      do: [
+                        %{
+                          "message" => "boom #{number}",
+                          "path" => "A.swift",
+                          "line_number" => 7,
+                          "issue_type" => "assertion_failure"
+                        }
+                      ],
+                      else: []
+
+                  %{
+                    "repetition_number" => number,
+                    "name" => "Repetition #{number}",
+                    "status" => status,
+                    "duration" => 2,
+                    "failures" => failures
+                  }
+                end)
+            }
+          ]
+        }
+      ]
+    }
+  end
+
+  defp expect_stress_parse(main, stress) do
+    expect(Tuist.Storage, :download_to_file, 2, fn _key, _path, _account -> {:ok, :done} end)
+    expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, main} end)
+    expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, stress} end)
+  end
+
+  describe "perform/1 with a stress bundle" do
+    test "attaches the gate's reruns to the test case that shares its suite, not its namesake", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      main =
+        put_in(parsed_data(), ["test_modules", Access.at(0), "test_cases"], [
+          %{
+            "name" => "testExample",
+            "test_suite_name" => "FirstTests",
+            "status" => "success",
+            "duration" => 1,
+            "failures" => []
+          },
+          %{
+            "name" => "testExample",
+            "test_suite_name" => "SecondTests",
+            "status" => "success",
+            "duration" => 1,
+            "failures" => []
+          }
+        ])
+
+      expect_stress_parse(main, stress_parsed("AppModuleTests", "FirstTests", "testExample", ["success", "failure"]))
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        [first, second] = hd(attrs.test_modules)["test_cases"]
+
+        assert Enum.map(first["repetitions"], &{&1["repetition_number"], &1["status"], &1["source"]}) == [
+                 {1, "success", "stress"},
+                 {2, "failure", "stress"}
+               ]
+
+        # The rerun's failure lives on the test case, where every other failure does.
+        assert Enum.map(first["failures"], & &1["message"]) == ["boom 2"]
+
+        assert Map.get(second, "repetitions", []) == []
+        assert second["failures"] == []
+        {:ok, %{id: test_run_id}}
+      end)
+
+      args =
+        job_args(test_run_id, account.id, project.id, extra: %{"stress_storage_key" => "tuist/tests/stress.zip"})
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args))
+    end
+
+    test "numbers the reruns after the test case's own attempts", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      main =
+        put_in(parsed_data(), ["test_modules", Access.at(0), "test_cases"], [
+          %{
+            "name" => "testExample",
+            "test_suite_name" => "FirstTests",
+            "status" => "success",
+            "duration" => 1,
+            "failures" => [],
+            "repetitions" => [
+              %{"repetition_number" => 1, "name" => "First Run", "status" => "failure", "duration" => 1},
+              %{"repetition_number" => 2, "name" => "Retry 1", "status" => "success", "duration" => 1}
+            ]
+          }
+        ])
+
+      expect_stress_parse(main, stress_parsed("AppModuleTests", "FirstTests", "testExample", ["success"]))
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        [test_case] = hd(attrs.test_modules)["test_cases"]
+
+        assert Enum.map(test_case["repetitions"], &{&1["repetition_number"], &1["name"], Map.get(&1, "source", "run")}) ==
+                 [
+                   {1, "First Run", "run"},
+                   {2, "Retry 1", "run"},
+                   {3, "Stress 1", "stress"}
+                 ]
+
+        {:ok, %{id: test_run_id}}
+      end)
+
+      args = job_args(test_run_id, account.id, project.id, extra: %{"stress_storage_key" => "tuist/tests/stress.zip"})
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args))
+    end
+  end
+
   describe "perform/1 success path" do
     test "adds the test run identifier to the root processing span", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()

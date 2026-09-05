@@ -846,6 +846,80 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "carries the stress gate's verdict and bundle key into the processing job", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      # The worker rebuilds the run from the job's arguments once the bundle is
+      # parsed, so a verdict that does not travel with the job is a verdict lost.
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           stress_mode: "report",
+           stress_outcome: "disagreed",
+           stress_skip_reason: "",
+           stress_new_count: 2,
+           stress_stressed_count: 1,
+           stress_excluded_count: 1,
+           stress_inventory_count: 40,
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: [],
+            stress_new_tests: %{
+              mode: "report",
+              outcome: "disagreed",
+              new_count: 2,
+              stressed_count: 1,
+              excluded_count: 1,
+              inventory_count: 40,
+              has_result_bundle: true,
+              test_cases: []
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "stress_storage_key" => "#{user.account.name}/#{project.name}/runs/#{test_run_id}/stress_result_bundle.zip",
+          "stress_mode" => "report",
+          "stress_outcome" => "disagreed",
+          "stress_new_count" => 2,
+          "stress_stressed_count" => 1,
+          "stress_excluded_count" => 1,
+          "stress_inventory_count" => 40
+        }
+      )
+    end
+
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{
       conn: conn,
       user: user,

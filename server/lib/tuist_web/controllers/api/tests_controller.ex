@@ -595,6 +595,15 @@ defmodule TuistWeb.API.TestsController do
               test_run_id: test_run.id,
               storage_key: storage_key,
               stress_storage_key: stress_storage_key,
+              # The worker replaces this row once the bundle is parsed, from the
+              # attributes it carries, so the gate's verdict rides along or is lost.
+              stress_mode: test_run.stress_mode,
+              stress_outcome: test_run.stress_outcome,
+              stress_skip_reason: test_run.stress_skip_reason,
+              stress_new_count: test_run.stress_new_count,
+              stress_stressed_count: test_run.stress_stressed_count,
+              stress_excluded_count: test_run.stress_excluded_count,
+              stress_inventory_count: test_run.stress_inventory_count,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,

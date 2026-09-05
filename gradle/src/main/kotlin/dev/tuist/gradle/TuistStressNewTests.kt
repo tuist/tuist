@@ -362,6 +362,7 @@ internal class StressNewTestsGate(
             }
 
             for (candidate in group) {
+                val requested = candidate.repetitions
                 val runs = observed[Triple(candidate.moduleName, candidate.suiteName, candidate.name)]
                 if (runs != null) {
                     candidate.repetitionResults = runs.mapIndexed { index, run ->
@@ -378,15 +379,23 @@ internal class StressNewTestsGate(
                 when {
                     runs.isNullOrEmpty() && failedToRun -> candidate.outcome = "not_stressed_error"
                     runs.isNullOrEmpty() -> candidate.outcome = "not_stressed_ceiling"
-                    runs.size < candidate.repetitions && !failedToRun && nanoTime() - start >= ceilingNanos -> {
+                    runs.size < requested && !failedToRun && nanoTime() - start >= ceilingNanos -> {
                         candidate.repetitions = runs.size
                         candidate.failedRepetitions = runs.count { it.status == "failure" }
                         candidate.outcome = if (candidate.failedRepetitions > 0) "disagreed" else "not_stressed_ceiling"
                     }
                     else -> {
-                        candidate.repetitions = maxOf(candidate.repetitions, runs.size)
+                        // Record what ran, never what was asked for. A pass that dies partway
+                        // still observed something, and reporting a test as having held up over
+                        // ten repetitions when one of them ran is the one lie this gate must not
+                        // tell. A failure, on the other hand, is proof however few runs produced it.
+                        candidate.repetitions = runs.size
                         candidate.failedRepetitions = runs.count { it.status == "failure" }
-                        candidate.outcome = if (candidate.failedRepetitions > 0) "disagreed" else "passed"
+                        candidate.outcome = when {
+                            candidate.failedRepetitions > 0 -> "disagreed"
+                            runs.size < requested -> "not_stressed_error"
+                            else -> "passed"
+                        }
                     }
                 }
             }

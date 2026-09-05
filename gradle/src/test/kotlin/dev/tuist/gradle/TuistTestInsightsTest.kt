@@ -37,6 +37,57 @@ class TuistTestInsightsTest {
     }
 
     @Test
+    fun `repetitionResults keeps a skipped rerun skipped`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testNew", "com.example.NewTest", TestResult.ResultType.SKIPPED, 0, 5, null)
+
+        assertEquals(listOf("skipped"), collector.repetitionResults().map { it.status })
+    }
+
+    @Test
+    fun `buildReport reports the stress gate's reruns with the test case they belong to`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testNew", "com.example.NewTest", TestResult.ResultType.SUCCESS, 0, 10, null)
+        collector.collectTestResult(":app", "testNew", "com.example.OtherTest", TestResult.ResultType.SUCCESS, 10, 20, null)
+
+        val stress = StressNewTestsReport(
+            mode = "report",
+            outcome = "disagreed",
+            newCount = 1,
+            stressedCount = 1,
+            excludedCount = 0,
+            inventoryCount = 40,
+            testCases = listOf(
+                StressNewTestsCandidateReport(
+                    name = "testNew",
+                    suiteName = "com.example.NewTest",
+                    moduleName = ":app",
+                    repetitions = 2,
+                    failedRepetitions = 1,
+                    outcome = "disagreed",
+                    isQuarantined = false,
+                    repetitionResults = listOf(
+                        StressRepetitionReport(1, "success", 4, null),
+                        StressRepetitionReport(2, "failure", 5, StressRepetitionFailure("boom", "assertion_failure"))
+                    )
+                )
+            )
+        )
+
+        val report = collector.buildReport(30, true, "my-app", "feature", "abc", null, null, null, stressNewTests = stress)
+
+        val cases = report.testModules.single().testCases.associateBy { it.testSuiteName }
+        val stressed = cases.getValue("com.example.NewTest")
+        assertEquals(listOf("Stress 1", "Stress 2"), stressed.repetitions!!.map { it.name })
+        assertEquals(listOf("stress", "stress"), stressed.repetitions!!.map { it.source })
+        assertEquals(listOf(1, 2), stressed.repetitions!!.map { it.repetitionNumber })
+        assertEquals(listOf("boom"), stressed.failures.map { it.message })
+
+        // The same method name in another suite is another test case.
+        assertNull(cases.getValue("com.example.OtherTest").repetitions)
+    }
+
+    @Test
     fun `buildReport sets status to failure when any module failed`() {
         val collector = TestReportCollector()
         collector.collectTestResult(

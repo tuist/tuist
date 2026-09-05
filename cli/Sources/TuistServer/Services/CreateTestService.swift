@@ -217,7 +217,14 @@ import TuistHTTP
                         .test_casesPayloadPayload(
                             arguments: arguments,
                             duration: testCase.duration ?? 0,
-                            failures: failures,
+                            failures: failures + stressFailures(
+                                for: StressRepetitionKey(
+                                    module: module.name,
+                                    suite: testCase.testSuite,
+                                    name: testCase.name
+                                ),
+                                in: stressRepetitionsByTestCase
+                            ),
                             is_quarantined: testCase.isQuarantined,
                             name: testCase.name,
                             repetitions: repetitions,
@@ -460,5 +467,27 @@ private func stressRepetitions(
                 source: .stress,
                 status: repetition.status == .success ? .success : .failure
             )
+    }
+}
+
+/// A rerun's failure is kept on the test case beside the first pass's, which is where the
+/// run page reads failures from. Without it a stressed test keeps its status and duration
+/// and loses what it said when it broke.
+private func stressFailures(
+    for key: StressRepetitionKey,
+    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+            .repetition_resultsPayloadPayload]]
+) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
+    .failuresPayloadPayload]
+{
+    (repetitionsByTestCase[key] ?? []).compactMap { repetition -> Operations.createTest.Input.Body.jsonPayload
+        .test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload? in
+        guard repetition.status == .failure, let failure = repetition.failure else { return nil }
+        return .init(
+            issue_type: failure.issue_type.flatMap { .init(rawValue: $0.rawValue) },
+            line_number: failure.line_number ?? 0,
+            message: failure.message,
+            path: failure.path
+        )
     }
 }
