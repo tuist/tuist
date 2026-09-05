@@ -21,7 +21,9 @@ defmodule Tuist.MCP.Components.Tools.GetBazelInvocation do
   alias Tuist.MCP.Components.Tools.BazelInvocation
 
   @impl EMCP.Tool
-  def description, do: "Get a completed Bazel invocation and its correlated remote-cache totals."
+  def description do
+    "Get a completed Bazel invocation with build metrics, bounded timeline and critical-path diagnostics, and correlated remote-cache totals."
+  end
 
   def execute(_conn, %{"invocation_id" => invocation_id}, project) do
     case Bazel.get_invocation(project.id, invocation_id) do
