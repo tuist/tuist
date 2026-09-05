@@ -28,12 +28,11 @@ scoped to a single `workloads/<cluster>/` subdir. Key invariants:
 - **`healthCheckExprs`** gate each Kustomization on the `Cluster`'s v1beta2
   `Available` rollup (a sync gate, not health alerting).
 
-## Bootstrap (one-time, break-glass)
+## Install (one-time, break-glass)
 
-Land [External Secrets Operator on the mgmt cluster](../../k8s/mgmt/) first
-(it syncs Flux's git credential), then bootstrap declaratively. This is the
-one unavoidable break-glass step — afterwards Flux self-manages, upgrades
-included.
+Land [External Secrets Operator on the mgmt cluster](../../k8s/mgmt/) first —
+it supplies Flux's git credential. Installing Flux is the one unavoidable
+break-glass step; afterwards Flux self-manages, upgrades included.
 
 ### Before you begin
 
@@ -53,94 +52,84 @@ kubectl get clusters.cluster.x-k8s.io -A   # errors on a workload cluster
 Keep `./mgmt.kubeconfig` out of git — it is a cluster-admin credential for
 every workload cluster, sitting in a public repo's worktree.
 
-### Bootstrap — run this AFTER the PR adding this directory has merged
+### Install — what was actually done, and why not `flux bootstrap`
 
-Flux reconciles `--branch=main`. The per-cluster `Kustomization` CRs here, and
-the `workloads/` Cluster CRs they point at, only exist on `main` once that PR
-lands — so bootstrapping earlier installs a Flux that reconciles nothing.
-Bootstrapping before the merge is harmless but pointless; bootstrapping after
-is what activates reconciliation.
+Flux was installed by applying the manifests committed here, **not** with
+`flux bootstrap`. That is the supported path for this repository and the one to
+repeat on a rebuild. `flux bootstrap` should not be run against this cluster:
 
-`flux-system/` (`gotk-components.yaml`, `gotk-sync.yaml`, `kustomization.yaml`)
-is **already committed here**, generated with `flux install --export` at the
-pinned version below using bootstrap's default component set
-(source / kustomize / helm / notification controllers). Keep that version in
-step with the `fluxcd/flux2/action` pin in `.github/workflows/flux-diff.yml` so
-CI and the cluster agree.
+- It authenticates with a PAT or SSH deploy key and **pushes a commit to
+  `main`**, which is protected and expects review.
+- It **regenerates `gotk-sync.yaml` from CLI flags**, and 2.9.5 has no flag for
+  the GitRepository provider — so it strips `spec.provider: github`,
+  source-controller falls back to basic auth, ignores the ESO-synced App fields,
+  and reconciliation dies quietly. `kustomization.yaml` re-asserts the provider
+  as a patch to survive exactly this, but not running bootstrap avoids it.
+- Everything it would set up already exists: `flux-system/` is committed here
+  (reviewed, rather than pushed unreviewed), and the git credential comes from
+  ESO rather than a bootstrap-written deploy key.
 
-**`flux bootstrap` rewrites `gotk-sync.yaml` from its CLI flags on every run**,
-and 2.9.5 has no flag for the GitRepository provider — so a re-bootstrap strips
-`spec.provider: github`, source-controller falls back to reading the
-`flux-system` Secret as basic auth, ignores the ESO-synced App fields, and
-reconciliation dies quietly once the bootstrap PAT expires. `kustomization.yaml`
-therefore re-asserts the provider as a patch; that file is what Flux builds, so
-the setting survives a rewrite. **Verify it after every bootstrap** (below) —
-this is the one thing a re-bootstrap can silently regress.
-
-Pre-flight first — it is non-mutating and confirms the cluster can host Flux:
+Install in stages so the controllers are healthy before anything reconciles:
 
 ```bash
-flux check --pre
-```
+# 1. Controllers only — creates no GitRepository/Kustomization, reconciles nothing.
+kubectl apply -f flux-system/gotk-components.yaml
+kubectl -n flux-system rollout status deploy/source-controller --timeout=180s
+kubectl -n flux-system rollout status deploy/kustomize-controller --timeout=180s
 
-Then bootstrap. **`flux bootstrap github` does not accept GitHub App flags** —
-verified against 2.9.5, which offers only `--token` / `--token-auth` (a PAT) or
-`--private-key-file` (an SSH deploy key). GitHub App authentication in Flux is a
-property of the *`GitRepository`* resource, not of the bootstrap CLI. So the two
-are split deliberately:
-
-- **Bootstrap** authenticates with a short-lived PAT (`repo` scope), used once
-  and never stored. It only needs to push `flux-system/` and create the deploy
-  credential.
-- **Ongoing source access** uses the GitHub App, via `spec.provider: github` on
-  the committed `GitRepository` plus the App fields ESO syncs into the
-  `flux-system` secret. That is what rotates.
-
-```bash
-export GITHUB_TOKEN=<short-lived PAT with repo scope>
-
-flux bootstrap github \
-  --owner=tuist \
-  --repository=tuist \
-  --branch=main \
-  --path=infra/flux/mgmt \
-  --token-auth
-
-unset GITHUB_TOKEN
-```
-
-Immediately afterwards, hand source authentication over to the App:
-
-```bash
+# 2. Git credential, before anything tries to authenticate.
 kubectl apply -f ../../k8s/mgmt/flux-git-externalsecret.yaml
-kubectl -n flux-system annotate gitrepository flux-system \
-  reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite
+kubectl -n flux-system wait externalsecret/flux-system-git-auth \
+  --for=condition=Ready --timeout=120s
+
+# 3. Activate: GitRepository + root Kustomization, built so the provider patch applies.
+kubectl kustomize flux-system \
+  | yq eval-all 'select(.kind == "GitRepository" or (.kind == "Kustomization" and .apiVersion == "kustomize.toolkit.fluxcd.io/v1"))' - \
+  | kubectl apply -f -
 ```
 
-Between bootstrap and that ESO sync the `GitRepository` will briefly report an
-auth failure: the committed manifest already declares `provider: github`, so
-source-controller looks for App fields the secret does not have until ESO fills
-them in. It self-heals on the next reconcile — confirm with
-`flux get sources git flux-system`.
-
-The root Kustomization in `gotk-sync.yaml` (path `./infra/flux/mgmt`) then
-reconciles the per-cluster `Kustomization` CRs in this directory, and Flux
-tracks and upgrades itself from git thereafter.
-
-Verify — expect `flux-system` Ready plus one Kustomization per cluster, and
-confirm the provider survived the bootstrap rewrite:
+Verify — expect seven Kustomizations Ready and the provider set:
 
 ```bash
-flux check && flux get kustomizations -A
+kubectl -n flux-system get kustomizations
 kubectl -n flux-system get gitrepository flux-system \
   -o jsonpath='{.spec.provider}{"\n"}'   # must print: github
 ```
 
-If that prints empty, the bootstrap rewrite won and the kustomize patch did not
-apply — fix it before the PAT expires, or source auth will fail with no obvious
-signal.
+Flux self-manages from here: the root Kustomization's `path` is this directory,
+so its inventory includes `flux-system/` itself (controllers, CRDs, RBAC). An
+upgrade is `flux install --export` at the new version over
+`flux-system/gotk-components.yaml`, merged like any other change — Flux then
+applies it to itself. Keep the version in step with the `fluxcd/flux2/action`
+pin in `.github/workflows/flux-diff.yml`.
 
-### Harden the source (optional, after bootstrap)
+### Suspending and resuming a Kustomization
+
+`suspend` is the tool for stopping Flux from re-applying something while you fix
+git. Resuming has an ordering trap that has already caused one production
+scale-down:
+
+```bash
+kubectl -n flux-system patch kustomization cluster-<name> --type=merge \
+  -p '{"spec":{"suspend":true}}'
+```
+
+**Before resuming, force the source to fetch and confirm the revision.** The
+GitRepository polls on its own interval, so immediately after a fix merges the
+cached artifact is still the *old* commit — resuming then reconciles the very
+content you suspended to escape:
+
+```bash
+kubectl -n flux-system annotate gitrepository flux-system \
+  reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite
+kubectl -n flux-system get gitrepository flux-system \
+  -o jsonpath='{.status.artifact.revision}{"\n"}'   # must be the commit with the fix
+
+kubectl -n flux-system patch kustomization cluster-<name> --type=merge \
+  -p '{"spec":{"suspend":false}}'
+```
+
+### Harden the source (optional)
 
 Path-scoping already prevents Flux from touching the immutable templates,
 preview or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
@@ -161,28 +150,33 @@ Add it as a patch in `kustomization.yaml`, next to the provider one — **not**
 directly in `gotk-sync.yaml`, which `flux bootstrap` rewrites:
 
 ```yaml
-# infra/flux/mgmt/flux-system/kustomization.yaml — additional patch:
-#   - target: {kind: GitRepository, name: flux-system}
-#     patch: |
-#       - op: add
-#         path: /spec/ignore
-#         value: |
-    /infra/k8s/clusters/clusterclass-tuist.yaml
-    /infra/k8s/clusters/bare-metal*.yaml
-    /infra/k8s/clusters/machinedrainrules.yaml
-    /infra/k8s/clusters/cluster-preview.yaml
-    /infra/k8s/clusters/cluster-pentest.yaml
+# infra/flux/mgmt/flux-system/kustomization.yaml — add alongside the provider patch:
+patches:
+  - target:
+      kind: GitRepository
+      name: flux-system
+    patch: |
+      - op: add
+        path: /spec/ignore
+        value: |
+          /infra/k8s/clusters/clusterclass-tuist.yaml
+          /infra/k8s/clusters/bare-metal*.yaml
+          /infra/k8s/clusters/machinedrainrules.yaml
+          /infra/k8s/clusters/cluster-preview.yaml
+          /infra/k8s/clusters/cluster-pentest.yaml
 ```
 
 Commit it, then confirm the source still reconciles before trusting it:
 
 ```bash
-flux get sources git flux-system
+kubectl -n flux-system get gitrepository flux-system \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status} {.status.artifact.revision}{"\n"}'
 ```
 
-## Pre-enable gate: confirm the first reconcile is a no-op
+## Pre-enable gate: confirm a reconcile would be a no-op
 
-Before letting Flux reconcile, diff every workload `Cluster` against live. An
+Before letting Flux reconcile a cluster for the first time — or after
+resuming a suspended one — diff it against live. An
 empty diff means the first sync changes nothing; anything else is a live
 mutation you are about to make unattended.
 
