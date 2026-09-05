@@ -5,19 +5,6 @@ import XCTest
 @testable import ProjectDescription
 
 final class SchemeTests: XCTestCase {
-    func test_buildAction_withPerTargetBuildForOptions() {
-        let subject = BuildAction.buildAction(
-            buildActionTargets: [
-                .target("App", buildFor: [.analyzing, .archiving, .profiling, .running]),
-                .target("AppTests", buildFor: [.testing]),
-            ]
-        )
-
-        XCTAssertEqual(subject.targets, [.target("App"), .target("AppTests")])
-        XCTAssertEqual(subject.buildFor[.target("App")], [.analyzing, .archiving, .profiling, .running])
-        XCTAssertEqual(subject.buildFor[.target("AppTests")], [.testing])
-    }
-
     private var encoder = JSONEncoder()
     private var decoder = JSONDecoder()
 

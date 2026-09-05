@@ -79,6 +79,35 @@ struct XCSchemeMapperTests {
         #expect(mappedAction?.findImplicitDependencies == true)
     }
 
+    @Test("Omits default Build For options when mapping a build action")
+    func mapBuildActionWithDefaultBuildForOptions() async throws {
+        let targetReference = XCScheme.BuildableReference(
+            referencedContainer: "container:App.xcodeproj",
+            blueprintIdentifier: "123",
+            buildableName: "App.app",
+            blueprintName: "App"
+        )
+        let buildActionEntry = XCScheme.BuildAction.Entry(
+            buildableReference: targetReference,
+            buildFor: [.analyzing, .archiving, .profiling, .running, .testing]
+        )
+        let xcscheme = XCScheme.test(
+            name: "UserScheme",
+            buildAction: XCScheme.BuildAction(
+                buildActionEntries: [buildActionEntry],
+                parallelizeBuild: true,
+                buildImplicitDependencies: true
+            )
+        )
+
+        let mapped = try await mapper.map(xcscheme, shared: false, graphType: graphType)
+        let mappedAction = try #require(mapped.buildAction)
+        let mappedTarget = try #require(mappedAction.targets.first)
+
+        #expect(mappedAction.buildFor[mappedTarget] == nil)
+        #expect(mappedAction.buildFor.isEmpty)
+    }
+
     @Test("Maps a test action with testable references, coverage, and environment")
     func mapTestAction() async throws {
         // Given
