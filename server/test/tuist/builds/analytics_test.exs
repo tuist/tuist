@@ -2795,7 +2795,9 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert summary.invalidations == 0
       assert summary.invalidation_rate == 0.0
       assert summary.hit_rate == 100.0
-      # The row does not exist, so the blast radius comes from the graph.
+      # The row does not exist, so these come from the build rows and the graph
+      # rather than being reported empty.
+      assert summary.product == "framework"
       assert summary.blast_radius == 1
     end
 

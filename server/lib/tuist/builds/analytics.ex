@@ -2941,7 +2941,7 @@ defmodule Tuist.Builds.Analytics do
     else
       %{
         name: name,
-        product: "",
+        product: latest_module_product(opts, name),
         appearances: appearances,
         invalidations: 0,
         invalidation_rate: 0.0,
@@ -2951,6 +2951,40 @@ defmodule Tuist.Builds.Analytics do
         unclassified: 0,
         blast_radius: module_dependents_count(opts)
       }
+    end
+  end
+
+  # `module_invalidations/1` keys its rows by name and product, so a module with
+  # no row there has no product either. Read the one its most recent build
+  # reported rather than reporting the field empty.
+  defp latest_module_product(opts, name) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, name: name, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    query = """
+    SELECT argMax(xt.product, e.ran_at)
+    FROM xcode_targets AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL
+      AND xt.name = {name:String}#{filter_sql}#{xcode_target_pruning()}
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: [[product]]}} when is_binary(product) -> product
+      _ -> ""
     end
   end
 
