@@ -6,8 +6,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Buildkite
-  alias Tuist.Runners.Profile
-  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -418,7 +416,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       # Nothing connected: the card offers the modal and takes no more room.
       refute html =~ "buildkite-connection"
 
-      html = connect_buildkite(lv, %{"cluster_name" => "macOS"})
+      html = connect_buildkite(lv, %{})
 
       installation = Buildkite.get_installation(account.id)
       assert installation.organization_slug == "acme"
@@ -426,10 +424,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
       # Derived, never taken from the form: a customer-chosen key could
       # collide with another account's and swap their reservations.
       assert installation.stack_key == "tuist-#{account.id}"
-      assert html =~ ~s(value="macOS")
+      assert html =~ ~s(value="acme")
     end
 
-    test "renames the cluster straight from the card", %{conn: conn, account: account} do
+    test "changes the organization straight from the card", %{conn: conn, account: account} do
       {:ok, _installation} =
         Buildkite.upsert_installation(account.id, %{
           organization_slug: "acme",
@@ -439,12 +437,51 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
 
-      lv |> form("#buildkite-cluster-form", %{"cluster_name" => "macOS builds"}) |> render_change()
+      lv |> form("#buildkite-organization-form", %{"organization_slug" => "acme-mobile"}) |> render_change()
 
       installation = Buildkite.get_installation(account.id)
-      assert installation.cluster_name == "macOS builds"
-      # A label only: the connection it labels is untouched.
+      assert installation.organization_slug == "acme-mobile"
+      # The token is untouched: the card edits the identity, not the credential.
       assert installation.agent_token == "bkct_secret"
+    end
+
+    test "keeps an invalid organization on screen with its error instead of saving it", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html = lv |> form("#buildkite-organization-form", %{"organization_slug" => "acme corp"}) |> render_change()
+
+      assert html =~ ~s(value="acme corp")
+      assert html =~ "has invalid format"
+      assert Buildkite.get_installation(account.id).organization_slug == "acme"
+    end
+
+    test "rotates the token without asking for the organization again", %{conn: conn, account: account} do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      # Connected: the modal is about the token, so the slug field is gone.
+      refute html =~ ~s(id="buildkite-organization-slug")
+
+      lv |> form("#connect-buildkite-form", %{"agent_token" => "bkct_rotated"}) |> render_submit()
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.agent_token == "bkct_rotated"
       assert installation.organization_slug == "acme"
     end
 
@@ -482,23 +519,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
 
       assert html =~ "Buildkite rejected the agent token"
-    end
-
-    test "lists the queue keys a pipeline can target once connected", %{conn: conn, account: account} do
-      {:ok, _installation} =
-        Buildkite.upsert_installation(account.id, %{
-          organization_slug: "acme",
-          stack_key: "tuist-#{account.id}",
-          agent_token: "bkct_secret"
-        })
-
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
-
-      # The queue key IS the profile's dispatch label, which is what lets
-      # Buildkite routing reuse the GitHub lane's profile resolution.
-      for profile <- Profiles.list_for_account(account) do
-        assert html =~ Profile.dispatch_label(profile)
-      end
     end
 
     test "disconnects a cluster", %{conn: conn, account: account} do

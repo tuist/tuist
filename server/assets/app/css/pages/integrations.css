@@ -168,33 +168,6 @@
         flex-direction: column;
         gap: var(--noora-spacing-6);
 
-        & > [data-part="queue-keys"] {
-          display: flex;
-          flex-direction: column;
-          gap: var(--noora-spacing-3);
-
-          & > [data-part="label"] {
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-          }
-
-          & > [data-part="queue-list"] {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            gap: var(--noora-spacing-3) var(--noora-spacing-6);
-            margin: 0;
-            padding: 0;
-            list-style: none;
-
-            /* Copied verbatim into a pipeline's `agents` block, so it
-               reads as a literal, not as prose. */
-            & code {
-              color: var(--noora-surface-label-primary);
-              font-family: "Geist Mono", monospace;
-            }
-          }
-        }
       }
 
       & > [data-part="actions"] {

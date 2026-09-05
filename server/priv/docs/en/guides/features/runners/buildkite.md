@@ -54,7 +54,7 @@ steps:
       queue: tuist-macos
 ```
 
-The **Settings → Integrations** page lists the exact queue keys your profiles currently offer — copy them from there rather than constructing them by hand. Queues that match no profile are left alone, so your own agents keep serving them.
+The queue key is the profile's label exactly as **Runners → Profiles** shows it — copy it from there rather than constructing it by hand. Queues that match no profile are left alone, so your own agents keep serving them.
 
 To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create a profile</.localized_link> for it and add a queue keyed with that profile's label.
 
@@ -73,7 +73,7 @@ The runner reports with a credential scoped to the single job it is running, min
 
 Work through these in order:
 
-1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal one of the queue keys listed on the **Settings → Integrations** page — including the `tuist-` prefix. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
+1. **Is the job on a queue that matches a profile?** Open the job in Buildkite and check the queue it is waiting on. It must exactly equal a profile label from **Runners → Profiles** — including the `tuist-` prefix. A step with no `agents` block goes to the cluster's default queue, which matches no profile.
 2. **Is the pipeline in the same cluster as the queues and the token?** See the warning above. This is the most common cause and the hardest to see.
 3. **Does the Tuist settings page show an error?** A revoked or wrong-cluster token is reported there under the connection.
 

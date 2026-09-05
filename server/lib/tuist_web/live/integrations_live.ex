@@ -8,13 +8,11 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Runners.Buildkite
-  alias Tuist.Runners.Profile
-  alias Tuist.Runners.Profiles
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
   # The fields the Buildkite modal renders an input for.
-  @buildkite_form_fields [:organization_slug, :cluster_name, :agent_token]
+  @buildkite_form_fields [:organization_slug, :agent_token]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -56,9 +54,10 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
       |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
-      |> assign(buildkite_queue_keys: buildkite_queue_keys(selected_account))
       |> assign(buildkite_field_errors: %{})
       |> assign(buildkite_form_error: nil)
+      |> assign(buildkite_organization_error: nil)
+      |> assign(buildkite_organization_input: nil)
       |> assign_buildkite_installation()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
@@ -89,16 +88,17 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("connect-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
-    attrs = %{
-      organization_slug: String.trim(Map.get(params, "organization_slug", "")),
-      cluster_name: String.trim(Map.get(params, "cluster_name", "")),
-      # The stack key identifies this controller to Buildkite and scopes its
-      # reservations, so it is derived from the account rather than typed:
-      # a customer-chosen key that collided with another account's would
-      # hand them each other's reservations.
-      stack_key: "tuist-#{account.id}",
-      agent_token: String.trim(Map.get(params, "agent_token", ""))
-    }
+    # Only what the modal showed: the slug and the token on first connect,
+    # the token alone afterwards (the slug is edited on the card). The
+    # stack key identifies this controller to Buildkite and scopes its
+    # reservations, so it is derived from the account rather than typed: a
+    # customer-chosen key that collided with another account's would hand
+    # them each other's reservations.
+    attrs =
+      params
+      |> Map.take(["organization_slug", "agent_token"])
+      |> Map.new(fn {field, value} -> {String.to_existing_atom(field), String.trim(value)} end)
+      |> Map.put(:stack_key, "tuist-#{account.id}")
 
     case Buildkite.upsert_installation(account.id, attrs) do
       {:ok, _installation} ->
@@ -115,18 +115,32 @@ defmodule TuistWeb.IntegrationsLive do
     end
   end
 
-  # The cluster name is a label and nothing else reads it, so it saves
-  # straight from the card; the connection itself (slug and token) is
-  # changed through the modal.
+  # The organization slug is the connection's identity, so it is edited on
+  # the card; the token stays modal-only because it is never shown again.
   @impl true
   def handle_event(
-        "update-buildkite-cluster-name",
-        %{"cluster_name" => name},
+        "update-buildkite-organization",
+        %{"organization_slug" => slug},
         %{assigns: %{selected_account: account}} = socket
       ) do
-    {:ok, _installation} = Buildkite.upsert_installation(account.id, %{cluster_name: String.trim(name)})
+    case Buildkite.upsert_installation(account.id, %{organization_slug: String.trim(slug)}) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_organization_error: nil, buildkite_organization_input: nil)
+         |> assign_buildkite_installation()}
 
-    {:noreply, assign_buildkite_installation(socket)}
+      {:error, changeset} ->
+        {field_errors, _form_error} = split_buildkite_errors(changeset)
+
+        # Keep what was typed on screen so it can be corrected; a re-render
+        # would otherwise put the saved slug back underneath the error.
+        {:noreply,
+         assign(socket,
+           buildkite_organization_error: field_errors["organization_slug"],
+           buildkite_organization_input: slug
+         )}
+    end
   end
 
   @impl true
@@ -136,6 +150,7 @@ defmodule TuistWeb.IntegrationsLive do
     {:noreply,
      socket
      |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
+     |> assign(buildkite_organization_error: nil, buildkite_organization_input: nil)
      |> assign_buildkite_installation()}
   end
 
@@ -434,10 +449,6 @@ defmodule TuistWeb.IntegrationsLive do
 
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
     assign(socket, buildkite_installation: Buildkite.get_installation(account.id))
-  end
-
-  defp buildkite_queue_keys(account) do
-    account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1)
   end
 
   # Errors land on the input that caused them. `stack_key` is derived, not

@@ -22,7 +22,6 @@ defmodule Tuist.Runners.Buildkite.Installation do
 
   schema "runner_buildkite_installations" do
     field :organization_slug, :string
-    field :cluster_name, :string, default: ""
     field :stack_key, :string
     field :agent_token, Binary
     field :enabled, :boolean, default: true
@@ -44,7 +43,6 @@ defmodule Tuist.Runners.Buildkite.Installation do
     |> cast(attrs, [
       :account_id,
       :organization_slug,
-      :cluster_name,
       :stack_key,
       :agent_token,
       :enabled
