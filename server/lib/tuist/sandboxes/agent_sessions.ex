@@ -251,7 +251,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
         "repository_url" => params.repository_url || "",
         "repository_ref" => params.repository_ref || ""
       },
-      initial_events: [ControlPlane.user_message(params.prompt)]
+      initial_events: [first_message(params)]
     }
 
     case ControlPlane.create_session(api_key, attrs) do
@@ -351,4 +351,30 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   defp maybe_put(attrs, _key, nil), do: attrs
   defp maybe_put(attrs, key, value), do: Map.put(attrs, key, value)
+
+  # The agent only knows the working directory from its system prompt, so
+  # the first message names the exact clone path when a repository was
+  # requested.
+  defp first_message(params) do
+    prompt = params.prompt
+    url = Map.get(params, :repository_url)
+
+    if is_binary(url) and url != "" do
+      ControlPlane.user_message("The repository #{url} is cloned at #{repository_directory(url)}.\n\n" <> prompt)
+    else
+      ControlPlane.user_message(prompt)
+    end
+  end
+
+  defp repository_directory(url) do
+    name =
+      url
+      |> URI.parse()
+      |> Map.get(:path)
+      |> Kernel.||("")
+      |> Path.basename()
+      |> String.replace_suffix(".git", "")
+
+    "/workspace/" <> name
+  end
 end
