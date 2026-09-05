@@ -424,18 +424,33 @@ defmodule Tuist.Kura.AccountPolicies do
   # Europe standing open. The demand flush folds origins in before it
   # resolves, so the resolution that writes the lifecycle row is the attributed
   # one. Until then the spill steers this resolution and binds nothing.
+  #
+  # Recorded insert-only, and the record decides the answer. Two demand
+  # flushes on two nodes can spill the same account at once and, from their
+  # separately cached room readings, into different regions; whichever wrote
+  # first is the placement, and this resolution follows it rather than
+  # demoting it to a second serving region. The spill is counted only by the
+  # resolution whose record stood, so a race counts once.
   defp spill(_account, _plan, nil, _wanted, served), do: served
 
   defp spill(account, plan, _origin, wanted, served) do
-    Telemetry.placement_capacity_spill(plan, wanted, served)
-
-    PlacerRegions.put_primary(account, served, %{
+    evidence = %{
       "signal" => PlacerRegion.capacity_spill_signal(),
       "preferred_region" => wanted,
       "plan" => to_string(plan)
-    })
+    }
 
-    served
+    case PlacerRegions.record_first_primary(account, served, evidence) do
+      {:recorded, _row} ->
+        Telemetry.placement_capacity_spill(plan, wanted, served)
+        served
+
+      {:existing, %PlacerRegion{region: recorded}} ->
+        recorded
+
+      {:error, _changeset} ->
+        served
+    end
   end
 
   # Where an account lands when nothing else decides. Unchanged from what these

@@ -588,6 +588,56 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.room_for?(@region, :enterprise) == false
     end
 
+    test "reserves a pod's initialization peak, as the scheduler does" do
+      # The neighbour's app container asks for 500m, its init container for
+      # 3500m. The scheduler reserves the larger of the two moments, so the
+      # four-core box has 500m left, not 3500m, and two 500m replicas do not fit.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "4"},
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "3500m"}])]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "4"},
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "400m"}])]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "adds a sidecar to what the pod holds for its whole life" do
+      # A sidecar is an init container that keeps running, so it counts with
+      # the app rather than only during initialization: 500m + 1000m on a
+      # two-core box leaves 500m.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "2"},
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "1000m", "restartPolicy" => "Always"}])]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "adds pod overhead" do
+      # 500m of app plus 600m of runtime overhead on a two-core box leaves
+      # 900m, short of the core two replicas need.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"cpu" => "2"},
+          pods: [pool_pod(%{"cpu" => "500m"}, overhead: %{"cpu" => "600m"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
     test "ignores a pod that has finished, which holds nothing" do
       stub_pool([
         pool_box("box-1",
@@ -683,9 +733,24 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   defp pool_pod(requests, opts \\ []) do
-    %{
-      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
-      "spec" => %{"containers" => [%{"resources" => %{"requests" => requests}}]}
-    }
+    init_containers =
+      opts
+      |> Keyword.get(:init, [])
+      |> Enum.map(fn init ->
+        {restart_policy, init_requests} = Map.pop(init, "restartPolicy")
+
+        Map.merge(
+          %{"resources" => %{"requests" => init_requests}},
+          if(restart_policy, do: %{"restartPolicy" => restart_policy}, else: %{})
+        )
+      end)
+
+    spec =
+      Map.merge(
+        %{"containers" => [%{"resources" => %{"requests" => requests}}], "initContainers" => init_containers},
+        if(overhead = Keyword.get(opts, :overhead), do: %{"overhead" => overhead}, else: %{})
+      )
+
+    %{"status" => %{"phase" => Keyword.get(opts, :phase, "Running")}, "spec" => spec}
   end
 end

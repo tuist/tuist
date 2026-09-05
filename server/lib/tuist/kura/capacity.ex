@@ -549,8 +549,9 @@ defmodule Tuist.Kura.Capacity do
   node resources: `cpu`, `memory` (its profile's floor), `ephemeral-storage`
   (its claim), and on the bare-metal pools the `tuist.dev/memory-ceiling-mib`
   and `tuist.dev/egress-mbps` extended resources. Each is checked on each Ready,
-  schedulable node of the region's pool, as allocatable less what every pod
-  already on the node requests, whoever owns that pod. Each node takes as many
+  schedulable node of the region's pool, as allocatable less the effective
+  request of every pod already on the node, init containers and overhead
+  included, whoever owns that pod. Each node takes as many
   replicas as its free resources cover, and the instance has room when the
   nodes together take all of them. The controller's affinity only prefers
   co-location, so replicas that cannot share a node split across two, and a
@@ -697,13 +698,44 @@ defmodule Tuist.Kura.Capacity do
     end)
   end
 
-  defp pod_requested(%{"spec" => %{"containers" => containers}}, resource) when is_list(containers) do
-    containers
-    |> Enum.map(&resource_amount(resource, get_in(&1, ["resources", "requests", resource])))
-    |> Enum.sum()
+  # A pod's effective request, as the scheduler computes it, not the sum of its
+  # app containers. Init containers run one at a time before the app, each
+  # alongside the sidecars (init containers with `restartPolicy: Always`) that
+  # started before it, so the pod reserves whichever is larger: the app and
+  # sidecars together, or the busiest moment of initialization. Pod overhead
+  # sits on top. Summing the app containers alone reads a pod whose init
+  # container asked for most of the node as reserving a fraction of it.
+  defp pod_requested(%{"spec" => spec}, resource) when is_map(spec) do
+    app = spec |> containers("containers") |> Enum.map(&container_requested(&1, resource)) |> Enum.sum()
+
+    {init_peak, sidecars} =
+      spec
+      |> containers("initContainers")
+      |> Enum.reduce({0, 0}, fn container, {peak, sidecars} ->
+        amount = container_requested(container, resource)
+        running = sidecars + amount
+
+        {max(peak, running), if(sidecar?(container), do: running, else: sidecars)}
+      end)
+
+    max(app + sidecars, init_peak) + resource_amount(resource, get_in(spec, ["overhead", resource]))
   end
 
   defp pod_requested(_pod, _resource), do: 0
+
+  defp containers(spec, key) do
+    case Map.get(spec, key) do
+      containers when is_list(containers) -> containers
+      _ -> []
+    end
+  end
+
+  defp container_requested(container, resource) do
+    resource_amount(resource, get_in(container, ["resources", "requests", resource]))
+  end
+
+  defp sidecar?(%{"restartPolicy" => "Always"}), do: true
+  defp sidecar?(_container), do: false
 
   # CPU is the one resource Kubernetes quotes in millicores; everything else is
   # a plain quantity, in bytes or in units of the extended resource.

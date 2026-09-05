@@ -513,10 +513,12 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   # region here is one box named after it: a full one carries a pod holding its
   # whole disk, a roomy one carries nothing, and a region left out cannot be
   # read at all.
-  defp room(rooms) do
+  defp room(rooms, opts \\ []) do
+    while_reading = Keyword.get(opts, :while_reading, fn -> :ok end)
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
     stub(Client, :list_nodes, fn selector, _opts ->
+      while_reading.()
       region = Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector))
 
       if region && Map.has_key?(rooms, region.id) do
@@ -840,6 +842,30 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       seed_origin(account, "FR")
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+    end
+
+    test "a spill racing itself follows the placement the other resolution recorded" do
+      # Two demand flushes on two nodes read the same account with no primary
+      # and, from separately cached room readings, spill it into different
+      # regions. Demoting the first to a secondary would provision the account
+      # in both. The one-primary index decides, and the loser follows.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west", "eu-central"])
+      seed_origin(account, "US-VA")
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      # The other node records eu-central while this one is still reading room.
+      room(%{"us-east" => false, "us-west" => true, "eu-central" => true},
+        while_reading: fn ->
+          PlacerRegions.record_first_primary(account, "eu-central", %{"signal" => "capacity_spill"})
+        end
+      )
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+
+      assert [%{role: :primary, region: "eu-central"}] = PlacerRegions.all_for(account)
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
     end
 
     test "resolvable?/1 answers without reading room or recording a placement" do
