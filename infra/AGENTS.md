@@ -58,6 +58,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
+  The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
 - `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
