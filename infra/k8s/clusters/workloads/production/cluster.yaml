@@ -154,19 +154,23 @@ spec:
         # without the autoscaler bounds, dropping cluster-autoscaler's
         # node-group registration mid-flight.
         #
-        # `replicas` is deliberately UNSET on this pool (spec/72 footgun):
-        # it is autoscaled between the min/max annotations below, and CAPI's
-        # topology controller only manages replicas when the field is
-        # present. Under Flux (10-min reconcile) a pinned `replicas` would
-        # be re-asserted on every sync and fight cluster-autoscaler; leaving
-        # it unset lets CAPI default within [min,max] and hands replica
-        # control to the autoscaler (see the CAPI Autoscaling docs). Before
-        # enabling the production Flux Kustomization, confirm the live MD's
-        # replicas are preserved:
-        #   kubectl -n org-tuist get md tuist-md-processor \
-        #     -o jsonpath='{.spec.replicas}{"\n"}{.metadata.annotations}'
+        # `replicas` is pinned here, NOT omitted. Omitting it is CAPI's
+        # documented autoscaler pattern — the Cluster CRD says a nil value means
+        # "an external entity (like cluster autoscaler) is responsible" — but the
+        # same sentence says the MachineDeployment is then "created without the
+        # number of Replicas (defaulting to 1)". Applying nil to an MD that
+        # already ran 2 therefore dropped it to 1: a running processor node was
+        # deleted and the pool sat below its own autoscaler minimum until it was
+        # restored by hand. Moving this pool to autoscaler-owned replicas is a
+        # deliberate change needing a window, not something to carry along in an
+        # unrelated migration.
+        #
+        # Consequence while pinned: Flux re-asserts 2 on its interval, so a
+        # cluster-autoscaler scale-up is reverted within one reconcile. That is
+        # the trade being made knowingly — capacity floor over elasticity.
         - class: hcloud-worker
           name: md-processor
+          replicas: 2
           failureDomain: fsn1
           rollout:
             strategy:
