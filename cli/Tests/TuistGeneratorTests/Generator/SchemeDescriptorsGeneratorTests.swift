@@ -70,6 +70,35 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildImplicitDependencies, true)
     }
 
+    func test_schemeBuildAction_withPerTargetBuildForOptions() throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let targetReference = TargetReference(projectPath: projectPath, name: "App")
+        let scheme = Scheme.test(
+            buildAction: BuildAction(
+                targets: [targetReference],
+                buildFor: [targetReference: [.analyzing, .archiving, .profiling, .running]]
+            )
+        )
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app])
+        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
+
+        let got = try subject.schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: [
+                xcodeProjPath: generatedProject(targets: [app], projectPath: "\(xcodeProjPath)"),
+            ]
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(got).buildActionEntries.first?.buildFor,
+            [.analyzing, .archiving, .profiling, .running]
+        )
+    }
+
     func test_schemeBuildAction_findImplicitDependenciesFalse() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")

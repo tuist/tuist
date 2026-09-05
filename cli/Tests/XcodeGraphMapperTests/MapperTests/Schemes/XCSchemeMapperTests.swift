@@ -72,6 +72,8 @@ struct XCSchemeMapperTests {
         #expect(mappedAction != nil)
         #expect(mappedAction?.targets.count == 1)
         #expect(mappedAction?.targets[0].name == "App")
+        let mappedTarget = try #require(mappedAction?.targets[0])
+        #expect(mappedAction?.buildFor[mappedTarget] == [.running, .testing])
         #expect(mappedAction?.parallelizeBuild == false)
         #expect(mappedAction?.runPostActionsOnFailure == true)
         #expect(mappedAction?.findImplicitDependencies == true)
