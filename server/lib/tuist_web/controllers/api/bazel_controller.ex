@@ -48,6 +48,74 @@ defmodule TuistWeb.API.BazelController do
     },
     required: [:hits, :misses, :download_bytes, :upload_bytes, :hit_rate]
   }
+  @build_metrics_schema %Schema{
+    type: :object,
+    description: "Build metrics reported by Bazel.",
+    properties: %{
+      cpu_time_ms: %Schema{type: :integer, description: "Total central processing unit time in milliseconds."},
+      actions_created: %Schema{
+        type: :integer,
+        description: "Actions Bazel created while analyzing the requested targets."
+      },
+      actions_executed: %Schema{
+        type: :integer,
+        description: "Actions Bazel executed, including remote cache hits and excluding local action-cache hits."
+      },
+      targets_configured: %Schema{type: :integer, description: "Targets Bazel configured."},
+      packages_loaded: %Schema{type: :integer, description: "Packages Bazel loaded."}
+    },
+    required: [
+      :cpu_time_ms,
+      :actions_created,
+      :actions_executed,
+      :targets_configured,
+      :packages_loaded
+    ]
+  }
+  @build_timeline_schema %Schema{
+    type: :object,
+    nullable: true,
+    description: "A bounded timeline containing the analysis phase and up to the 32 longest published actions.",
+    properties: %{
+      duration_ms: %Schema{type: :integer},
+      lanes: %Schema{type: :array, items: %Schema{type: :string}},
+      spans: %Schema{
+        type: :array,
+        items: %Schema{
+          type: :object,
+          properties: %{
+            lane: %Schema{type: :integer},
+            start_ms: %Schema{type: :integer},
+            duration_ms: %Schema{type: :integer},
+            category: %Schema{type: :string, enum: ["analysis", "execution"]},
+            description: %Schema{type: :string}
+          },
+          required: [:lane, :start_ms, :duration_ms, :category, :description]
+        }
+      }
+    },
+    required: [:duration_ms, :lanes, :spans]
+  }
+  @critical_path_schema %Schema{
+    type: :object,
+    nullable: true,
+    description: "The critical path reported by Bazel, bounded to 32 actions.",
+    properties: %{
+      duration_ms: %Schema{type: :integer},
+      actions: %Schema{
+        type: :array,
+        items: %Schema{
+          type: :object,
+          properties: %{
+            description: %Schema{type: :string},
+            duration_ms: %Schema{type: :integer}
+          },
+          required: [:description, :duration_ms]
+        }
+      }
+    },
+    required: [:duration_ms, :actions]
+  }
   @invocation_schema %Schema{
     type: :object,
     properties: %{
@@ -57,12 +125,16 @@ defmodule TuistWeb.API.BazelController do
       git_branch: %Schema{type: :string},
       git_commit_sha: %Schema{type: :string},
       is_ci: %Schema{type: :boolean},
+      bazel_version: %Schema{type: :string},
       cache_endpoint: %Schema{type: :string},
       status: %Schema{type: :string, enum: ["success", "failure"]},
       exit_code: %Schema{type: :integer},
       started_at: %Schema{type: :string, format: :"date-time"},
       finished_at: %Schema{type: :string, format: :"date-time"},
       duration_ms: %Schema{type: :integer},
+      build_metrics: @build_metrics_schema,
+      build_timeline: @build_timeline_schema,
+      critical_path: @critical_path_schema,
       cache: @cache_summary_schema
     },
     required: [
@@ -72,12 +144,16 @@ defmodule TuistWeb.API.BazelController do
       :git_branch,
       :git_commit_sha,
       :is_ci,
+      :bazel_version,
       :cache_endpoint,
       :status,
       :exit_code,
       :started_at,
       :finished_at,
       :duration_ms,
+      :build_metrics,
+      :build_timeline,
+      :critical_path,
       :cache
     ]
   }
@@ -385,12 +461,16 @@ defmodule TuistWeb.API.BazelController do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      bazel_version: invocation.bazel_version,
       cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,
       exit_code: invocation.exit_code,
       started_at: invocation.started_at,
       finished_at: invocation.finished_at,
       duration_ms: invocation.duration_ms,
+      build_metrics: build_metrics_json(invocation),
+      build_timeline: build_timeline_json(invocation),
+      critical_path: critical_path_json(invocation),
       cache: invocation.cache
     }
   end
@@ -404,6 +484,50 @@ defmodule TuistWeb.API.BazelController do
       message: log.message,
       observed_at: log.observed_at
     }
+  end
+
+  defp build_metrics_json(invocation) do
+    %{
+      cpu_time_ms: invocation.cpu_time_ms,
+      actions_created: invocation.actions_created,
+      actions_executed: invocation.actions_executed,
+      targets_configured: invocation.targets_configured,
+      packages_loaded: invocation.packages_loaded
+    }
+  end
+
+  defp build_timeline_json(invocation) do
+    spans =
+      [
+        invocation.build_timeline_span_lanes,
+        invocation.build_timeline_span_start_ms,
+        invocation.build_timeline_span_durations_ms,
+        invocation.build_timeline_span_categories,
+        invocation.build_timeline_span_descriptions
+      ]
+      |> Enum.zip()
+      |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
+        %{lane: lane, start_ms: start_ms, duration_ms: duration_ms, category: category, description: description}
+      end)
+
+    if spans == [] do
+      nil
+    else
+      %{duration_ms: invocation.build_timeline_duration_ms, lanes: invocation.build_timeline_lanes, spans: spans}
+    end
+  end
+
+  defp critical_path_json(invocation) do
+    actions =
+      invocation.critical_path_action_descriptions
+      |> Enum.zip(invocation.critical_path_action_durations_ms)
+      |> Enum.map(fn {description, duration_ms} -> %{description: description, duration_ms: duration_ms} end)
+
+    if invocation.critical_path_duration_ms == 0 and actions == [] do
+      nil
+    else
+      %{duration_ms: invocation.critical_path_duration_ms, actions: actions}
+    end
   end
 
   defp cache_event_json(event) do

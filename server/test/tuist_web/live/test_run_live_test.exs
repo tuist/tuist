@@ -111,9 +111,6 @@ defmodule TuistWeb.TestRunLiveTest do
         }
       })
 
-    test_case_id =
-      Tuist.Tests.generate_test_case_id(project.id, "testAppliesDiscount", "AppTests", "CheckoutTests")
-
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
     # A test that disagreed with itself is flaky, not failed.

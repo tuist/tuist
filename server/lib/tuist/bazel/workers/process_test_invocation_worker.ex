@@ -89,7 +89,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
       %{
         id: result.id,
         invocation_id: result.invocation_id,
-        sequence_number: result.sequence_number,
+        sequence_number: result.sequence_number * 2,
         stream: "stdout",
         message:
           "[Bazel test log for #{result.target_label}]\n" <>

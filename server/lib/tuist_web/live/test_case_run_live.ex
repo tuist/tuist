@@ -14,7 +14,6 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
-  alias Tuist.Tests.StressNewTests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
