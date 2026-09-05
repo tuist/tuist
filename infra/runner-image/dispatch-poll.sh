@@ -826,7 +826,13 @@ cas_store_dirs() {
 #
 # The teardown call site applies an rc gate; the attach one does not need it
 # (nothing has been drained yet because nothing has been written yet).
+#
+# `$1` names the call site and is echoed into every line this emits. The two
+# passes are otherwise indistinguishable in the logs, and telling them apart is
+# what says whether an account is being saved on the way IN (it inherited a
+# store over budget) or merely kept tidy on the way OUT.
 prune_cas_stores() {
+  local when="${1:-teardown}"
   [ -n "${CACHE_MOUNT}" ] || return 0
   local stores
   stores=$(cas_store_dirs)
@@ -872,11 +878,29 @@ prune_cas_stores() {
     # `--prune` and falls through to its SERVE path, which unlinks the machine's
     # socket and binds its own — killing the live proxy from a teardown script.
     # Without that variable it exits before reaching the bind, every time.
-    if env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
-      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned: ${store} (limit ${budget}B/generation)"
+    # Captured rather than left to stream: the client reports the bytes it
+    # freed and which route it took, and both belong ON this line. Loose on
+    # stderr they land in the runner's own multi-MB log, attributable to
+    # neither the store nor the pass that produced them.
+    local output reclaimed via
+    if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
+      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
+      # 0 is the ordinary healthy answer — a store inside its budget has no
+      # generation to collect — so it must stay distinguishable from "no figure
+      # reported", which would mean the client changed under us.
+      reclaimed=$(printf '%s\n' "${output}" | sed -n 's/.*reclaiming \([0-9][0-9]*\) bytes.*/\1/p' | tail -1)
+      # Which path actually ran. A store the proxy holds can ONLY be rotated
+      # through the proxy, so a `local` route on the plugin lane is the shape of
+      # a prune that collected nothing while reporting success.
+      case "${output}" in
+        *"proxy pruned"*) via="proxy" ;;
+        *"holds no handle"*) via="local, proxy holds no handle" ;;
+        *"could not ask the proxy"*) via="local, no proxy" ;;
+        *) via="local" ;;
+      esac
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
     else
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store ${store}"
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store (${when}) ${store}: ${output}"
     fi
   done <<EOF
 ${stores}
@@ -936,7 +960,7 @@ wait_for_cache_ready() {
       # Deliberately not time-bounded. It delays the job's start only by what it
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
-      prune_cas_stores
+      prune_cas_stores attach
       return 0
     fi
     sleep 1
@@ -1570,7 +1594,7 @@ HOOK
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
       if [ "${rc}" = "0" ]; then
-        prune_cas_stores
+        prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting
