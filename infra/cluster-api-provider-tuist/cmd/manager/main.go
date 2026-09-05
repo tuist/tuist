@@ -255,11 +255,12 @@ func main() {
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
 			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) budget (GiB) within each per-account cache image, passed to "+
-			"tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
-			"share of the master cap; the binary cache gets the rest minus a reserve. 0 (default) leaves the "+
-			"compilation cache VM-local. Only meaningful with --runner-cache-volume-gib > 0. Flows from "+
-			"macosFleet.runnerCacheVolume.casGib.")
+		"Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) within each per-account cache image, passed "+
+			"to tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
+			"share of the master cap; the binary cache gets the rest minus a reserve. Size it for what the store "+
+			"should occupy: the compiler is given HALF of it as COMPILATION_CACHE_LIMIT_SIZE, which bounds one "+
+			"generation of a store that keeps two. 0 (default) leaves the compilation cache VM-local. Only "+
+			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,

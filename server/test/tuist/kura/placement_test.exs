@@ -144,6 +144,43 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["signal"] == "initial_placement_missed"
     end
 
+    test "corrects a guess on a single day of traffic" do
+      # The rung fires at most once per account, so waiting for days to
+      # accumulate buys no protection against flapping, and every build until
+      # they do is served from the wrong side of an ocean. An account that
+      # builds a few days a week could also fail to accumulate them before
+      # `within_days` closed the rung, which is the outcome it exists to
+      # prevent.
+      context =
+        context(
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -1)},
+          rollups: [rollup("FR", @today, 40)]
+        )
+
+      assert {:correct, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "initial_placement_missed"
+      assert evidence["active_days"] == 1
+    end
+
+    test "does not correct on a single day too quiet to mean anything" do
+      # One day is enough only once it carries a working day's traffic. The
+      # volume floor is what still separates a team that moved from a couple
+      # of runs someone tried out at a conference.
+      context =
+        context(
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -1)},
+          rollups: [rollup("FR", @today, 30)]
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
     test "does not correct a placement something decided" do
       # The rung replaces a guess. An applied relocation, an operator pin or
       # the backfill are decisions, and a decision is not corrected on a week.

@@ -11,6 +11,8 @@ import TuistAppleArchiver
 import TuistCache
 import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoggerTesting
 import TuistServer
 import TuistSupport
@@ -251,6 +253,217 @@ struct ModuleCacheRemoteStorageTests {
                 serverAuthenticationController: .any
             )
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController(), .withMockedEnvironment())
+    func fetch_when_the_budget_is_spent_evicts_least_recently_used_entries_to_make_room() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1500000"
+
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+        // An older entry that leaves no room for the download.
+        let staleEntry = binariesDirectory.appending(component: "stale")
+        try await fileSystem.makeDirectory(at: staleEntry)
+        FileManager.default.createFile(
+            atPath: staleEntry.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_400_000)
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: Calendar.current.date(byAdding: .hour, value: -1, to: Date())!],
+            ofItemAtPath: staleEntry.pathString
+        )
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willProduce { _, directory in
+                try FileManager.default.createDirectory(
+                    at: directory.appending(component: "target.xcframework").url,
+                    withIntermediateDirectories: true
+                )
+                FileManager.default.createFile(
+                    atPath: directory.appending(components: "target.xcframework", "binary").pathString,
+                    contents: Data(repeating: 0x41, count: 1_000_000)
+                )
+            }
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then: the artifact the build wants displaces the one it does not.
+        #expect(got.count == 1)
+        #expect(!(try await fileSystem.exists(staleEntry)))
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash")))
+        #expect(AlertController.current.warnings().isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController(), .withMockedEnvironment())
+    func fetch_when_the_download_does_not_fit_the_byte_budget_is_treated_as_a_cache_miss() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1000000"
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(temporaryDirectory.appending(component: "Binaries"))
+
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        // Decompresses to 5 MB against a 1 MB budget, so it never reaches the volume.
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willProduce { _, directory in
+                FileManager.default.createFile(
+                    atPath: directory.appending(component: "target.xcframework").pathString,
+                    contents: Data(repeating: 0x41, count: 5_000_000)
+                )
+            }
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["The local cache ran out of space, so these artifacts were rebuilt from source instead of being cached: target"]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_the_local_cache_is_full_is_treated_as_a_cache_miss() async throws {
+        // Given
+        let volume = try TinyVolume.attached()
+        defer { volume.detach() }
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(volume.mountPoint.appending(component: "Binaries"))
+
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        // The download succeeds and decompresses; only keeping it locally cannot.
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willProduce { _, directory in
+                FileManager.default.createFile(
+                    atPath: directory.appending(component: "target.xcframework").pathString,
+                    contents: Data(repeating: 0x41, count: 5_000_000)
+                )
+            }
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["The local cache ran out of space, so these artifacts were rebuilt from source instead of being cached: target"]
+        )
     }
 
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())

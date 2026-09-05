@@ -13,14 +13,14 @@
     </div>
 
     <section data-part="hero">
-      <header data-part="title">
-        <div data-part="title">
-          <h1>{dgettext("marketing", "Your mobile platform team,")}</h1>
-        </div>
-        <div data-part="title">
-          <h1>{dgettext("marketing", "as a service")}</h1>
-        </div>
-      </header>
+      <h1 data-part="title">
+        <span data-part="title">
+          <span data-part="line">{dgettext("marketing", "Your mobile platform team,")}</span>
+        </span>
+        <span data-part="title">
+          <span data-part="line">{dgettext("marketing", "as a service")}</span>
+        </span>
+      </h1>
 
       <div data-part="subtitle">
         <p>
@@ -52,13 +52,18 @@
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/line-chart.webp"}
+            alt=""
             decoding="async"
           />
           <span data-part="title">{dgettext("marketing", "Build times reduced by 80%")}</span>
         </div>
         <div data-part="selective-tests-card">
           <div data-part="graphic">
-            <img src={~p"/marketing/images/home/cards/selective-tests.webp"} decoding="async" />
+            <img
+              src={~p"/marketing/images/home/cards/selective-tests.webp"}
+              alt=""
+              decoding="async"
+            />
           </div>
           <span data-part="title">{dgettext("marketing", "Skipped repetitive tests")}</span>
         </div>
@@ -66,6 +71,7 @@
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/optimized-app-bundles.webp"}
+            alt=""
             decoding="async"
           />
           <span data-part="title">{dgettext("marketing", "Optimized app bundles")}</span>
@@ -79,6 +85,7 @@
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/qrcode.webp"}
+            alt=""
             decoding="async"
           />
         </div>
@@ -87,6 +94,7 @@
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/remote-binaries.webp"}
+            alt=""
             decoding="async"
           />
         </div>
@@ -98,6 +106,7 @@
         />
         <img
           src={~p"/marketing/images/home/hero/background.webp"}
+          alt=""
           decoding="async"
           fetchpriority="high"
         />
@@ -520,24 +529,38 @@
         <img
           data-part="default"
           src={~p"/marketing/images/home/dashboard.webp"}
+          alt={
+            dgettext(
+              "marketing",
+              "The Tuist dashboard showing build times, cache hit rates, and test runs for a project"
+            )
+          }
           loading="lazy"
           decoding="async"
         />
         <img
           data-part="hover"
           src={~p"/marketing/images/home/dashboard-hover.webp"}
+          alt=""
           loading="lazy"
           decoding="async"
         />
         <img
           data-part="default-mobile"
           src={~p"/marketing/images/home/dashboard-mobile.webp"}
+          alt={
+            dgettext(
+              "marketing",
+              "The Tuist dashboard showing build times, cache hit rates, and test runs for a project"
+            )
+          }
           loading="lazy"
           decoding="async"
         />
         <img
           data-part="hover-mobile"
           src={~p"/marketing/images/home/dashboard-hover-mobile.webp"}
+          alt=""
           loading="lazy"
           decoding="async"
         />
@@ -564,6 +587,7 @@
           id="avatar-basic-with-image"
           name={@featured_testimonials.author_name}
           image_href={@featured_testimonials.author_avatar}
+          image_alt=""
           image_loading="lazy"
           size="small"
         />
@@ -671,7 +695,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "5K+")}</h1>
+            <span data-part="value">{dgettext("marketing", "5K+")}</span>
             <p>{dgettext("marketing", "Stars on GitHub")}</p>
           </div>
         </article>
@@ -686,7 +710,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "9+")}</h1>
+            <span data-part="value">{dgettext("marketing", "9+")}</span>
             <p>{dgettext("marketing", "Years of building OSS Foundation")}</p>
           </div>
         </article>
@@ -703,7 +727,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "8300+")}</h1>
+            <span data-part="value">{dgettext("marketing", "8300+")}</span>
             <p>{dgettext("marketing", "Pull requests merged")}</p>
           </div>
         </article>
@@ -718,7 +742,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "1400+")}</h1>
+            <span data-part="value">{dgettext("marketing", "1400+")}</span>
             <p>{dgettext("marketing", "Active community members and counting")}</p>
           </div>
         </article>
@@ -735,7 +759,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "10K+")}</h1>
+            <span data-part="value">{dgettext("marketing", "10K+")}</span>
             <p>{dgettext("marketing", "Teams using Tuist")}</p>
           </div>
         </article>
@@ -750,7 +774,7 @@
             />
           </div>
           <div data-part="content">
-            <h1>{dgettext("marketing", "300+")}</h1>
+            <span data-part="value">{dgettext("marketing", "300+")}</span>
             <p>{dgettext("marketing", "Contributors")}</p>
           </div>
         </article>

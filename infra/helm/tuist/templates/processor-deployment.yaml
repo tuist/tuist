@@ -108,13 +108,16 @@ spec:
               containerPort: 9091
           env:
             # Gate the BEAM into processor mode: skip the Phoenix web endpoint
-            # AND narrow the Oban queue set to :process_build only.
+            # AND narrow the Oban queue set to the build and Bazel test
+            # processing queues.
             # See `Tuist.Environment.mode/0` and the oban_queues block in
             # server/config/runtime.exs.
             - name: TUIST_MODE
               value: processor
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
+            - name: TUIST_PROCESS_BAZEL_TESTS_QUEUE_CONCURRENCY
+              value: {{ .Values.processor.bazelTestQueueConcurrency | quote }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.

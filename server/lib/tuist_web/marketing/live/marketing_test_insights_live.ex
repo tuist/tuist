@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingTestInsightsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Marketing.StructuredMarkup
+
   alias Tuist.Marketing.Stats
 
   def mount(_params, session, socket) do
@@ -23,6 +25,12 @@ defmodule TuistWeb.Marketing.MarketingTestInsightsLive do
   end
 
   def handle_params(_params, _url, socket) do
+    description =
+      dgettext(
+        "marketing",
+        "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+      )
+
     {:noreply,
      socket
      |> assign(:head_title, dgettext("marketing", "Test Insights · Tuist"))
@@ -36,13 +44,8 @@ defmodule TuistWeb.Marketing.MarketingTestInsightsLive do
            )
        )
      )
-     |> assign(
-       :head_description,
-       dgettext(
-         "marketing",
-         "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
-       )
-     )}
+     |> assign(:head_description, description)
+     |> assign_feature_structured_data(dgettext("marketing", "Test Insights"), description, "/test-insights")}
   end
 
   def handle_info({:marketing_stats_updated, stats}, socket) do

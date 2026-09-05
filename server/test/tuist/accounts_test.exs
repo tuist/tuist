@@ -4056,6 +4056,40 @@ defmodule Tuist.AccountsTest do
       Accounts.delete_account!(account)
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
+
+    test "tears the account's Kura servers out of the cluster before its rows cascade away" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        # The rows the reconciler would need must still be readable here: once
+        # the account is gone they cascade, and nothing can reclaim the
+        # workload afterwards.
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "account deletion still succeeds when the Kura teardown fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Kura, :destroy_servers_for_account, fn _account_id -> raise "cluster unreachable" end)
+
+      # When / Then
+      Accounts.delete_account!(account)
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
   end
 
   describe "sso_configured?/0" do
@@ -5106,6 +5140,9 @@ defmodule Tuist.AccountsTest do
     test "reports provisioning while the account's instance is not serving yet" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5133,6 +5170,9 @@ defmodule Tuist.AccountsTest do
       # would answer `false` on the request where it matters most and leave the
       # client caching a stand-in lane for its full interval.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5167,6 +5207,9 @@ defmodule Tuist.AccountsTest do
       # These accounts used to be refused a region outright, which left them on
       # a stand-in lane indefinitely with the client told nothing was coming.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5218,6 +5261,9 @@ defmodule Tuist.AccountsTest do
     test "records cache demand for the account when a Kura client resolves endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)

@@ -56,6 +56,8 @@
   & [data-part="log-message"] {
     flex: 1;
     color: var(--noora-surface-label-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   & [data-part="expandable-content"] {

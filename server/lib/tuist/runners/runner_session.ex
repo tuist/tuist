@@ -26,6 +26,12 @@ defmodule Tuist.Runners.RunnerSession do
     field :job_ended_at, :utc_datetime_usec
     field :pod_name, :string, default: ""
     field :runner_name, :string, default: ""
+    # The host the Pod ran on. Recorded here because the pod-to-node mapping
+    # lives only in Kubernetes and disappears when the Pod is reaped, so
+    # without it a finished job cannot be attributed to a machine. NULL for
+    # sessions opened before the column existed, and for any dispatch that
+    # could not resolve a node.
+    field :node_name, :string
     # The workflow_job GitHub actually ran on this runner, learned
     # from the `in_progress` / `completed` webhook. Durable ground
     # truth that outlives the pod; NULL until GitHub proves it.

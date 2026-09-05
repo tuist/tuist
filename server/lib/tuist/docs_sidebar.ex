@@ -207,7 +207,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"},
+              %Item{label: "Bazel cache and invocations", slug: "/en/guides/features/cache/bazel-cache"}
             ]
           },
           %Item{

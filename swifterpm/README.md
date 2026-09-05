@@ -58,6 +58,8 @@ Useful SwiftPM-shaped flags are supported, including `--package-path`, `--cache-
 
 Credentials for registries and binary artifact downloads are read from `~/.netrc`, from the `SWIFTPM_NETRC_DATA` environment variable, or from the file given by `--netrc-file`. Pass `--disable-netrc` to skip all of them. A `--netrc-file` that does not exist is an error rather than a silent fallback to unauthenticated requests.
 
+For GitHub API requests (archive downloads, release asset fetches), `swifterpm` reads a token from the environment in this order: `SWIFTERPM_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`. The dedicated `SWIFTERPM_GITHUB_TOKEN` variable lets CI workflows scope a separate credential for `swifterpm` without affecting other tools that read the generic variables. A host-scoped netrc credential for `api.github.com` takes precedence over all three environment tokens.
+
 By default, `swifterpm` copies cached directories into the project scratch directory during [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) (CI) and symlinks them elsewhere. Pass `--cached-directory-materialization=symlink` to preserve global-cache symlinks during continuous integration. The accepted values are `automatic`, `copy`, and `symlink`.
 
 > [!NOTE]

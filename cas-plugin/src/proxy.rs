@@ -18,8 +18,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
-    OP_RESOLVE,
+    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PRUNE,
+    OP_PUBLISH, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -255,6 +255,14 @@ fn drain_timeout(payload: &[u8]) -> Duration {
     }
 }
 
+/// The per-generation byte limit a PRUNE request carries. A malformed or zero
+/// payload means "no budget to impose": prune against whatever limit the store
+/// already has rather than refuse, since a caller that only wants the
+/// generations collected has nothing useful to send.
+fn prune_limit(payload: &[u8]) -> u64 {
+    <[u8; 8]>::try_from(payload).map_or(0, u64::from_be_bytes)
+}
+
 /// Deletes a spool record and the tags written beside it. A leaked sidecar
 /// would be read back by whatever record later reuses that name.
 fn remove_record(record_path: &str) {
@@ -480,7 +488,14 @@ pub struct PathState {
     // reads report objects the compiler cannot see, and writes land where
     // nothing will ever read them. Readers hold the guard across their whole
     // FFI call so a swap can never dispose a handle mid-use.
-    cas: RwLock<llcas_cas_t>,
+    //
+    // `None` is a store that is OUT OF SERVICE: `prune_ondisk` has to dispose
+    // the handle before it can reopen one (llcas only rotates a store as its
+    // last handle closes), and a reopen that then fails must not leave readers
+    // a disposed pointer to dereference. Every reader treats `None` as "this
+    // store can answer nothing" -- a miss on the read paths, an error on the
+    // write ones -- which is exactly what a store we can no longer open is.
+    cas: RwLock<Option<llcas_cas_t>>,
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
     // it for wipe detection (see `generation`).
     cas_path: String,
@@ -579,6 +594,30 @@ pub struct PathState {
     pub ms_fetch: AtomicU64,
     pub ms_decode: AtomicU64,
     pub ms_store: AtomicU64,
+    // The local half of a publication's cost, separated from the four RPCs it
+    // shares `write_duration` with. That one number covering both is why the
+    // 40x write regression of 2026-09-02 survived four wrong explanations and
+    // is still open: nothing said whether the time was network or disk, so
+    // every theory had to be argued instead of read off.
+    //
+    // Every llcas read a publication makes, from both of the places it makes
+    // them (see `encode_node_blob_accounted`), and nothing else: not the memo
+    // lookups or the graph bookkeeping around them, which are not what a slow
+    // store makes slow.
+    //
+    // Microseconds, not the milliseconds the counters above use: a read against
+    // a store that has not rotated is tens of nanoseconds, and a millisecond
+    // counter reports a whole build of them as zero.
+    pub us_publish_local: AtomicU64,
+    // The reads those microseconds are spread over. The per-read cost is what
+    // the store's generation chain changes, so the total is only readable
+    // against the count.
+    pub stats_publish_nodes_loaded: AtomicU64,
+    // Publications skipped because the remote was inside its shed window. The
+    // companion to `us_publish_local`: between them, a `write_duration` that
+    // moved says which half moved, and a `write_duration` that did not move
+    // says whether that is health or silence.
+    pub stats_publish_shed: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -931,9 +970,107 @@ impl PathState {
     fn reopen_cas(&self) -> Result<(), String> {
         let fresh = unsafe { open_cas(self.up, &self.cas_path)? };
         let mut cas = self.cas.write().unwrap();
-        let stale = std::mem::replace(&mut *cas, fresh);
-        unsafe { (self.up.llcas_cas_dispose)(stale) };
+        if let Some(stale) = std::mem::replace(&mut *cas, Some(fresh)) {
+            unsafe { (self.up.llcas_cas_dispose)(stale) };
+        }
         Ok(())
+    }
+
+    /// Bounds the on-disk store to `limit_bytes` PER GENERATION and deletes the
+    /// generations that fall off the chain, returning the bytes reclaimed.
+    ///
+    /// `COMPILATION_CACHE_LIMIT_SIZE` does not, on its own, cap anything.
+    /// Measured against Xcode 26.5's `libToolchainCASPlugin`: setting the limit
+    /// and then writing 3x past it prunes nothing, and a
+    /// `llcas_cas_prune_ondisk_data` issued inside that same session returns
+    /// success in ~0ms having reclaimed 0 bytes. What the limit actually drives
+    /// is a chain of generation directories (`v1.1`, `v1.2`, ...): when the live
+    /// chain is over the limit, CLOSING the last handle starts a new primary and
+    /// demotes the old one; `prune_ondisk_data` is what then deletes whatever
+    /// fell off the end. With nothing calling it the directory just grows -- 16
+    /// rounds against a 0.125 GiB limit took it to 1.175 GiB, still climbing.
+    ///
+    /// So the order below is the whole point, and it is why this lives in the
+    /// proxy: the rotation is a side effect of the LAST handle closing, and on a
+    /// machine running the proxy that handle is the proxy's own. Set the limit,
+    /// dispose (rotate), reopen, and only then prune -- a prune issued through a
+    /// handle opened alongside ours finds the chain still live and collects
+    /// nothing, while reporting success.
+    ///
+    /// The write lock is the quiescence guarantee: no reader can be inside an
+    /// FFI call with the handle we dispose, and none can take one out until the
+    /// replacement is in place.
+    fn prune_ondisk(&self, limit_bytes: u64) -> Result<u64, String> {
+        let Some(set_limit) = self.up.llcas_cas_set_ondisk_size_limit else {
+            return Err("upstream plugin exports no ondisk size limit".into());
+        };
+        let Some(prune) = self.up.llcas_cas_prune_ondisk_data else {
+            return Err("upstream plugin exports no ondisk prune".into());
+        };
+        let before = generation_sizes(&self.cas_path);
+        let mut cas = self.cas.write().unwrap();
+
+        if let Some(live) = *cas {
+            // Only worth a log: a limit we failed to set means the dispose below
+            // rotates nothing, and the prune then honestly collects nothing.
+            if let Err(message) = unsafe { set_ondisk_limit(self.up, set_limit, live, limit_bytes) }
+            {
+                crate::log_line(&format!(
+                    "proxy prune: could not set the limit on {}: {message}",
+                    self.cas_path
+                ));
+            }
+        }
+        // Dispose FIRST, and leave the slot empty across it: this is the close
+        // that rotates, so nothing of ours may hold the store open here.
+        if let Some(stale) = cas.take() {
+            unsafe { (self.up.llcas_cas_dispose)(stale) };
+        }
+
+        // The fresh handle sees the post-rotation chain. A store that will not
+        // reopen is one we can no longer serve at all, so leave the slot `None`
+        // rather than hand readers a disposed pointer; the recovery is a later
+        // build, which registers the path afresh.
+        //
+        // Every path from here runs through the invalidation below, including
+        // that one. The rotation has already happened, so the marks describe a
+        // chain this state no longer addresses whether or not the prune ran.
+        let outcome = match unsafe { open_cas(self.up, &self.cas_path) } {
+            Ok(fresh) => {
+                *cas = Some(fresh);
+                // Re-set on the new primary so the NEXT close rotates too,
+                // without anyone having to ask again.
+                if let Err(message) =
+                    unsafe { set_ondisk_limit(self.up, set_limit, fresh, limit_bytes) }
+                {
+                    crate::log_line(&format!(
+                        "proxy prune: could not re-set the limit on {}: {message}",
+                        self.cas_path
+                    ));
+                }
+                let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+                let failed = unsafe { prune(fresh, &mut error) };
+                let detail = unsafe { take_error(self.up, error) };
+                if failed {
+                    Err(detail.unwrap_or_else(|| "prune failed".into()))
+                } else {
+                    Ok(())
+                }
+            }
+            Err(message) => Err(format!("reopen after rotation: {message}")),
+        };
+        drop(cas);
+
+        // A prune removed objects from the store IN PLACE. Our known-local marks
+        // are trusted without an on-disk probe, so a surviving mark for a
+        // collected blob hands a consumer a graph with holes -- the same hazard
+        // OP_INVALIDATE exists for, and it applies to a partial prune that then
+        // errored just as much as to one that succeeded.
+        self.invalidate();
+        self.publish_cache.lock().unwrap().clear();
+
+        outcome?;
+        Ok(reclaimed_bytes(&self.cas_path, &before))
     }
 
     /// Authoritative on-disk presence for `digest`: an actual llcas load, the
@@ -944,7 +1081,10 @@ impl PathState {
     fn load_present(&self, digest: &[u8]) -> bool {
         // Held across the probe: a concurrent `reopen_cas` must not dispose the
         // handle between the objectid lookup and the containment check.
-        let cas = self.cas.read().unwrap();
+        let cas_guard = self.cas.read().unwrap();
+        // Out of service (see `cas`): the honest answer is the one a wiped store
+        // gives, which sends the caller back to the remote.
+        let Some(cas) = *cas_guard else { return false };
         unsafe {
             let digest_t = llcas_digest_t {
                 data: digest.as_ptr(),
@@ -952,7 +1092,7 @@ impl PathState {
             };
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-            if (self.up.llcas_cas_get_objectid)(*cas, digest_t, &mut id, &mut error) {
+            if (self.up.llcas_cas_get_objectid)(cas, digest_t, &mut id, &mut error) {
                 if !error.is_null() {
                     (self.up.llcas_string_dispose)(error);
                 }
@@ -965,7 +1105,7 @@ impl PathState {
             // which is all the stale-hit guard needs.
             let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
             let result =
-                (self.up.llcas_cas_contains_object)(*cas, id, false, &mut contains_error);
+                (self.up.llcas_cas_contains_object)(cas, id, false, &mut contains_error);
             if !contains_error.is_null() {
                 (self.up.llcas_string_dispose)(contains_error);
             }
@@ -1529,6 +1669,23 @@ impl Proxy {
         let _ = std::fs::write(path, body);
     }
 
+    /// Returns the path's state, registering it on first sight.
+    ///
+    /// Registration is ATOMIC: the store is opened outside the lock, but the
+    /// decision about who owns the path is made under it, and a thread that
+    /// loses the race disposes the handle it just opened.
+    ///
+    /// It has to be. An llcas store rotates its generation chain only as its
+    /// LAST handle closes, which is what `PathState::prune_ondisk` relies on to
+    /// bound the store — so a single orphaned handle keeps the chain live and
+    /// silently turns every later prune into a no-op that reports success.
+    /// Checking the map, opening, and inserting without holding the lock across
+    /// the decision let concurrent first requests each open one and leave all
+    /// but the last permanently open (16 concurrent registrations produced 16
+    /// handles, after which a 24 MiB store would not rotate against a 1 MiB
+    /// limit). The open stays outside the lock deliberately: `open_cas` touches
+    /// the filesystem, and holding the map's mutex across it would let one slow
+    /// or stuck store wedge every path on the machine.
     fn path_state(&self, cas_path: &str) -> Result<&'static PathState, String> {
         if let Some(state) = self.paths.lock().unwrap().get(cas_path) {
             return Ok(state);
@@ -1536,9 +1693,17 @@ impl Proxy {
         let up = unsafe { Upstream::load(&self.upstream_plugin)? };
         let up: &'static Upstream = Box::leak(Box::new(up));
         let cas = unsafe { open_cas(up, cas_path)? };
+        // Claim the path BEFORE building the state, so a loser has nothing to
+        // leak but the dlopen handle above -- which addresses the plugin, not
+        // the store, and so cannot hold the generation chain open.
+        let mut paths = self.paths.lock().unwrap();
+        if let Some(winner) = paths.get(cas_path).copied() {
+            unsafe { (up.llcas_cas_dispose)(cas) };
+            return Ok(winner);
+        }
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
-            cas: RwLock::new(cas),
+            cas: RwLock::new(Some(cas)),
             cas_path: cas_path.to_string(),
             generation: Mutex::new(cas_generation(cas_path)),
             gen_counter: AtomicU64::new(0),
@@ -1566,11 +1731,11 @@ impl Proxy {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }));
-        self.paths
-            .lock()
-            .unwrap()
-            .insert(cas_path.to_string(), state);
+        paths.insert(cas_path.to_string(), state);
         Ok(state)
     }
 
@@ -1713,7 +1878,11 @@ impl Proxy {
                 }
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
                 if let Some(analytics) = &self.analytics {
-                    analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+                    analytics.record_keyvalue(
+                        key,
+                        "read",
+                        crate::analytics::millis(op_start.elapsed()),
+                    );
                 }
                 return Ok(None);
             }
@@ -1731,7 +1900,7 @@ impl Proxy {
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(key, "read", crate::analytics::millis(op_start.elapsed()));
         }
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
@@ -1988,13 +2157,16 @@ impl Proxy {
                     let transfer = if inlined {
                         0.0
                     } else {
-                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64)
+                        crate::analytics::millis(fetch_elapsed)
+                            * (compressed as f64 / total_compressed as f64)
                     };
-                    let codec = codec_elapsed.as_secs_f64();
-                    // This node's own transfer, keyed by its content-digest hex
-                    // (which equals the checksum in its parent's reference).
+                    let codec = crate::analytics::millis(codec_elapsed);
+                    // This node's own transfer. Keyed by the node, not by a hex
+                    // of its digest: the checksum the server joins on is the
+                    // separate digest this node's PARENT carries next to its
+                    // casID, which the root of this graph records below.
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(&entry.llcas_digest),
+                        &entry.llcas_digest,
                         frame.len() as i64,
                         compressed,
                         transfer + codec,
@@ -2672,7 +2844,13 @@ impl Proxy {
                 );
             }
             Err(reason) => {
-                crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                // A shed is already reported once per window by the breaker that
+                // armed it, and every publication queued behind it fails for the
+                // same reason. Saying so per record buries the line that
+                // explains them in thousands of copies of itself.
+                if reason != "remote shedding writes" {
+                    crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
+                }
             }
         }
     }
@@ -2687,6 +2865,17 @@ impl Proxy {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<(), String> {
+        // Asked before anything else. A node shedding writes will refuse this
+        // publication at its last RPC whatever happens in between, so the probe,
+        // the closure walk and the missing-blob query would be three round trips
+        // and a pile of local reads spent to reach a refusal already known. The
+        // record stays on disk and the next sweep retries it, which is the same
+        // contract every other publication failure has.
+        if remote.shedding_writes() {
+            remote.record_shed_write();
+            state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
+            return Err("remote shedding writes".into());
+        }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
         // the wildcard inline hint the resolve path uses.
@@ -2710,41 +2899,7 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let mut entries: Vec<ManifestEntry> = Vec::new();
-        let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
-        let mut visited = HashSet::new();
-        let mut pending = VecDeque::from([record.value_digest.clone()]);
-        while let Some(digest) = pending.pop_front() {
-            if !visited.insert(digest.clone()) {
-                continue;
-            }
-            if let Some((blob_digest, children)) =
-                state.publish_cache.lock().unwrap().get(&digest).cloned()
-            {
-                entries.push(ManifestEntry {
-                    llcas_digest: digest,
-                    blob: blob_digest,
-                    contents: None,
-                });
-                blobs.push(None);
-                pending.extend(children);
-                continue;
-            }
-            let (blob, children) = unsafe { encode_node_blob(state, &digest)? };
-            let blob_digest = reapi::blob_digest(&blob);
-            state
-                .publish_cache
-                .lock()
-                .unwrap()
-                .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-            entries.push(ManifestEntry {
-                llcas_digest: digest,
-                blob: blob_digest,
-                contents: None,
-            });
-            blobs.push(Some(blob));
-            pending.extend(children);
-        }
+        let (entries, blobs) = walk_closure(state, &record.value_digest)?;
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -2761,7 +2916,7 @@ impl Proxy {
             }
             let bytes = match blob {
                 Some(bytes) => bytes,
-                None => unsafe { encode_node_blob(state, &entry.llcas_digest)?.0 },
+                None => encode_node_blob_accounted(state, &entry.llcas_digest)?.0,
             };
             if self.analytics.is_some() {
                 let (size, data) = reapi::decompress_frame(&bytes)
@@ -2782,12 +2937,12 @@ impl Proxy {
             let upload_start = Instant::now();
             remote.batch_update(uploads)?;
             if let Some(analytics) = &self.analytics {
-                let elapsed = upload_start.elapsed().as_secs_f64();
+                let elapsed = crate::analytics::millis(upload_start.elapsed());
                 let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
                 for (digest, size, compressed, data) in &upload_meta {
                     let transfer = elapsed * (*compressed as f64 / total as f64);
                     analytics.record_cas_output(
-                        &crate::analytics::hex_upper(digest),
+                        digest,
                         *size,
                         *compressed,
                         transfer,
@@ -2802,7 +2957,11 @@ impl Proxy {
         }
         let result = remote.update_action(&record.key, &entries, branch, trunk);
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
+            analytics.record_keyvalue(
+                &record.key,
+                "write",
+                crate::analytics::millis(op_start.elapsed()),
+            );
         }
         result
     }
@@ -2829,6 +2988,19 @@ impl Proxy {
             }
             state.enforce_withheld_bound(MAX_WITHHELD_ROOTS);
         }
+    }
+
+    /// Bounds the on-disk store at `cas_path`, if this proxy is the one holding
+    /// it open. `None` says it holds no handle on that path, which is the
+    /// caller's cue that it may prune the store itself (see `prune_store`).
+    ///
+    /// Deliberately does NOT register an unknown path: opening a handle here
+    /// just to prune would make this call the thing keeping the store open, and
+    /// the caller -- which has no handle of its own -- could then never rotate
+    /// it.
+    pub fn prune_ondisk(&self, cas_path: &str, limit_bytes: u64) -> Option<Result<u64, String>> {
+        let state = self.paths.lock().unwrap().get(cas_path).copied()?;
+        Some(state.prune_ondisk(limit_bytes))
     }
 
     /// Reclaims the in-memory caches (resolved map, known-local shards, publish
@@ -3779,7 +3951,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3798,6 +3970,9 @@ impl Proxy {
                 state.ms_fetch.load(Ordering::Relaxed),
                 state.ms_decode.load(Ordering::Relaxed),
                 state.ms_store.load(Ordering::Relaxed),
+                state.us_publish_local.load(Ordering::Relaxed),
+                state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
+                state.stats_publish_shed.load(Ordering::Relaxed),
             ));
         }
         parts.join(" | ")
@@ -3906,6 +4081,27 @@ impl Proxy {
                     state.publish_cache.lock().unwrap().clear();
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_PRUNE => {
+                match self.prune_ondisk(&request.cas_path, prune_limit(&request.payload)) {
+                    Some(Ok(reclaimed)) => {
+                        crate::log_line(&format!(
+                            "proxy prune: reclaimed {reclaimed} bytes from {}",
+                            request.cas_path
+                        ));
+                        write_response(&mut stream, STATUS_HIT, reclaimed.to_string().as_bytes())
+                    }
+                    Some(Err(message)) => {
+                        crate::log_line(&format!(
+                            "proxy prune failed for {}: {message}",
+                            request.cas_path
+                        ));
+                        write_response(&mut stream, STATUS_ERROR, message.as_bytes())
+                    }
+                    // Not ours to hold, so not ours to rotate. The caller can do
+                    // it with handles of its own.
+                    None => write_response(&mut stream, STATUS_MISS, &[]),
+                }
             }
             OP_FETCH_OBJECT => {
                 // Bind the path when the request is routable: a proxy that
@@ -4021,6 +4217,153 @@ fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
         .ok()
 }
 
+/// Takes ownership of an llcas out-parameter error string, returning its text.
+unsafe fn take_error(up: &'static Upstream, error: *mut std::ffi::c_char) -> Option<String> {
+    if error.is_null() {
+        return None;
+    }
+    let text = std::ffi::CStr::from_ptr(error).to_string_lossy().into_owned();
+    (up.llcas_string_dispose)(error);
+    Some(text)
+}
+
+/// Sets the store's per-generation byte limit. `0` leaves whatever limit it
+/// already carries, so a caller with no budget to impose can still ask for a
+/// prune.
+///
+/// NOTE the ABI: llcas booleans report whether the call ERRORED, so `false`
+/// here is SUCCESS. Reading it the other way round is the easiest way to
+/// conclude these forwards are no-ops while they are in fact working.
+unsafe fn set_ondisk_limit(
+    up: &'static Upstream,
+    set_limit: unsafe extern "C" fn(llcas_cas_t, i64, *mut *mut std::ffi::c_char) -> bool,
+    cas: llcas_cas_t,
+    limit_bytes: u64,
+) -> Result<(), String> {
+    if limit_bytes == 0 {
+        return Ok(());
+    }
+    let limit = i64::try_from(limit_bytes).unwrap_or(i64::MAX);
+    let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+    let failed = set_limit(cas, limit, &mut error);
+    let detail = take_error(up, error);
+    if failed {
+        return Err(detail.unwrap_or_else(|| "set_ondisk_size_limit failed".into()));
+    }
+    Ok(())
+}
+
+/// Bytes a directory actually occupies on disk: ALLOCATED blocks, summed over
+/// every regular file under it. This is what the volume's own `df` gauge counts,
+/// and what `generation_sizes` measures each generation by.
+///
+/// Allocated and not logical length, because a live generation is SPARSE by a
+/// wide margin: llcas preallocates its primary's mmap-backed files, so a store
+/// holding nothing reports 25 GiB of `st_size` (a 16 GiB `v8.data`, an 8 GiB
+/// `v8.index`, a 1 GiB `v3.actions`) while occupying 28 KiB. A generation that
+/// is demoted gets truncated to its real size, so a logical-size reading would
+/// also report a rotation as a huge "reclaim" that freed no disk at all.
+///
+/// Deliberately NOT `llcas_cas_get_ondisk_size` either: that reports only the
+/// LIVE chain, so it reads flat across exactly the growth this measures -- 0.13
+/// GiB reported against a 1.175 GiB directory, a 9x under-report. Nothing that
+/// has to answer "how full is this volume" may be built on it.
+fn directory_size(path: &str) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    fn walk(dir: &std::path::Path, total: &mut u64) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else { continue };
+            if kind.is_dir() {
+                walk(&entry.path(), total);
+            } else if kind.is_file() {
+                if let Ok(meta) = entry.metadata() {
+                    // st_blocks is in 512-byte units regardless of the
+                    // filesystem's own block size.
+                    *total += meta.blocks() * 512;
+                }
+            }
+        }
+    }
+    let mut total = 0;
+    walk(std::path::Path::new(path), &mut total);
+    total
+}
+
+/// Allocated bytes of each of the store's generation directories, keyed by name.
+///
+/// A prune is judged by which GENERATIONS it collected, not by the directory's
+/// net size: the rotation that precedes it opens a new primary, whose own
+/// preallocation lands in the same directory and hides what was freed. Measured
+/// on a real store, a prune that deleted a whole generation reported a net
+/// change of zero for exactly that reason. Sizes are captured before the prune
+/// (a collected generation cannot be measured afterwards) and the reclaim is the
+/// sum of the ones that are then gone.
+fn generation_sizes(path: &str) -> HashMap<String, u64> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return HashMap::new();
+    };
+    entries
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("v1."))
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let size = directory_size(&entry.path().to_string_lossy());
+            (name, size)
+        })
+        .collect()
+}
+
+/// Bytes freed by the generations present in `before` that `path` no longer has.
+fn reclaimed_bytes(path: &str, before: &HashMap<String, u64>) -> u64 {
+    let after = generation_sizes(path);
+    before
+        .iter()
+        .filter(|(name, _)| !after.contains_key(*name))
+        .map(|(_, size)| size)
+        .sum()
+}
+
+/// Prunes a store NOTHING holds open, without going through a proxy: the same
+/// set-limit / rotate / reopen / prune sequence `PathState::prune_ondisk`
+/// performs, with handles this call owns end to end.
+///
+/// This is the right path only for a store no live proxy has registered -- the
+/// builtin (`generic`) lane, which never loads our plugin, or any store on a
+/// machine with no proxy running. Used on a path the proxy DOES hold it would
+/// silently collect nothing: the proxy's handle keeps the chain live, so the
+/// dispose here is not the last close and no rotation happens.
+pub fn prune_store(upstream_plugin: &str, cas_path: &str, limit_bytes: u64) -> Result<u64, String> {
+    let up = unsafe { Upstream::load(upstream_plugin)? };
+    let up: &'static Upstream = Box::leak(Box::new(up));
+    let Some(set_limit) = up.llcas_cas_set_ondisk_size_limit else {
+        return Err("upstream plugin exports no ondisk size limit".into());
+    };
+    let Some(prune) = up.llcas_cas_prune_ondisk_data else {
+        return Err("upstream plugin exports no ondisk prune".into());
+    };
+    let before = generation_sizes(cas_path);
+    unsafe {
+        let live = open_cas(up, cas_path)?;
+        set_ondisk_limit(up, set_limit, live, limit_bytes)?;
+        // The close that rotates -- only the last one because nothing else on
+        // this machine holds the store.
+        (up.llcas_cas_dispose)(live);
+
+        let fresh = open_cas(up, cas_path)?;
+        set_ondisk_limit(up, set_limit, fresh, limit_bytes)?;
+        let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+        let failed = prune(fresh, &mut error);
+        let detail = take_error(up, error);
+        (up.llcas_cas_dispose)(fresh);
+        if failed {
+            return Err(detail.unwrap_or_else(|| "prune failed".into()));
+        }
+    }
+    Ok(reclaimed_bytes(cas_path, &before))
+}
+
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
     let options = (up.llcas_cas_options_create)();
     let c_path = std::ffi::CString::new(path).map_err(|_| "bad cas path".to_string())?;
@@ -4048,7 +4391,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
     // Held for the whole store: the ref objectids are only meaningful to the
     // handle that minted them, and a wipe must not swap it out mid-write.
     let cas_guard = state.cas.read().unwrap();
-    let cas = *cas_guard;
+    let Some(cas) = *cas_guard else { return Err("cas store is out of service".into()) };
     let mut ref_ids = Vec::with_capacity(node.refs.len());
     for reference in &node.refs {
         let digest = llcas_digest_t {
@@ -4088,6 +4431,90 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
     Ok(())
 }
 
+/// The manifest for the value graph rooted at `root`, in visit order, plus the
+/// encoded blob for every node THIS walk had to read (a memo hit yields `None`,
+/// because the bytes are only needed for the nodes the remote turns out to be
+/// missing and re-reading them then is cheaper than holding every closure in
+/// memory).
+///
+/// Each node the memo does not already hold costs an `llcas_cas_load_object`,
+/// and what that load costs depends on the on-disk store's state: once the
+/// store crosses `COMPILATION_CACHE_LIMIT_SIZE` it enforces the limit by
+/// starting a new generation and demoting the old one, and a load resolving in
+/// a demoted generation copies the object forward. Measured on Xcode 26.5
+/// (`tests/graph_retention.rs`), the same 41-node walk is ~1.5us against a
+/// store that has not rotated and ~167us/key on the first pass after one.
+///
+/// Worth knowing and worth measuring (`us_publish_local`), but worth keeping in
+/// proportion: 100x a number this size is still small against one RPC, and a
+/// publication makes four. A walk cost is not a candidate explanation for a
+/// `write_duration` regression measured in hundreds of milliseconds.
+/// `encode_node_blob` with the local-cost accounting attached. Every llcas read
+/// a publication makes goes through here, because a publication makes them from
+/// TWO places and the counters are worth nothing if they only see one: the walk
+/// below reads each node it has not memoized, and the upload leg reads again for
+/// any node the memo answered from cache that the remote then turns out to be
+/// missing. That second read is local CAS latency sitting inside
+/// `write_duration` exactly like the first, and accounting for only the first
+/// would let the counters report no local work while the store was the thing
+/// being slow, which is the one conclusion they exist to prevent.
+fn encode_node_blob_accounted(
+    state: &'static PathState,
+    digest: &[u8],
+) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    let started = Instant::now();
+    let loaded = unsafe { encode_node_blob(state, digest) };
+    state
+        .us_publish_local
+        .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+    state
+        .stats_publish_nodes_loaded
+        .fetch_add(1, Ordering::Relaxed);
+    loaded
+}
+
+fn walk_closure(
+    state: &'static PathState,
+    root: &[u8],
+) -> Result<(Vec<ManifestEntry>, Vec<Option<Vec<u8>>>), String> {
+    let mut entries: Vec<ManifestEntry> = Vec::new();
+    let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut visited = HashSet::new();
+    let mut pending = VecDeque::from([root.to_vec()]);
+    while let Some(digest) = pending.pop_front() {
+        if !visited.insert(digest.clone()) {
+            continue;
+        }
+        if let Some((blob_digest, children)) =
+            state.publish_cache.lock().unwrap().get(&digest).cloned()
+        {
+            entries.push(ManifestEntry {
+                llcas_digest: digest,
+                blob: blob_digest,
+                contents: None,
+            });
+            blobs.push(None);
+            pending.extend(children);
+            continue;
+        }
+        let (blob, children) = encode_node_blob_accounted(state, &digest)?;
+        let blob_digest = reapi::blob_digest(&blob);
+        state
+            .publish_cache
+            .lock()
+            .unwrap()
+            .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+        entries.push(ManifestEntry {
+            llcas_digest: digest,
+            blob: blob_digest,
+            contents: None,
+        });
+        blobs.push(Some(blob));
+        pending.extend(children);
+    }
+    Ok((entries, blobs))
+}
+
 unsafe fn encode_node_blob(
     state: &PathState,
     digest: &[u8],
@@ -4095,7 +4522,7 @@ unsafe fn encode_node_blob(
     // Held for the whole decode: the loaded object and every id/digest borrowed
     // out of it below belong to this handle, so a wipe must not dispose it here.
     let cas_guard = state.cas.read().unwrap();
-    let cas = *cas_guard;
+    let Some(cas) = *cas_guard else { return Err("cas store is out of service".into()) };
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
@@ -5324,7 +5751,7 @@ mod tests {
         let cas = unsafe { open_cas(up, path).unwrap() };
         Box::leak(Box::new(PathState {
             up,
-            cas: RwLock::new(cas),
+            cas: RwLock::new(Some(cas)),
             cas_path: path.to_string(),
             generation: Mutex::new(cas_generation(path)),
             gen_counter: AtomicU64::new(0),
@@ -5352,13 +5779,16 @@ mod tests {
             ms_fetch: AtomicU64::new(0),
             ms_decode: AtomicU64::new(0),
             ms_store: AtomicU64::new(0),
+            us_publish_local: AtomicU64::new(0),
+            stats_publish_nodes_loaded: AtomicU64::new(0),
+            stats_publish_shed: AtomicU64::new(0),
         }))
     }
 
     // Stores a childless object and returns its digest.
     fn store_probe_object(state: &PathState, payload: &[u8]) -> Vec<u8> {
         unsafe {
-            let cas = *state.cas.read().unwrap();
+            let cas = state.cas.read().unwrap().unwrap();
             let data = llcas_data_t {
                 data: payload.as_ptr() as *const std::ffi::c_void,
                 size: payload.len(),
@@ -5448,6 +5878,171 @@ mod tests {
         assert!(
             compiler_view.load_present(&digest),
             "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    // The generation directories of a store, sorted. llcas names them `v1.N`;
+    // the chain they form is the only thing a size limit acts on.
+    fn generations(dir: &TempCasDir) -> Vec<String> {
+        let mut found: Vec<String> = std::fs::read_dir(&dir.0)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with("v1."))
+            .collect();
+        found.sort();
+        found
+    }
+
+    // Writes until the store holds at least `bytes`. Callers overshoot the limit
+    // they then prune against by a wide margin: llcas decides to rotate on its
+    // OWN accounting of the live chain, which reports well under what the
+    // directory occupies, so a store only a little past its limit does not
+    // rotate.
+    fn fill_to(state: &PathState, dir: &TempCasDir, bytes: u64) {
+        let mut nonce = 0u64;
+        while directory_size(&dir.path()) <= bytes {
+            let mut payload = vec![0u8; 64 * 1024];
+            payload[..8].copy_from_slice(&nonce.to_be_bytes());
+            store_probe_object(state, &payload);
+            nonce += 1;
+            assert!(nonce < 100_000, "the store never grew past the target");
+        }
+    }
+
+    /// The defect this path exists for: `COMPILATION_CACHE_LIMIT_SIZE` bounds a
+    /// GENERATION, and nothing collects the generations that fall out of the
+    /// chain, so the directory grows without bound (measured to 9.4x its limit
+    /// and still climbing) while the store keeps reporting itself small.
+    ///
+    /// Two rounds, because that is what it takes to observe a collection: the
+    /// first rotation only demotes the full primary to upstream, and it is the
+    /// SECOND that pushes the original off the end for the prune to delete.
+    #[test]
+    fn a_prune_rotates_the_chain_and_collects_what_falls_off_it() {
+        const LIMIT: u64 = 1024 * 1024;
+        const FILL: u64 = 24 * 1024 * 1024;
+        let dir = TempCasDir::new("prune-rotate");
+        let state = path_state_for(&dir.path());
+
+        fill_to(state, &dir, FILL);
+        let before = generations(&dir);
+        assert_eq!(before.len(), 1, "a fresh store starts on one generation");
+
+        state.prune_ondisk(LIMIT).unwrap();
+        let rotated = generations(&dir);
+        assert_eq!(
+            rotated.len(),
+            2,
+            "an over-limit store must rotate: a new primary, the old one kept as \
+             upstream. This is why the footprint settles at ~2x the configured \
+             limit, and why the volume has to be budgeted for both."
+        );
+        assert!(
+            rotated.contains(&before[0]),
+            "the full generation is demoted, not deleted: it is the warm cache"
+        );
+
+        fill_to(state, &dir, directory_size(&dir.path()) + FILL);
+        // Measured now, because a collected generation cannot be measured after.
+        let doomed = directory_size(&dir.0.join(&before[0]).to_string_lossy());
+        let reclaimed = state.prune_ondisk(LIMIT).unwrap();
+        assert!(
+            !generations(&dir).contains(&before[0]),
+            "the generation that fell off the chain must be DELETED. Left in \
+             place it is exactly the unbounded growth that fills the account's \
+             cache volume every ~2 days"
+        );
+        // Exactly the collected generation, not the directory's net change. The
+        // rotation opens a new primary whose own preallocation lands in the same
+        // directory, so a net reading is offset by it -- measured on a real
+        // store, a prune that deleted a whole generation reported 0 bytes freed.
+        // This figure is what teardown logs and what the fleet is judged by, so
+        // it has to mean what it says.
+        assert_eq!(
+            reclaimed, doomed,
+            "reclaim must be the size of the generation collected"
+        );
+        assert!(
+            reclaimed > 0,
+            "a collection that frees no bytes is not a collection"
+        );
+    }
+
+    /// Concurrent first requests for one path must produce ONE registered state,
+    /// because every extra handle they open is never closed again — and an
+    /// orphaned handle keeps the generation chain live, so the prune that is
+    /// supposed to bound the store rotates nothing and reports success anyway.
+    ///
+    /// Reproduced before the fix with exactly this shape: 16 threads produced 16
+    /// states, after which pruning a 24 MiB store against a 1 MiB limit returned
+    /// `Ok(0)` with `v1.1` still in place.
+    #[test]
+    fn concurrent_registrations_leave_exactly_one_handle_on_the_store() {
+        const LIMIT: u64 = 1024 * 1024;
+        let dir = TempCasDir::new("register-race");
+        let proxy = test_proxy();
+        let path = dir.path();
+
+        let states: Vec<&'static PathState> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..16)
+                .map(|_| {
+                    let path = path.clone();
+                    scope.spawn(move || proxy.path_state(&path).expect("register"))
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
+        let first = states[0] as *const PathState;
+        assert!(
+            states.iter().all(|s| *s as *const PathState == first),
+            "every racing registration must resolve to the same state: the \
+             losers' handles are never closed, and one of them is enough to \
+             keep the chain live forever"
+        );
+
+        // The invariant that matters is not the pointer but what it implies: the
+        // state's handle is the only one, so disposing it is the last close and
+        // the rotation can happen.
+        fill_to(states[0], &dir, 24 * 1024 * 1024);
+        let before = generations(&dir);
+        states[0].prune_ondisk(LIMIT).unwrap();
+        assert_ne!(
+            generations(&dir),
+            before,
+            "an over-limit store must still rotate after concurrent registration"
+        );
+    }
+
+    /// Why the prune is an op on the proxy rather than something its caller can
+    /// do with handles of its own: llcas rotates a store as its LAST handle
+    /// closes, and on any machine running the proxy that handle is the proxy's.
+    /// A caller pruning alongside it collects nothing -- and, worse, reports
+    /// success while doing so.
+    #[test]
+    fn a_prune_alongside_a_live_handle_cannot_rotate_the_chain() {
+        const LIMIT: u64 = 1024 * 1024;
+        let dir = TempCasDir::new("prune-held");
+        let state = path_state_for(&dir.path());
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        let before = generations(&dir);
+
+        // The proxy still holds its handle, so this dispose is not the last one.
+        prune_store(&crate::upstream_path(), &dir.path(), LIMIT).unwrap();
+        assert_eq!(
+            generations(&dir),
+            before,
+            "a prune driven from a second handle has to be understood as a \
+             no-op, not mistaken for enforcement"
+        );
+
+        // The same store, pruned by the handle's owner.
+        state.prune_ondisk(LIMIT).unwrap();
+        assert_ne!(
+            generations(&dir),
+            before,
+            "the holder of the handle is the one that can rotate the chain"
         );
     }
 

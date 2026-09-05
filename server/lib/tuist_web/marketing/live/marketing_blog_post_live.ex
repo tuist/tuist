@@ -48,14 +48,15 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       )
       |> assign(:post_image_url, post_image_url)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_blog_post_structured_markup_data(post))
-      |> assign_structured_data(
+      |> assign_article_head_meta(published_at: post.date, author_url: Blog.get_post_author_url(post))
+      |> put_structured_data([
+        get_blog_post_structured_markup_data(post),
         get_breadcrumbs_structured_data([
           {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
           {dgettext("marketing", "Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
           {post.title, Tuist.Environment.app_url(path: post.slug)}
         ])
-      )
+      ])
 
     {:noreply, socket}
   end

@@ -5,7 +5,7 @@ edition = "2024"
 license = "AGPL-3.0-only"
 
 [dependencies]
-arc-swap = "1.7.1"
+arc-swap = "1.9.1"
 axum = "0.8.9"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 base64 = "0.22.1"
@@ -23,11 +23,12 @@ hyper-util = "0.1.20"
 libc = "0.2.177"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 memmap2 = "0.9.10"
-moka = { version = "0.12.16", features = ["future"] }
+moka = { version = "0.12.16", features = ["future", "sync"] }
 opentelemetry = "0.31.0"
 opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 prost = "0.14.1"
+prost-types = "0.14.3"
 prometheus-client = "0.24.1"
 rand = "0.9.4"
 rcgen = "0.14.5"
@@ -45,6 +46,7 @@ tokio-rustls = { version = "0.26.4", default-features = false }
 tokio-stream = { version = "0.1.17", features = ["net"] }
 tokio-util = { version = "0.7.17", features = ["io"] }
 tonic = { version = "0.14.2", features = ["tls-aws-lc"] }
+tonic-prost = "0.14.2"
 tower = { version = "0.5.2", features = ["util"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"

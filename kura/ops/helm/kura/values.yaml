@@ -184,6 +184,14 @@ config:
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production
+    # Successful request completions are deterministically sampled by request
+    # identifier. Slow and failed requests remain eligible for warnings.
+    requestLogSampleRate: 0.0
+    # Set to 0 to disable slow-request warnings.
+    slowRequestThresholdMs: 30000
+    # Bounds repeated warning classes to one event per interval. Set to 0 to
+    # disable rate limiting.
+    warningLogIntervalMs: 60000
   discovery:
     enabled: true
 

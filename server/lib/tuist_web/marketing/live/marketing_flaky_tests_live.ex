@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingFlakyTestsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Marketing.StructuredMarkup
+
   alias Tuist.Marketing.Stats
 
   def mount(_params, session, socket) do
@@ -23,6 +25,12 @@ defmodule TuistWeb.Marketing.MarketingFlakyTestsLive do
   end
 
   def handle_params(_params, _url, socket) do
+    description =
+      dgettext(
+        "marketing",
+        "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+      )
+
     {:noreply,
      socket
      |> assign(:head_title, dgettext("marketing", "Flaky Tests · Tuist"))
@@ -36,13 +44,8 @@ defmodule TuistWeb.Marketing.MarketingFlakyTestsLive do
            )
        )
      )
-     |> assign(
-       :head_description,
-       dgettext(
-         "marketing",
-         "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
-       )
-     )}
+     |> assign(:head_description, description)
+     |> assign_feature_structured_data(dgettext("marketing", "Flaky Tests"), description, "/flaky-tests")}
   end
 
   def handle_info({:marketing_stats_updated, stats}, socket) do

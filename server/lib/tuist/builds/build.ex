@@ -198,6 +198,18 @@ defmodule Tuist.Builds.Build do
     end)
   end
 
+  def validate_custom_metadata(custom_tags, custom_values) when is_list(custom_tags) and is_map(custom_values) do
+    changeset =
+      %__MODULE__{}
+      |> change(custom_tags: custom_tags, custom_values: custom_values)
+      |> validate_custom_tags()
+      |> validate_custom_values()
+
+    if changeset.valid?, do: :ok, else: {:error, changeset}
+  end
+
+  def validate_custom_metadata(_, _), do: {:error, :invalid_custom_metadata}
+
   defp validate_custom_tags(changeset) do
     changeset
     |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")

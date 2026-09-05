@@ -45,6 +45,43 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert session.vcpus == 4
       assert session.memory_gb == 16
     end
+
+    test "records the host the Pod ran on" do
+      account = account_fixture()
+
+      assert {:ok, session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 79_002,
+                 account_id: account.id,
+                 fleet_name: "tuist-runner-pool-linux-4vcpu-16gb",
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 16,
+                 pod_name: "pod-on-a-node",
+                 node_name: "tuist-tuist-ovh-fleet-runners-linux-abc",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert session.node_name == "tuist-tuist-ovh-fleet-runners-linux-abc"
+    end
+
+    test "opens without a node, since billing must not depend on attribution" do
+      account = account_fixture()
+
+      assert {:ok, session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 79_003,
+                 account_id: account.id,
+                 fleet_name: "tuist-runner-pool-linux-4vcpu-16gb",
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 16,
+                 pod_name: "pod-without-a-node",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert is_nil(session.node_name)
+    end
   end
 
   describe "occupied_counts_per_fleet/0" do

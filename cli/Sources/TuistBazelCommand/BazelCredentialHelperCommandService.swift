@@ -62,9 +62,24 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         helperCommand: String,
         directory: String?
     ) async throws {
+        try await run(
+            helperCommand: helperCommand,
+            directory: directory,
+            bazelrcDirectory: nil
+        )
+    }
+
+    public func run(
+        helperCommand: String,
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async throws {
         let response = try await credentials(helperCommand: helperCommand, directory: directory)
         try Noora.current.json(response)
-        await refreshBazelrcEndpoint(directory: directory)
+        await refreshBazelrcEndpoint(
+            directory: directory,
+            bazelrcDirectory: bazelrcDirectory
+        )
     }
 
     /// Points `.bazelrc.tuist` at wherever the account's cache is now.
@@ -95,10 +110,16 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     /// nothing about where the cache went, and a build should not fail because
     /// its `.bazelrc` could not be tidied. The rewrite lands on the next
     /// build, since this one read the file before we ran.
-    private func refreshBazelrcEndpoint(directory: String?) async {
+    private func refreshBazelrcEndpoint(
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async {
         do {
             let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
-            let bazelrcPath = directoryPath.appending(component: BazelrcFile.name)
+            let bazelrcDirectoryPath = try await Environment.current.pathRelativeToWorkingDirectory(
+                bazelrcDirectory ?? directory
+            )
+            let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
             guard try await fileSystem.exists(bazelrcPath) else { return }
 
             let config = try await configLoader.loadConfig(path: directoryPath)

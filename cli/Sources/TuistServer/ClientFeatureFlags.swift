@@ -9,6 +9,12 @@ public enum ClientFeatureFlags {
 
     private static let environmentPrefix = "TUIST_FEATURE_FLAG_"
 
+    /// Feature flags that are on unless a `TUIST_FEATURE_FLAG_<NAME>` variable
+    /// turns them off.
+    static let defaultEnabled: Set<String> = ["KURA"]
+
+    private static let disablingValues: Set<String> = ["", "0", "false", "no", "off"]
+
     public static func headerValue(environment: Environmenting = Environment.current) -> String? {
         let featureFlags = featureFlags(environment: environment)
         return featureFlags.isEmpty ? nil : featureFlags.joined(separator: ",")
@@ -24,26 +30,35 @@ public enum ClientFeatureFlags {
     }
 
     /// The raw `TUIST_FEATURE_FLAG_*` variables, for forwarding the client
-    /// feature flags to a process that does not inherit the environment.
+    /// feature flags to a process that does not inherit the environment. The
+    /// default-enabled flags do not travel here; the receiving process derives
+    /// them from `defaultEnabled` itself.
     public static func environmentVariables(environment: Environmenting = Environment.current) -> [String: String] {
         environment.variables.filter { $0.key.hasPrefix(environmentPrefix) }
     }
 
     static func featureFlags(environment: Environmenting = Environment.current) -> [String] {
-        Array(
-            Set(
-                environment.variables.compactMap { variable in
-                    featureName(from: variable.key)
+        environment.variables
+            .reduce(into: defaultEnabled) { featureFlags, variable in
+                guard let featureName = featureName(from: variable.key) else { return }
+
+                if isEnabling(variable.value) {
+                    featureFlags.insert(featureName)
+                } else {
+                    featureFlags.remove(featureName)
                 }
-            )
-        )
-        .sorted()
+            }
+            .sorted()
     }
 
     static func featureName(from variableName: String) -> String? {
         guard variableName.hasPrefix(environmentPrefix) else { return nil }
 
         let featureName = String(variableName.dropFirst(environmentPrefix.count))
-        return featureName.isEmpty ? nil : featureName
+        return featureName.isEmpty ? nil : featureName.uppercased()
+    }
+
+    private static func isEnabling(_ value: String) -> Bool {
+        !disablingValues.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 }

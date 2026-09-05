@@ -1,0 +1,41 @@
+# Flux Kustomization reconciling ONLY the canary workload Cluster CR
+# (spec/72 Pillar 1). One Kustomization per cluster so a stuck cluster
+# never blocks another's sync, and each carries its own readiness gate.
+#
+#   prune: false  — a git deletion must NEVER tear down a live Cluster.
+#                   Intentional removal is an explicit break-glass
+#                   `kubectl delete cluster` (see infra/flux/mgmt/README.md);
+#                   the stale-cluster check (infra/k8s/mgmt/reconciliation-checks.yaml)
+#                   reports a Cluster removed from git but still live.
+#   force: false  — CAPI's topology controller co-owns much of the Cluster
+#                   spec. On a server-side-apply field conflict, Flux halts
+#                   and reports rather than stomping the controller.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-canary
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infra/k8s/clusters/workloads/canary
+  prune: false
+  wait: true
+  force: false
+  # Gate the Kustomization Ready status on the Cluster's v1beta2 `Available`
+  # rollup (spec/72: a sync gate, NOT the health-alerting path — Pillar 2
+  # pages on degraded control planes). Guarded with has()/exists() so an
+  # absent or not-yet-populated status.conditions reads as in-progress
+  # rather than vacuously passing. Verify `Available` is emitted by the
+  # running CAPI/caph before relying on this gate:
+  #   kubectl -n org-tuist get cluster canary-… -o jsonpath='{.status.conditions[*].type}'
+  healthCheckExprs:
+    - apiVersion: cluster.x-k8s.io/v1beta2
+      kind: Cluster
+      current: "has(status.conditions) && status.conditions.exists(e, e.type == 'Available' && e.status == 'True')"
+      inProgress: "!has(status.conditions) || status.conditions.exists(e, e.type == 'Available' && e.status == 'Unknown') || !status.conditions.exists(e, e.type == 'Available')"
+      failed: "has(status.conditions) && status.conditions.exists(e, e.type == 'Available' && e.status == 'False')"

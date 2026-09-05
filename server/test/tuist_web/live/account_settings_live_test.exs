@@ -39,11 +39,6 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     account: account
   } do
     # Given
-    stub(FunWithFlags, :enabled?, fn
-      :kura, _ -> true
-      _, _ -> false
-    end)
-
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
 

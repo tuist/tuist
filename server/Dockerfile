@@ -15,9 +15,9 @@ ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 
 # ========================================
-# Stage: Swift NIF builder
-# Builds the native xcactivitylog parser. The result is linked into the
-# Elixir release via the C bridge in Stage `nif-bridge-builder` below, and
+# Stage: Swift parser builder
+# Builds the native xcactivitylog parser. It ships as a standalone executable
+# under the release's priv dir (see Stage `release-with-parser` below) and is
 # bundled into every runtime image — the same release boots as the web
 # server or as an Oban processor pod depending on TUIST_PROCESSOR_MODE.
 # ========================================
@@ -34,8 +34,8 @@ COPY server/native/xcactivitylog_nif/Sources/ Sources/
 COPY server/native/xcactivitylog_nif/Tests/ Tests/
 COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry && \
-    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-parser && \
+    cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser && \
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
@@ -168,27 +168,18 @@ RUN mix assets.deploy
 RUN mix release
 
 # ========================================
-# Stage: NIF bridge builder
-# Compiles the C NIF bridge linking against the Swift library and places the
-# result under the release's tuist app priv dir so Tuist.Processor.XCActivityLogNIF
-# can load it at runtime.
+# Stage: Release with parser
+# Places the Swift parser executable under the release's tuist app priv dir,
+# where Tuist.Processor.XCActivityLogParser looks it up at runtime.
 # ========================================
-FROM builder AS nif-bridge-builder
+FROM builder AS release-with-parser
 
-COPY server/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
-COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
-    ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
-    cc -shared -fPIC \
-      -o "$TUIST_REL_DIR/priv/native/xcactivitylog_nif.so" \
-      /tmp/nif/nif_bridge.c \
-      -I"$ERL_INCLUDE" \
-      -L/tmp/nif \
-      -lXCActivityLogNIF \
-      -Wl,-rpath,'$ORIGIN' && \
-    cp /tmp/nif/libXCActivityLogNIF.so "$TUIST_REL_DIR/priv/native/"
+    cp /tmp/nif/xcactivitylog-parser "$TUIST_REL_DIR/priv/native/" && \
+    chmod +x "$TUIST_REL_DIR/priv/native/xcactivitylog-parser"
 
 # ========================================
 # Stage: Common runtime
@@ -230,16 +221,16 @@ ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
 ENV TUIST_VERSION=$TUIST_VERSION
 
-# Swift runtime libs the NIF links against at load time. Small (~20 MB) but
-# carried by every release image because any pod may run in processor mode
-# (TUIST_PROCESSOR_MODE=true) and execute the xcactivitylog NIF.
+# Swift runtime libs the parser links against. Small (~20 MB) but carried by
+# every release image because any pod may run in processor mode
+# (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
 COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
 RUN ldconfig
 
-# Release taken from nif-bridge-builder so the compiled xcactivitylog_nif +
-# libXCActivityLogNIF are already under lib/tuist-<vsn>/priv/native where
-# Tuist.Processor.XCActivityLogNIF.load_nif expects them.
-COPY --from=nif-bridge-builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
+# Release taken from release-with-parser so xcactivitylog-parser is already
+# under lib/tuist-<vsn>/priv/native where Tuist.Processor.XCActivityLogParser
+# expects it.
+COPY --from=release-with-parser --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
 # Runtime secrets are read from the environment (1Password via ESO in managed
 # envs), not from a baked-in encrypted blob — there's nothing to copy here.
@@ -265,7 +256,7 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 # ========================================
 # Stage: Default runtime
 # Boots as web server by default; set TUIST_PROCESSOR_MODE=true to run as an
-# Oban processor pod (queue consumer, no web endpoint). The Swift NIF ships
+# Oban processor pod (queue consumer, no web endpoint). The Swift parser ships
 # in runner-base, so no extra overlay is required for either role.
 # ========================================
 FROM runner-base AS runner

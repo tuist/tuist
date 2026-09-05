@@ -26,9 +26,18 @@ static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
 });
 
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("kura {}", kura::VERSION);
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     if let Err(error) = verify_jemalloc_configuration() {
-        eprintln!("invalid jemalloc configuration: {error}");
+        report_fatal(
+            "kura.allocator.configuration_invalid",
+            "invalid allocator configuration",
+            &error,
+        );
         std::process::exit(1);
     }
 
@@ -40,14 +49,18 @@ fn main() {
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            eprintln!("failed to build tokio runtime: {error}");
+            report_fatal(
+                "kura.runtime.initialization_failed",
+                "failed to initialize asynchronous runtime",
+                &error,
+            );
             std::process::exit(1);
         }
     };
 
     runtime.block_on(async {
         if let Err(error) = kura::run().await {
-            eprintln!("{error}");
+            report_fatal("kura.runtime.failed", "Kura stopped with an error", &error);
             std::process::exit(1);
         }
     });
@@ -99,6 +112,20 @@ fn verify_jemalloc_configuration() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn report_fatal(event_name: &str, message: &str, error: &dyn std::fmt::Display) {
+    eprintln!(
+        "{}",
+        serde_json::json!({
+            "level": "ERROR",
+            "event.name": event_name,
+            "message": message,
+            "error": error.to_string(),
+            "service.name": "kura",
+            "service.version": kura::VERSION,
+        })
+    );
 }
 
 fn resolve_worker_threads() -> usize {

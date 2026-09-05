@@ -402,6 +402,28 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert DateTime.compare(reported, oldest) == :eq
       refute Map.has_key?(stats, "fleet-c")
     end
+
+    # The dispatchable-age gauge needs to know which account each queued
+    # job belongs to, because headroom is per account. Carrying it on the
+    # same scan keeps depth, age and dispatchable age describing one queue.
+    test "queue_stats_by_fleet carries each account's oldest arrival per fleet" do
+      account = account_fixture()
+      other_account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+      newer = DateTime.add(now, -600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_210, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_211, enqueued_at: newer))
+      :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_212, enqueued_at: newer))
+
+      stats = WorkflowJobs.queue_stats_by_fleet(floor)
+
+      assert %{"fleet-a" => %{count: 3, by_account: by_account}} = stats
+      assert DateTime.compare(Map.fetch!(by_account, account.id), oldest) == :eq
+      assert DateTime.compare(Map.fetch!(by_account, other_account.id), newer) == :eq
+    end
   end
 
   describe "transition outbox" do

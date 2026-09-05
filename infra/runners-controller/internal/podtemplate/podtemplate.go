@@ -70,16 +70,29 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
-	// shellSocketPath is shared through the work volume. The trusted
-	// shell sidecar owns server authentication, but the PTY child is
-	// spawned by a tiny socket server inside the runner container so
-	// the terminal sees the same filesystem, environment, and Docker
-	// socket as the running job.
-	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
+	// workPath is the runner's work directory. It must match the
+	// `work_folder` the server mints into the JIT config (`mint_jit`
+	// in `Tuist.Runners`, `/home/runner/work` on Linux to mirror
+	// GitHub-hosted's layout), NOT the runner's own default
+	// of `<runner root>/_work`: the runner honors the JIT's absolute
+	// path and never touches the default. Mounting the shared volume
+	// anywhere else leaves the real work directory container-local,
+	// which is invisible to dockerd in the dind sidecar and breaks
+	// every `jobs.<id>.container` job.
+	workPath = "/home/runner/work"
+	// shellSocketPath sits on its own volume rather than under
+	// workPath: the runner bind-mounts the whole work directory into
+	// a job container as /__w, and the socket is the runner
+	// container's PTY entry point — it has no business inside the
+	// tree a workflow reads and writes.
+	shellSocketMountPath = "/var/lib/tuist-runner-shell"
+	shellSocketPath      = shellSocketMountPath + "/shell.sock"
 	// externalsPath is the runner's `externals` directory — the node
 	// runtimes the runner bind-mounts into a job container as /__e.
 	// dockerd resolves that mount in the dind sidecar's namespace, so
-	// the directory has to exist there under the same path.
+	// the directory has to exist there under the same path. Unlike
+	// the work directory this one is fixed by the runner image
+	// layout, not by the JIT.
 	externalsPath = "/home/runner/actions-runner/externals"
 	// externalsStagePath is where the staging container mounts the
 	// shared externals volume. Deliberately not externalsPath, which
@@ -263,12 +276,16 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		runnerEnv = []corev1.EnvVar{
 			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		}
-		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		volumes = append(volumes,
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "shell-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
 		runnerMounts = []corev1.VolumeMount{
 			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			{Name: "work", MountPath: workPath},
+			{Name: "shell-sock", MountPath: shellSocketMountPath},
 		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
@@ -322,19 +339,20 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// A job that declares `jobs.<id>.container` (or a
 			// container action) doesn't run in the runner container:
 			// the runner asks dockerd to create a container and
-			// bind-mounts five well-known directories into it — work
-			// as /__w, temp as /__t, actions as /__a, tools as /__o,
-			// externals as /__e. Those paths are resolved by dockerd,
-			// i.e. in the sidecar's mount namespace, not the
-			// runner's. Four of the five live under _work (temp,
-			// actions and tools default to _work/_temp, _work/_actions
-			// and _work/_tool), which both containers already share.
-			// externals ships in the runner image alone, so docker
-			// creates an empty directory for it on the daemon side and
-			// every step in the job container dies on a missing
-			// /__e/node2x/bin/node.
+			// bind-mounts its own directories into it — the work
+			// directory as /__w, then _temp, _actions and _tool
+			// under it, _temp/_github_home as /github/home,
+			// _temp/_github_workflow as /github/workflow, and
+			// `externals` (the node runtimes every JS action runs
+			// under) as /__e. Docker resolves those source paths in
+			// the sidecar's mount namespace, not the runner's, and
+			// silently creates an empty directory for any that are
+			// missing there.
 			//
-			// Stage it into a volume both sides mount, the way ARC's
+			// Everything but externals hangs off the work directory,
+			// which the `work` volume shares with the sidecar at
+			// workPath. externals ships in the runner image alone, so
+			// stage it into a volume both sides mount, the way ARC's
 			// dind mode does (init-dind-externals). Runs before the
 			// sidecar so the copy is in place by the time dockerd can
 			// serve a container, and fails the Pod early if the image
@@ -408,7 +426,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
-					{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+					{Name: "work", MountPath: workPath},
 					{Name: "dind-externals", MountPath: externalsPath},
 					{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
 				},
@@ -453,7 +471,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
 			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "shell",
@@ -467,7 +485,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
 				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+				// Only the socket, not the work volume: the PTY runs
+				// in the runner container, so this sidecar needs to
+				// reach the socket and nothing else.
+				{Name: "shell-sock", MountPath: shellSocketMountPath},
 			},
 			// Root only for the trusted agent: it reads the root-only
 			// token and then drops PTY children to the runner user.

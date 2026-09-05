@@ -11,6 +11,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     router: TuistWeb.Router,
     statics: TuistWeb.static_paths()
 
+  alias Phoenix.LiveView.Socket
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Customers
   alias TuistWeb.Marketing.Localization
@@ -31,7 +32,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     Plug.Conn.assign(conn, :head_structured_data, structured_data)
   end
 
-  def assign_structured_data(%Phoenix.LiveView.Socket{} = socket, data) do
+  def assign_structured_data(%Socket{} = socket, data) do
     structured_data = socket.assigns[:head_structured_data] || []
 
     structured_data =
@@ -44,6 +45,63 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       end
 
     Phoenix.Component.assign(socket, :head_structured_data, structured_data)
+  end
+
+  @doc """
+  Replaces the page's structured data instead of adding to it.
+
+  `assign_structured_data/2` appends, which is what a controller wants when it
+  chains several nodes for one response. A LiveView's `handle_params/3` runs
+  again on every live patch, so appending there would grow the socket's list by
+  a page's worth of nodes on every in-place navigation. LiveViews should build
+  their whole list in one call and use this.
+  """
+  def put_structured_data(%Plug.Conn{} = conn, data) do
+    Plug.Conn.assign(conn, :head_structured_data, List.wrap(data))
+  end
+
+  def put_structured_data(%Socket{} = socket, data) do
+    Phoenix.Component.assign(socket, :head_structured_data, List.wrap(data))
+  end
+
+  @doc """
+  Marks the page as an article for Open Graph consumers.
+
+  The default `og:type` is `website`, which tells crawlers and social cards
+  nothing about when a post was written or who wrote it. Anything with a
+  publication date should call this so `article:published_time` and friends are
+  emitted alongside the JSON-LD.
+
+  `:author_url` is a profile URL, not a display name: Open Graph types
+  `article:author` as a profile, so a bare name is dropped by consumers that
+  enforce it. The readable name still reaches crawlers through the JSON-LD.
+  """
+  def assign_article_head_meta(target, opts) do
+    published_at = Keyword.get(opts, :published_at)
+
+    target
+    |> assign_head(:head_og_type, "article")
+    |> assign_head(:head_site_name, "Tuist")
+    |> assign_head(:head_published_time, format_iso8601(published_at))
+    |> assign_head(:head_modified_time, format_iso8601(Keyword.get(opts, :modified_at) || published_at))
+    |> assign_head(:head_article_author, Keyword.get(opts, :author_url))
+  end
+
+  defp assign_head(target, _key, nil), do: target
+  defp assign_head(%Plug.Conn{} = conn, key, value), do: Plug.Conn.assign(conn, key, value)
+
+  defp assign_head(%Socket{} = socket, key, value) do
+    Phoenix.Component.assign(socket, key, value)
+  end
+
+  # `article:*` takes a datetime, so a date-only value is widened to midnight UTC
+  # rather than emitted bare.
+  defp format_iso8601(nil), do: nil
+  defp format_iso8601(%DateTime{} = date_time), do: DateTime.to_iso8601(date_time)
+  defp format_iso8601(%NaiveDateTime{} = naive), do: NaiveDateTime.to_iso8601(naive)
+
+  defp format_iso8601(%Date{} = date) do
+    date |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.to_iso8601()
   end
 
   def get_breadcrumbs_structured_data(breadcrumbs) do
@@ -166,10 +224,131 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "sameAs" => [
         "https://fosstodon.org/@tuist",
         "https://bsky.app/profile/tuist.dev",
-        "https://www.linkedin.com/company/tuistio"
+        "https://www.linkedin.com/company/tuistio",
+        "https://github.com/tuist"
       ]
     }
   end
+
+  def get_website_structured_data do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "WebSite",
+      "name" => "Tuist",
+      "url" => Tuist.Environment.app_url(),
+      "publisher" => get_organization_structured_data(),
+      "inLanguage" => Gettext.get_locale(TuistWeb.Gettext)
+    }
+  end
+
+  @doc """
+  Describes Tuist itself so assistants asking "what is Tuist" get the category,
+  the platforms it targets, and the pricing model from one node instead of
+  inferring them from prose.
+  """
+  def get_software_application_structured_data do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "SoftwareApplication",
+      "name" => "Tuist",
+      "url" => Tuist.Environment.app_url(),
+      "applicationCategory" => "DeveloperApplication",
+      "applicationSubCategory" => "Build automation",
+      "operatingSystem" => "macOS, Linux",
+      "description" =>
+        dgettext(
+          "marketing",
+          "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, and share app previews from a URL."
+        ),
+      "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
+      "publisher" => get_organization_structured_data(),
+      "isAccessibleForFree" => true,
+      "offers" => %{
+        "@type" => "Offer",
+        "price" => "0",
+        "priceCurrency" => "USD",
+        "url" => Tuist.Environment.app_url(path: ~p"/pricing")
+      },
+      "softwareHelp" => %{
+        "@type" => "CreativeWork",
+        "url" => Tuist.Environment.app_url(path: "/en/docs")
+      }
+    }
+  end
+
+  @doc """
+  Marks a product page up as the feature it documents. `path` is the localized
+  page path so the node's identity matches the page's canonical URL.
+  """
+  def get_feature_structured_data(name, description, path) do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "SoftwareApplication",
+      "name" => "Tuist #{name}",
+      "url" => Tuist.Environment.app_url(path: path),
+      "applicationCategory" => "DeveloperApplication",
+      "operatingSystem" => "macOS, Linux",
+      "description" => description,
+      "publisher" => get_organization_structured_data(),
+      "isPartOf" => %{
+        "@type" => "SoftwareApplication",
+        "name" => "Tuist",
+        "url" => Tuist.Environment.app_url()
+      },
+      "offers" => %{
+        "@type" => "Offer",
+        "price" => "0",
+        "priceCurrency" => "USD",
+        "url" => Tuist.Environment.app_url(path: ~p"/pricing")
+      }
+    }
+  end
+
+  @doc """
+  Assigns the `SoftwareApplication` and breadcrumb markup a product page needs.
+
+  `path` is the unlocalized page path; the locale in scope decides the URLs the
+  nodes point at, so the markup agrees with the page's canonical URL.
+  """
+  def assign_feature_structured_data(target, name, description, path) do
+    locale = Gettext.get_locale(TuistWeb.Gettext)
+    localized_path = Localization.localized_href(path, locale)
+
+    put_structured_data(target, [
+      get_feature_structured_data(name, description, localized_path),
+      get_breadcrumbs_structured_data([
+        {"Tuist", Tuist.Environment.app_url(path: Localization.localized_href("/", locale))},
+        {name, Tuist.Environment.app_url(path: localized_path)}
+      ])
+    ])
+  end
+
+  @doc """
+  Marks a documentation page up as a `TechArticle`. Docs are the largest body of
+  content on the site and carried no markup at all, which left assistants
+  quoting them with no attribution back to Tuist.
+  """
+  def get_documentation_structured_data(title, description, path) do
+    url = Tuist.Environment.app_url(path: path)
+
+    maybe_put(
+      %{
+        "@context" => "https://schema.org",
+        "@type" => "TechArticle",
+        "mainEntityOfPage" => %{"@type" => "WebPage", "@id" => url},
+        "headline" => title,
+        "url" => url,
+        "publisher" => get_organization_structured_data(),
+        "isPartOf" => %{"@type" => "WebSite", "name" => "Tuist", "url" => Tuist.Environment.app_url()}
+      },
+      "description",
+      description
+    )
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   def get_blog_structured_markup_data(posts) do
     %{
@@ -201,11 +380,12 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "headline" => post.title,
       "description" => post.excerpt,
       "image" => if(is_nil(post.image_url), do: [], else: [post.image_url]),
-      "author" => %{
-        "@type" => "Person",
-        "name" => Blog.get_post_author(post)["name"],
-        "url" => "https://github.com/#{Blog.get_post_author(post)["github_handle"]}"
-      },
+      "author" =>
+        maybe_put(
+          %{"@type" => "Person", "name" => Blog.get_post_author_name(post)},
+          "url",
+          Blog.get_post_author_url(post)
+        ),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "datePublished" => Timex.format!(post.date, "{ISO:Extended}"),
       "dateModified" => Timex.format!(post.date, "{ISO:Extended}"),

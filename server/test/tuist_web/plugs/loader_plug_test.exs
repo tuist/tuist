@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Plugs.LoaderPlug
 
   setup :set_mimic_from_context
@@ -65,6 +66,25 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
                    fn ->
                      LoaderPlug.call(conn, plug_opts)
                    end
+    end
+
+    test "raises a service-unavailable error when the store rejects the read", %{conn: conn} do
+      # Given
+      plug_opts = LoaderPlug.init([])
+      run_id = "00000000-0000-0000-0000-000000000000"
+
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id ->
+        {:error,
+         "Code: 241. DB::Exception: (total) memory limit exceeded: would use 18.00 GiB, " <>
+           "maximum: 18.00 GiB. (MEMORY_LIMIT_EXCEEDED)"}
+      end)
+
+      # When / Then
+      conn = assign(%{conn | path_params: %{"run_id" => run_id}}, :caching, false)
+
+      assert_raise ServiceUnavailableError, fn ->
+        LoaderPlug.call(conn, plug_opts)
+      end
     end
   end
 

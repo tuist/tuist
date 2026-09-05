@@ -56,6 +56,12 @@ const (
 	// and the reconcile retries on the normal cadence.
 	elasticMetalSSHTimeout = 5 * time.Minute
 
+	// elasticMetalReleaseRetryInterval bounds how long a failed release reinstall
+	// waits before retrying. Returning the error would hand the retry to
+	// controller-runtime's default backoff, which doubles to a 1000s cap and
+	// leaves a Machine idling in Deleting long after Scaleway frees the server.
+	elasticMetalReleaseRetryInterval = 60 * time.Second
+
 	// pnIPv4Label is the node label dispatch reads as the Private-Network
 	// address of the runner-cache node. kubelet can't self-set tuist.dev/*
 	// labels under NodeRestriction, so the controller patches it.
@@ -498,10 +504,14 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 			if keyErr != nil {
 				return ctrl.Result{}, fmt.Errorf("read fleet ssh key for release: %w", keyErr)
 			}
+			// ReinstallServer already reads a server that is absent or mid-install
+			// as released, so this only fires on a failure that has to be retried.
 			if relErr := r.ScalewayClient.ReinstallServer(ctx, zone, machine.Status.ServerID,
 				firstNonEmpty(machine.Spec.OS, r.DefaultOS), nonEmpty(sshKeyID)); relErr != nil {
-				r.event(machine, "ReleaseFailed", "release (reinstall) Elastic Metal server %s: %v (will retry)", machine.Status.ServerID, relErr)
-				return ctrl.Result{}, relErr
+				r.event(machine, "ReleaseFailed", "release (reinstall) Elastic Metal server %s: %v (retrying in %s)",
+					machine.Status.ServerID, relErr, elasticMetalReleaseRetryInterval)
+				log.FromContext(ctx).Error(relErr, "reinstall Elastic Metal box on release", "id", machine.Status.ServerID)
+				return ctrl.Result{RequeueAfter: elasticMetalReleaseRetryInterval}, nil
 			}
 		}
 	}

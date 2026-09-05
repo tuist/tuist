@@ -226,6 +226,69 @@ impl IoController {
         }
     }
 
+    /// Opens an append-only segment file without the operating system's append flag.
+    ///
+    /// Callers reserve non-overlapping offsets before writing. Linux ignores the
+    /// supplied offset for positioned writes when the append flag is set, so the
+    /// file must be opened for ordinary writes for those reservations to remain
+    /// correct.
+    pub async fn open_persistent_append_file(&self, path: &Path) -> Result<PersistentFile, String> {
+        let path = self.validate_path(path)?;
+        let lease = self.acquire("open_persistent_append_file").await?;
+        let started_at = Instant::now();
+        match tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .write(true)
+                    .read(true)
+                    .open(&path)?;
+                Ok::<_, io::Error>(file)
+            }
+        })
+        .await
+        {
+            Ok(Ok(file)) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "ok",
+                    started_at.elapsed(),
+                    0,
+                );
+                Ok(PersistentFile {
+                    file,
+                    _lease: lease,
+                })
+            }
+            Ok(Err(error)) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "error",
+                    started_at.elapsed(),
+                    0,
+                );
+                Err(format!(
+                    "failed to open persistent append file {}: {error}",
+                    path.display()
+                ))
+            }
+            Err(error) => {
+                self.inner.metrics.record_file_operation(
+                    "open_persistent_append_file",
+                    "error",
+                    started_at.elapsed(),
+                    0,
+                );
+                Err(format!(
+                    "failed to join persistent append file open task for {}: {error}",
+                    path.display()
+                ))
+            }
+        }
+    }
+
     pub async fn drop_cached_pages(
         &self,
         path: &Path,
@@ -375,6 +438,7 @@ impl IoController {
         .await
     }
 
+    #[cfg(test)]
     pub async fn write(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
         let path = self.validate_path(path)?;
         self.run("write", bytes.len() as u64, async {
@@ -407,8 +471,8 @@ impl IoController {
         }
     }
 
-    pub fn metrics(&self) -> Metrics {
-        self.inner.metrics.clone()
+    pub fn metrics(&self) -> &Metrics {
+        &self.inner.metrics
     }
 
     async fn run<T, F>(&self, operation: &'static str, bytes: u64, future: F) -> Result<T, String>
@@ -559,6 +623,55 @@ impl PersistentFile {
         &self.file
     }
 
+    pub fn write_all_at(&self, bytes: &[u8], offset: u64) -> Result<(), io::Error> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt as _;
+
+            self.file.write_all_at(bytes, offset)?;
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt as _;
+
+            let mut remaining = bytes;
+            let mut next_offset = offset;
+            while !remaining.is_empty() {
+                match self.file.seek_write(remaining, next_offset) {
+                    Ok(0) => return Err(io::Error::from(io::ErrorKind::WriteZero)),
+                    Ok(written) => {
+                        remaining = &remaining[written..];
+                        next_offset = next_offset.saturating_add(written as u64);
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (bytes, offset);
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "positioned segment writes require Unix or Windows file support",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn sync_data(&self) -> Result<(), io::Error> {
+        self.file.sync_data()
+    }
+
+    /// Returns whether the file currently has at least `needed` bytes.
+    ///
+    /// This deliberately asks the file system on every pre-stream guard. A
+    /// cached append-only high-water mark would hide external truncation and
+    /// let a response begin before the short read becomes visible.
+    pub fn has_len(&self, needed: u64) -> Result<bool, io::Error> {
+        Ok(self.file.metadata()?.len() >= needed)
+    }
+
     pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {
         #[cfg(target_os = "linux")]
         {
@@ -676,6 +789,8 @@ fn normalize_path(cwd: &Path, path: &Path) -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::hint::black_box;
+
     use tempfile::tempdir;
     use tokio::{sync::oneshot, time::timeout};
 
@@ -769,6 +884,43 @@ mod tests {
         assert!(error.contains("parent traversal component"));
     }
 
+    #[tokio::test]
+    async fn persistent_positioned_writes_preserve_disjoint_ranges() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create temp dir");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        let path = directory.path().join("positioned-writes");
+        let file = controller
+            .open_persistent_append_file(&path)
+            .await
+            .expect("positioned file should open");
+
+        file.write_all_at(b"second", 5)
+            .expect("second range should write");
+        file.write_all_at(b"first", 0)
+            .expect("first range should write");
+
+        assert!(file.has_len(11).expect("current length should read"));
+        assert_eq!(
+            std::fs::read(&path).expect("positioned file should read"),
+            b"firstsecond"
+        );
+
+        file.as_std()
+            .set_len(5)
+            .expect("test truncation should succeed");
+        assert!(
+            !file.has_len(11).expect("truncated length should read"),
+            "the pre-stream length guard must observe external truncation"
+        );
+    }
+
     #[test]
     fn file_cache_advice_expands_to_complete_pages() {
         let (offset, length) = aligned_advice_range(4_095, 4_098, 4_096)
@@ -777,5 +929,71 @@ mod tests {
         assert_eq!(offset, 0);
         assert_eq!(length.get(), 12_288);
         assert_eq!(aligned_advice_range(0, 0, 4_096), None);
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn borrowed_metrics_access_benchmark() {
+        const ITERATIONS: usize = 200_000;
+        const SAMPLES: usize = 7;
+
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create benchmark directory");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        controller.metrics().record_manifest_cache_lookup("hit");
+
+        let measure = |clone_metrics: bool| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if clone_metrics {
+                    black_box(controller.inner.metrics.clone()).record_manifest_cache_lookup("hit");
+                } else {
+                    black_box(controller.metrics()).record_manifest_cache_lookup("hit");
+                }
+            }
+            started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES);
+        for sample in 0..=SAMPLES {
+            let (baseline_seconds, candidate_seconds) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample == 0 {
+                continue;
+            }
+            let baseline_rate = ITERATIONS as f64 / baseline_seconds;
+            let candidate_rate = ITERATIONS as f64 / candidate_seconds;
+            baseline_rates.push(baseline_rate);
+            candidate_rates.push(candidate_rate);
+            speedups.push(candidate_rate / baseline_rate);
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = SAMPLES / 2;
+        println!(
+            "METRIC io_metrics_borrow_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC io_metrics_clone_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC io_metrics_borrow_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
     }
 }

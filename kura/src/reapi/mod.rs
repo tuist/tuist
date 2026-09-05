@@ -1,4 +1,5 @@
 mod admission;
+pub(crate) mod bep;
 mod protobuf_shape;
 mod service;
 mod snapshot;

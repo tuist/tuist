@@ -6,6 +6,11 @@ defmodule TuistWeb.ChooseUsernameLive do
   import TuistWeb.AppAuthComponents
 
   alias Tuist.Accounts
+  alias Tuist.Ecto.Utils
+  alias TuistWeb.SignupProtection
+  alias TuistWeb.Turnstile
+
+  require Logger
 
   @impl true
   def mount(_params, session, socket) do
@@ -25,6 +30,12 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:oauth_data, oauth_data)
           |> assign(:email, oauth_data["email"])
           |> assign(:error, nil)
+          |> assign(:registration_session_token, Map.get(session, "_csrf_token"))
+          |> assign(:turnstile_required?, Turnstile.required?())
+          |> assign(:turnstile_site_key, Turnstile.site_key())
+          |> assign(:turnstile_error, nil)
+          |> assign(:turnstile_ready?, false)
+          |> assign(:submit_pending?, false)
 
         {:ok, socket}
     end
@@ -69,6 +80,24 @@ defmodule TuistWeb.ChooseUsernameLive do
                 show_required
                 required
               />
+              <div
+                :if={@turnstile_required? and is_binary(@turnstile_site_key)}
+                id="oauth-signup-turnstile"
+                phx-hook="Turnstile"
+                phx-update="ignore"
+                data-action="oauth_signup"
+                data-sitekey={@turnstile_site_key}
+              >
+                <input data-turnstile-response name="cf-turnstile-response" type="hidden" />
+              </div>
+              <span :if={@turnstile_error} data-part="turnstile-error">{@turnstile_error}</span>
+              <span
+                :if={@submit_pending?}
+                data-part="turnstile-pending"
+                aria-live="polite"
+              >
+                {dgettext("dashboard_auth", "Verifying, one moment...")}
+              </span>
               <div data-part="actions">
                 <.button
                   type="submit"
@@ -91,7 +120,102 @@ defmodule TuistWeb.ChooseUsernameLive do
   end
 
   @impl true
-  def handle_event("choose_username", %{"account" => %{"name" => username}}, socket) do
+  def handle_event("choose_username", %{"account" => %{"name" => _}} = params, socket) do
+    if socket.assigns.turnstile_required? and not socket.assigns.turnstile_ready? do
+      # Optimistic-submit gate. Mirrors user_registration_live: park the
+      # submit intent, show a verifying message, and let the hook re-fire
+      # the form's submit as soon as the token lands.
+      {:noreply,
+       socket
+       |> assign(:submit_pending?, true)
+       |> assign(:turnstile_error, nil)
+       |> push_event("turnstile:submit-when-ready", %{id: "oauth-signup-turnstile"})}
+    else
+      handle_choose_username(params, socket)
+    end
+  end
+
+  def handle_event("turnstile_state_changed", %{"state" => state}, socket) do
+    {:noreply, apply_turnstile_state(socket, state)}
+  end
+
+  defp handle_choose_username(%{"account" => %{"name" => username}} = params, socket) do
+    socket = assign(socket, :submit_pending?, false)
+
+    case SignupProtection.verify(socket.assigns.registration_session_token, params, "oauth_signup") do
+      :ok ->
+        choose_username(username, assign(socket, :turnstile_error, nil))
+
+      {:error, :rate_limited} ->
+        {:noreply,
+         socket
+         |> assign(:turnstile_error, dgettext("dashboard_auth", "Too many sign-up attempts. Please try again later."))
+         |> reset_turnstile()}
+
+      {:error, :missing_session} ->
+        {:noreply,
+         socket
+         |> assign(
+           :turnstile_error,
+           dgettext("dashboard_auth", "Your session has expired. Please reload the page and try again.")
+         )
+         |> reset_turnstile()}
+
+      {:error, :turnstile_failed} ->
+        {:noreply,
+         socket
+         |> assign(:turnstile_error, dgettext("dashboard_auth", "Please complete the security check and try again."))
+         |> reset_turnstile()}
+    end
+  end
+
+  defp apply_turnstile_state(socket, "ready"),
+    do: socket |> assign(:turnstile_ready?, true) |> assign(:turnstile_error, nil)
+
+  defp apply_turnstile_state(socket, "unavailable") do
+    log_turnstile_failure(:unavailable, "oauth_signup")
+
+    socket
+    |> assign(:turnstile_ready?, false)
+    |> assign(
+      :turnstile_error,
+      dgettext(
+        "dashboard_auth",
+        "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
+      )
+    )
+  end
+
+  defp apply_turnstile_state(socket, "error") do
+    log_turnstile_failure(:error, "oauth_signup")
+
+    socket
+    |> assign(:turnstile_ready?, false)
+    |> assign(
+      :turnstile_error,
+      dgettext("dashboard_auth", "The security check failed. Please reload the page and try again.")
+    )
+  end
+
+  defp apply_turnstile_state(socket, _state), do: assign(socket, :turnstile_ready?, false)
+
+  # Server-side evidence for the failure classes the widget produces before
+  # the user ever clicks Continue. See the twin in user_registration_live.ex
+  # for the full rationale.
+  defp log_turnstile_failure(state, action) do
+    Logger.warning("Turnstile widget reported #{state} on #{action}",
+      turnstile_state: state,
+      turnstile_action: action
+    )
+
+    :telemetry.execute(
+      [:tuist, :turnstile, :failure],
+      %{count: 1},
+      %{state: state, action: action}
+    )
+  end
+
+  defp choose_username(username, socket) do
     username = String.trim(username)
     oauth_data = socket.assigns.oauth_data
 
@@ -101,15 +225,14 @@ defmodule TuistWeb.ChooseUsernameLive do
         {:noreply, redirect(socket, to: ~p"/auth/complete-signup?token=#{token}")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        errors = Tuist.Ecto.Utils.errors_on(changeset)
-        error = Map.get(errors, :name)
+        errors = Utils.errors_on(changeset)
 
         socket =
           socket
           |> assign(:form, to_form(%{"name" => username}, as: "account"))
-          |> assign(:error, error)
+          |> assign_username_error(errors)
 
-        {:noreply, socket}
+        {:noreply, reset_turnstile(socket)}
 
       {:error, :account_handle_taken} ->
         socket =
@@ -117,20 +240,71 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:form, to_form(%{"name" => username}, as: "account"))
           |> assign(:error, dgettext("dashboard_auth", "This username has already been taken"))
 
-        {:noreply, socket}
+        {:noreply, reset_turnstile(socket)}
 
       {:error, :email_taken} ->
         {:noreply, redirect(socket, to: ~p"/auth/cancel-pending-signup")}
 
-      {:error, errors} when is_map(errors) ->
-        error = Map.get(errors, :name)
-
+      {:error, :internal_server_error} ->
+        # Non-changeset failure from Accounts.create_user (a runner bootstrap
+        # step, for example). Without this clause the case had no arm to match
+        # and the LiveView crashed; the form rendered blank and Continue did
+        # nothing.
         socket =
           socket
           |> assign(:form, to_form(%{"name" => username}, as: "account"))
-          |> assign(:error, error)
+          |> assign(:error, dgettext("dashboard_auth", "Something went wrong. Please try again."))
 
-        {:noreply, socket}
+        {:noreply, reset_turnstile(socket)}
+
+      {:error, errors} when is_map(errors) ->
+        socket =
+          socket
+          |> assign(:form, to_form(%{"name" => username}, as: "account"))
+          |> assign_username_error(errors)
+
+        {:noreply, reset_turnstile(socket)}
+    end
+  end
+
+  # Prefer the :name error (that's the only field this form owns) but never
+  # leave the form with no message: a changeset that failed on any other field
+  # would otherwise render blank and Continue would silently refuse to advance.
+  defp assign_username_error(socket, errors) do
+    case Map.get(errors, :name) do
+      nil ->
+        assign(socket, :error, fallback_error(errors))
+
+      name_error ->
+        assign(socket, :error, name_error)
+    end
+  end
+
+  defp fallback_error(errors) when errors == %{} or is_nil(errors) do
+    dgettext("dashboard_auth", "Something went wrong. Please try again.")
+  end
+
+  defp fallback_error(errors) do
+    errors
+    |> Enum.map_join(". ", fn {_field, messages} ->
+      messages
+      |> List.wrap()
+      |> Enum.map_join(". ", &String.trim_trailing(&1, "."))
+    end)
+    |> then(fn combined ->
+      if combined == "", do: dgettext("dashboard_auth", "Something went wrong. Please try again."), else: combined <> "."
+    end)
+  end
+
+  defp reset_turnstile(socket) do
+    socket = assign(socket, :submit_pending?, false)
+
+    if socket.assigns.turnstile_required? do
+      socket
+      |> assign(:turnstile_ready?, false)
+      |> push_event("turnstile:reset", %{id: "oauth-signup-turnstile"})
+    else
+      socket
     end
   end
 

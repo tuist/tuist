@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Marketing.StructuredMarkup
+
   alias Tuist.Marketing.Stats
 
   def mount(_params, session, socket) do
@@ -23,6 +25,12 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   end
 
   def handle_params(_params, _url, socket) do
+    description =
+      dgettext(
+        "marketing",
+        "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+      )
+
     {:noreply,
      socket
      |> assign(:head_title, dgettext("marketing", "Cache · Tuist"))
@@ -36,13 +44,8 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
            )
        )
      )
-     |> assign(
-       :head_description,
-       dgettext(
-         "marketing",
-         "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
-       )
-     )}
+     |> assign(:head_description, description)
+     |> assign_feature_structured_data(dgettext("marketing", "Cache"), description, "/cache")}
   end
 
   def handle_info({:marketing_stats_updated, stats}, socket) do

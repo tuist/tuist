@@ -2,13 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "XCActivityLogNIF",
+    name: "XCActivityLog",
     platforms: [.macOS(.v14)],
     products: [
-        .library(
-            name: "XCActivityLogNIF",
-            type: .dynamic,
-            targets: ["XCActivityLogNIF"]
+        .executable(
+            name: "xcactivitylog-parser",
+            targets: ["xcactivitylog-parser"]
         ),
         .library(
             name: "XCActivityLogParser",
@@ -41,8 +40,8 @@ let package = Package(
                 .product(name: "FileSystem", package: "tuist.FileSystem"),
             ]
         ),
-        .target(
-            name: "XCActivityLogNIF",
+        .executableTarget(
+            name: "xcactivitylog-parser",
             dependencies: [
                 "XCActivityLogParser",
             ]

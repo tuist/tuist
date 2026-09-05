@@ -846,3 +846,148 @@ func TestReservation_SkipsHostsItsOwnPodAlreadyFills(t *testing.T) {
 		t.Fatal("should have reserved the host whose occupants can actually be cleared")
 	}
 }
+
+// starvedSince stamps a pool as having been unable to place since `ago`,
+// the state a pool reaches after its first reconcile with unplaced work.
+func starvedSince(pool *tuistv1.RunnerPool, ago time.Duration) *tuistv1.RunnerPool {
+	stamp := metav1.NewTime(reservationNow.Add(-ago))
+	pool.Status.UnplaceableSince = &stamp
+	return pool
+}
+
+// The regression this whole change exists for. The reaper deletes an
+// unplaced Pod at `startTimeoutSeconds` and the pool recreates it, so
+// every five minutes the pool's Pods are all younger than the two-minute
+// grace period. The old per-Pod age test read that as "pool is served"
+// and released a reservation part-way through draining a host, handing
+// the seats back to the small shapes that had taken them in the first
+// place. Production, 2026-09-04 08:24:24: a reap and a release logged in
+// the same second while the pool went 3 -> 2 -> 1 -> 0 Running.
+func TestReservation_SurvivesTheUnschedulableReapCycle(t *testing.T) {
+	pool := starvedSince(linuxLargePool(), 40*time.Minute)
+	pool.Spec.Replicas = 1
+	node := ax162Node("ax-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-3 * time.Minute).UTC().Format(time.RFC3339),
+	}
+
+	// The replacement the reaper's recreate just produced: far too young
+	// to have counted under the old rule.
+	fresh := pendingPod("large-replacement", pool.Name, 20*time.Second)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("ax-1"), fresh)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*fresh}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("released a reservation because the reaper had just recycled the Pod; the pool is not served")
+	}
+	if pool.Status.UnplaceableSince == nil {
+		t.Fatal("starvation clock cleared while demand was still unplaced")
+	}
+	if got := pool.Status.UnplaceableSince.Time; !got.Equal(reservationNow.Add(-40 * time.Minute)) {
+		t.Errorf("starvation clock restarted at %v; the reap must not reset it", got)
+	}
+}
+
+// A pool that has placed everything it wants is served, and must hand
+// the host back rather than sit on it until the timeout.
+func TestReservation_ClearsTheClockOncePlaced(t *testing.T) {
+	pool := starvedSince(linuxLargePool(), 40*time.Minute)
+	pool.Spec.Replicas = 1
+	node := ax162Node("ax-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	placed := placedPod("large-0", pool.Name, "ax-0", "acme")
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("ax-1"), placed)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("held a reservation for a pool whose demand is placed")
+	}
+	if pool.Status.UnplaceableSince != nil {
+		t.Error("starvation clock must clear once the pool places its demand")
+	}
+}
+
+// The fleet has one reservation and it went to whichever pool reconciled
+// first. Small shapes starve often and converge in seconds, so they kept
+// re-taking it while the coarse shape — the only one that cannot be
+// served without a drain — waited over an hour.
+func TestReservation_OldestStarvationGoesFirst(t *testing.T) {
+	small := starvedSince(linuxSmallPool(), 45*time.Minute)
+	small.Spec.Replicas = 1
+	large := starvedSince(linuxLargePool(), 5*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 5*time.Minute)
+
+	r := reservationReconciler(large, small, ax162Node("ax-0"), ax162Node("ax-1"), starved)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "ax-0")) || isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("took the fleet's only reservation ahead of a pool that has been starved longer")
+	}
+}
+
+// ...and the symmetric case: first in line takes it. Ordering on
+// starvation age rather than shape size is what keeps both the coarse
+// shape and the default shape from being cut in line indefinitely.
+func TestReservation_FirstInLineTakesTheReservation(t *testing.T) {
+	small := starvedSince(linuxSmallPool(), 5*time.Minute)
+	small.Spec.Replicas = 1
+	large := starvedSince(linuxLargePool(), 45*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 45*time.Minute)
+
+	r := reservationReconciler(large, small, ax162Node("ax-0"), ax162Node("ax-1"), starved,
+		placedPod("small-0", small.Name, "ax-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("the longest-starved pool must get the fleet's reservation")
+	}
+}
+
+// Yielding must not become its own starvation. A shape no host can seat
+// even empty never stops being starved, so a pool must step over it
+// rather than queue behind it forever.
+func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
+	// 512 GB per Pod: no node on this fleet can seat it, ever.
+	unseatable := starvedSince(linuxLargePool(), 90*time.Minute)
+	unseatable.Name = "runner-pool-linux-impossible"
+	unseatable.Spec.PodMemoryMB = 524288
+	unseatable.Spec.Replicas = 1
+
+	large := starvedSince(linuxLargePool(), 10*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 10*time.Minute)
+
+	r := reservationReconciler(large, unseatable, linuxSmallPool(),
+		ax162Node("ax-0"), ax162Node("ax-1"), starved,
+		placedPod("small-0", linuxSmallPoolName, "ax-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("blocked forever behind a shape no drain could ever serve")
+	}
+}

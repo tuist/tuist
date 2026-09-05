@@ -238,7 +238,9 @@ public enum Module: String, CaseIterable {
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.cache.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.cas.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -1836,6 +1838,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),

@@ -331,9 +331,10 @@
         }
 
         @Test(.withMockedEnvironment())
-        func separates_cached_endpoints_when_kura_feature_flag_is_enabled() async throws {
+        func separates_cached_endpoints_by_kura_feature_flag() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
             let defaultEndpoint = "https://cache.example.com"
             let kuraEndpoint = "https://kura-cache.example.com"
             let kuraGetCacheEndpoints = MockGetCacheEndpointsServicing()
