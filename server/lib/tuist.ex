@@ -207,6 +207,7 @@ defmodule Tuist do
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
       Sandboxes.AgentEnvironment,
+      Sandboxes.AgentSession,
       Sandboxes.Anthropic.Client,
       Sandboxes.Nodes,
       Sandboxes.Router,
