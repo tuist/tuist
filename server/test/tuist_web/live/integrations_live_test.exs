@@ -5,6 +5,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -395,8 +398,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
   end
 
   describe "Buildkite" do
-    alias Tuist.Runners.Buildkite
-
     setup do
       stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> true end)
       :ok
@@ -476,8 +477,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       # The queue key IS the profile's dispatch label, which is what lets
       # Buildkite routing reuse the GitHub lane's profile resolution.
-      for profile <- Tuist.Runners.Profiles.list_for_account(account) do
-        assert html =~ Tuist.Runners.Profile.dispatch_label(profile)
+      for profile <- Profiles.list_for_account(account) do
+        assert html =~ Profile.dispatch_label(profile)
       end
     end
 
