@@ -122,7 +122,7 @@ defmodule TuistWeb.Marketing.Components.IncrementalBuildLab do
             border: colorToken(this.el, "--noora-surface-border-primary"),
             changed: colorToken(this.el, "--noora-button-primary-background"),
             changedLabel: colorToken(this.el, "--noora-button-primary-label"),
-            invalidated: colorToken(this.el, "--noora-purple-100"),
+            invalidated: colorToken(this.el, "--marketing-tint-purple"),
             label: colorToken(this.el, "--noora-surface-label-primary"),
           };
 

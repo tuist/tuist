@@ -87,7 +87,9 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    # build_path resolves the colocated CSS extract (phoenix-colocated/...),
+    # as for the legacy bundle above.
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
   docs: [
     args: [

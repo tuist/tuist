@@ -17,6 +17,10 @@
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
 @import "css/shared/pages.css";
+/* Colocated style blocks (TuistWeb.ColocatedCSS) from LiveView components,
+   e.g. the blog posts' interactive labs — the same extract the legacy
+   bundle links. */
+@import "phoenix-colocated/tuist/colocated.css";
 @import "css/new/routes/home.css";
 @import "css/new/routes/about.css";
 @import "css/new/routes/home-hero.css";
