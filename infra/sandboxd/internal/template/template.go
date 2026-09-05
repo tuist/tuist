@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 )
 
@@ -106,7 +107,11 @@ func (t Template) Kernel() string { return filepath.Join(t.Dir, KernelFile) }
 func (t Template) Rootfs() string { return filepath.Join(t.Dir, RootfsFile) }
 
 func (t Template) ShapeDir(shape Shape) string {
-	return filepath.Join(t.Dir, shapesDir, shape.String())
+	dir, err := safepath.Under(t.Dir, shapesDir, shape.String())
+	if err != nil {
+		dir, _ = safepath.Under(t.Dir, shapesDir, "invalid")
+	}
+	return dir
 }
 
 func (t Template) ShapeReady(shape Shape) bool {
@@ -232,7 +237,19 @@ func (s *Store) List() ([]Template, error) {
 }
 
 func (s *Store) Get(name, tag string) (Template, error) {
-	t := Template{Name: name, Tag: tag, Dir: filepath.Join(s.Dir, name, tag)}
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return Template{}, fmt.Errorf("template name: %w", err)
+	}
+	tag, err = safepath.Segment(tag)
+	if err != nil {
+		return Template{}, fmt.Errorf("template tag: %w", err)
+	}
+	dir, err := safepath.Under(s.Dir, name, tag)
+	if err != nil {
+		return Template{}, err
+	}
+	t := Template{Name: name, Tag: tag, Dir: dir}
 	if !vm.Exists(t.Kernel()) || !vm.Exists(t.Rootfs()) {
 		return Template{}, fmt.Errorf("template %s/%s not found under %s", name, tag, s.Dir)
 	}
@@ -242,6 +259,9 @@ func (s *Store) Get(name, tag string) (Template, error) {
 // Resolve finds a template by name and optional tag: with an empty tag the
 // template must have exactly one tag on the node.
 func (s *Store) Resolve(name, tag string) (Template, error) {
+	if _, err := safepath.Segment(name); err != nil {
+		return Template{}, fmt.Errorf("template name: %w", err)
+	}
 	if tag != "" {
 		return s.Get(name, tag)
 	}

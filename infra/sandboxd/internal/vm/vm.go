@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
 )
 
 const (
@@ -35,6 +36,9 @@ const (
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,63}$`)
 
 func ValidateID(id string) error {
+	if _, err := safepath.Segment(id); err != nil {
+		return fmt.Errorf("invalid id: %w", err)
+	}
 	if !idPattern.MatchString(id) {
 		return fmt.Errorf("invalid id %q: must match %s", id, idPattern)
 	}
@@ -72,15 +76,28 @@ type Launcher interface {
 	Launch(ctx context.Context, spec Spec) (Instance, error)
 }
 
-// RootDir is the jail root the jailer builds for an id.
+// RootDir is the jail root the jailer builds for an id. Ids are validated
+// before they get here; an id that would still escape the base maps to a
+// quarantine directory inside it rather than anywhere else on the node.
 func RootDir(base, id string) string {
-	return filepath.Join(base, "firecracker", id, "root")
+	return jailPath(base, id, "root")
 }
 
 // JailDir is the per-id directory above the root (holds the pid file and
 // the exec copy).
 func JailDir(base, id string) string {
-	return filepath.Join(base, "firecracker", id)
+	return jailPath(base, id)
+}
+
+func jailPath(base, id string, more ...string) string {
+	if _, err := safepath.Segment(id); err != nil {
+		id = "invalid"
+	}
+	p, err := safepath.Under(base, append([]string{"firecracker", id}, more...)...)
+	if err != nil {
+		p, _ = safepath.Under(base, append([]string{"firecracker", "invalid"}, more...)...)
+	}
+	return p
 }
 
 // Prepare creates the jail root for a spawn and removes what a previous
@@ -112,8 +129,8 @@ func Prepare(root string, uid, gid int) error {
 	return nil
 }
 
-// Command builds the argv for a spec. Exported for tests.
-func Command(spec Spec) []string {
+// Command builds the binary and arguments for a spec. Exported for tests.
+func Command(spec Spec) (string, []string) {
 	root := RootDir(spec.JailBase, spec.ID)
 	nsDir := spec.NetNSDir
 	if nsDir == "" {
@@ -121,7 +138,6 @@ func Command(spec Spec) []string {
 	}
 	if spec.JailerEnabled {
 		args := []string{
-			spec.JailerBin,
 			"--id", spec.ID,
 			"--exec-file", spec.FirecrackerBin,
 			"--uid", strconv.Itoa(spec.UID),
@@ -132,13 +148,13 @@ func Command(spec Spec) []string {
 			args = append(args, "--netns", filepath.Join(nsDir, spec.NetNS))
 		}
 		args = append(args, "--new-pid-ns", "--cgroup-version", "2", "--", "--api-sock", firecracker.APISocketPath)
-		return args
+		return spec.JailerBin, args
 	}
-	var args []string
+	direct := []string{"--id", spec.ID, "--api-sock", filepath.Join(root, firecracker.APISocketPath)}
 	if spec.NetNS != "" {
-		args = append(args, "ip", "netns", "exec", spec.NetNS)
+		return "ip", append([]string{"netns", "exec", spec.NetNS, spec.FirecrackerBin}, direct...)
 	}
-	return append(args, spec.FirecrackerBin, "--id", spec.ID, "--api-sock", filepath.Join(root, firecracker.APISocketPath))
+	return spec.FirecrackerBin, direct
 }
 
 // FirecrackerLauncher spawns real Firecracker processes.
@@ -178,16 +194,16 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	if err != nil {
 		return nil, err
 	}
-	argv := Command(spec)
-	cmd := exec.Command(argv[0], argv[1:]...)
+	bin, args := Command(spec)
+	cmd := exec.Command(bin, args...)
 	cmd.Dir = root
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	fmt.Fprintf(logFile, "\n==== %s sandboxd spawn: %s\n", time.Now().UTC().Format(time.RFC3339), strings.Join(argv, " "))
+	fmt.Fprintf(logFile, "\n==== %s sandboxd spawn: %s %s\n", time.Now().UTC().Format(time.RFC3339), bin, strings.Join(args, " "))
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
-		return nil, fmt.Errorf("starting %s: %w", argv[0], err)
+		return nil, fmt.Errorf("starting %s: %w", bin, err)
 	}
 	m := &machine{
 		spec:    spec,

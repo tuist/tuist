@@ -10,19 +10,34 @@ import (
 )
 
 func TestCommandJailer(t *testing.T) {
-	argv := Command(Spec{ID: "abc", JailBase: "/data/sandboxes/jail", FirecrackerBin: "/usr/local/bin/firecracker",
+	bin, args := Command(Spec{ID: "abc", JailBase: "/data/sandboxes/jail", FirecrackerBin: "/usr/local/bin/firecracker",
 		JailerBin: "/usr/local/bin/jailer", JailerEnabled: true, UID: 10003, GID: 10003, NetNS: "sbx-abc"})
 	want := "/usr/local/bin/jailer --id abc --exec-file /usr/local/bin/firecracker --uid 10003 --gid 10003 --chroot-base-dir /data/sandboxes/jail --netns /var/run/netns/sbx-abc --new-pid-ns --cgroup-version 2 -- --api-sock /run/firecracker.socket"
-	if got := strings.Join(argv, " "); got != want {
+	if got := bin + " " + strings.Join(args, " "); got != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
 }
 
 func TestCommandDirect(t *testing.T) {
-	argv := Command(Spec{ID: "abc", JailBase: "/j", FirecrackerBin: "/fc", NetNS: "sbx-abc"})
+	bin, args := Command(Spec{ID: "abc", JailBase: "/j", FirecrackerBin: "/fc", NetNS: "sbx-abc"})
 	want := "ip netns exec sbx-abc /fc --id abc --api-sock /j/firecracker/abc/root/run/firecracker.socket"
-	if got := strings.Join(argv, " "); got != want {
+	if got := bin + " " + strings.Join(args, " "); got != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestPathsContainEscapes(t *testing.T) {
+	for _, id := range []string{"..", "../../etc", "a/../../b"} {
+		got := RootDir("/data/sandboxes/jail", id)
+		if !strings.HasPrefix(got, "/data/sandboxes/jail/firecracker/") {
+			t.Errorf("RootDir(%q) = %q escapes the jail base", id, got)
+		}
+	}
+	if err := ValidateID("../x"); err == nil {
+		t.Error("ValidateID accepted a traversal")
+	}
+	if err := ValidateID("-flag"); err == nil {
+		t.Error("ValidateID accepted a leading dash")
 	}
 }
 

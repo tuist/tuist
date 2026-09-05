@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
 	"github.com/tuist/tuist/infra/sandboxd/internal/sandbox"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 )
@@ -121,6 +122,17 @@ func errEOF() error { return errEOFValue }
 
 var errEOFValue = errors.New("EOF")
 
+// segment reads a path parameter that names a sandbox or template and
+// rejects anything that is not a plain identifier.
+func segment(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	value, err := safepath.Segment(r.PathValue(name))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("%s: %v", name, err)})
+		return "", false
+	}
+	return value, true
+}
+
 func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"sandboxes": h.backend.List()})
 }
@@ -135,6 +147,19 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		id = newID()
 	}
+	if _, err := safepath.Segment(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("id: %v", err)})
+		return
+	}
+	for field, value := range map[string]string{"template": req.Template, "template_tag": req.TemplateTag} {
+		if value == "" {
+			continue
+		}
+		if _, err := safepath.Segment(value); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("%s: %v", field, err)})
+			return
+		}
+	}
 	res, err := h.backend.Create(r.Context(), protocol.CreateArgs{
 		SandboxID: id, Template: req.Template, TemplateTag: req.TemplateTag, VCPUs: req.VCPUs,
 		MemoryMB: req.MemoryMB, WorkspaceGB: req.WorkspaceGB, Hostname: req.Hostname,
@@ -147,7 +172,11 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	info, err := h.backend.Status(r.Context(), r.PathValue("id"))
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	info, err := h.backend.Status(r.Context(), id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -156,7 +185,11 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) pause(w http.ResponseWriter, r *http.Request) {
-	res, err := h.backend.Pause(r.Context(), r.PathValue("id"))
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	res, err := h.backend.Pause(r.Context(), id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -165,7 +198,11 @@ func (h *handler) pause(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) resume(w http.ResponseWriter, r *http.Request) {
-	res, err := h.backend.Resume(r.Context(), r.PathValue("id"))
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	res, err := h.backend.Resume(r.Context(), id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -174,7 +211,11 @@ func (h *handler) resume(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.backend.Delete(r.Context(), r.PathValue("id")); err != nil {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	if err := h.backend.Delete(r.Context(), id); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -182,6 +223,10 @@ func (h *handler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) exec(w http.ResponseWriter, r *http.Request) {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
 	var req execRequest
 	if err := decode(r, &req); err != nil {
 		writeError(w, err)
@@ -193,7 +238,7 @@ func (h *handler) exec(w http.ResponseWriter, r *http.Request) {
 	}
 	var mu sync.Mutex
 	var stdout, stderr bytes.Buffer
-	res, err := h.backend.Exec(r.Context(), protocol.ExecArgs{SandboxID: r.PathValue("id"), Cmd: req.Cmd, Env: req.Env, Cwd: req.Cwd, TimeoutMs: req.TimeoutMs},
+	res, err := h.backend.Exec(r.Context(), protocol.ExecArgs{SandboxID: id, Cmd: req.Cmd, Env: req.Env, Cwd: req.Cwd, TimeoutMs: req.TimeoutMs},
 		func(stream string, data []byte) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -213,6 +258,10 @@ func (h *handler) exec(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) startWorker(w http.ResponseWriter, r *http.Request) {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
 	var req struct {
 		Env map[string]string `json:"env"`
 	}
@@ -220,7 +269,7 @@ func (h *handler) startWorker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	res, err := h.backend.StartWorker(r.Context(), protocol.StartWorkerArgs{SandboxID: r.PathValue("id"), Env: req.Env})
+	res, err := h.backend.StartWorker(r.Context(), protocol.StartWorkerArgs{SandboxID: id, Env: req.Env})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -229,7 +278,11 @@ func (h *handler) startWorker(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) stopWorker(w http.ResponseWriter, r *http.Request) {
-	if err := h.backend.StopWorker(r.Context(), r.PathValue("id")); err != nil {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	if err := h.backend.StopWorker(r.Context(), id); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -241,6 +294,14 @@ func (h *handler) templates(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) build(w http.ResponseWriter, r *http.Request) {
+	name, ok := segment(w, r, "name")
+	if !ok {
+		return
+	}
+	tag, ok := segment(w, r, "tag")
+	if !ok {
+		return
+	}
 	var req buildRequest
 	if err := decode(r, &req); err != nil {
 		writeError(w, err)
@@ -252,7 +313,7 @@ func (h *handler) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	started := time.Now()
-	if err := h.backend.BuildTemplate(r.Context(), r.PathValue("name"), r.PathValue("tag"), shape); err != nil {
+	if err := h.backend.BuildTemplate(r.Context(), name, tag, shape); err != nil {
 		writeError(w, err)
 		return
 	}
