@@ -65,6 +65,14 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `flux/` — GitOps reconciliation on the mgmt cluster
 Flux (`infra/flux/mgmt/`) is **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): it continuously reconciles the workload `Cluster` CRs under `k8s/clusters/workloads/` onto the mgmt cluster, so drift is corrected on an interval instead of only on merge and routine changes need no break-glass. Health alerting is the independent **Pillar 2** (`helm/k8s-monitoring/values-management.yaml` + `alerts.md`), Grafana Cloud, evaluated outside the single-node cluster with a heartbeat. Per-cluster `Kustomization`s never prune `Cluster` objects and use `force: false`; the immutable ClusterClass/bare-metal templates and preview stay on `mgmt-cluster-apply.yml`. See `infra/flux/mgmt/README.md` for bootstrap, the never-prune destroy flow, and the break-glass recovery path.
 
+Flux also installs management-cluster controllers whose desired state
+belongs in this repository. The Cloudflare operator release lives under
+`flux/cloudflare-operator/` and is reached through the
+`flux/mgmt/cloudflare-operator.yaml` Kustomization. Cloudflare resources
+live under `flux/cloudflare-config/`; their separate dependent
+Kustomization ensures the operator and its custom resource definitions
+are ready first.
+
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
