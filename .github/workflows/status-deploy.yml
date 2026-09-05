@@ -30,6 +30,7 @@ env:
 jobs:
   deploy:
     name: Deploy
+    if: github.repository == 'tuist/tuist'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: status-production

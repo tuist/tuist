@@ -27,6 +27,7 @@ env:
 
 jobs:
   deploy-canary:
+    if: github.repository == 'tuist/tuist'
     # Must stay on a GitHub-hosted runner: kamal SSHes into the cache hosts, and
     # the in-house fleet's runner Pods have no TCP 22 egress (the
     # runners-default-deny NetworkPolicy allows only DNS, 80/443 and Kura 4000),

@@ -35,6 +35,7 @@ env:
 jobs:
   check:
     name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
