@@ -167,8 +167,8 @@
     & [data-part="header-row"] {
       display: flex;
       flex-direction: row;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
       gap: var(--noora-spacing-8);
 
       & > [data-part="header"] {
