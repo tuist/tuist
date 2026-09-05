@@ -10540,22 +10540,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -10570,6 +10554,22 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -24553,6 +24553,108 @@ paths:
             application/json:
               schema:
                 properties:
+                  bazel_version:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  build_metrics:
+                    description: Build metrics reported by Bazel.
+                    properties:
+                      actions_created:
+                        description: Actions Bazel created while analyzing the requested targets.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      actions_executed:
+                        description: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      cpu_time_ms:
+                        description: Total central processing unit time in milliseconds.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      packages_loaded:
+                        description: Packages Bazel loaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      targets_configured:
+                        description: Targets Bazel configured.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - cpu_time_ms
+                      - actions_created
+                      - actions_executed
+                      - targets_configured
+                      - packages_loaded
+                    type: object
+                    x-struct:
+                    x-validate:
+                  build_timeline:
+                    description: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                    nullable: true
+                    properties:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      lanes:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      spans:
+                        items:
+                          properties:
+                            category:
+                              enum:
+                                - analysis
+                                - execution
+                              type: string
+                              x-struct:
+                              x-validate:
+                            description:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            lane:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            start_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - lane
+                            - start_ms
+                            - duration_ms
+                            - category
+                            - description
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - duration_ms
+                      - lanes
+                      - spans
+                    type: object
+                    x-struct:
+                    x-validate:
                   cache:
                     properties:
                       download_bytes:
@@ -24591,6 +24693,40 @@ paths:
                     x-validate:
                   command:
                     type: string
+                    x-struct:
+                    x-validate:
+                  critical_path:
+                    description: The critical path reported by Bazel, bounded to 32 actions.
+                    nullable: true
+                    properties:
+                      actions:
+                        items:
+                          properties:
+                            description:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - description
+                            - duration_ms
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - duration_ms
+                      - actions
+                    type: object
                     x-struct:
                     x-validate:
                   duration_ms:
@@ -24649,12 +24785,16 @@ paths:
                   - git_branch
                   - git_commit_sha
                   - is_ci
+                  - bazel_version
                   - cache_endpoint
                   - status
                   - exit_code
                   - started_at
                   - finished_at
                   - duration_ms
+                  - build_metrics
+                  - build_timeline
+                  - critical_path
                   - cache
                 type: object
                 x-struct:
@@ -26586,6 +26726,108 @@ paths:
                   invocations:
                     items:
                       properties:
+                        bazel_version:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        build_metrics:
+                          description: Build metrics reported by Bazel.
+                          properties:
+                            actions_created:
+                              description: Actions Bazel created while analyzing the requested targets.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            actions_executed:
+                              description: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            cpu_time_ms:
+                              description: Total central processing unit time in milliseconds.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            packages_loaded:
+                              description: Packages Bazel loaded.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            targets_configured:
+                              description: Targets Bazel configured.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - cpu_time_ms
+                            - actions_created
+                            - actions_executed
+                            - targets_configured
+                            - packages_loaded
+                          type: object
+                          x-struct:
+                          x-validate:
+                        build_timeline:
+                          description: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                          nullable: true
+                          properties:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            lanes:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            spans:
+                              items:
+                                properties:
+                                  category:
+                                    enum:
+                                      - analysis
+                                      - execution
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  description:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  duration_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  lane:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  start_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - lane
+                                  - start_ms
+                                  - duration_ms
+                                  - category
+                                  - description
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                          required:
+                            - duration_ms
+                            - lanes
+                            - spans
+                          type: object
+                          x-struct:
+                          x-validate:
                         cache:
                           properties:
                             download_bytes:
@@ -26624,6 +26866,40 @@ paths:
                           x-validate:
                         command:
                           type: string
+                          x-struct:
+                          x-validate:
+                        critical_path:
+                          description: The critical path reported by Bazel, bounded to 32 actions.
+                          nullable: true
+                          properties:
+                            actions:
+                              items:
+                                properties:
+                                  description:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  duration_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - description
+                                  - duration_ms
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - duration_ms
+                            - actions
+                          type: object
                           x-struct:
                           x-validate:
                         duration_ms:
@@ -26682,12 +26958,16 @@ paths:
                         - git_branch
                         - git_commit_sha
                         - is_ci
+                        - bazel_version
                         - cache_endpoint
                         - status
                         - exit_code
                         - started_at
                         - finished_at
                         - duration_ms
+                        - build_metrics
+                        - build_timeline
+                        - critical_path
                         - cache
                       type: object
                       x-struct:
