@@ -220,14 +220,34 @@ sum by (cluster) (
 
 ### etcd has no leader
 
+**Provisioned** in the `Infrastructure` folder as `CAPI - etcd has no leader`
+(critical, `no_data_state: OK`).
+
+`etcd_server_has_leader` is a 0/1 gauge, so `count - sum` is exactly the number
+of members currently without a leader:
+
 ```promql
-min by (cluster, instance) (
-  etcd_server_has_leader
-) == 0
+count by (cluster) (etcd_server_has_leader)
+-
+sum by (cluster) (etcd_server_has_leader)
 ```
 
 - Pending period: 2 minutes
-- Summary: `etcd has no leader on {{ $labels.instance }} ({{ $labels.cluster }})`
+- Summary: `An etcd member has lost its leader`
+
+**Do not write this as `min by (cluster, instance) (etcd_server_has_leader) == 0`.**
+That is the form this document carried first, and it returns **no data** rather
+than `0`. Adaptive metrics aggregates `cluster`, `env`, `instance` and
+`k8s_cluster_name` away for this metric and then serves only the aggregations it
+stores for it, which are `sum` and `count`; `min` is not among them. Paired with
+`no_data_state: OK` the rule is silently dead - it was provisioned that way and
+could never have fired, which is why it is called out here rather than quietly
+fixed. Run any replacement expression and confirm it returns a series before
+trusting it.
+
+The same aggregation is why the value is a fleet-wide count of leaderless
+members and the rule cannot name the cluster or the member. Identify those by
+hand from the management cluster.
 
 ### etcd scrape unavailable
 
@@ -294,35 +314,71 @@ absent_over_time(
 
 ### Control-plane replicas below desired state
 
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - control plane below desired replicas` (critical, `no_data_state: OK`).
+
 ```promql
-kube_customresource_kubeadmcontrolplane_ready_replicas{
-  cluster="tuist-management",
-  workload_cluster=~"tuist|tuist-staging|tuist-canary"
-}
-<
-kube_customresource_kubeadmcontrolplane_spec_replicas{
-  cluster="tuist-management",
-  workload_cluster=~"tuist|tuist-staging|tuist-canary"
-}
+sum by (cluster) (kube_customresource_kubeadmcontrolplane_spec_replicas)
+-
+sum by (cluster) (kube_customresource_kubeadmcontrolplane_ready_replicas)
 ```
 
-- Pending period: 10 minutes
-- Summary: `Control plane for {{ $labels.workload_cluster }} has fewer ready replicas than desired`
+- Pending period: 15 minutes
+- Summary: `A CAPI control plane has fewer ready replicas than desired`
+
+**Aggregate; do not select `workload_cluster`.** Adaptive metrics aggregates the
+`kubeadmcontrolplane` and `workload_cluster` labels away, so the per-cluster
+form this document carried first
+(`ready{workload_cluster=~"tuist|tuist-staging|tuist-canary"} < spec{...}`)
+matches nothing at all. The consequence is that the value is a fleet-wide count
+of missing replicas and the rule cannot name the degraded cluster; get that from
+the management cluster with `kubectl get kubeadmcontrolplane -A`.
+
+The pending period is 15 minutes rather than 10 because a rolling control-plane
+replacement shows the same shortfall while it runs.
+
+Deliberately **not** written with a trailing `> 0` filter. Left as a plain
+subtraction it evaluates to an explicit `0` when the fleet is healthy, so `No
+Data` on this rule means the telemetry stopped rather than that everything is
+well - which is what the paired rule below alerts on. A filtered expression
+makes healthy and blind look identical.
 
 ### Control-plane replica telemetry missing
 
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - control-plane telemetry missing from the management cluster` (critical).
+
+This is the heartbeat for every rule above that reads a CAPI custom resource:
+they are all evaluated in Grafana Cloud against series produced by
+kube-state-metrics on the single-node management cluster, so if that cluster,
+its Alloy collector, or its remote-write path dies, all of them simply go quiet,
+which is indistinguishable from healthy.
+
 ```promql
-absent_over_time(
-  kube_customresource_kubeadmcontrolplane_spec_replicas{
-    cluster="tuist-management"
-  }[10m]
-)
+absent(sum by (cluster) (kube_customresource_kubeadmcontrolplane_spec_replicas))
 ```
 
-- Pending period: 0 minutes
-- Summary: `Control-plane desired and ready replica telemetry is missing`
+- Pending period: 15 minutes
+- Summary: `CAPI control-plane telemetry has stopped arriving from the management cluster`
+
+Two traps, both of which produced a false alert while this rule was being
+written:
+
+- The inner expression must aggregate, for the reason given above. Selecting the
+  raw metric reports `absent` even while data is flowing.
+- **`no_data_state` must be `OK`, not `Alerting`.** `absent()` returns an
+  **empty** result when the data is present, which Grafana evaluates as `No
+  Data`. The healthy case is therefore No Data and the firing case is `absent()`
+  returning `1`, so No Data = Alerting inverts the rule and it fires
+  permanently. This is not an exception to anything: **Create the rules in
+  Grafana** below already prescribes No Data = Normal for every rule *including*
+  the telemetry-missing ones, for exactly this reason. The rule was first
+  provisioned with Alerting anyway and fired continuously until it was corrected.
 
 ### Orphan Hetzner servers
+
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - orphan Hetzner server with no owning Machine` (warning).
 
 Servers with no owning CAPI `Machine`, from the `reconciliation-checks`
 CronJob (`infra/k8s/mgmt/reconciliation-checks.yaml`).
@@ -342,6 +398,9 @@ max by (cluster, id, name) (
 
 ### Cluster removed from git still live
 
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - Cluster removed from git but still running` (warning).
+
 Live `Cluster` objects absent from git — the never-prune blind spot the
 Hetzner orphan check misses (their servers still have valid `Machine` owners).
 
@@ -360,6 +419,17 @@ max by (cluster, name) (
 - Summary: `Cluster {{ $labels.name }} is live but no longer in git — remove it deliberately (see infra/flux/mgmt/README.md) or restore the manifest`
 
 ### Reconciliation checks stopped running
+
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - reconciliation checks have stopped running` (warning), paired with
+`CAPI - reconciliation telemetry absent entirely` for the query below it. Both
+are required: the first cannot see a Pushgateway that lost its store, because
+there is then no timestamp left to age. Do not delete one without changing the
+other.
+
+Unlike the CAPI rules above, these gauges are pushed by our own CronJob and are
+not touched by adaptive metrics, so `max by (...)` works here and the alerts can
+name the offending server or cluster.
 
 The CronJob pushes to a Pushgateway, which is a **store, not a scrape target**:
 once a value is pushed it is served indefinitely, so `absent()` /
@@ -4496,7 +4566,19 @@ target down, just 20 had two or more.
    point used by the infrastructure team. Add `affected_service` to
    customer-visible rules as described in **Routing to Grafana IRM** above.
 12. Preview the raw metric selector and the final comparison separately against
-    recent data before saving it.
+    recent data before saving it. **A query that returns no data is not
+    evidence of health**, and paired with No Data: Normal it produces a rule
+    that is indistinguishable from a working one until the incident it was
+    written for. Grafana Cloud **adaptive metrics** is the usual cause: it
+    aggregates high-cardinality labels away and then serves only the
+    aggregations it stores for that metric. Two consequences to check for:
+    selecting an aggregated label matches nothing (`workload_cluster`,
+    `kubeadmcontrolplane` on the CAPI custom-resource metrics; `cluster`,
+    `env`, `instance`, `k8s_cluster_name` on `etcd_*`), and an aggregation
+    function that is not stored returns nothing either, so
+    `min by (cluster, instance) (etcd_server_has_leader) == 0` is empty rather
+    than `0` where `count - sum` works. Querying such a metric bare returns an
+    explicit error naming the aggregated labels; use that to find them.
 13. For a rule whose healthy state is an empty result *and* whose unhealthy
     state depends on the series existing (`Remote processing queue has no
     consumer`, `xcresult processor guest metrics unavailable fleet-wide`),
