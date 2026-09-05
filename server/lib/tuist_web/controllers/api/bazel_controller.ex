@@ -57,6 +57,7 @@ defmodule TuistWeb.API.BazelController do
       git_branch: %Schema{type: :string},
       git_commit_sha: %Schema{type: :string},
       is_ci: %Schema{type: :boolean},
+      cache_endpoint: %Schema{type: :string},
       status: %Schema{type: :string, enum: ["success", "failure"]},
       exit_code: %Schema{type: :integer},
       started_at: %Schema{type: :string, format: :"date-time"},
@@ -71,6 +72,7 @@ defmodule TuistWeb.API.BazelController do
       :git_branch,
       :git_commit_sha,
       :is_ci,
+      :cache_endpoint,
       :status,
       :exit_code,
       :started_at,
@@ -96,6 +98,8 @@ defmodule TuistWeb.API.BazelController do
     properties: %{
       id: %Schema{type: :string, format: :uuid},
       invocation_id: %Schema{type: :string},
+      client_kind: %Schema{type: :string},
+      operation: %Schema{type: :string, enum: ["action_cache", "cas"]},
       outcome: %Schema{type: :string, enum: ["hit", "miss", "write"]},
       action_digest: %Schema{type: :string},
       action_mnemonic: %Schema{type: :string},
@@ -103,9 +107,26 @@ defmodule TuistWeb.API.BazelController do
       configuration_id: %Schema{type: :string},
       size: %Schema{type: :integer},
       duration_ms: %Schema{type: :integer},
+      cache_endpoint: %Schema{type: :string},
+      observed_at: %Schema{type: :string, format: :"date-time"},
       inserted_at: %Schema{type: :string, format: :"date-time"}
     },
-    required: [:id, :invocation_id, :outcome, :action_digest, :size, :duration_ms, :inserted_at]
+    required: [
+      :id,
+      :invocation_id,
+      :client_kind,
+      :operation,
+      :outcome,
+      :action_digest,
+      :action_mnemonic,
+      :target_label,
+      :configuration_id,
+      :size,
+      :duration_ms,
+      :cache_endpoint,
+      :observed_at,
+      :inserted_at
+    ]
   }
 
   operation(:list_invocations,
@@ -280,6 +301,11 @@ defmodule TuistWeb.API.BazelController do
             in: :query,
             type: %Schema{type: :string, enum: ["hit", "miss", "write"]},
             description: "Filter by cache outcome."
+          ],
+          operation: [
+            in: :query,
+            type: %Schema{type: :string, enum: ["action_cache", "cas"]},
+            description: "Filter by action cache or content-addressable storage operation."
           ]
         ],
     responses: %{
@@ -305,6 +331,7 @@ defmodule TuistWeb.API.BazelController do
       [%{field: :project_id, op: :==, value: project.id}]
       |> maybe_append_filter(:invocation_id, params[:invocation_id])
       |> maybe_append_filter(:outcome, params[:outcome])
+      |> maybe_append_filter(:operation, params[:operation])
 
     {events, meta} =
       ReapiCache.list_cache_events(project.id, %{
@@ -358,6 +385,7 @@ defmodule TuistWeb.API.BazelController do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,
       exit_code: invocation.exit_code,
       started_at: invocation.started_at,
@@ -382,6 +410,8 @@ defmodule TuistWeb.API.BazelController do
     %{
       id: event.id,
       invocation_id: event.invocation_id,
+      client_kind: event.client_kind,
+      operation: event.operation,
       outcome: event.outcome,
       action_digest: event.action_digest,
       action_mnemonic: event.action_mnemonic,
@@ -389,6 +419,8 @@ defmodule TuistWeb.API.BazelController do
       configuration_id: event.configuration_id,
       size: event.size,
       duration_ms: event.duration_ms,
+      cache_endpoint: event.cache_endpoint,
+      observed_at: event.observed_at,
       inserted_at: event.inserted_at
     }
   end

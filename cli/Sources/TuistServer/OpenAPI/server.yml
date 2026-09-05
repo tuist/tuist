@@ -11020,6 +11020,22 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -11034,22 +11050,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
             x-struct:
             x-validate:
       responses:
@@ -25249,6 +25249,10 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  cache_endpoint:
+                    type: string
+                    x-struct:
+                    x-validate:
                   command:
                     type: string
                     x-struct:
@@ -25309,6 +25313,7 @@ paths:
                   - git_branch
                   - git_commit_sha
                   - is_ci
+                  - cache_endpoint
                   - status
                   - exit_code
                   - started_at
@@ -25772,6 +25777,17 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by action cache or content-addressable storage operation.
+          in: query
+          name: operation
+          required: false
+          schema:
+            enum:
+              - action_cache
+              - cas
+            type: string
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
@@ -25786,6 +25802,14 @@ paths:
                           x-struct:
                           x-validate:
                         action_mnemonic:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_endpoint:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        client_kind:
                           type: string
                           x-struct:
                           x-validate:
@@ -25811,6 +25835,18 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        observed_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        operation:
+                          enum:
+                            - action_cache
+                            - cas
+                          type: string
+                          x-struct:
+                          x-validate:
                         outcome:
                           enum:
                             - hit
@@ -25830,10 +25866,17 @@ paths:
                       required:
                         - id
                         - invocation_id
+                        - client_kind
+                        - operation
                         - outcome
                         - action_digest
+                        - action_mnemonic
+                        - target_label
+                        - configuration_id
                         - size
                         - duration_ms
+                        - cache_endpoint
+                        - observed_at
                         - inserted_at
                       type: object
                       x-struct:
@@ -26073,6 +26116,14 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  cache_endpoint:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  client_kind:
+                    type: string
+                    x-struct:
+                    x-validate:
                   configuration_id:
                     type: string
                     x-struct:
@@ -26095,6 +26146,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  observed_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  operation:
+                    enum:
+                      - action_cache
+                      - cas
+                    type: string
+                    x-struct:
+                    x-validate:
                   outcome:
                     enum:
                       - hit
@@ -26114,10 +26177,17 @@ paths:
                 required:
                   - id
                   - invocation_id
+                  - client_kind
+                  - operation
                   - outcome
                   - action_digest
+                  - action_mnemonic
+                  - target_label
+                  - configuration_id
                   - size
                   - duration_ms
+                  - cache_endpoint
+                  - observed_at
                   - inserted_at
                 type: object
                 x-struct:
@@ -27412,6 +27482,10 @@ paths:
                           type: object
                           x-struct:
                           x-validate:
+                        cache_endpoint:
+                          type: string
+                          x-struct:
+                          x-validate:
                         command:
                           type: string
                           x-struct:
@@ -27472,6 +27546,7 @@ paths:
                         - git_branch
                         - git_commit_sha
                         - is_ci
+                        - cache_endpoint
                         - status
                         - exit_code
                         - started_at
