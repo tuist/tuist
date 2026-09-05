@@ -101,6 +101,15 @@ defmodule Tuist.MCP.Components.Tools.ModuleCacheToolsTest do
       assert Enum.map(local["modules"], & &1["name"]) == ["Local"]
     end
 
+    test "rejects a window wider than a year", %{conn: conn} do
+      args = Map.merge(@window, %{"start_datetime" => "2020-01-01T00:00:00Z", "end_datetime" => "2024-04-30T00:00:00Z"})
+
+      assert %{"isError" => true, "content" => [%{"text" => message}]} =
+               ListXcodeModuleInvalidations.call(conn, args)
+
+      assert message =~ "366 days"
+    end
+
     test "rejects a datetime that is not ISO 8601", %{conn: conn} do
       assert %{"isError" => true, "content" => [%{"text" => message}]} =
                ListXcodeModuleInvalidations.call(conn, Map.put(@window, "start_datetime", "yesterday"))

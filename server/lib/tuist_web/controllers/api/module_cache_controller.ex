@@ -8,6 +8,8 @@ defmodule TuistWeb.API.ModuleCacheController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
+  plug TuistWeb.Plugs.MetricsRateLimitPlug
+
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
@@ -115,22 +117,28 @@ defmodule TuistWeb.API.ModuleCacheController do
            },
            required: [:modules, :module_count, :module_count_branch]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
   def index(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
-    opts = analytics_opts(project, params)
-    limit = Map.get(params, :limit, 30)
-    modules = opts |> Keyword.put(:limit, limit) |> Analytics.module_invalidations()
-    branch = Keyword.get(opts, :git_branch) || project.default_branch || "main"
+    case analytics_opts(project, params) do
+      {:ok, opts} ->
+        limit = Map.get(params, :limit, 30)
+        modules = opts |> Keyword.put(:limit, limit) |> Analytics.module_invalidations()
+        branch = Keyword.get(opts, :git_branch) || project.default_branch || "main"
 
-    json(conn, %{
-      modules: Enum.map(modules, &module_json/1),
-      module_count: Analytics.module_count(Keyword.put(opts, :git_branch, branch)),
-      module_count_branch: branch
-    })
+        json(conn, %{
+          modules: Enum.map(modules, &module_json/1),
+          module_count: Analytics.module_count(Keyword.put(opts, :git_branch, branch)),
+          module_count_branch: branch
+        })
+
+      {:error, message} ->
+        bad_request(conn, message)
+    end
   end
 
   operation(:show,
@@ -175,22 +183,25 @@ defmodule TuistWeb.API.ModuleCacheController do
            required: @module_required
          }},
       not_found: {"Module not found", "application/json", Error},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
   def show(%{assigns: %{selected_project: project}, params: %{module_name: name} = params} = conn, _params) do
-    opts = project |> analytics_opts(params) |> Keyword.put(:name, name)
+    with {:ok, opts} <- analytics_opts(project, params),
+         opts = Keyword.put(opts, :name, name),
+         row when not is_nil(row) <- Analytics.module_summary(opts) do
+      json(conn, Map.merge(module_json(row), Analytics.module_neighbors(opts)))
+    else
+      {:error, message} ->
+        bad_request(conn, message)
 
-    case Analytics.module_summary(opts) do
       nil ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Module not found."})
-
-      row ->
-        json(conn, Map.merge(module_json(row), Analytics.module_neighbors(opts)))
     end
   end
 
@@ -293,30 +304,33 @@ defmodule TuistWeb.API.ModuleCacheController do
 
   def builds(%{assigns: %{selected_project: project}, params: %{module_name: name} = params} = conn, _params) do
     if present?(params[:after]) and present?(params[:before]) do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{message: "Use only one of `after` and `before`."})
+      bad_request(conn, "Use only one of `after` and `before`.")
     else
-      limit = Map.get(params, :limit, 25)
+      case analytics_opts(project, params) do
+        {:ok, opts} ->
+          limit = Map.get(params, :limit, 25)
 
-      page =
-        project
-        |> analytics_opts(params)
-        |> Keyword.put(:name, name)
-        |> Keyword.put(:limit, limit)
-        |> put_present(params, [:commit_sha, :reason, :order, :after, :before])
-        |> Analytics.module_build_history()
+          page =
+            opts
+            |> Keyword.put(:name, name)
+            |> Keyword.put(:limit, limit)
+            |> put_present(params, [:commit_sha, :reason, :order, :after, :before])
+            |> Analytics.module_build_history()
 
-      json(conn, %{
-        builds: Enum.map(page.rows, &build_json/1),
-        pagination_metadata: %{
-          has_next_page: page.has_next_page,
-          has_previous_page: page.has_previous_page,
-          page_size: limit,
-          start_cursor: page.start_cursor,
-          end_cursor: page.end_cursor
-        }
-      })
+          json(conn, %{
+            builds: Enum.map(page.rows, &build_json/1),
+            pagination_metadata: %{
+              has_next_page: page.has_next_page,
+              has_previous_page: page.has_previous_page,
+              page_size: limit,
+              start_cursor: page.start_cursor,
+              end_cursor: page.end_cursor
+            }
+          })
+
+        {:error, message} ->
+          bad_request(conn, message)
+      end
     end
   end
 
@@ -369,20 +383,26 @@ defmodule TuistWeb.API.ModuleCacheController do
            },
            required: [:dates, :invalidations, :reuses, :hit_rates, :miss_reasons, :module_counts]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
   def metrics(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
-    opts = analytics_opts(project, params)
-    name = if present?(params[:name]), do: params.name
+    case analytics_opts(project, params) do
+      {:ok, opts} -> json(conn, timeseries(opts, if(present?(params[:name]), do: params.name)))
+      {:error, message} -> bad_request(conn, message)
+    end
+  end
+
+  defp timeseries(opts, name) do
     scoped = if name, do: Keyword.put(opts, :name, name), else: opts
 
     cache = Analytics.module_invalidation_timeseries(scoped)
     miss_reasons = Analytics.module_miss_reasons_timeseries(scoped)
 
-    json(conn, %{
+    %{
       dates: cache.dates,
       invalidations: cache.invalidations,
       reuses: cache.reuses,
@@ -390,20 +410,33 @@ defmodule TuistWeb.API.ModuleCacheController do
       miss_reasons: Map.take(miss_reasons, [:changed, :upstream, :cold]),
       module_counts: Analytics.modules_timeseries(opts).counts,
       dependents_counts: if(name, do: Analytics.module_dependents_timeseries(scoped).counts)
-    })
+    }
   end
 
   defp analytics_opts(project, params) do
-    Enum.reject(
-      [
-        project_id: project.id,
-        start_datetime: params[:start_datetime],
-        end_datetime: params[:end_datetime],
-        is_ci: params[:is_ci],
-        git_branch: blank_to_nil(params[:git_branch])
-      ],
-      fn {_key, value} -> is_nil(value) end
-    )
+    case Analytics.module_window(params[:start_datetime], params[:end_datetime]) do
+      {:ok, start_datetime, end_datetime} ->
+        {:ok,
+         Enum.reject(
+           [
+             project_id: project.id,
+             start_datetime: start_datetime,
+             end_datetime: end_datetime,
+             is_ci: params[:is_ci],
+             git_branch: blank_to_nil(params[:git_branch])
+           ],
+           fn {_key, value} -> is_nil(value) end
+         )}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp bad_request(conn, message) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: message})
   end
 
   defp put_present(opts, params, keys) do

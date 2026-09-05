@@ -94,6 +94,19 @@ defmodule TuistWeb.API.ModuleCacheControllerTest do
 
       assert json_response(conn, :bad_request)
     end
+
+    test "rejects a window wider than a year", %{conn: conn, base: base} do
+      params = %{"start_datetime" => "2020-01-01T00:00:00Z", "end_datetime" => "2024-04-30T00:00:00Z"}
+
+      assert %{"message" => message} = conn |> get("#{base}/modules", params) |> json_response(:bad_request)
+      assert message =~ "366 days"
+    end
+
+    test "rejects a window that ends before it starts", %{conn: conn, base: base} do
+      params = %{"start_datetime" => "2024-04-30T00:00:00Z", "end_datetime" => "2024-04-01T00:00:00Z"}
+
+      assert conn |> get("#{base}/modules", params) |> json_response(:bad_request)
+    end
   end
 
   describe "GET /module-cache/modules/:module_name" do
@@ -186,6 +199,16 @@ defmodule TuistWeb.API.ModuleCacheControllerTest do
       params = @window |> Map.put("after", "a") |> Map.put("before", "b")
 
       assert conn |> get("#{base}/modules/Core/builds", params) |> json_response(:bad_request)
+    end
+  end
+
+  describe "window validation" do
+    test "guards every action", %{conn: conn, base: base} do
+      params = %{"start_datetime" => "2020-01-01T00:00:00Z", "end_datetime" => "2024-04-30T00:00:00Z"}
+
+      for path <- ["/modules", "/modules/Core", "/modules/Core/builds", "/metrics"] do
+        assert conn |> get("#{base}#{path}", params) |> json_response(:bad_request)
+      end
     end
   end
 

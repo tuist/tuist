@@ -9,12 +9,14 @@ defmodule Tuist.MCP.Components.Tools.ModuleCacheTools do
   Builds the option list the module cache analytics functions take from the tool
   arguments, or an error when a datetime argument does not parse.
 
-  Absent options are dropped rather than passed as nil so the analytics layer
-  applies its own defaults: a 30 day window, and no environment or branch filter.
+  The window is resolved and range-capped by `Analytics.module_window/2`; the
+  filters are dropped when absent rather than passed as nil, so an unset one
+  covers everything.
   """
   def analytics_opts(project, args) do
     with {:ok, start_datetime} <- parse_datetime(args, "start_datetime"),
-         {:ok, end_datetime} <- parse_datetime(args, "end_datetime") do
+         {:ok, end_datetime} <- parse_datetime(args, "end_datetime"),
+         {:ok, start_datetime, end_datetime} <- Analytics.module_window(start_datetime, end_datetime) do
       opts =
         Enum.reject(
           [

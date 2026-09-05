@@ -7557,6 +7557,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Module cache metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -21304,6 +21310,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of modules
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -26372,6 +26384,12 @@ paths:
                 x-struct:
                 x-validate:
           description: The module
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:

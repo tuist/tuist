@@ -2911,6 +2911,34 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  @max_module_window_seconds 366 * 24 * 60 * 60
+  @default_module_window_days 30
+
+  @doc """
+  Resolves a module cache analytics window from an optional start and end,
+  defaulting to the last 30 days, and rejects a range wider than a year.
+
+  These queries emit a bucket per day and scan `xcode_targets` over the whole
+  window, so an unbounded range is the most expensive read the module cache has.
+  The dashboard picks its own bounded ranges; this is the guard for the callers
+  that pass whatever they like.
+  """
+  def module_window(start_datetime, end_datetime) do
+    end_datetime = end_datetime || DateTime.utc_now()
+    start_datetime = start_datetime || DateTime.add(end_datetime, -@default_module_window_days, :day)
+
+    cond do
+      DateTime.compare(end_datetime, start_datetime) != :gt ->
+        {:error, "end_datetime must be after start_datetime."}
+
+      DateTime.diff(end_datetime, start_datetime) > @max_module_window_seconds ->
+        {:error, "The requested time range exceeds the maximum of 366 days."}
+
+      true ->
+        {:ok, start_datetime, end_datetime}
+    end
+  end
+
   @doc """
   One module's invalidation row, or nil when the module took part in no build in
   the window.
