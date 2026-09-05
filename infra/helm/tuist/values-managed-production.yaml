@@ -52,6 +52,15 @@ registry:
     limits:
       cpu: "4"
       memory: "4Gi"
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-production` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
   replicaCount: 2
@@ -71,12 +80,6 @@ server:
 
   config:
     atlasEmail:
-      enabled: true
-    # SENTRY_HIVE 1P item exists in `tuist-k8s-production`; the DSN (same
-    # value as canary and staging) is synced in as TUIST_SENTRY_HIVE_DSN
-    # and the `hive_error_tracking_enabled` flag in `/ops/flags` decides at
-    # runtime whether envelopes go there instead of Sentry.
-    hiveSentry:
       enabled: true
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -338,7 +341,14 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      item: kura-sentry
+      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
+      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
+      # `tuist-k8s-production` holds the Hive DSN under the default
+      # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
+      # remoteRef whose item is missing fails the whole `kura-shared-secrets`
+      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
+      # flip this back to `kura-sentry` and reroll.
+      item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
