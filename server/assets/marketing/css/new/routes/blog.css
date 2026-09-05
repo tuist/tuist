@@ -302,16 +302,14 @@
     & > [data-part="post"] {
       display: flex;
       flex-direction: column;
-      transition: background 0.2s ease;
       padding: var(--noora-spacing-8);
       color: inherit;
       text-decoration: none;
 
-      /* :focus-visible too, so the arrow isn't hover-only for keyboard use. */
+      /* Hovering a card only reveals its arrow — no background change.
+         :focus-visible too, so the arrow isn't hover-only for keyboard use. */
       &:hover,
       &:focus-visible {
-        background: var(--noora-surface-background-secondary);
-
         /* Spelled out to the icon rather than a descendant match: the rule that
            hides it further down is `> [footer] > [icon]`, which ties on
            specificity and would win on source order. */
@@ -322,7 +320,10 @@
       }
 
       & > [data-part="cover"] {
-        background: var(--marketing-illustration-neutral-2);
+        /* The tertiary surface is the ground the post covers are drawn on,
+           so the case studies' dot-field artwork (which has no ground of
+           its own) sits on the same color as the post cards. */
+        background: var(--noora-surface-background-tertiary);
         aspect-ratio: 16 / 9;
         overflow: hidden;
 
@@ -331,6 +332,15 @@
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        /* The SVG cover artwork (MarketingBlogCovers) fills the same 16:9
+           box; currentColor carries its near-black paints across themes. */
+        & > [data-part="artwork"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          color: var(--noora-surface-label-primary);
         }
       }
 

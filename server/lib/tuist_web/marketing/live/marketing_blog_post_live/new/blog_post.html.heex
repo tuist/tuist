@@ -17,12 +17,20 @@
         </div>
       </header>
 
-      <img
-        data-part="image"
-        src={TuistWeb.Marketing.MarketingHTML.static_asset_path(@post_image_url)}
-        alt=""
-        decoding="async"
-      />
+      <%= if TuistWeb.Marketing.MarketingBlogCovers.cover?(@post) do %>
+        <%!-- The same generated artwork as the index cards, in the hero's
+        image frame. --%>
+        <div data-part="image">
+          <TuistWeb.Marketing.MarketingBlogCovers.cover post={@post} />
+        </div>
+      <% else %>
+        <img
+          data-part="image"
+          src={TuistWeb.Marketing.MarketingHTML.static_asset_path(@post_image_url)}
+          alt=""
+          decoding="async"
+        />
+      <% end %>
 
       <section id="blog-post-content" data-part="content" data-prose>
         {render_post_body(@post, assigns)}
@@ -40,13 +48,17 @@
           href={Localization.localized_href(post.slug)}
         >
           <div data-part="cover">
-            <img
-              data-part="image"
-              src={TuistWeb.Marketing.MarketingHTML.static_asset_path(post_image_url(post))}
-              alt=""
-              loading="lazy"
-              decoding="async"
-            />
+            <%= if TuistWeb.Marketing.MarketingBlogCovers.cover?(post) do %>
+              <TuistWeb.Marketing.MarketingBlogCovers.cover post={post} />
+            <% else %>
+              <img
+                data-part="image"
+                src={TuistWeb.Marketing.MarketingHTML.static_asset_path(post_image_url(post))}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            <% end %>
           </div>
           <div data-part="content">
             <h3 data-part="title">{post.title}</h3>
@@ -86,8 +98,7 @@
         data-phase="22.1"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="cta" aria-labelledby="cta-title">
@@ -123,8 +134,7 @@
         data-phase="29.6"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
   </main>
 
