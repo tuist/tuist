@@ -26,6 +26,10 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert %{"invocations" => [invocation], "pagination_metadata" => _} = json_response(conn, 200)
       assert invocation["invocation_id"] == "invocation-1"
       assert invocation["command"] == "test"
+      assert invocation["target_patterns"] == ["//..."]
+      assert invocation["git_branch"] == "feature/bazel"
+      assert invocation["git_commit_sha"] == "abcdef"
+      assert invocation["is_ci"]
       assert invocation["status"] == "success"
       assert invocation["duration_ms"] == 15_000
       assert invocation["cache"]["hits"] == 1
@@ -41,6 +45,47 @@ defmodule TuistWeb.API.BazelControllerTest do
       conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations?status=failure")
 
       assert %{"invocations" => [%{"invocation_id" => "failed"}]} = json_response(conn, 200)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/bazel/invocations/:invocation_id/logs" do
+    test "lists invocation logs in Build Event Protocol order", %{conn: conn, user: user, project: project} do
+      create_invocation_log(project, "invocation-1", 20, "second")
+      create_invocation_log(project, "invocation-1", 10, "first")
+
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations/invocation-1/logs"
+        )
+
+      assert %{"logs" => logs, "pagination_metadata" => _} = json_response(conn, 200)
+      assert Enum.map(logs, & &1["sequence_number"]) == [10, 20]
+      assert Enum.map(logs, & &1["message"]) == ["first", "second"]
+    end
+
+    test "gets one invocation log without crossing invocation boundaries", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      log_id = create_invocation_log(project, "invocation-1", 10, "first")
+
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations/invocation-1/logs/#{log_id}"
+        )
+
+      assert %{"id" => ^log_id, "message" => "first"} = json_response(conn, 200)
+
+      conn =
+        conn
+        |> recycle()
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations/another-invocation/logs/#{log_id}")
+
+      assert %{"message" => "Bazel invocation log not found."} = json_response(conn, 404)
     end
   end
 
@@ -121,6 +166,10 @@ defmodule TuistWeb.API.BazelControllerTest do
       %{
         invocation_id: invocation_id,
         command: Keyword.get(options, :command, "test"),
+        target_patterns: ["//..."],
+        git_branch: "feature/bazel",
+        git_commit_sha: "abcdef",
+        is_ci: true,
         status: Keyword.get(options, :status, "success"),
         exit_code: Keyword.get(options, :exit_code, 0),
         started_at: started_at,
@@ -132,6 +181,24 @@ defmodule TuistWeb.API.BazelControllerTest do
         cache_endpoint: "cache.tuist.dev"
       }
     ])
+  end
+
+  defp create_invocation_log(project, invocation_id, sequence_number, message) do
+    id = UUIDv7.generate()
+
+    Bazel.create_invocation_logs([
+      %{
+        id: id,
+        invocation_id: invocation_id,
+        sequence_number: sequence_number,
+        stream: "stdout",
+        message: message,
+        project_id: project.id,
+        observed_at: ~N[2026-09-04 12:00:00]
+      }
+    ])
+
+    id
   end
 
   defp create_cache_event(project, invocation_id, outcome, size) do

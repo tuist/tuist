@@ -111,6 +111,19 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
+  # Project-owned raw image (logo) endpoint. Skips `:accepts` because the URL
+  # has no format suffix and Open Graph crawlers vary in the Accept headers
+  # they send; the controller sets the content-type from the stored object.
+  pipeline :project_asset do
+    plug :put_request_kind, "project_asset"
+    plug :disable_robot_indexing
+    plug :fetch_session
+    plug :put_secure_browser_headers
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug :content_security_policy
+  end
+
   pipeline :ueberauth do
     plug :put_request_kind, "auth"
     plug :accepts, ["html"]
@@ -737,6 +750,8 @@ defmodule TuistWeb.Router do
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
+          get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
@@ -1061,6 +1076,12 @@ defmodule TuistWeb.Router do
 
     get "/latest/badge.svg", PreviewController, :latest_badge
     get "/:id/icon.png", PreviewController, :download_icon
+  end
+
+  scope "/:account_handle/:project_handle", TuistWeb do
+    pipe_through [:project_asset]
+
+    get "/logo", ProjectLogoController, :show
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do

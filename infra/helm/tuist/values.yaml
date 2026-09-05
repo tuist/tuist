@@ -838,7 +838,8 @@ server:
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix
-  # web endpoint and (b) narrows the Oban queue set to :process_build only.
+  # web endpoint and (b) narrows the Oban queue set to :process_build and
+  # :process_bazel_tests, each with an independent concurrency limit.
   # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
   # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
   # claim more work, so jobs naturally flow to whichever replica has headroom.
@@ -851,6 +852,10 @@ processor:
   # Per-pod Oban concurrency for the :process_build queue. Total parse
   # parallelism is replicaCount * queueConcurrency.
   queueConcurrency: 5
+  # Per-pod concurrency for the memory- and input/output-bound Bazel test
+  # report processor. Keeping this separate prevents a burst of reports from
+  # consuming xcactivitylog parsing capacity.
+  bazelTestQueueConcurrency: 1
   resources: {}
   extraEnv: []
   # When true, the chart provisions an ExternalSecret that syncs the

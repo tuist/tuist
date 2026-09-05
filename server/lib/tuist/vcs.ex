@@ -788,38 +788,49 @@ defmodule Tuist.VCS do
     else
       project = Repo.preload(project, :account)
 
-      {xcode_runs, gradle_runs} = Enum.split_with(test_runs, &(&1.build_system != "gradle"))
-      has_multiple_build_systems = xcode_runs != [] and gradle_runs != []
+      runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
 
-      xcode_body =
-        get_xcode_test_body(%{
-          test_runs: xcode_runs,
-          git_remote_url_origin: git_remote_url_origin,
-          test_run_url: test_run_url,
-          project: project
-        })
+      sections =
+        Enum.reject(
+          [
+            {"Xcode",
+             get_xcode_test_body(
+               test_body_args(runs_by_build_system["xcode"], project, git_remote_url_origin, test_run_url)
+             )},
+            {"Gradle",
+             get_gradle_test_body(
+               test_body_args(runs_by_build_system["gradle"], project, git_remote_url_origin, test_run_url)
+             )},
+            {"Bazel",
+             get_bazel_test_body(
+               test_body_args(runs_by_build_system["bazel"], project, git_remote_url_origin, test_run_url)
+             )}
+          ],
+          fn {_name, body} -> body == "" end
+        )
 
-      gradle_body =
-        get_gradle_test_body(%{
-          test_runs: gradle_runs,
-          git_remote_url_origin: git_remote_url_origin,
-          test_run_url: test_run_url,
-          project: project
-        })
-
-      xcode_section =
-        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-
-      gradle_section =
-        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      section_body =
+        case sections do
+          [{_name, body}] -> body
+          sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
+        end
 
       """
 
       #### Tests 🧪
 
-      #{xcode_section}#{gradle_section}
+      #{section_body}
       """
     end
+  end
+
+  defp test_body_args(test_runs, project, git_remote_url_origin, test_run_url) do
+    %{
+      test_runs: test_runs || [],
+      git_remote_url_origin: git_remote_url_origin,
+      test_run_url: test_run_url,
+      project: project
+    }
   end
 
   defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
@@ -878,6 +889,33 @@ defmodule Tuist.VCS do
       end)
 
     "| Project | Status | Tests | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
+  end
+
+  defp get_bazel_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_bazel_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
+        git_commit_sha = test_run.git_commit_sha
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+
+        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+      end)
+
+    "| Target patterns | Status | Tests | Commit |\n" <>
       "|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
