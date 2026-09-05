@@ -51,10 +51,16 @@ Your current limits are shown alongside each chart. If your workflows regularly 
 <HomeCards>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Getting started"
-        details="Connect GitHub or Buildkite, point a job at a Tuist profile, and run it on the fleet."
+        title="GitHub Actions"
+        details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
         linkText="Get started"
-        link="/guides/features/runners/getting-started"/>
+        link="/guides/features/runners/github-actions"/>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
+        title="Buildkite"
+        details="Connect your cluster, name a queue after a Tuist profile, and target it from a step."
+        linkText="Get started"
+        link="/guides/features/runners/buildkite"/>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
         title="Profiles"
