@@ -9,6 +9,10 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
       "properties" => %{
         "invocation_id" => %{"type" => "string"},
         "command" => %{"type" => "string"},
+        "target_patterns" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "git_branch" => %{"type" => "string"},
+        "git_commit_sha" => %{"type" => "string"},
+        "is_ci" => %{"type" => "boolean"},
         "status" => %{"type" => "string"},
         "exit_code" => %{"type" => "integer"},
         "started_at" => %{"type" => "string"},
@@ -19,6 +23,10 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
       "required" => [
         "invocation_id",
         "command",
+        "target_patterns",
+        "git_branch",
+        "git_commit_sha",
+        "is_ci",
         "status",
         "exit_code",
         "started_at",
@@ -34,6 +42,10 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
     %{
       invocation_id: invocation.invocation_id,
       command: invocation.command,
+      target_patterns: invocation.target_patterns,
+      git_branch: invocation.git_branch,
+      git_commit_sha: invocation.git_commit_sha,
+      is_ci: invocation.is_ci,
       status: to_string(invocation.status),
       exit_code: invocation.exit_code,
       started_at: Formatter.iso8601(invocation.started_at, naive: :utc),

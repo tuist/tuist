@@ -335,7 +335,6 @@ msgid "Skipped"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:947
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:96
 #: lib/tuist_web/live/runner_job_live.html.heex:95
 #: lib/tuist_web/live/runner_jobs_live.ex:490
 #: lib/tuist_web/live/runner_jobs_live.html.heex:364
@@ -1427,17 +1426,17 @@ msgstr ""
 msgid "Create it under your cluster's Agent Tokens in Buildkite. It is stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:108
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:99
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Last checked"
 msgstr ""
 
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:103
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Not yet"
 msgstr ""
@@ -1447,7 +1446,7 @@ msgstr ""
 msgid "Organization slug"
 msgstr ""
 
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:118
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Queues"
 msgstr ""
@@ -1477,7 +1476,7 @@ msgstr ""
 msgid "Optional. Only used to label this connection in the dashboard."
 msgstr ""
 
-#: lib/tuist_web/live/runner_buildkite_live.html.heex:125
+#: lib/tuist_web/live/runner_buildkite_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Tuist runs a Buildkite job when its queue key matches one of your runner profiles. Create a self-hosted queue in your cluster with one of these keys, then target it with agents: { queue: ... } in your pipeline."
 msgstr ""

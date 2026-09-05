@@ -1,18 +1,39 @@
 # Bazel Invocation Insights
 
-This boundary owns completed Bazel invocation records delivered from Kura's
-[Build Event Protocol](https://bazel.build/remote/bep) receiver.
+This boundary owns Bazel invocation records and test artifacts received from
+Kura. Kura terminates Bazel's [Build Event Service](https://bazel.build/remote/bep)
+and forwards completed invocation summaries to the Tuist server. The server
+does not expose a second Build Event Service listener.
 
-## Boundaries
+## Test artifacts
 
-- `bazel_invocations` stores one completed Bazel command. It contains command
-  kind, result, duration, timestamps, and project-scoping metadata, but never
-  the full command line, environment, build artifacts, or test output.
-- Remote-cache observations remain in `Tuist.ReapiCache`. They are correlated
-  only when their Bazel invocation identifier matches a completed invocation.
-  Do not derive a command result or duration from cache traffic.
-- Invocation data is stored in ClickHouse for 90 days. Retained fields and
-  retention must stay documented in `server/data-export.md` and the public
-  data-retention guide.
-- Public readers are the Bazel REST endpoints and the Model Context Protocol
-  tools. Keep their response schemas in sync with this context.
+- Kura recognizes only Bazel's conventional `test.xml` and `test.log` files
+  referenced by Build Event Protocol test-result events.
+- Kura queues per-attempt facts, per-target summaries, and artifact digests,
+  reads at most 256 KiB per artifact under a background-memory reservation,
+  and posts at most two files per result to the signed test-artifacts webhook.
+  Results never wait for queue capacity. The completion marker waits for
+  bounded capacity so accepted events remain ordered.
+- The webhook performs bounded validation and upserts raw results and summaries
+  in PostgreSQL without parsing Extensible Markup Language. Each invocation may
+  stage at most 64 mebibytes of artifact bodies. The invocation completion event
+  schedules an idempotent Oban job.
+- The build processor consumes the dedicated `:process_bazel_tests` queue with
+  its own concurrency limit, waits for the completed invocation for at most 15
+  minutes, combines all delivered targets and attempts into one shared test
+  run, and stores sanitized `test.log` output as invocation logs.
+- Tuist never pulls cache artifacts from Kura. Artifact delivery is bounded and
+  best effort, so a lost diagnostic never affects a build or cache operation.
+
+## Data handling
+
+- `bazel_invocations` stores completed commands received from Kura.
+- `bazel_invocation_logs` stores sanitized, ordered log chunks in ClickHouse.
+- `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
+  durably stage bounded raw test results in PostgreSQL until processing
+  succeeds; an indexed, batched daily job removes any records older than 90
+  days.
+- Test cases and failure details derived from JUnit reports use the shared
+  `test_runs` data model and retain the Bazel invocation identifier.
+- Update `server/data-export.md` and the public retention guide whenever a
+  retained field, table, or retention period changes.
