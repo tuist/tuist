@@ -130,13 +130,22 @@ variable "runner_version" {
   default = "2.336.0"
 }
 
+variable "buildkite_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 agent tarball, from the release's own SHA256SUMS."
+  # Carried with `buildkite_agent_version`: the download is verified
+  # against this before extraction, so a stale value fails the build
+  # rather than installing an unchecked binary.
+  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+}
+
 variable "buildkite_agent_version" {
   type        = string
   description = "Buildkite agent version. https://github.com/buildkite/agent/releases."
   # Same pinning rationale as `runner_version`, and the same Renovate
   # flow keeps it current.
   # renovate: datasource=github-releases depName=buildkite/agent
-  default = "3.87.0"
+  default = "3.138.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -358,6 +367,7 @@ build {
       "set -euo pipefail",
       "cd /tmp",
       "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
+      "echo '${var.buildkite_agent_sha256_darwin_arm64}  buildkite-agent.tar.gz' | shasum -a 256 -c -",
       "mkdir -p /tmp/buildkite-agent-dist",
       "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
       "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
