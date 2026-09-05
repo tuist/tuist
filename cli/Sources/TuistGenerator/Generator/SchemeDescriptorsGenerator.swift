@@ -244,10 +244,6 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
 
-        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
-        ]
-
         var entries: [XCScheme.BuildAction.Entry] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
@@ -266,6 +262,15 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+            let buildFor: [XCScheme.BuildAction.Entry.BuildFor]
+            if let selectedBuildForOptions = buildAction.buildFor[buildActionTarget] {
+                buildFor = BuildAction.BuildFor.allCases
+                    .filter(selectedBuildForOptions.contains)
+                    .map(\.xcodeProjBuildFor)
+            } else {
+                buildFor = BuildAction.BuildFor.allCases.map(\.xcodeProjBuildFor)
+            }
+
             entries.append(
                 XCScheme.BuildAction.Entry(
                     buildableReference: buildableReference, buildFor: buildFor
@@ -1173,6 +1178,23 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             return true
         default:
             return nil
+        }
+    }
+}
+
+private extension BuildAction.BuildFor {
+    var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
+        switch self {
+        case .analyzing:
+            return .analyzing
+        case .archiving:
+            return .archiving
+        case .profiling:
+            return .profiling
+        case .running:
+            return .running
+        case .testing:
+            return .testing
         }
     }
 }
