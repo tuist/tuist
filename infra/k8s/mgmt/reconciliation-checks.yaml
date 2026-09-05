@@ -37,13 +37,19 @@ metadata:
     app.kubernetes.io/name: reconciliation-checks
     app.kubernetes.io/managed-by: tuist-bootstrap
 ---
-# Read-only across two namespaces (clusters/machines in org-tuist,
-# kustomizations in flux-system), so a cluster-scoped read ClusterRole.
+# Read-only, and cluster-scoped: Nodes are cluster-scoped, and the CAPI objects
+# and Flux Kustomizations live in different namespaces.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: reconciliation-checks
 rules:
+  # This cluster's own Nodes: their providerIDs are what excludes the management
+  # VM from the orphan check (mgmt does not self-manage, so its Hetzner server
+  # has no owning Machine and would be reported every run).
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: ["clusters", "machines"]
     verbs: ["get", "list"]
