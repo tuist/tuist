@@ -1,0 +1,8 @@
+# Management cluster overrides for cloudflare-operator. The operator
+# runs here (not in the workload clusters) because Cloudflare zone
+# configuration is global, not per-env.
+
+image:
+  # Set at deploy time by the release workflow (defaults to the
+  # chart's appVersion).
+  tag: ""

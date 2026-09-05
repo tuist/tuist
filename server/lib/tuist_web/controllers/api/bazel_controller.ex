@@ -53,6 +53,10 @@ defmodule TuistWeb.API.BazelController do
     properties: %{
       invocation_id: %Schema{type: :string},
       command: %Schema{type: :string},
+      target_patterns: %Schema{type: :array, items: %Schema{type: :string}},
+      git_branch: %Schema{type: :string},
+      git_commit_sha: %Schema{type: :string},
+      is_ci: %Schema{type: :boolean},
       status: %Schema{type: :string, enum: ["success", "failure"]},
       exit_code: %Schema{type: :integer},
       started_at: %Schema{type: :string, format: :"date-time"},
@@ -60,7 +64,32 @@ defmodule TuistWeb.API.BazelController do
       duration_ms: %Schema{type: :integer},
       cache: @cache_summary_schema
     },
-    required: [:invocation_id, :command, :status, :exit_code, :started_at, :finished_at, :duration_ms, :cache]
+    required: [
+      :invocation_id,
+      :command,
+      :target_patterns,
+      :git_branch,
+      :git_commit_sha,
+      :is_ci,
+      :status,
+      :exit_code,
+      :started_at,
+      :finished_at,
+      :duration_ms,
+      :cache
+    ]
+  }
+  @invocation_log_schema %Schema{
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, format: :uuid},
+      invocation_id: %Schema{type: :string},
+      sequence_number: %Schema{type: :integer},
+      stream: %Schema{type: :string},
+      message: %Schema{type: :string},
+      observed_at: %Schema{type: :string, format: :"date-time"}
+    },
+    required: [:id, :invocation_id, :sequence_number, :stream, :message, :observed_at]
   }
   @cache_event_schema %Schema{
     type: :object,
@@ -145,6 +174,97 @@ defmodule TuistWeb.API.BazelController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "Bazel invocation not found."})
+    end
+  end
+
+  operation(:list_invocation_logs,
+    summary: "List the sanitized logs captured for a Bazel invocation.",
+    operation_id: "listBazelInvocationLogs",
+    parameters:
+      @project_parameters ++
+        @pagination_parameters ++
+        [
+          invocation_id: [
+            in: :path,
+            type: :string,
+            required: true,
+            description: "The Bazel invocation identifier."
+          ]
+        ],
+    responses: %{
+      ok:
+        {"List of Bazel invocation logs", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             logs: %Schema{type: :array, items: @invocation_log_schema},
+             pagination_metadata: PaginationMetadata
+           },
+           required: [:logs, :pagination_metadata]
+         }},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def list_invocation_logs(
+        %{
+          assigns: %{selected_project: project},
+          params: %{invocation_id: invocation_id, page: page, page_size: page_size}
+        } = conn,
+        _params
+      ) do
+    {logs, meta} =
+      Bazel.list_invocation_logs(project.id, invocation_id, %{
+        order_by: [:sequence_number],
+        order_directions: [:asc],
+        page: page,
+        page_size: page_size
+      })
+
+    json(conn, %{logs: Enum.map(logs, &invocation_log_json/1), pagination_metadata: pagination_json(meta)})
+  end
+
+  operation(:get_invocation_log,
+    summary: "Get one sanitized log captured for a Bazel invocation.",
+    operation_id: "getBazelInvocationLog",
+    parameters:
+      @project_parameters ++
+        [
+          invocation_id: [
+            in: :path,
+            type: :string,
+            required: true,
+            description: "The Bazel invocation identifier."
+          ],
+          invocation_log_id: [
+            in: :path,
+            type: %Schema{type: :string, format: :uuid},
+            required: true,
+            description: "The invocation log identifier."
+          ]
+        ],
+    responses: %{
+      ok: {"Bazel invocation log", "application/json", @invocation_log_schema},
+      not_found: {"Bazel invocation log not found", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def get_invocation_log(
+        %{
+          assigns: %{selected_project: project},
+          params: %{invocation_id: invocation_id, invocation_log_id: invocation_log_id}
+        } = conn,
+        _params
+      ) do
+    case Bazel.get_invocation_log(project.id, invocation_id, invocation_log_id) do
+      {:ok, log} ->
+        json(conn, invocation_log_json(log))
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Bazel invocation log not found."})
     end
   end
 
@@ -234,12 +354,27 @@ defmodule TuistWeb.API.BazelController do
     %{
       invocation_id: invocation.invocation_id,
       command: invocation.command,
+      target_patterns: invocation.target_patterns,
+      git_branch: invocation.git_branch,
+      git_commit_sha: invocation.git_commit_sha,
+      is_ci: invocation.is_ci,
       status: invocation.status,
       exit_code: invocation.exit_code,
       started_at: invocation.started_at,
       finished_at: invocation.finished_at,
       duration_ms: invocation.duration_ms,
       cache: invocation.cache
+    }
+  end
+
+  defp invocation_log_json(log) do
+    %{
+      id: log.id,
+      invocation_id: log.invocation_id,
+      sequence_number: log.sequence_number,
+      stream: log.stream,
+      message: log.message,
+      observed_at: log.observed_at
     }
   end
 

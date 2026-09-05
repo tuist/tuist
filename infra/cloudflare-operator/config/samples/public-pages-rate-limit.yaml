@@ -1,0 +1,48 @@
+# The rate limit currently live on tuist.dev, codified so future edits
+# happen via PR against this file rather than the Cloudflare dashboard.
+#
+# Counts responses from origin that carry `x-tuist-public: 1` (set by
+# TuistWeb.Plugs.PublicPageHeaderPlug on URLs reachable without sign-in)
+# and applies Managed Challenge to the source IP + edge datacenter
+# when the threshold is crossed.
+#
+# Safe-first-deploy notes:
+#   - `mode: read_only` (the default) is set explicitly so a reader
+#     sees it. In read_only the operator only reports what it would
+#     do; flip to `active` after a zero-change reconcile has been
+#     observed.
+#   - `adopt.ruleId` MUST be filled in with the id of the existing
+#     dashboard rule before applying — leaving it empty and setting
+#     `createNewRule: true` would create a second rule alongside the
+#     live one. Look the id up via `curl` against Cloudflare's
+#     rulesets endpoint, or in the URL of the dashboard rule.
+#   - `retainOnDelete: true` (the default) keeps the Cloudflare rule
+#     in place if the CR is deleted. Set to `false` only for rules
+#     the operator itself created.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareRateLimit
+metadata:
+  name: public-pages-anti-bombardment
+spec:
+  # tuist.dev — set the actual zone id at deploy time. Kept as a
+  # placeholder here so the sample can live in a public repo.
+  zoneId: REPLACE_WITH_ZONE_ID
+  description: "Public pages – anti-bombardment"
+  expression: "(http.request.method eq \"GET\")"
+  action: managed_challenge
+  mode: read_only
+  # Adopt the dashboard-created rule; fill in its id before applying.
+  adopt:
+    ruleId: REPLACE_WITH_DASHBOARD_RULE_ID
+  retainOnDelete: true
+  ratelimit:
+    # cf.colo.id is required by Cloudflare's Advanced Rate Limiting API
+    # so counting is scoped per edge datacenter. ip.src makes the key
+    # per-visitor within a datacenter.
+    characteristics:
+      - "cf.colo.id"
+      - "ip.src"
+    requestsPerPeriod: 60
+    period: 10
+    mitigationTimeoutSeconds: 60
+    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"

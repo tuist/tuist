@@ -44,6 +44,11 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   end
 
   defp invocation_from_event(event, projects_map, cache_endpoint) when is_map(event) do
+    target_patterns = Map.get(event, "target_patterns", [])
+    git_branch = Map.get(event, "git_branch", "")
+    git_commit_sha = Map.get(event, "git_commit_sha", "")
+    is_ci = Map.get(event, "is_ci", false)
+
     with %{
            "account_handle" => account_handle,
            "project_handle" => project_handle,
@@ -55,13 +60,17 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
            "finished_at_ms" => finished_at_ms
          } <- event,
          %{id: project_id, build_system: :bazel} <- Map.get(projects_map, "#{account_handle}/#{project_handle}"),
-         true <- valid_event?(invocation_id, command, status, exit_code, started_at_ms, finished_at_ms),
+         true <- valid_event?(event),
          {:ok, started_at} <- DateTime.from_unix(started_at_ms, :millisecond),
          {:ok, finished_at} <- DateTime.from_unix(finished_at_ms, :millisecond),
          true <- DateTime.compare(finished_at, started_at) != :lt do
       %{
         invocation_id: invocation_id,
         command: command,
+        target_patterns: target_patterns,
+        git_branch: git_branch,
+        git_commit_sha: git_commit_sha,
+        is_ci: is_ci,
         status: status,
         exit_code: exit_code,
         started_at: started_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second),
@@ -91,13 +100,27 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
   defp invocation_from_event(_, _, _), do: nil
 
-  defp valid_event?(invocation_id, command, status, exit_code, started_at_ms, finished_at_ms) do
-    valid_identifiers?(invocation_id, command) and valid_result?(status, exit_code) and
-      valid_timestamps?(started_at_ms, finished_at_ms)
+  defp valid_event?(event) do
+    valid_identifiers?(event["invocation_id"], event["command"]) and
+      valid_context?(
+        Map.get(event, "target_patterns", []),
+        Map.get(event, "git_branch", ""),
+        Map.get(event, "git_commit_sha", ""),
+        Map.get(event, "is_ci", false)
+      ) and
+      valid_result?(event["status"], event["exit_code"]) and
+      valid_timestamps?(event["started_at_ms"], event["finished_at_ms"])
   end
 
   defp valid_identifiers?(invocation_id, command),
     do: is_binary(invocation_id) and invocation_id != "" and is_binary(command)
+
+  defp valid_context?(target_patterns, git_branch, git_commit_sha, is_ci) do
+    is_list(target_patterns) and length(target_patterns) <= 128 and
+      Enum.all?(target_patterns, &(is_binary(&1) and byte_size(&1) <= 1_024)) and
+      is_binary(git_branch) and byte_size(git_branch) <= 1_024 and
+      is_binary(git_commit_sha) and byte_size(git_commit_sha) <= 1_024 and is_boolean(is_ci)
+  end
 
   defp valid_result?(status, exit_code), do: status in ["success", "failure"] and is_integer(exit_code)
 

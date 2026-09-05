@@ -14,6 +14,10 @@ defmodule Tuist.Bazel.Invocation do
     field :id, Ch, type: "UUID"
     field :invocation_id, Ch, type: "String"
     field :command, Ch, type: "LowCardinality(String)"
+    field :target_patterns, {:array, Ch}, type: "String", default: []
+    field :git_branch, Ch, type: "String", default: ""
+    field :git_commit_sha, Ch, type: "String", default: ""
+    field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
     field :exit_code, Ch, type: "Int32"
     field :started_at, Ch, type: "DateTime"

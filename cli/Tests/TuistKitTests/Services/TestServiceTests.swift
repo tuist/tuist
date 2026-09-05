@@ -4616,9 +4616,10 @@ final class TestServiceTests: TuistUnitTestCase {
                     gitRemoteURLOrigin: .any, isCI: .any, modelIdentifier: .any,
                     macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                     ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
-                    shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any
+                    shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
+                    stressNewTests: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)

@@ -43,7 +43,7 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
       :inserted_at
     ])
     |> validate_required([:id, :test_case_run_id, :repetition_number, :name, :status])
-    |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
     |> validate_inclusion(:source, ["run", "stress"])
   end
 end

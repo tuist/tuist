@@ -226,6 +226,13 @@
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@run.build_system == "bazel"}
+      label={dgettext("dashboard_tests", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
 
   <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
@@ -323,7 +330,7 @@
                 data-part="value"
               />
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -332,7 +339,7 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -2189,4 +2196,21 @@
       />
     </.card_section>
   </.card>
+
+  <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      id="bazel-invocation-logs-list"
+      logs={@bazel_invocation_logs}
+      empty_message={
+        dgettext("dashboard_tests", "No logs were captured for this Bazel invocation.")
+      }
+    />
+    <.pagination_group
+      :if={@bazel_invocation_logs_meta.total_pages > 1}
+      current_page={@bazel_invocation_logs_meta.current_page}
+      number_of_pages={@bazel_invocation_logs_meta.total_pages}
+      page_patch={fn page -> "?#{Query.put(@uri.query, "logs-page", page)}" end}
+    />
+  </div>
 </div>

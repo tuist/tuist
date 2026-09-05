@@ -44,6 +44,7 @@ defmodule Tuist.Tests.Test do
     field :account_id, Ch, type: "Int64"
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
+    field :bazel_invocation_id, Ch, type: "String", default: ""
     field :ci_run_id, Ch, type: "String", default: ""
     field :ci_project_handle, Ch, type: "String", default: ""
     field :ci_host, Ch, type: "String", default: ""
@@ -91,6 +92,7 @@ defmodule Tuist.Tests.Test do
       :inserted_at,
       :build_run_id,
       :gradle_build_id,
+      :bazel_invocation_id,
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
@@ -118,7 +120,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

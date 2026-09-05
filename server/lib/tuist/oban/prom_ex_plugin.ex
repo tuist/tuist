@@ -356,6 +356,7 @@ defmodule Tuist.Oban.PromExPlugin do
   defp delegated_queues do
     [
       {:process_build, Environment.delegate_process_build?()},
+      {:process_bazel_tests, Environment.delegate_process_bazel_tests?()},
       {:process_xcresult, Environment.delegate_process_xcresult?()}
     ]
     |> Enum.filter(&elem(&1, 1))
