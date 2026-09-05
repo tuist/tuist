@@ -272,12 +272,6 @@
             variant="secondary"
             phx-click="disconnect-buildkite"
           />
-          <.button
-            type="submit"
-            label={dgettext("dashboard_integrations", "Save changes")}
-            variant="primary"
-            disabled={not @buildkite_has_changes}
-          />
         </div>
       </div>
       <.alert
@@ -314,6 +308,14 @@
           value={@buildkite_form_values["agent_token"]}
           placeholder="••••••••••••"
           error={@buildkite_field_errors["agent_token"]}
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+          disabled={not @buildkite_has_changes}
         />
       </div>
     </form>
