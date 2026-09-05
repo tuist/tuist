@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) || os(Linux)
     import ArgumentParser
     import TuistAlert
     import TuistEnvKey

@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) || os(Linux)
     import FileSystem
     import FileSystemTesting
     import Foundation
@@ -9,7 +9,6 @@
     import TuistConfig
     import TuistConstants
     import TuistRootDirectoryLocator
-
     @testable import TuistConfigLoader
     @testable import TuistLoader
 

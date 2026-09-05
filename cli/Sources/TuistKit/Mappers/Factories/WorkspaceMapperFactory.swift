@@ -4,6 +4,7 @@ import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator
+import TuistGraphLoader
 import XcodeGraph
 #if canImport(TuistCacheEE)
     import TuistCacheEE
@@ -43,33 +44,9 @@ public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
     }
 
     public func `default`(
-        tuist _: Tuist
+        tuist: Tuist
     ) -> [WorkspaceMapping] {
-        var mappers: [WorkspaceMapping] = []
-
-        mappers.append(
-            ProjectWorkspaceMapper(mapper: projectMapper)
-        )
-
-        mappers.append(
-            TuistWorkspaceIdentifierMapper()
-        )
-
-        mappers.append(
-            TuistWorkspaceRenderMarkdownReadmeMapper()
-        )
-
-        mappers.append(
-            IDETemplateMacrosMapper()
-        )
-
-        mappers.append(
-            LastUpgradeVersionWorkspaceMapper()
-        )
-
-        mappers.append(ExternalDependencyPathWorkspaceMapper())
-
-        return mappers
+        DefaultWorkspaceMapperFactory(projectMapper: projectMapper).make(tuist: tuist)
     }
 }
 
@@ -102,10 +79,9 @@ public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
         }
 
         func binaryCacheWarmingPreload(tuist: Tuist) -> [WorkspaceMapping] {
-            let mappers = TuistKit.WorkspaceMapperFactory(projectMapper: projectMapper).default(
+            return TuistKit.WorkspaceMapperFactory(projectMapper: projectMapper).default(
                 tuist: tuist
             )
-            return mappers
         }
 
         func binaryCacheWarming(tuist: Tuist) -> [WorkspaceMapping] {

@@ -14,6 +14,7 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistGenerator
+@testable import TuistGraphLoader
 @testable import TuistKit
 @testable import TuistTesting
 

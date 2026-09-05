@@ -6,7 +6,7 @@ import Path
 import TuistAndroid
 import TuistEnvironment
 
-#if canImport(TuistCore)
+#if canImport(TuistCore) && os(macOS)
     import Command
     import TuistAutomation
     import TuistCore
@@ -22,13 +22,13 @@ import TuistEnvironment
 
 public enum PreviewUploadType: Equatable {
     case apk(path: AbsolutePath, metadata: APKMetadata)
-    #if canImport(TuistCore)
+    #if canImport(TuistCore) && os(macOS)
         case ipa(AppBundle)
         case appBundles([AppBundle])
     #endif
 }
 
-#if canImport(TuistCore)
+#if canImport(TuistCore) && os(macOS)
     public enum PreviewsUploadServiceError: LocalizedError, Equatable {
         case appBundleNotFound(AbsolutePath)
         case binaryIdNotFound(AbsolutePath)
@@ -74,13 +74,13 @@ public protocol PreviewsUploadServicing {
         private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
         private let uploadPreviewIconService: UploadPreviewIconServicing
 
-        #if canImport(TuistCore)
+        #if canImport(TuistCore) && os(macOS)
             private let commandRunner: CommandRunning
             private let precompiledMetadataProvider: PrecompiledMetadataProviding
         #endif
 
         public init() {
-            #if canImport(TuistCore)
+            #if canImport(TuistCore) && os(macOS)
                 self.init(
                     fileSystem: FileSystem(),
                     fileArchiver: FileArchivingFactory(),
@@ -109,7 +109,7 @@ public protocol PreviewsUploadServicing {
             #endif
         }
 
-        #if canImport(TuistCore)
+        #if canImport(TuistCore) && os(macOS)
             init(
                 fileSystem: FileSysteming,
                 fileArchiver: FileArchivingFactorying,
@@ -201,7 +201,7 @@ public protocol PreviewsUploadServicing {
 
                 return preview
 
-            #if canImport(TuistCore)
+            #if canImport(TuistCore) && os(macOS)
                 case let .ipa(bundle):
                     let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
                     let binaryId = try await ipaBinaryId(at: bundle.path)
@@ -374,7 +374,7 @@ public protocol PreviewsUploadServicing {
 
         // MARK: - Apple (macOS-only)
 
-        #if canImport(TuistCore)
+        #if canImport(TuistCore) && os(macOS)
             private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
                 switch previewUploadType {
                 case .apk:

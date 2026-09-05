@@ -1,4 +1,4 @@
-#if canImport(TuistLoader)
+#if canImport(TuistLoader) && os(macOS)
     import FileSystem
     import Foundation
     import Mockable
@@ -7,7 +7,6 @@
     import TuistLoader
     import TuistServer
     import TuistSupport
-
     @testable import TuistRegistryCommand
 
     struct RegistryLogoutServiceTests {

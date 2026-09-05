@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistSupport
 import XCTest
-
 @testable import TuistLoader
 @testable import TuistTesting
 
@@ -10,7 +9,7 @@ final class ManifestLoaderErrorTests: TuistUnitTestCase {
     func test_description() {
         XCTAssertEqual(
             ManifestLoaderError.projectDescriptionNotFound(try AbsolutePath(validating: "/test")).description,
-            "Couldn't find ProjectDescription.framework at path /test"
+            "Couldn't find the ProjectDescription library at path /test"
         )
         XCTAssertEqual(
             ManifestLoaderError.unexpectedOutput(try AbsolutePath(validating: "/test/")).description,

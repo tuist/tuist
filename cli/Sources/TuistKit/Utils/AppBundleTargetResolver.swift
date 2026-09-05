@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistConfigLoader
 import TuistCore
+import TuistGraphLoader
 import TuistLoader
 import TuistSupport
 import TuistUserInputReader

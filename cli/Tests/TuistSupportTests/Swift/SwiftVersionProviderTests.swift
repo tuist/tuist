@@ -12,11 +12,22 @@ struct SwiftVersionProviderTests {
         subject = SwiftVersionProvider(commandRunner: commandRunner)
     }
 
+    @Test func swift_version_parses_open_source_toolchain_output() async throws {
+        given(commandRunner)
+            .run(
+                arguments: .value(["swift", "--version"]),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(outputStream("Swift version 6.1.3 (swift-6.1.3-RELEASE)\nTarget: aarch64-unknown-linux-gnu\n"))
+
+        #expect(try await subject.swiftVersion() == "6.1.3")
+    }
+
     @Test func swift_default_language_mode_version_returns_canonical_version_and_caches_it() async throws {
         given(commandRunner)
             .run(
                 arguments: .value([
-                    "/usr/bin/xcrun",
                     "swift",
                     "-e",
                     SwiftVersionProvider.swiftDefaultLanguageModeVersionProbe,

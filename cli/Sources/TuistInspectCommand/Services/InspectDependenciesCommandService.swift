@@ -1,10 +1,10 @@
-#if os(macOS)
+#if os(macOS) || os(Linux)
     import Foundation
     import Path
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
-    import TuistKit
+    import TuistGraphLoader
     import TuistLoader
     import TuistLogging
     import TuistSupport
@@ -12,16 +12,16 @@
 
     struct InspectDependenciesCommandService {
         private let configLoader: ConfigLoading
-        private let generatorFactory: GeneratorFactorying
+        private let projectGraphLoader: ProjectGraphLoading
         private let graphImportsLinter: GraphImportsLinting
 
         init(
-            generatorFactory: GeneratorFactorying = GeneratorFactory(),
+            projectGraphLoader: ProjectGraphLoading = ProjectGraphLoader(),
             configLoader: ConfigLoading = ConfigLoader(),
             graphImportsLinter: GraphImportsLinting = GraphImportsLinter()
         ) {
             self.configLoader = configLoader
-            self.generatorFactory = generatorFactory
+            self.projectGraphLoader = projectGraphLoader
             self.graphImportsLinter = graphImportsLinter
         }
 
@@ -31,11 +31,7 @@
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            let graph = try await generator.load(
-                path: path,
-                options: config.project.generatedProject?.generationOptions
-            )
+            let graph = try await projectGraphLoader.load(path: path, config: config)
             let graphTraverser = GraphTraverser(graph: graph)
 
             var implicitIssues: [InspectImportsIssue] = []

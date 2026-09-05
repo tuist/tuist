@@ -8,6 +8,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistGenerator
+import TuistGraphLoader
 import TuistLogging
 import TuistPlugin
 import TuistRootDirectoryLocator

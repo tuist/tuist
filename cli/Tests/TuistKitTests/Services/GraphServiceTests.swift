@@ -14,6 +14,7 @@ import XcodeGraph
 import XcodeProj
 import XCTest
 
+@testable import TuistGraphLoader
 @testable import TuistKit
 
 final class GraphServiceTests: TuistUnitTestCase {

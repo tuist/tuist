@@ -25,7 +25,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
-            return "Couldn't find ProjectDescription.framework at path \(path.pathString)"
+            return "Couldn't find the ProjectDescription library at path \(path.pathString)"
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.pathString)"
         case let .manifestNotFound(manifest, path):
@@ -219,7 +219,7 @@ public class ManifestLoader: ManifestLoading {
         } catch let error as ManifestLoaderError {
             switch error {
             case let .manifestLoadingFailed(path: _, data: data, context: _):
-                if data.count == 0 {
+                if data.isEmpty {
                     return PackageSettings()
                 } else {
                     throw error
@@ -360,8 +360,12 @@ public class ManifestLoader: ManifestLoading {
             let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
             let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
 
-            if !preManifestLogs.isEmpty { Logger.current.notice("\(path.pathString): \(preManifestLogs)") }
-            if !postManifestLogs.isEmpty { Logger.current.notice("\(path.pathString):\(postManifestLogs)") }
+            if !preManifestLogs.isEmpty {
+                Logger.current.notice("\(path.pathString): \(preManifestLogs)")
+            }
+            if !postManifestLogs.isEmpty {
+                Logger.current.notice("\(path.pathString):\(postManifestLogs)")
+            }
 
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
@@ -392,15 +396,18 @@ public class ManifestLoader: ManifestLoading {
             frameworkName = "ProjectDescription"
         }
         var arguments = [
-            "/usr/bin/xcrun",
             "swift",
             "-suppress-warnings",
             "-I", searchPaths.includeSearchPath.pathString,
             "-L", searchPaths.librarySearchPath.pathString,
-            "-F", searchPaths.frameworkSearchPath.pathString,
             "-l\(frameworkName)",
-            "-framework", frameworkName,
         ]
+        if searchPaths.style != .commandLine {
+            arguments.append(contentsOf: [
+                "-F", searchPaths.frameworkSearchPath.pathString,
+                "-framework", frameworkName,
+            ])
+        }
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .projectDescriptionHelpers)
 
@@ -425,47 +432,19 @@ public class ManifestLoader: ManifestLoading {
         let projectDescriptionHelperArguments = projectDescriptionHelperModules.flatMap { [
             "-I", $0.path.parentDirectory.pathString,
             "-L", $0.path.parentDirectory.pathString,
-            "-F", $0.path.parentDirectory.pathString,
             "-l\($0.name)",
         ] }
 
         let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
-                let xcodePath = try await {
-                    if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
-                        let developerDirPath = try AbsolutePath(validating: developerDir)
-                        let resolvedXcodePath = if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
-                            developerDirPath.parentDirectory.parentDirectory
-                        } else {
-                            developerDirPath
-                        }
-                        let manifestPath = resolvedXcodePath
-                            .appending(
-                                components: "Contents",
-                                "Developer",
-                                "Toolchains",
-                                "XcodeDefault.xctoolchain",
-                                "usr",
-                                "lib",
-                                "swift",
-                                "pm",
-                                "ManifestAPI"
-                            )
-                        if try await fileSystem.exists(manifestPath) {
-                            return resolvedXcodePath
-                        }
-                    }
-                    return try await XcodeController.current.selected().path
-                }()
                 let packageVersion = try await swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
-                let manifestPath =
-                    "\(xcodePath.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
+                let manifestPath = try await swiftRuntimeResourcePath()
+                    .appending(components: "pm", "ManifestAPI")
                 return [
-                    "-I", manifestPath,
-                    "-L", manifestPath,
-                    "-F", manifestPath,
+                    "-I", manifestPath.pathString,
+                    "-L", manifestPath.pathString,
                     "-lPackageDescription",
                     "-package-description-version", packageVersion.description,
                     "-D", "TUIST",
@@ -527,6 +506,20 @@ public class ManifestLoader: ManifestLoading {
         } else {
             return arguments
         }
+    }
+
+    private func swiftRuntimeResourcePath() async throws -> AbsolutePath {
+        struct TargetInfo: Decodable {
+            struct Paths: Decodable {
+                let runtimeResourcePath: String
+            }
+
+            let paths: Paths
+        }
+
+        let output = try await commandRunner.capture(arguments: ["swiftc", "-print-target-info"])
+        let targetInfo = try JSONDecoder().decode(TargetInfo.self, from: Data(output.utf8))
+        return try AbsolutePath(validating: targetInfo.paths.runtimeResourcePath)
     }
 
     private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) async throws

@@ -1,4 +1,4 @@
-#if canImport(TuistCore)
+#if canImport(TuistCore) && os(macOS)
     import Foundation
     import TuistConfig
     import TuistCore

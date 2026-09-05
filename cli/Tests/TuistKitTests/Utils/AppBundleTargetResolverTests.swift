@@ -12,6 +12,7 @@ import TuistTesting
 import TuistUserInputReader
 import XcodeGraph
 
+@testable import TuistGraphLoader
 @testable import TuistKit
 
 struct AppBundleTargetResolverTests {
