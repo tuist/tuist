@@ -597,21 +597,24 @@ defmodule Tuist.Kura do
   defp placement_premises_hold?(%PlacementProposal{kind: kind} = proposal, primary, serving, _claimed)
        when kind in [:relocate, :correct] do
     proposal.from_region == primary and proposal.to_region != primary and
-      proposal.to_region in permitted_for(proposal) and serving != []
+      proposal.to_region in permitted_for(proposal, serving) and serving != []
   end
 
   defp placement_premises_hold?(%PlacementProposal{kind: :expand} = proposal, _primary, _serving, claimed) do
-    proposal.to_region not in claimed and proposal.to_region in permitted_for(proposal)
+    proposal.to_region not in claimed and proposal.to_region in permitted_for(proposal, claimed)
   end
 
   defp placement_premises_hold?(%PlacementProposal{kind: :retire} = proposal, primary, serving, _claimed) do
     proposal.from_region in serving and proposal.from_region != primary
   end
 
-  defp permitted_for(%PlacementProposal{account_id: account_id}) do
+  # Room is re-read at apply, so a proposal the sweep opened against a region
+  # that has filled since is refused rather than applied into an instance that
+  # stays Pending. The sweep proposes it again once the region has room.
+  defp permitted_for(%PlacementProposal{account_id: account_id}, held) do
     account = Repo.get!(Account, account_id)
 
-    AccountPolicies.placeable_regions(account, AccountPolicies.sizing_plan(account))
+    AccountPolicies.placeable_regions_with_room(account, AccountPolicies.sizing_plan(account), held)
   end
 
   # `put_primary/3` demotes whatever held the role, so the source stays a

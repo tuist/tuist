@@ -55,6 +55,12 @@ defmodule Tuist.Kura.AccountPolicies do
   never crossed for room: an account whose residency admits one region waits in
   it, exactly as before. `resolvable?/1` answers whether an account resolves at
   all without reading room or recording anything, for the request path.
+
+  The record of a spill is a guess, not a decision (`PlacerRegion.guess?/1`),
+  so the placer's fast first-placement correction stays open for it, and the
+  placer maps traffic onto `placeable_regions_with_room/3`, so no rung proposes
+  a region the scheduler could not place in and the preferred region comes back
+  into consideration the hour it has room.
   """
 
   import Ecto.Query
@@ -67,6 +73,7 @@ defmodule Tuist.Kura.AccountPolicies do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.OriginMap
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -423,7 +430,7 @@ defmodule Tuist.Kura.AccountPolicies do
     Telemetry.placement_capacity_spill(plan, wanted, served)
 
     PlacerRegions.put_primary(account, served, %{
-      "signal" => "capacity_spill",
+      "signal" => PlacerRegion.capacity_spill_signal(),
       "preferred_region" => wanted,
       "plan" => to_string(plan)
     })
@@ -477,6 +484,24 @@ defmodule Tuist.Kura.AccountPolicies do
     |> permitted_regions()
     |> Enum.filter(&Regions.available?/1)
     |> restrict_to_plan(plan)
+  end
+
+  @doc """
+  `placeable_regions/2` less the regions the cluster says have no room for an
+  instance of `plan`, keeping every region in `serving` whatever it says.
+
+  What the placer maps an account's traffic onto. A region with no room is one
+  no rung may propose adding an instance in, so it leaves the map the hour it
+  fills and returns the hour it has room again, and the rungs react to the
+  traffic on their own cadence from there. A region the account already serves
+  stays in the map full or not: its instance needs no room, and traffic that
+  maps onto it is traffic already served rather than a reason to move. A region
+  whose room cannot be read stays too, as it does at first placement.
+  """
+  def placeable_regions_with_room(%Account{} = account, plan, serving) when is_list(serving) do
+    account
+    |> placeable_regions(plan)
+    |> Enum.filter(&(&1 in serving or Capacity.room_for?(&1, plan) != false))
   end
 
   # Air is funded per region; the paid plans are served wherever the
