@@ -185,7 +185,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       assert {:snooze, seconds} =
                FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id), attempt: 1, max_attempts: 5})
 
-      assert is_integer(seconds) and seconds > 0
+      assert seconds > 0
 
       assert JobLogs.list_for_job(9_910_002) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_002})
@@ -205,7 +205,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       assert {:snooze, seconds} =
                FetchLogsWorker.perform(%Oban.Job{args: args(9_910_007, account.id), attempt: 4, max_attempts: 8})
 
-      assert is_integer(seconds) and seconds > 0
+      assert seconds > 0
     end
 
     test "gives up quietly after the snooze budget is exhausted (404)" do
