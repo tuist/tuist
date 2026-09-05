@@ -49,24 +49,24 @@ defmodule Tuist.Tests.StressNewTestsTest do
     %{name: name, suite_name: "CheckoutTests", module_name: "AppTests", duration: duration}
   end
 
-  describe "verdict/2" do
+  describe "plan/2" do
     test "fires the premise guard when the project has no default branch", %{project: project} do
       project = %{project | default_branch: nil}
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testNew")])
+      plan = StressNewTests.plan(project, [case_attrs("testNew")])
 
-      assert verdict.candidates == []
-      assert verdict.guard == %{kind: "no_default_branch", new_count: 1, inventory_count: 0}
+      assert plan.candidates == []
+      assert plan.guard == %{kind: "no_default_branch", new_count: 1, inventory_count: 0}
     end
 
     test "fires the premise guard when the default branch has no CI history", %{project: project, account: account} do
       run_on_main(project, account, ["testOld"], is_ci: false)
       run_on_main(project, account, ["testOld"], git_branch: "feature")
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testNew"), case_attrs("testOld")])
+      plan = StressNewTests.plan(project, [case_attrs("testNew"), case_attrs("testOld")])
 
-      assert verdict.candidates == []
-      assert verdict.guard == %{kind: "no_default_branch_history", new_count: 2, inventory_count: 0}
+      assert plan.candidates == []
+      assert plan.guard == %{kind: "no_default_branch_history", new_count: 2, inventory_count: 0}
     end
 
     test "prices the test cases with no default-branch history and leaves the known ones out", %{
@@ -75,8 +75,8 @@ defmodule Tuist.Tests.StressNewTestsTest do
     } do
       run_on_main(project, account, ["testOld", "testOlder"])
 
-      verdict =
-        StressNewTests.verdict(project, [
+      plan =
+        StressNewTests.plan(project, [
           case_attrs("testOld"),
           case_attrs("testSlow", 400_000),
           case_attrs("testMedium", 20_000),
@@ -84,10 +84,10 @@ defmodule Tuist.Tests.StressNewTestsTest do
           case_attrs("testFast", 4)
         ])
 
-      assert verdict.guard == nil
-      assert verdict.inventory_count == 2
+      assert plan.guard == nil
+      assert plan.inventory_count == 2
 
-      assert verdict.candidates == [
+      assert plan.candidates == [
                %{
                  name: "testFast",
                  suite_name: "CheckoutTests",
@@ -116,9 +116,9 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"])
       project = %{project | stress_new_tests_candidate_cap: 1}
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testB"), case_attrs("testA")])
+      plan = StressNewTests.plan(project, [case_attrs("testB"), case_attrs("testA")])
 
-      assert Enum.map(verdict.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
+      assert Enum.map(plan.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
                {"testA", 10, nil},
                {"testB", 0, "candidate_cap"}
              ]
@@ -128,12 +128,12 @@ defmodule Tuist.Tests.StressNewTestsTest do
       run_on_main(project, account, ["testOld"])
       new_cases = Enum.map(1..3, &case_attrs("testNew#{&1}"))
 
-      below_floor = StressNewTests.verdict(project, new_cases)
+      below_floor = StressNewTests.plan(project, new_cases)
       assert below_floor.guard == nil
       assert length(below_floor.candidates) == 3
 
       project = %{project | stress_new_tests_bulk_change_floor: 3}
-      above_floor = StressNewTests.verdict(project, new_cases)
+      above_floor = StressNewTests.plan(project, new_cases)
       assert above_floor.guard == %{kind: "bulk_change", new_count: 3, inventory_count: 1}
       assert above_floor.candidates == []
     end
@@ -262,23 +262,23 @@ defmodule Tuist.Tests.StressNewTestsTest do
     test "a test case last seen inside the window is not new", %{project: project, account: account} do
       run_on_main(project, account, ["testOld"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -89, :day))
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testOld")])
+      plan = StressNewTests.plan(project, [case_attrs("testOld")])
 
-      assert verdict.candidates == []
-      assert verdict.inventory_count == 1
+      assert plan.candidates == []
+      assert plan.inventory_count == 1
     end
 
     test "a test case dormant for longer than the window reads as new again", %{project: project, account: account} do
       run_on_main(project, account, ["testDormant"], ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -91, :day))
       run_on_main(project, account, ["testRecent"])
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testDormant"), case_attrs("testRecent")])
+      plan = StressNewTests.plan(project, [case_attrs("testDormant"), case_attrs("testRecent")])
 
-      assert Enum.map(verdict.candidates, & &1.name) == ["testDormant"]
+      assert Enum.map(plan.candidates, & &1.name) == ["testDormant"]
 
       # The dormant case leaves the inventory with it, so the bulk-change ratio
       # keeps comparing two halves of one population.
-      assert verdict.inventory_count == 1
+      assert plan.inventory_count == 1
     end
   end
 
@@ -372,13 +372,13 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert errors[:stress_new_tests_bulk_change_floor]
     end
 
-    test "the stored curve is what the verdict prices repetitions from", %{project: project, account: account} do
+    test "the stored curve is what the plan prices repetitions from", %{project: project, account: account} do
       run_on_main(project, account, ["testOld"])
       project = %{project | stress_new_tests_repetition_curve: [%{"max_duration_ms" => 100, "repetitions" => 2}]}
 
-      verdict = StressNewTests.verdict(project, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
+      plan = StressNewTests.plan(project, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
 
-      assert Enum.map(verdict.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
+      assert Enum.map(plan.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
                {"testFast", 2, nil},
                {"testSlow", 0, "too_slow"}
              ]

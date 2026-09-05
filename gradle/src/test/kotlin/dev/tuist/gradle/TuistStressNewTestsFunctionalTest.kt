@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 /**
  * Drives the stress gate through a real Gradle build: the plugin asks the server which
  * test cases are new, then reruns the one it is handed in nested builds, one per
- * repetition. Only the verdict is stubbed. The repetitions are real Gradle builds
+ * repetition. Only the plan is stubbed. The repetitions are real Gradle builds
  * running a real JUnit test, which is the half the unit tests cannot cover.
  */
 class TuistStressNewTestsFunctionalTest {
@@ -39,11 +39,11 @@ class TuistStressNewTestsFunctionalTest {
                 val path = request.path.orEmpty()
                 return when {
                     // The plugin resolves the account's cache endpoints before it talks to the
-                    // API, so the gate never reaches the verdict without an answer here.
+                    // API, so the gate never reaches the plan without an answer here.
                     path.contains("/api/cache/endpoints") ->
                         MockResponse().setResponseCode(200)
                             .setBody("""{"endpoints":["${server.url("/").toString().trimEnd('/')}"]}""")
-                    path.endsWith("/tests/stress-new-tests/verdict") ->
+                    path.endsWith("/tests/stress-new-tests/plan") ->
                         MockResponse().setResponseCode(200).setBody(
                             """
                             {"guard":null,"inventory_count":40,

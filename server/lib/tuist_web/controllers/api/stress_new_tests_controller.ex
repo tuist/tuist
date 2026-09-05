@@ -6,7 +6,7 @@ defmodule TuistWeb.API.StressNewTestsController do
   alias Tuist.Tests.StressNewTests
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.Tests.StressNewTestsVerdict
+  alias TuistWeb.API.Schemas.Tests.StressPlan
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -18,7 +18,7 @@ defmodule TuistWeb.API.StressNewTestsController do
 
   tags ["Tests"]
 
-  operation(:verdict,
+  operation(:plan,
     summary: "Decide which of a run's test cases the stress gate for newly added tests should rerun.",
     description:
       "Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.",
@@ -36,11 +36,11 @@ defmodule TuistWeb.API.StressNewTestsController do
         description: "The handle of the project."
       ]
     ],
-    operation_id: "createStressNewTestsVerdict",
+    operation_id: "createStressPlan",
     request_body:
-      {"Stress verdict params", "application/json",
+      {"Stress plan params", "application/json",
        %Schema{
-         title: "StressNewTestsVerdictParams",
+         title: "StressPlanParams",
          type: :object,
          properties: %{
            test_cases: %Schema{
@@ -69,8 +69,8 @@ defmodule TuistWeb.API.StressNewTestsController do
          required: [:test_cases]
        }},
     responses: %{
-      ok: {"The verdict", "application/json", StressNewTestsVerdict},
-      unauthorized: {"You need to be authenticated to request a verdict", "application/json", Error},
+      ok: {"The plan", "application/json", StressPlan},
+      unauthorized: {"You need to be authenticated to request a plan", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
@@ -78,11 +78,11 @@ defmodule TuistWeb.API.StressNewTestsController do
     }
   )
 
-  def verdict(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    verdict = StressNewTests.verdict(selected_project, body_params.test_cases)
+  def plan(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    plan = StressNewTests.plan(selected_project, body_params.test_cases)
 
     conn
     |> put_status(:ok)
-    |> json(verdict)
+    |> json(plan)
   end
 end

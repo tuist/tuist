@@ -50,7 +50,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
       },
       inventory_count: %Schema{
         type: :integer,
-        description: "How many test cases have run in CI on the default branch, as the verdict measured it."
+        description: "How many test cases have run in CI on the default branch, as the plan measured it."
       },
       test_cases: %Schema{
         type: :array,

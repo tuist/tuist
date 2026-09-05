@@ -18,7 +18,7 @@ import TuistTesting
 /// The gate hangs off several paths that each return before the next, so a run can execute
 /// every test it was asked to and still never consult it, which is the regression these
 /// cover. The project is bound to a server that refuses connections, and the gate is the only
-/// thing that asks that server for a verdict, so its "could not fetch" warning is proof the
+/// thing that asks that server for a plan, so its "could not fetch" warning is proof the
 /// wiring reached it. No stub and no network are involved in producing it.
 private enum StressGateProbe {
     /// Nothing listens on port 1, so the request fails at connect instead of hanging.
@@ -55,11 +55,11 @@ private enum StressGateProbe {
         return workingDirectory
     }
 
-    static func expectTheGateAskedForAVerdict(sourceLocation: SourceLocation = #_sourceLocation) {
+    static func expectTheGateAskedForAPlan(sourceLocation: SourceLocation = #_sourceLocation) {
         let warnings = AlertController.current.warnings().map { "\($0)" }
         #expect(
-            warnings.contains { $0.contains("stress gate verdict") },
-            "The gate never asked for a verdict. Warnings: \(warnings)",
+            warnings.contains { $0.contains("stress gate plan") },
+            "The gate never asked for a plan. Warnings: \(warnings)",
             sourceLocation: sourceLocation
         )
     }
@@ -87,7 +87,7 @@ struct StressNewTestsTestCommandAcceptanceTests {
             ]
         )
 
-        StressGateProbe.expectTheGateAskedForAVerdict()
+        StressGateProbe.expectTheGateAskedForAPlan()
     }
 }
 
@@ -117,6 +117,6 @@ struct StressNewTestsXcodeBuildCommandAcceptanceTests {
             ]
         )
 
-        StressGateProbe.expectTheGateAskedForAVerdict()
+        StressGateProbe.expectTheGateAskedForAPlan()
     }
 }

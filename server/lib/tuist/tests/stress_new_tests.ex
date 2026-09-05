@@ -29,7 +29,7 @@ defmodule Tuist.Tests.StressNewTests do
 
   @modes ~w(report enforce)
   @run_outcomes ~w(passed disagreed skipped no_candidates)
-  @skip_reasons ~w(first_pass_failed no_default_branch no_default_branch_history bulk_change verdict_unavailable)
+  @skip_reasons ~w(first_pass_failed no_default_branch no_default_branch_history bulk_change plan_unavailable)
   @guard_kinds ~w(no_default_branch no_default_branch_history bulk_change)
   @excluded_reasons ~w(too_slow candidate_cap)
 
@@ -68,7 +68,7 @@ defmodule Tuist.Tests.StressNewTests do
   Decides which of `test_cases` (maps with `name`, `suite_name`, `module_name`
   and `duration` in milliseconds) the gate should stress for `project`.
   """
-  def verdict(project, test_cases) do
+  def plan(project, test_cases) do
     parameters = parameters(project)
 
     project

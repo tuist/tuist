@@ -65,7 +65,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
     end
   end
 
-  describe "POST /api/projects/:account_handle/:project_handle/tests/stress-new-tests/verdict" do
+  describe "POST /api/projects/:account_handle/:project_handle/tests/stress-new-tests/plan" do
     test "returns the new test cases priced from the project's curve", %{conn: conn, user: user, project: project} do
       {:ok, _} =
         Tests.create_test(%{
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
         })
 
       conn =
-        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/verdict", %{
+        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/plan", %{
           test_cases: [
             %{name: "testOld", suite_name: "CheckoutTests", module_name: "AppTests", duration: 10},
             %{name: "testNew", suite_name: "CheckoutTests", module_name: "AppTests", duration: 7_000}
@@ -119,7 +119,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
 
     test "reports the guard that fired", %{conn: conn, user: user, project: project} do
       conn =
-        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/verdict", %{
+        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/plan", %{
           test_cases: [%{name: "testNew", module_name: "AppTests"}]
         })
 
@@ -130,7 +130,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
 
     test "answers the full response shape when a guard fires", %{conn: conn, user: user, project: project} do
       conn =
-        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/verdict", %{
+        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/plan", %{
           test_cases: [%{name: "testNew", module_name: "AppTests"}]
         })
 
@@ -149,7 +149,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
     end
 
     test "rejects a body without test cases", %{conn: conn, user: user, project: project} do
-      conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/verdict", %{})
+      conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/stress-new-tests/plan", %{})
 
       assert json_response(conn, :bad_request)
     end
@@ -160,7 +160,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
       conn =
         post(
           conn,
-          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/tests/stress-new-tests/verdict",
+          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/tests/stress-new-tests/plan",
           %{
             test_cases: []
           }

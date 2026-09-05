@@ -15,14 +15,14 @@ import XCResultParser
 
 @Suite
 struct StressNewTestsServiceTests {
-    private let verdictService = MockCreateStressNewTestsVerdictServicing()
+    private let planService = MockCreateStressPlanServicing()
     private let xcResultService = MockXCResultServicing()
     private let subject: StressNewTestsService
     private let serverURL = URL(string: "https://tuist.dev")!
 
     init() {
         subject = StressNewTestsService(
-            createStressNewTestsVerdictService: verdictService,
+            createStressPlanService: planService,
             xcResultService: xcResultService,
             fileSystem: FileSystem()
         )
@@ -59,11 +59,11 @@ struct StressNewTestsServiceTests {
         )
     }
 
-    private func verdict(
-        candidates: [Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload],
-        guardSignal: Components.Schemas.StressNewTestsVerdict._guardPayload? = nil,
+    private func plan(
+        candidates: [Components.Schemas.StressPlan.candidatesPayloadPayload],
+        guardSignal: Components.Schemas.StressPlan._guardPayload? = nil,
         ceiling: Int = 600_000
-    ) -> Components.Schemas.StressNewTestsVerdict {
+    ) -> Components.Schemas.StressPlan {
         .init(
             candidates: candidates,
             _guard: guardSignal,
@@ -81,9 +81,9 @@ struct StressNewTestsServiceTests {
     private func candidate(
         _ name: String,
         repetitions: Int = 10,
-        excluded: Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload.excluded_reasonPayload? = nil
+        excluded: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload? = nil
     )
-        -> Components.Schemas.StressNewTestsVerdict.candidatesPayloadPayload
+        -> Components.Schemas.StressPlan.candidatesPayloadPayload
     {
         .init(
             excluded_reason: excluded,
@@ -113,18 +113,18 @@ struct StressNewTestsServiceTests {
         #expect(result?.outcome == .skipped)
         #expect(result?.skipReason == .firstPassFailed)
         #expect(result?.blocks == false)
-        verify(verdictService).createVerdict(fullHandle: .any, serverURL: .any, testCases: .any).called(0)
+        verify(planService).createPlan(fullHandle: .any, serverURL: .any, testCases: .any).called(0)
     }
 
     @Test(.withMockedDependencies())
     func sendsExecutedTestCasesAndRecordsTheGuard() async throws {
-        given(verdictService)
-            .createVerdict(
+        given(planService)
+            .createPlan(
                 fullHandle: .value("tuist/app"),
                 serverURL: .any,
                 testCases: .matching { $0.map(\.name) == ["testNew()"] }
             )
-            .willReturn(verdict(candidates: [], guardSignal: .init(inventory_count: 100, kind: .bulk_change, new_count: 70)))
+            .willReturn(plan(candidates: [], guardSignal: .init(inventory_count: 100, kind: .bulk_change, new_count: 70)))
 
         var skipped = testCase("testSkipped()")
         skipped = TestCase(
@@ -154,9 +154,9 @@ struct StressNewTestsServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func skipsWhenTheVerdictIsUnavailable() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
+    func skipsWhenThePlanIsUnavailable() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
             .willThrow(TestError("connection refused"))
 
         let result = await subject.run(
@@ -170,15 +170,15 @@ struct StressNewTestsServiceTests {
         )
 
         #expect(result?.outcome == .skipped)
-        #expect(result?.skipReason == .verdictUnavailable)
+        #expect(result?.skipReason == .planUnavailable)
         #expect(result?.blocks == false)
     }
 
     @Test(.withMockedDependencies())
     func stressesEachRepetitionGroupOnceAndPricesTheOutcomes() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
-            .willReturn(verdict(candidates: [
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [
                 candidate("testFlaky()"),
                 candidate("testStable()"),
                 candidate("testSlow()", repetitions: 3),
@@ -257,9 +257,9 @@ struct StressNewTestsServiceTests {
 
     @Test(.withMockedDependencies())
     func enforceBlocksOnlyOnUnmutedDisagreements() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
-            .willReturn(verdict(candidates: [candidate("testMuted()", repetitions: 2), candidate("testFlaky()", repetitions: 2)]))
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [candidate("testMuted()", repetitions: 2), candidate("testFlaky()", repetitions: 2)]))
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(summary([
@@ -289,9 +289,9 @@ struct StressNewTestsServiceTests {
 
     @Test(.withMockedDependencies())
     func recordsNoCandidatesWhenTheBranchAddsNoTests() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
-            .willReturn(verdict(candidates: []))
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: []))
 
         let result = await subject.run(
             mode: .report,
@@ -309,9 +309,9 @@ struct StressNewTestsServiceTests {
 
     @Test(.withMockedDependencies())
     func marksCandidatesNotStressedWhenTheCeilingIsAlreadyReached() async throws {
-        given(verdictService)
-            .createVerdict(fullHandle: .any, serverURL: .any, testCases: .any)
-            .willReturn(verdict(candidates: [candidate("testNew()")], ceiling: 0))
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [candidate("testNew()")], ceiling: 0))
 
         let result = try #require(await subject.run(
             mode: .enforce,

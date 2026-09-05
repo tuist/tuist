@@ -47,21 +47,21 @@ class StressNewTestsGateTest {
         ExecutedTestCase(":app", "com.example.CheckoutTest", name, 10, result, quarantined)
 
     private fun candidate(name: String, repetitions: Int = 10, excluded: String? = null) =
-        StressVerdictCandidate(name, "com.example.CheckoutTest", ":app", repetitions, excluded)
+        StressPlanCandidate(name, "com.example.CheckoutTest", ":app", repetitions, excluded)
 
-    private fun response(vararg candidates: StressVerdictCandidate, guard: StressGuard? = null) =
-        StressVerdictResponse(guard, 40, candidates.toList(), StressParameters(200, 600_000))
+    private fun response(vararg candidates: StressPlanCandidate, guard: StressGuard? = null) =
+        StressPlan(guard, 40, candidates.toList(), StressParameters(200, 600_000))
 
     private val taskPaths = mapOf(":app" to listOf(":app:test"))
 
     @Test
     fun `skips when the first pass failed`() {
-        var verdictCalls = 0
-        val gate = StressNewTestsGate("report", { verdictCalls++; response() }, { _, _, _ -> emptyList() }, logger)
+        var planCalls = 0
+        val gate = StressNewTestsGate("report", { planCalls++; response() }, { _, _, _ -> emptyList() }, logger)
         val report = gate.run(listOf(executed("testNew", TestResult.ResultType.FAILURE)), taskPaths)!!
         assertEquals("skipped", report.outcome)
         assertEquals("first_pass_failed", report.skipReason)
-        assertEquals(0, verdictCalls)
+        assertEquals(0, planCalls)
     }
 
     @Test
@@ -152,7 +152,7 @@ class StressNewTestsGateTest {
         var now = 0L
         val gate = StressNewTestsGate(
             "report",
-            { StressVerdictResponse(null, 40, listOf(candidate("testA()", 10), candidate("testB()", 3)), StressParameters(200, 1_000)) },
+            { StressPlan(null, 40, listOf(candidate("testA()", 10), candidate("testB()", 3)), StressParameters(200, 1_000)) },
             { filters, _, _ ->
                 now += 2_000_000_000L
                 filters.values.flatten().map { StressRepetitionResult(":app", "com.example.CheckoutTest", it.substringAfterLast('.') + "()", "success") }
@@ -234,7 +234,7 @@ class StressNewTestsGateTest {
         val gate = StressNewTestsGate("enforce", { throw RuntimeException("connection refused") }, { _, _, _ -> emptyList() }, logger)
         val report = gate.run(listOf(executed("testNew")), taskPaths)!!
         assertEquals("skipped", report.outcome)
-        assertEquals("verdict_unavailable", report.skipReason)
+        assertEquals("plan_unavailable", report.skipReason)
         assertEquals(false, report.blocks)
     }
 
@@ -246,7 +246,7 @@ class StressNewTestsGateTest {
     }
 }
 
-class TuistStressNewTestsVerdictServiceTest {
+class TuistStressPlanServiceTest {
     private lateinit var server: MockWebServer
 
     @BeforeEach
@@ -260,7 +260,7 @@ class TuistStressNewTestsVerdictServiceTest {
         server.shutdown()
     }
 
-    private fun service(): TuistStressNewTestsVerdictService {
+    private fun service(): TuistStressPlanService {
         val provider = object : ConfigurationProvider {
             override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(
                 url = server.url("/").toString(),
@@ -269,11 +269,11 @@ class TuistStressNewTestsVerdictServiceTest {
                 projectHandle = "app"
             )
         }
-        return TuistStressNewTestsVerdictService(TuistHttpClient(provider), server.url("/").toString())
+        return TuistStressPlanService(TuistHttpClient(provider), server.url("/").toString())
     }
 
     @Test
-    fun `posts the executed test cases and parses the verdict`() {
+    fun `posts the executed test cases and parses the plan`() {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
                 """
@@ -284,21 +284,21 @@ class TuistStressNewTestsVerdictServiceTest {
             )
         )
 
-        val verdict = service().verdict(listOf(StressVerdictTestCase("testNew()", "com.example.FooTest", ":app", 12)))
+        val plan = service().plan(listOf(StressPlanTestCase("testNew()", "com.example.FooTest", ":app", 12)))
 
         val request = server.takeRequest()
         assertEquals("POST", request.method)
-        assertEquals("/api/projects/tuist/app/tests/stress-new-tests/verdict", request.path)
+        assertEquals("/api/projects/tuist/app/tests/stress-new-tests/plan", request.path)
         assertEquals("Bearer test-token", request.getHeader("Authorization"))
         assertTrue(request.body.readUtf8().contains("\"module_name\":\":app\""))
-        assertEquals(10, verdict.candidates.single().repetitions)
-        assertEquals(600_000, verdict.parameters.wallClockCeilingMs)
+        assertEquals(10, plan.candidates.single().repetitions)
+        assertEquals(600_000, plan.parameters.wallClockCeilingMs)
     }
 
     @Test
     fun `a non-200 response is an error the gate reports as unavailable`() {
         server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
-        val error = runCatching { service().verdict(emptyList()) }.exceptionOrNull()
+        val error = runCatching { service().plan(emptyList()) }.exceptionOrNull()
         assertTrue(error != null && error.message!!.contains("HTTP 500"))
     }
 }

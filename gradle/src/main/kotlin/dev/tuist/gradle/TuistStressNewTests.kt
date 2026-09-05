@@ -63,21 +63,21 @@ data class StressRepetitionContext(
     }
 }
 
-// --- Verdict API models ---
+// --- Plan API models ---
 
-data class StressVerdictRequest(@SerializedName("test_cases") val testCases: List<StressVerdictTestCase>)
+data class StressPlanRequest(@SerializedName("test_cases") val testCases: List<StressPlanTestCase>)
 
-data class StressVerdictTestCase(
+data class StressPlanTestCase(
     val name: String,
     @SerializedName("suite_name") val suiteName: String?,
     @SerializedName("module_name") val moduleName: String,
     val duration: Long?
 )
 
-data class StressVerdictResponse(
+data class StressPlan(
     val guard: StressGuard?,
     @SerializedName("inventory_count") val inventoryCount: Int,
-    val candidates: List<StressVerdictCandidate>,
+    val candidates: List<StressPlanCandidate>,
     val parameters: StressParameters
 )
 
@@ -87,7 +87,7 @@ data class StressGuard(
     @SerializedName("inventory_count") val inventoryCount: Int
 )
 
-data class StressVerdictCandidate(
+data class StressPlanCandidate(
     val name: String,
     @SerializedName("suite_name") val suiteName: String,
     @SerializedName("module_name") val moduleName: String,
@@ -168,16 +168,16 @@ data class StressRepetitionFailure(
     @SerializedName("issue_type") val issueType: String
 )
 
-// --- Verdict client ---
+// --- Plan client ---
 
-class TuistStressNewTestsVerdictService(
+class TuistStressPlanService(
     private val httpClient: TuistHttpClient,
     private val baseUrl: String
 ) {
-    fun verdict(testCases: List<StressVerdictTestCase>): StressVerdictResponse {
+    fun plan(testCases: List<StressPlanTestCase>): StressPlan {
         return httpClient.execute { config ->
             val url = URI(baseUrl.trimEnd('/')).resolve(
-                "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/stress-new-tests/verdict"
+                "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/stress-new-tests/plan"
             )
             val connection = httpClient.openConnection(url, config)
             try {
@@ -186,12 +186,12 @@ class TuistStressNewTestsVerdictService(
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("Accept", "application/json")
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(StressVerdictRequest(testCases), writer)
+                    Gson().toJson(StressPlanRequest(testCases), writer)
                 }
                 when (connection.responseCode) {
                     HttpURLConnection.HTTP_OK ->
                         BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, StressVerdictResponse::class.java)
+                            Gson().fromJson(reader, StressPlan::class.java)
                         }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                     else -> {
@@ -221,7 +221,7 @@ internal typealias StressRepetitionRunner =
 
 internal class StressNewTestsGate(
     private val mode: String,
-    private val verdict: (List<StressVerdictTestCase>) -> StressVerdictResponse,
+    private val plan: (List<StressPlanTestCase>) -> StressPlan,
     private val runRepetition: StressRepetitionRunner,
     private val logger: Logger,
     private val nanoTime: () -> Long = System::nanoTime
@@ -270,9 +270,9 @@ internal class StressNewTestsGate(
 
         val ran = executed.filter { it.resultType != TestResult.ResultType.SKIPPED }
         val response = try {
-            verdict(
+            plan(
                 ran.map {
-                    StressVerdictTestCase(
+                    StressPlanTestCase(
                         name = it.testName,
                         suiteName = it.className,
                         moduleName = it.moduleName,
@@ -281,8 +281,8 @@ internal class StressNewTestsGate(
                 }
             )
         } catch (e: Exception) {
-            logger.warn("Tuist: Failed to fetch the stress gate verdict: ${e.message}. Nothing was stressed.")
-            return skipped("verdict_unavailable", newCount = 0, inventoryCount = 0)
+            logger.warn("Tuist: Failed to fetch the stress gate plan: ${e.message}. Nothing was stressed.")
+            return skipped("plan_unavailable", newCount = 0, inventoryCount = 0)
         }
 
         response.guard?.let { guard ->
@@ -545,11 +545,11 @@ abstract class TuistStressNewTestsTask : DefaultTask() {
             connectTimeoutMs = 10_000,
             readTimeoutMs = 30_000
         )
-        val verdictService = TuistStressNewTestsVerdictService(httpClient, serverUrl.get())
+        val planService = TuistStressPlanService(httpClient, serverUrl.get())
 
         val gate = StressNewTestsGate(
             mode = mode.get(),
-            verdict = verdictService::verdict,
+            plan = planService::plan,
             runRepetition = ::runRepetition,
             logger = logger
         )

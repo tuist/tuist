@@ -99,7 +99,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
         case noDefaultBranch = "no_default_branch"
         case noDefaultBranchHistory = "no_default_branch_history"
         case bulkChange = "bulk_change"
-        case verdictUnavailable = "verdict_unavailable"
+        case planUnavailable = "plan_unavailable"
     }
 
     public let mode: StressNewTestsMode
@@ -224,16 +224,16 @@ public protocol StressNewTestsServicing {
 }
 
 public struct StressNewTestsService: StressNewTestsServicing {
-    private let createStressNewTestsVerdictService: CreateStressNewTestsVerdictServicing
+    private let createStressPlanService: CreateStressPlanServicing
     private let xcResultService: XCResultServicing
     private let fileSystem: FileSysteming
 
     public init(
-        createStressNewTestsVerdictService: CreateStressNewTestsVerdictServicing = CreateStressNewTestsVerdictService(),
+        createStressPlanService: CreateStressPlanServicing = CreateStressPlanService(),
         xcResultService: XCResultServicing = XCResultService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.createStressNewTestsVerdictService = createStressNewTestsVerdictService
+        self.createStressPlanService = createStressPlanService
         self.xcResultService = xcResultService
         self.fileSystem = fileSystem
     }
@@ -266,14 +266,14 @@ public struct StressNewTestsService: StressNewTestsServicing {
 
         let executed = testSummary.testCases.filter { $0.status != .skipped }
 
-        let verdict: Components.Schemas.StressNewTestsVerdict
+        let plan: Components.Schemas.StressPlan
         do {
-            verdict = try await createStressNewTestsVerdictService.createVerdict(
+            plan = try await createStressPlanService.createPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 testCases: executed.compactMap { testCase in
                     guard let module = testCase.module else { return nil }
-                    return StressNewTestsVerdictTestCase(
+                    return StressPlanTestCase(
                         name: testCase.name,
                         suiteName: testCase.testSuite,
                         moduleName: module,
@@ -283,12 +283,12 @@ public struct StressNewTestsService: StressNewTestsServicing {
             )
         } catch {
             AlertController.current.warning(
-                .alert("Failed to fetch the stress gate verdict: \(error.localizedDescription). Nothing was stressed.")
+                .alert("Failed to fetch the stress gate plan: \(error.localizedDescription). Nothing was stressed.")
             )
             return StressNewTestsResult(
                 mode: mode,
                 outcome: .skipped,
-                skipReason: .verdictUnavailable,
+                skipReason: .planUnavailable,
                 newCount: 0,
                 stressedCount: 0,
                 excludedCount: 0,
@@ -297,7 +297,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
             )
         }
 
-        if let guardSignal = verdict._guard {
+        if let guardSignal = plan._guard {
             Logger.current.notice("\(Self.guardDescription(guardSignal))")
             return StressNewTestsResult(
                 mode: mode,
@@ -311,7 +311,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
             )
         }
 
-        var candidates: [StressNewTestsCandidate] = verdict.candidates.compactMap { candidate in
+        var candidates: [StressNewTestsCandidate] = plan.candidates.compactMap { candidate in
             guard let identifier = try? TestIdentifier(
                 target: candidate.module_name,
                 class: candidate.suite_name.isEmpty ? nil : candidate.suite_name,
@@ -339,12 +339,12 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 newCount: 0,
                 stressedCount: 0,
                 excludedCount: 0,
-                inventoryCount: verdict.inventory_count,
+                inventoryCount: plan.inventory_count,
                 candidates: []
             )
         }
 
-        let ceiling = Duration.milliseconds(verdict.parameters.wall_clock_ceiling_ms)
+        let ceiling = Duration.milliseconds(plan.parameters.wall_clock_ceiling_ms)
         let resultBundlePaths = await stressCandidates(
             &candidates,
             ceiling: ceiling,
@@ -359,11 +359,11 @@ public struct StressNewTestsService: StressNewTestsServicing {
             newCount: candidates.count,
             stressedCount: stressedCount,
             excludedCount: candidates.count - stressedCount,
-            inventoryCount: verdict.inventory_count,
+            inventoryCount: plan.inventory_count,
             candidates: candidates,
             resultBundlePaths: resultBundlePaths
         )
-        print(result, ceiling: ceiling, candidateCap: verdict.parameters.candidate_cap)
+        print(result, ceiling: ceiling, candidateCap: plan.parameters.candidate_cap)
         return result
     }
 
@@ -568,7 +568,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
     }
 
-    static func guardDescription(_ signal: Components.Schemas.StressNewTestsVerdict._guardPayload) -> String {
+    static func guardDescription(_ signal: Components.Schemas.StressPlan._guardPayload) -> String {
         switch signal.kind {
         case .no_default_branch:
             return "Skipped stress testing new tests: the project has no default branch, so Tuist cannot tell which test cases are new. Set one in the project settings."

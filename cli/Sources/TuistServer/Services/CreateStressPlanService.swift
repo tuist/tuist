@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIRuntime
 import TuistHTTP
 
-public struct StressNewTestsVerdictTestCase: Equatable, Sendable {
+public struct StressPlanTestCase: Equatable, Sendable {
     public let name: String
     public let suiteName: String?
     public let moduleName: String
@@ -18,15 +18,15 @@ public struct StressNewTestsVerdictTestCase: Equatable, Sendable {
 }
 
 @Mockable
-public protocol CreateStressNewTestsVerdictServicing {
-    func createVerdict(
+public protocol CreateStressPlanServicing {
+    func createPlan(
         fullHandle: String,
         serverURL: URL,
-        testCases: [StressNewTestsVerdictTestCase]
-    ) async throws -> Components.Schemas.StressNewTestsVerdict
+        testCases: [StressPlanTestCase]
+    ) async throws -> Components.Schemas.StressPlan
 }
 
-enum CreateStressNewTestsVerdictServiceError: LocalizedError {
+enum CreateStressPlanServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
     case notFound(String)
@@ -36,14 +36,14 @@ enum CreateStressNewTestsVerdictServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The stress verdict could not be fetched due to an unknown Tuist response of \(statusCode)."
+            return "The stress plan could not be fetched due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
 }
 
-public struct CreateStressNewTestsVerdictService: CreateStressNewTestsVerdictServicing {
+public struct CreateStressPlanService: CreateStressPlanServicing {
     private let fullHandleService: FullHandleServicing
 
     public init() {
@@ -54,15 +54,15 @@ public struct CreateStressNewTestsVerdictService: CreateStressNewTestsVerdictSer
         self.fullHandleService = fullHandleService
     }
 
-    public func createVerdict(
+    public func createPlan(
         fullHandle: String,
         serverURL: URL,
-        testCases: [StressNewTestsVerdictTestCase]
-    ) async throws -> Components.Schemas.StressNewTestsVerdict {
+        testCases: [StressPlanTestCase]
+    ) async throws -> Components.Schemas.StressPlan {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.createStressNewTestsVerdict(
+        let response = try await client.createStressPlan(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -92,29 +92,29 @@ public struct CreateStressNewTestsVerdictService: CreateStressNewTestsVerdictSer
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw CreateStressNewTestsVerdictServiceError.forbidden(error.message)
+                throw CreateStressPlanServiceError.forbidden(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw CreateStressNewTestsVerdictServiceError.notFound(error.message)
+                throw CreateStressPlanServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw CreateStressNewTestsVerdictServiceError.unauthorized(error.message)
+                throw CreateStressPlanServiceError.unauthorized(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {
             case let .json(error):
-                throw CreateStressNewTestsVerdictServiceError.badRequest(error.message)
+                throw CreateStressPlanServiceError.badRequest(error.message)
             }
         case let .tooManyRequests(tooManyRequests):
             throw AuthorizationThrottledError(
                 retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
             )
         case let .undocumented(statusCode: statusCode, _):
-            throw CreateStressNewTestsVerdictServiceError.unknownError(statusCode)
+            throw CreateStressPlanServiceError.unknownError(statusCode)
         }
     }
 }

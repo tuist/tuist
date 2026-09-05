@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.Schemas.Tests.StressNewTestsVerdict do
+defmodule TuistWeb.API.Schemas.Tests.StressPlan do
   @moduledoc """
   The server's answer to a client asking which of the test cases a run just
   executed the stress gate for newly added tests should rerun.
@@ -9,7 +9,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsVerdict do
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "StressNewTestsVerdict",
+    title: "StressPlan",
     type: :object,
     description:
       "Which of the reported test cases have not run in CI on the project's default branch in the trailing ninety days, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.",
