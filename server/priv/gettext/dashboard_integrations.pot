@@ -17,7 +17,7 @@ msgid "Add new project connection"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:195
-#: lib/tuist_web/live/integrations_live.html.heex:379
+#: lib/tuist_web/live/integrations_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -42,12 +42,12 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:301
+#: lib/tuist_web/live/integrations_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:303
+#: lib/tuist_web/live/integrations_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
@@ -97,12 +97,12 @@ msgstr ""
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:360
+#: lib/tuist_web/live/integrations_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:387
+#: lib/tuist_web/live/integrations_live.ex:401
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr ""
@@ -132,13 +132,13 @@ msgstr ""
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:347
+#: lib/tuist_web/live/integrations_live.ex:361
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:336
-#: lib/tuist_web/live/integrations_live.ex:368
+#: lib/tuist_web/live/integrations_live.ex:350
+#: lib/tuist_web/live/integrations_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr ""
@@ -163,63 +163,53 @@ msgstr ""
 msgid "Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:278
+#: lib/tuist_web/live/integrations_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Cluster"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:363
+#: lib/tuist_web/live/integrations_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:353
+#: lib/tuist_web/live/integrations_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Cluster name"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:321
-#: lib/tuist_web/live/integrations_live.html.heex:390
+#: lib/tuist_web/live/integrations_live.html.heex:329
+#: lib/tuist_web/live/integrations_live.html.heex:398
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:305
+#: lib/tuist_web/live/integrations_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:308
+#: lib/tuist_web/live/integrations_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:295
+#: lib/tuist_web/live/integrations_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:282
-#, elixir-autogen, elixir-format
-msgid "Last checked"
-msgstr ""
-
-#: lib/tuist_web/live/integrations_live.ex:432
-#, elixir-autogen, elixir-format
-msgid "Not yet"
-msgstr ""
-
-#: lib/tuist_web/live/integrations_live.html.heex:355
+#: lib/tuist_web/live/integrations_live.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Optional"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:340
+#: lib/tuist_web/live/integrations_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:286
+#: lib/tuist_web/live/integrations_live.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "Queue keys"
 msgstr ""
@@ -229,18 +219,23 @@ msgstr ""
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:366
+#: lib/tuist_web/live/integrations_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:304
+#: lib/tuist_web/live/integrations_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Update Buildkite connection"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:320
-#: lib/tuist_web/live/integrations_live.html.heex:389
+#: lib/tuist_web/live/integrations_live.html.heex:328
+#: lib/tuist_web/live/integrations_live.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Update connection"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Name this cluster"
 msgstr ""

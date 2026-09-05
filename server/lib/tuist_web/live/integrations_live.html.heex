@@ -274,15 +274,23 @@
       <%!-- Only a connected cluster earns space on the page; everything
             needed to connect one lives in the modal. --%>
       <div :if={@buildkite_installation} data-part="buildkite-connection">
-        <div data-part="row">
-          <span data-part="label">{dgettext("dashboard_integrations", "Cluster")}</span>
-          <span data-part="value">{buildkite_cluster_label(@buildkite_installation)}</span>
-        </div>
-        <div data-part="row">
-          <span data-part="label">{dgettext("dashboard_integrations", "Last checked")}</span>
-          <span data-part="value">{buildkite_last_checked(@buildkite_installation)}</span>
-        </div>
-        <div data-part="row">
+        <form
+          id="buildkite-cluster-form"
+          phx-change="update-buildkite-cluster-name"
+          phx-submit="update-buildkite-cluster-name"
+        >
+          <.text_input
+            id="buildkite-cluster-name-inline"
+            name="cluster_name"
+            type="basic"
+            label={dgettext("dashboard_integrations", "Cluster")}
+            sublabel={@buildkite_installation.organization_slug}
+            value={@buildkite_installation.cluster_name || ""}
+            placeholder={dgettext("dashboard_integrations", "Name this cluster")}
+            phx-debounce="blur"
+          />
+        </form>
+        <div data-part="queue-keys">
           <span data-part="label">{dgettext("dashboard_integrations", "Queue keys")}</span>
           <ul data-part="queue-list">
             <li :for={queue_key <- @buildkite_queue_keys}><code>{queue_key}</code></li>

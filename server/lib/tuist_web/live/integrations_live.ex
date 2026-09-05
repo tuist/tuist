@@ -115,6 +115,20 @@ defmodule TuistWeb.IntegrationsLive do
     end
   end
 
+  # The cluster name is a label and nothing else reads it, so it saves
+  # straight from the card; the connection itself (slug and token) is
+  # changed through the modal.
+  @impl true
+  def handle_event(
+        "update-buildkite-cluster-name",
+        %{"cluster_name" => name},
+        %{assigns: %{selected_account: account}} = socket
+      ) do
+    {:ok, _installation} = Buildkite.upsert_installation(account.id, %{cluster_name: String.trim(name)})
+
+    {:noreply, assign_buildkite_installation(socket)}
+  end
+
   @impl true
   def handle_event("disconnect-buildkite", _params, %{assigns: %{selected_account: account}} = socket) do
     :ok = Buildkite.delete_installation(account.id)
@@ -425,12 +439,6 @@ defmodule TuistWeb.IntegrationsLive do
   defp buildkite_queue_keys(account) do
     account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1)
   end
-
-  defp buildkite_cluster_label(%{organization_slug: slug, cluster_name: name}) when name in [nil, ""], do: slug
-  defp buildkite_cluster_label(%{organization_slug: slug, cluster_name: name}), do: "#{slug} · #{name}"
-
-  defp buildkite_last_checked(%{last_polled_at: nil}), do: dgettext("dashboard_integrations", "Not yet")
-  defp buildkite_last_checked(%{last_polled_at: at}), do: DateFormatter.from_now(at)
 
   # Errors land on the input that caused them. `stack_key` is derived, not
   # typed, so it has no input to attach to and would be invisible as a

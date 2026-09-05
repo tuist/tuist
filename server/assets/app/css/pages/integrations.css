@@ -134,14 +134,16 @@
     }
   }
 
+  /* Unlike the GitHub card, the connection details run the full width of
+     the card: the cluster field and the queue keys are the whole point of
+     the card once connected, not a side column. */
   & > [data-part="buildkite-card-section"] {
     display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
 
     & > [data-part="header"] {
       display: flex;
-      flex-grow: 1;
       flex-direction: column;
       gap: var(--noora-spacing-2);
 
@@ -160,36 +162,27 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
-      width: 48%;
 
       & > [data-part="buildkite-connection"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-3);
+        gap: var(--noora-spacing-6);
 
-        & > [data-part="row"] {
+        & > [data-part="queue-keys"] {
           display: flex;
-          flex-direction: row;
-          align-items: baseline;
-          gap: var(--noora-spacing-4);
+          flex-direction: column;
+          gap: var(--noora-spacing-3);
 
           & > [data-part="label"] {
-            flex-shrink: 0;
-            width: 30%;
-            color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-          }
-
-          & > [data-part="value"] {
-            min-width: 0;
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           }
 
           & > [data-part="queue-list"] {
             display: flex;
-            flex-direction: column;
-            gap: var(--noora-spacing-1);
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: var(--noora-spacing-3) var(--noora-spacing-6);
             margin: 0;
             padding: 0;
             list-style: none;

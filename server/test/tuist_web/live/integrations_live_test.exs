@@ -426,7 +426,26 @@ defmodule TuistWeb.IntegrationsLiveTest do
       # Derived, never taken from the form: a customer-chosen key could
       # collide with another account's and swap their reservations.
       assert installation.stack_key == "tuist-#{account.id}"
-      assert html =~ "acme · macOS"
+      assert html =~ ~s(value="macOS")
+    end
+
+    test "renames the cluster straight from the card", %{conn: conn, account: account} do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      lv |> form("#buildkite-cluster-form", %{"cluster_name" => "macOS builds"}) |> render_change()
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.cluster_name == "macOS builds"
+      # A label only: the connection it labels is untouched.
+      assert installation.agent_token == "bkct_secret"
+      assert installation.organization_slug == "acme"
     end
 
     test "masks the agent token so it is never typed in the clear", %{conn: conn, account: account} do
