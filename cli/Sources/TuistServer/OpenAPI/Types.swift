@@ -22,11 +22,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
     func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output
+    /// Daily module cache metrics for a project, or for a single module.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/metrics`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)`.
+    func moduleCacheMetrics(_ input: Operations.moduleCacheMetrics.Input) async throws -> Operations.moduleCacheMetrics.Output
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)`.
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
+    /// List the builds a module took part in, with why the module cache missed.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)`.
+    func listModuleCacheModuleBuilds(_ input: Operations.listModuleCacheModuleBuilds.Input) async throws -> Operations.listModuleCacheModuleBuilds.Output
     /// Get cache endpoints.
     ///
     /// Returns cache endpoints for the requested account.
@@ -570,6 +580,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// List a project's modules ranked by module cache invalidations.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)`.
+    func listModuleCacheModules(_ input: Operations.listModuleCacheModules.Input) async throws -> Operations.listModuleCacheModules.Output
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -765,6 +780,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/get(getBazelCacheEvent)`.
     func getBazelCacheEvent(_ input: Operations.getBazelCacheEvent.Input) async throws -> Operations.getBazelCacheEvent.Output
+    /// Get a module's cache invalidations and its dependency graph neighbours.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)`.
+    func getModuleCacheModule(_ input: Operations.getModuleCacheModule.Input) async throws -> Operations.getModuleCacheModule.Output
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -880,6 +900,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Daily module cache metrics for a project, or for a single module.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/metrics`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)`.
+    public func moduleCacheMetrics(
+        path: Operations.moduleCacheMetrics.Input.Path,
+        query: Operations.moduleCacheMetrics.Input.Query = .init(),
+        headers: Operations.moduleCacheMetrics.Input.Headers = .init()
+    ) async throws -> Operations.moduleCacheMetrics.Output {
+        try await moduleCacheMetrics(Operations.moduleCacheMetrics.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
@@ -890,6 +925,21 @@ extension APIProtocol {
     ) async throws -> Operations.getGeneration.Output {
         try await getGeneration(Operations.getGeneration.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// List the builds a module took part in, with why the module cache missed.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)`.
+    public func listModuleCacheModuleBuilds(
+        path: Operations.listModuleCacheModuleBuilds.Input.Path,
+        query: Operations.listModuleCacheModuleBuilds.Input.Query = .init(),
+        headers: Operations.listModuleCacheModuleBuilds.Input.Headers = .init()
+    ) async throws -> Operations.listModuleCacheModuleBuilds.Output {
+        try await listModuleCacheModuleBuilds(Operations.listModuleCacheModuleBuilds.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -2246,6 +2296,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List a project's modules ranked by module cache invalidations.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)`.
+    public func listModuleCacheModules(
+        path: Operations.listModuleCacheModules.Input.Path,
+        query: Operations.listModuleCacheModules.Input.Query = .init(),
+        headers: Operations.listModuleCacheModules.Input.Headers = .init()
+    ) async throws -> Operations.listModuleCacheModules.Output {
+        try await listModuleCacheModules(Operations.listModuleCacheModules.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -2732,6 +2797,21 @@ extension APIProtocol {
     ) async throws -> Operations.getBazelCacheEvent.Output {
         try await getBazelCacheEvent(Operations.getBazelCacheEvent.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// Get a module's cache invalidations and its dependency graph neighbours.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)`.
+    public func getModuleCacheModule(
+        path: Operations.getModuleCacheModule.Input.Path,
+        query: Operations.getModuleCacheModule.Input.Query = .init(),
+        headers: Operations.getModuleCacheModule.Input.Headers = .init()
+    ) async throws -> Operations.getModuleCacheModule.Output {
+        try await getModuleCacheModule(Operations.getModuleCacheModule.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -3727,6 +3807,13 @@ public enum Components {
                 case xcode_version
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ModuleCacheBuildReason`.
+        @frozen public enum ModuleCacheBuildReason: String, Codable, Hashable, Sendable, CaseIterable {
+            case hit = "hit"
+            case changed = "changed"
+            case upstream = "upstream"
+            case cold = "cold"
+        }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
@@ -4391,6 +4478,10 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// The maximum number of modules to return, most invalidated first.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ModuleCacheModulesLimit`.
+        public typealias ModuleCacheModulesLimit = Swift.Int
         /// Represents a single build run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
@@ -6094,6 +6185,11 @@ public enum Components {
                 case skip
                 case suites
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/ModuleCacheBuildsOrder`.
+        @frozen public enum ModuleCacheBuildsOrder: String, Codable, Hashable, Sendable, CaseIterable {
+            case asc = "asc"
+            case desc = "desc"
         }
         /// - Remark: Generated from `#/components/schemas/TestRunStatus`.
         @frozen public enum TestRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
@@ -10165,6 +10261,10 @@ public enum Components {
             case macos = "macos"
             case android = "android"
         }
+        /// The maximum number of builds to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ModuleCacheBuildsLimit`.
+        public typealias ModuleCacheBuildsLimit = Swift.Int
         /// The maximum number of tasks to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPageSize`.
@@ -13587,6 +13687,411 @@ public enum Operations {
             }
         }
     }
+    /// Daily module cache metrics for a project, or for a single module.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/metrics`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)`.
+    public enum moduleCacheMetrics {
+        public static let id: Swift.String = "moduleCacheMetrics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.moduleCacheMetrics.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Inclusive start of the window. Defaults to 30 days ago.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query/start_datetime`.
+                public var start_datetime: Foundation.Date?
+                /// Inclusive end of the window. Defaults to now.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query/end_datetime`.
+                public var end_datetime: Foundation.Date?
+                /// Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Restrict to a single git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Restrict the cache and miss reason series to one module. Covers every module when omitted.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/query/name`.
+                public var name: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - start_datetime: Inclusive start of the window. Defaults to 30 days ago.
+                ///   - end_datetime: Inclusive end of the window. Defaults to now.
+                ///   - is_ci: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///   - git_branch: Restrict to a single git branch.
+                ///   - name: Restrict the cache and miss reason series to one module. Covers every module when omitted.
+                public init(
+                    start_datetime: Foundation.Date? = nil,
+                    end_datetime: Foundation.Date? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    git_branch: Swift.String? = nil,
+                    name: Swift.String? = nil
+                ) {
+                    self.start_datetime = start_datetime
+                    self.end_datetime = end_datetime
+                    self.is_ci = is_ci
+                    self.git_branch = git_branch
+                    self.name = name
+                }
+            }
+            public var query: Operations.moduleCacheMetrics.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheMetrics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheMetrics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.moduleCacheMetrics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.moduleCacheMetrics.Input.Path,
+                query: Operations.moduleCacheMetrics.Input.Query = .init(),
+                headers: Operations.moduleCacheMetrics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/dates`.
+                        public var dates: [Swift.String]
+                        /// How many modules transitively depended on `name` each day. Null when `name` is omitted.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/dependents_counts`.
+                        public var dependents_counts: [Swift.Int]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/hit_rates`.
+                        public var hit_rates: [Swift.Double]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/invalidations`.
+                        public var invalidations: [Swift.Int]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/miss_reasons`.
+                        public struct miss_reasonsPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/miss_reasons/changed`.
+                            public var changed: [Swift.Int]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/miss_reasons/cold`.
+                            public var cold: [Swift.Int]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/miss_reasons/upstream`.
+                            public var upstream: [Swift.Int]
+                            /// Creates a new `miss_reasonsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - changed:
+                            ///   - cold:
+                            ///   - upstream:
+                            public init(
+                                changed: [Swift.Int],
+                                cold: [Swift.Int],
+                                upstream: [Swift.Int]
+                            ) {
+                                self.changed = changed
+                                self.cold = cold
+                                self.upstream = upstream
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case changed
+                                case cold
+                                case upstream
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/miss_reasons`.
+                        public var miss_reasons: Operations.moduleCacheMetrics.Output.Ok.Body.jsonPayload.miss_reasonsPayload
+                        /// Distinct modules the project built each day. Never scoped to `name`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/module_counts`.
+                        public var module_counts: [Swift.Int]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/json/reuses`.
+                        public var reuses: [Swift.Int]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - dates:
+                        ///   - dependents_counts: How many modules transitively depended on `name` each day. Null when `name` is omitted.
+                        ///   - hit_rates:
+                        ///   - invalidations:
+                        ///   - miss_reasons:
+                        ///   - module_counts: Distinct modules the project built each day. Never scoped to `name`.
+                        ///   - reuses:
+                        public init(
+                            dates: [Swift.String],
+                            dependents_counts: [Swift.Int]? = nil,
+                            hit_rates: [Swift.Double],
+                            invalidations: [Swift.Int],
+                            miss_reasons: Operations.moduleCacheMetrics.Output.Ok.Body.jsonPayload.miss_reasonsPayload,
+                            module_counts: [Swift.Int],
+                            reuses: [Swift.Int]
+                        ) {
+                            self.dates = dates
+                            self.dependents_counts = dependents_counts
+                            self.hit_rates = hit_rates
+                            self.invalidations = invalidations
+                            self.miss_reasons = miss_reasons
+                            self.module_counts = module_counts
+                            self.reuses = reuses
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case dates
+                            case dependents_counts
+                            case hit_rates
+                            case invalidations
+                            case miss_reasons
+                            case module_counts
+                            case reuses
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/200/content/application\/json`.
+                    case json(Operations.moduleCacheMetrics.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.moduleCacheMetrics.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheMetrics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheMetrics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Module cache metrics
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.moduleCacheMetrics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.moduleCacheMetrics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheMetrics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheMetrics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.moduleCacheMetrics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.moduleCacheMetrics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.moduleCacheMetrics.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/metrics/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheMetrics.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.moduleCacheMetrics.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.moduleCacheMetrics.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.moduleCacheMetrics.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.moduleCacheMetrics.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
@@ -14019,6 +14524,539 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.getGeneration.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the builds a module took part in, with why the module cache missed.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)`.
+    public enum listModuleCacheModuleBuilds {
+        public static let id: Swift.String = "listModuleCacheModuleBuilds"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The name of the module.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/path/module_name`.
+                public var module_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - module_name: The name of the module.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    module_name: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.module_name = module_name
+                }
+            }
+            public var path: Operations.listModuleCacheModuleBuilds.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Inclusive start of the window. Defaults to 30 days ago.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/start_datetime`.
+                public var start_datetime: Foundation.Date?
+                /// Inclusive end of the window. Defaults to now.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/end_datetime`.
+                public var end_datetime: Foundation.Date?
+                /// Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Restrict to a single git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Restrict to commits whose sha starts with this prefix.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/commit_sha`.
+                public var commit_sha: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/reason`.
+                @frozen public enum reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case hit = "hit"
+                    case changed = "changed"
+                    case upstream = "upstream"
+                    case cold = "cold"
+                }
+                /// Restrict to builds with this outcome.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/reason`.
+                public var reason: Operations.listModuleCacheModuleBuilds.Input.Query.reasonPayload?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/order`.
+                @frozen public enum orderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case asc = "asc"
+                    case desc = "desc"
+                }
+                /// Newest first (desc) or oldest first (asc).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/order`.
+                public var order: Operations.listModuleCacheModuleBuilds.Input.Query.orderPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Pass the `end_cursor` of a previous response to fetch the next page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/after`.
+                public var after: Swift.String?
+                /// Pass the `start_cursor` of a previous response to fetch the previous page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/query/before`.
+                public var before: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - start_datetime: Inclusive start of the window. Defaults to 30 days ago.
+                ///   - end_datetime: Inclusive end of the window. Defaults to now.
+                ///   - is_ci: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///   - git_branch: Restrict to a single git branch.
+                ///   - commit_sha: Restrict to commits whose sha starts with this prefix.
+                ///   - reason: Restrict to builds with this outcome.
+                ///   - order: Newest first (desc) or oldest first (asc).
+                ///   - limit:
+                ///   - after: Pass the `end_cursor` of a previous response to fetch the next page.
+                ///   - before: Pass the `start_cursor` of a previous response to fetch the previous page.
+                public init(
+                    start_datetime: Foundation.Date? = nil,
+                    end_datetime: Foundation.Date? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    git_branch: Swift.String? = nil,
+                    commit_sha: Swift.String? = nil,
+                    reason: Operations.listModuleCacheModuleBuilds.Input.Query.reasonPayload? = nil,
+                    order: Operations.listModuleCacheModuleBuilds.Input.Query.orderPayload? = nil,
+                    limit: Swift.Int? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil
+                ) {
+                    self.start_datetime = start_datetime
+                    self.end_datetime = end_datetime
+                    self.is_ci = is_ci
+                    self.git_branch = git_branch
+                    self.commit_sha = commit_sha
+                    self.reason = reason
+                    self.order = order
+                    self.limit = limit
+                    self.after = after
+                    self.before = before
+                }
+            }
+            public var query: Operations.listModuleCacheModuleBuilds.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listModuleCacheModuleBuilds.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listModuleCacheModuleBuilds.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listModuleCacheModuleBuilds.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listModuleCacheModuleBuilds.Input.Path,
+                query: Operations.listModuleCacheModuleBuilds.Input.Query = .init(),
+                headers: Operations.listModuleCacheModuleBuilds.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload`.
+                        public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether the module cache hit, and from where.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/cache_status`.
+                            @frozen public enum cache_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case miss = "miss"
+                                case local = "local"
+                                case remote = "remote"
+                            }
+                            /// Whether the module cache hit, and from where.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/cache_status`.
+                            public var cache_status: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.cache_statusPayload
+                            /// The branch the run was on.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/git_branch`.
+                            public var git_branch: Swift.String
+                            /// The commit the run was on.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String
+                            /// When the run happened.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/ran_at`.
+                            public var ran_at: Foundation.Date
+                            /// Why the module missed: changed (its own content differed), upstream (only a dependency differed) or cold (no comparable prior build).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/reason`.
+                            @frozen public enum reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case hit = "hit"
+                                case changed = "changed"
+                                case upstream = "upstream"
+                                case cold = "cold"
+                            }
+                            /// Why the module missed: changed (its own content differed), upstream (only a dependency differed) or cold (no comparable prior build).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/reason`.
+                            public var reason: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.reasonPayload
+                            /// The ID of the command run.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/run_id`.
+                            public var run_id: Swift.String
+                            /// Empty for commands that produce no activity log, such as generate and cache.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/buildsPayload/scheme`.
+                            public var scheme: Swift.String
+                            /// Creates a new `buildsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cache_status: Whether the module cache hit, and from where.
+                            ///   - git_branch: The branch the run was on.
+                            ///   - git_commit_sha: The commit the run was on.
+                            ///   - ran_at: When the run happened.
+                            ///   - reason: Why the module missed: changed (its own content differed), upstream (only a dependency differed) or cold (no comparable prior build).
+                            ///   - run_id: The ID of the command run.
+                            ///   - scheme: Empty for commands that produce no activity log, such as generate and cache.
+                            public init(
+                                cache_status: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.cache_statusPayload,
+                                git_branch: Swift.String,
+                                git_commit_sha: Swift.String,
+                                ran_at: Foundation.Date,
+                                reason: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.reasonPayload,
+                                run_id: Swift.String,
+                                scheme: Swift.String
+                            ) {
+                                self.cache_status = cache_status
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.ran_at = ran_at
+                                self.reason = reason
+                                self.run_id = run_id
+                                self.scheme = scheme
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cache_status
+                                case git_branch
+                                case git_commit_sha
+                                case ran_at
+                                case reason
+                                case run_id
+                                case scheme
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/builds`.
+                        public typealias buildsPayload = [Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/builds`.
+                        public var builds: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - builds:
+                        ///   - pagination_metadata:
+                        public init(
+                            builds: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload.buildsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
+                            self.builds = builds
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case builds
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/200/content/application\/json`.
+                    case json(Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listModuleCacheModuleBuilds.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModuleBuilds.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listModuleCacheModuleBuilds.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of builds
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listModuleCacheModuleBuilds.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listModuleCacheModuleBuilds.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModuleBuilds.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listModuleCacheModuleBuilds.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listModuleCacheModuleBuilds.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listModuleCacheModuleBuilds.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModuleBuilds.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listModuleCacheModuleBuilds.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listModuleCacheModuleBuilds.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listModuleCacheModuleBuilds.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listModuleCacheModuleBuilds.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModuleBuilds.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listModuleCacheModuleBuilds.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listModuleCacheModuleBuilds.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds/get(listModuleCacheModuleBuilds)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listModuleCacheModuleBuilds.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listModuleCacheModuleBuilds.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -23708,14 +24746,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
@@ -23723,16 +24761,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page_size: Number of items per page.
                 ///   - page: Page number for pagination.
+                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil
                 ) {
-                    self.page_size = page_size
                     self.page = page
+                    self.page_size = page_size
                     self.git_branch = git_branch
                 }
             }
@@ -55118,6 +56156,451 @@ public enum Operations {
             }
         }
     }
+    /// List a project's modules ranked by module cache invalidations.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)`.
+    public enum listModuleCacheModules {
+        public static let id: Swift.String = "listModuleCacheModules"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listModuleCacheModules.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Inclusive start of the window. Defaults to 30 days ago.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query/start_datetime`.
+                public var start_datetime: Foundation.Date?
+                /// Inclusive end of the window. Defaults to now.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query/end_datetime`.
+                public var end_datetime: Foundation.Date?
+                /// Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Restrict to a single git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - start_datetime: Inclusive start of the window. Defaults to 30 days ago.
+                ///   - end_datetime: Inclusive end of the window. Defaults to now.
+                ///   - is_ci: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///   - git_branch: Restrict to a single git branch.
+                ///   - limit:
+                public init(
+                    start_datetime: Foundation.Date? = nil,
+                    end_datetime: Foundation.Date? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    git_branch: Swift.String? = nil,
+                    limit: Swift.Int? = nil
+                ) {
+                    self.start_datetime = start_datetime
+                    self.end_datetime = end_datetime
+                    self.is_ci = is_ci
+                    self.git_branch = git_branch
+                    self.limit = limit
+                }
+            }
+            public var query: Operations.listModuleCacheModules.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listModuleCacheModules.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listModuleCacheModules.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listModuleCacheModules.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listModuleCacheModules.Input.Path,
+                query: Operations.listModuleCacheModules.Input.Query = .init(),
+                headers: Operations.listModuleCacheModules.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The number of modules on the project's latest commit on module_count_branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/module_count`.
+                        public var module_count: Swift.Int
+                        /// The branch module_count was read from: git_branch, or the project's default branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/module_count_branch`.
+                        public var module_count_branch: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload`.
+                        public struct modulesPayloadPayload: Codable, Hashable, Sendable {
+                            /// Builds the module took part in.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/appearances`.
+                            public var appearances: Swift.Int
+                            /// How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/blast_radius`.
+                            public var blast_radius: Swift.Int?
+                            /// Invalidations caused only by a dependency changing.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/dependency_induced`.
+                            public var dependency_induced: Swift.Int
+                            /// Percentage of appearances that were hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/hit_rate`.
+                            public var hit_rate: Swift.Double
+                            /// Percentage of appearances that were misses.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/invalidation_rate`.
+                            public var invalidation_rate: Swift.Double
+                            /// Builds where the module was a cache miss.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/invalidations`.
+                            public var invalidations: Swift.Int
+                            /// The module name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/name`.
+                            public var name: Swift.String
+                            /// The product the module builds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/product`.
+                            public var product: Swift.String
+                            /// Invalidations caused by the module's own content changing.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/self_changes`.
+                            public var self_changes: Swift.Int
+                            /// Invalidations with no comparable prior build: first-seen, cold or evicted.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modulesPayload/unclassified`.
+                            public var unclassified: Swift.Int
+                            /// Creates a new `modulesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - appearances: Builds the module took part in.
+                            ///   - blast_radius: How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                            ///   - dependency_induced: Invalidations caused only by a dependency changing.
+                            ///   - hit_rate: Percentage of appearances that were hits.
+                            ///   - invalidation_rate: Percentage of appearances that were misses.
+                            ///   - invalidations: Builds where the module was a cache miss.
+                            ///   - name: The module name.
+                            ///   - product: The product the module builds.
+                            ///   - self_changes: Invalidations caused by the module's own content changing.
+                            ///   - unclassified: Invalidations with no comparable prior build: first-seen, cold or evicted.
+                            public init(
+                                appearances: Swift.Int,
+                                blast_radius: Swift.Int? = nil,
+                                dependency_induced: Swift.Int,
+                                hit_rate: Swift.Double,
+                                invalidation_rate: Swift.Double,
+                                invalidations: Swift.Int,
+                                name: Swift.String,
+                                product: Swift.String,
+                                self_changes: Swift.Int,
+                                unclassified: Swift.Int
+                            ) {
+                                self.appearances = appearances
+                                self.blast_radius = blast_radius
+                                self.dependency_induced = dependency_induced
+                                self.hit_rate = hit_rate
+                                self.invalidation_rate = invalidation_rate
+                                self.invalidations = invalidations
+                                self.name = name
+                                self.product = product
+                                self.self_changes = self_changes
+                                self.unclassified = unclassified
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case appearances
+                                case blast_radius
+                                case dependency_induced
+                                case hit_rate
+                                case invalidation_rate
+                                case invalidations
+                                case name
+                                case product
+                                case self_changes
+                                case unclassified
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modules`.
+                        public typealias modulesPayload = [Operations.listModuleCacheModules.Output.Ok.Body.jsonPayload.modulesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/json/modules`.
+                        public var modules: Operations.listModuleCacheModules.Output.Ok.Body.jsonPayload.modulesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - module_count: The number of modules on the project's latest commit on module_count_branch.
+                        ///   - module_count_branch: The branch module_count was read from: git_branch, or the project's default branch.
+                        ///   - modules:
+                        public init(
+                            module_count: Swift.Int,
+                            module_count_branch: Swift.String,
+                            modules: Operations.listModuleCacheModules.Output.Ok.Body.jsonPayload.modulesPayload
+                        ) {
+                            self.module_count = module_count
+                            self.module_count_branch = module_count_branch
+                            self.modules = modules
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case module_count
+                            case module_count_branch
+                            case modules
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/200/content/application\/json`.
+                    case json(Operations.listModuleCacheModules.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listModuleCacheModules.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModules.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listModuleCacheModules.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of modules
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listModuleCacheModules.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listModuleCacheModules.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModules.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listModuleCacheModules.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listModuleCacheModules.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listModuleCacheModules.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listModuleCacheModules.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listModuleCacheModules.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listModuleCacheModules.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listModuleCacheModules.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/get(listModuleCacheModules)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listModuleCacheModules.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listModuleCacheModules.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -69397,6 +70880,491 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a module's cache invalidations and its dependency graph neighbours.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)`.
+    public enum getModuleCacheModule {
+        public static let id: Swift.String = "getModuleCacheModule"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The name of the module.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/path/module_name`.
+                public var module_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - module_name: The name of the module.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    module_name: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.module_name = module_name
+                }
+            }
+            public var path: Operations.getModuleCacheModule.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Inclusive start of the window. Defaults to 30 days ago.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/query/start_datetime`.
+                public var start_datetime: Foundation.Date?
+                /// Inclusive end of the window. Defaults to now.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/query/end_datetime`.
+                public var end_datetime: Foundation.Date?
+                /// Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Restrict to a single git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - start_datetime: Inclusive start of the window. Defaults to 30 days ago.
+                ///   - end_datetime: Inclusive end of the window. Defaults to now.
+                ///   - is_ci: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+                ///   - git_branch: Restrict to a single git branch.
+                public init(
+                    start_datetime: Foundation.Date? = nil,
+                    end_datetime: Foundation.Date? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    git_branch: Swift.String? = nil
+                ) {
+                    self.start_datetime = start_datetime
+                    self.end_datetime = end_datetime
+                    self.is_ci = is_ci
+                    self.git_branch = git_branch
+                }
+            }
+            public var query: Operations.getModuleCacheModule.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getModuleCacheModule.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getModuleCacheModule.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getModuleCacheModule.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getModuleCacheModule.Input.Path,
+                query: Operations.getModuleCacheModule.Input.Query = .init(),
+                headers: Operations.getModuleCacheModule.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Builds the module took part in.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/appearances`.
+                        public var appearances: Swift.Int
+                        /// How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/blast_radius`.
+                        public var blast_radius: Swift.Int?
+                        /// Invalidations caused only by a dependency changing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/dependency_induced`.
+                        public var dependency_induced: Swift.Int
+                        /// The modules that directly depend on this one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/dependents`.
+                        public var dependents: [Swift.String]?
+                        /// The modules this one directly depends on, from the dependency graph of the project's latest commit. Null when no build in the window carries dependency edges. These are graph edges, not the `dependencies` entry of a target's subhashes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/depends_on`.
+                        public var depends_on: [Swift.String]?
+                        /// Percentage of appearances that were hits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/hit_rate`.
+                        public var hit_rate: Swift.Double
+                        /// Percentage of appearances that were misses.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/invalidation_rate`.
+                        public var invalidation_rate: Swift.Double
+                        /// Builds where the module was a cache miss.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/invalidations`.
+                        public var invalidations: Swift.Int
+                        /// The module name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/name`.
+                        public var name: Swift.String
+                        /// The product the module builds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/product`.
+                        public var product: Swift.String
+                        /// Invalidations caused by the module's own content changing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/self_changes`.
+                        public var self_changes: Swift.Int
+                        /// Every module this one invalidates downstream when it changes. Sized by blast_radius.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/transitive_dependents`.
+                        public var transitive_dependents: [Swift.String]?
+                        /// Invalidations with no comparable prior build: first-seen, cold or evicted.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/json/unclassified`.
+                        public var unclassified: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - appearances: Builds the module took part in.
+                        ///   - blast_radius: How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                        ///   - dependency_induced: Invalidations caused only by a dependency changing.
+                        ///   - dependents: The modules that directly depend on this one.
+                        ///   - depends_on: The modules this one directly depends on, from the dependency graph of the project's latest commit. Null when no build in the window carries dependency edges. These are graph edges, not the `dependencies` entry of a target's subhashes.
+                        ///   - hit_rate: Percentage of appearances that were hits.
+                        ///   - invalidation_rate: Percentage of appearances that were misses.
+                        ///   - invalidations: Builds where the module was a cache miss.
+                        ///   - name: The module name.
+                        ///   - product: The product the module builds.
+                        ///   - self_changes: Invalidations caused by the module's own content changing.
+                        ///   - transitive_dependents: Every module this one invalidates downstream when it changes. Sized by blast_radius.
+                        ///   - unclassified: Invalidations with no comparable prior build: first-seen, cold or evicted.
+                        public init(
+                            appearances: Swift.Int,
+                            blast_radius: Swift.Int? = nil,
+                            dependency_induced: Swift.Int,
+                            dependents: [Swift.String]? = nil,
+                            depends_on: [Swift.String]? = nil,
+                            hit_rate: Swift.Double,
+                            invalidation_rate: Swift.Double,
+                            invalidations: Swift.Int,
+                            name: Swift.String,
+                            product: Swift.String,
+                            self_changes: Swift.Int,
+                            transitive_dependents: [Swift.String]? = nil,
+                            unclassified: Swift.Int
+                        ) {
+                            self.appearances = appearances
+                            self.blast_radius = blast_radius
+                            self.dependency_induced = dependency_induced
+                            self.dependents = dependents
+                            self.depends_on = depends_on
+                            self.hit_rate = hit_rate
+                            self.invalidation_rate = invalidation_rate
+                            self.invalidations = invalidations
+                            self.name = name
+                            self.product = product
+                            self.self_changes = self_changes
+                            self.transitive_dependents = transitive_dependents
+                            self.unclassified = unclassified
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case appearances
+                            case blast_radius
+                            case dependency_induced
+                            case dependents
+                            case depends_on
+                            case hit_rate
+                            case invalidation_rate
+                            case invalidations
+                            case name
+                            case product
+                            case self_changes
+                            case transitive_dependents
+                            case unclassified
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getModuleCacheModule.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getModuleCacheModule.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getModuleCacheModule.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getModuleCacheModule.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The module
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getModuleCacheModule.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getModuleCacheModule.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getModuleCacheModule.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getModuleCacheModule.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getModuleCacheModule.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getModuleCacheModule.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getModuleCacheModule.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getModuleCacheModule.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Module not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getModuleCacheModule.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getModuleCacheModule.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getModuleCacheModule.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getModuleCacheModule.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getModuleCacheModule.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getModuleCacheModule.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/get(getModuleCacheModule)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getModuleCacheModule.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getModuleCacheModule.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

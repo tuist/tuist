@@ -2737,6 +2737,109 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "module_summary/1 and module_neighbors/1" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      %{
+        project: ProjectsFixtures.project_fixture(),
+        opts: [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+      }
+    end
+
+    defp module_cache_build(project, created_at, targets) do
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          git_commit_sha: "sha-#{created_at}",
+          created_at: created_at
+        )
+
+      for {name, hit, sources, deps} <- targets do
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies: deps
+        )
+      end
+    end
+
+    test "module_summary returns the invalidation row of an invalidated module", %{project: project, opts: opts} do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [{"Core", :miss, "s1", []}])
+      module_cache_build(project, ~N[2024-04-02 10:00:00], [{"Core", :miss, "s2", []}])
+
+      summary = Analytics.module_summary(Keyword.merge(opts, project_id: project.id, name: "Core"))
+
+      assert summary.name == "Core"
+      assert summary.appearances == 2
+      assert summary.invalidations == 2
+      assert summary.self_changes == 1
+    end
+
+    test "module_summary zeroes a module that only ever reused from cache", %{project: project, opts: opts} do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [{"Core", :remote, "s1", []}, {"App", :miss, "a1", ["Core"]}])
+      module_cache_build(project, ~N[2024-04-02 10:00:00], [{"Core", :local, "s1", []}, {"App", :miss, "a2", ["Core"]}])
+
+      summary = Analytics.module_summary(Keyword.merge(opts, project_id: project.id, name: "Core"))
+
+      # module_invalidations/1 has no row for Core: it was never a miss.
+      assert Enum.all?(Analytics.module_invalidations(Keyword.put(opts, :project_id, project.id)), &(&1.name != "Core"))
+
+      assert summary.name == "Core"
+      assert summary.appearances == 2
+      assert summary.invalidations == 0
+      assert summary.invalidation_rate == 0.0
+      assert summary.hit_rate == 100.0
+      # The row does not exist, so the blast radius comes from the graph.
+      assert summary.blast_radius == 1
+    end
+
+    test "module_summary returns nil for a module no build in the window carries", %{project: project, opts: opts} do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [{"Core", :miss, "s1", []}])
+
+      assert Analytics.module_summary(Keyword.merge(opts, project_id: project.id, name: "Gone")) == nil
+    end
+
+    test "module_neighbors reads the real dependency edges, not the dependencies subhash", %{
+      project: project,
+      opts: opts
+    } do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [
+        {"Core", :miss, "c1", []},
+        {"Networking", :miss, "n1", ["Core"]},
+        {"App", :miss, "a1", ["Networking"]}
+      ])
+
+      neighbors = Analytics.module_neighbors(Keyword.merge(opts, project_id: project.id, name: "Networking"))
+
+      assert neighbors.depends_on == ["Core"]
+      assert neighbors.dependents == ["App"]
+      assert neighbors.transitive_dependents == ["App"]
+
+      core = Analytics.module_neighbors(Keyword.merge(opts, project_id: project.id, name: "Core"))
+
+      assert core.depends_on == []
+      assert core.dependents == ["Networking"]
+      assert core.transitive_dependents == ["App", "Networking"]
+    end
+
+    test "module_neighbors is nil when no build carries dependency edges", %{project: project, opts: opts} do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [{"Core", :miss, "c1", []}, {"App", :miss, "a1", []}])
+
+      neighbors = Analytics.module_neighbors(Keyword.merge(opts, project_id: project.id, name: "Core"))
+
+      # Nil rather than [], which would claim Core is a leaf.
+      assert neighbors.depends_on == nil
+      assert neighbors.dependents == nil
+      assert neighbors.transitive_dependents == nil
+    end
+  end
+
   describe "module_cache_hit_rate_analytics/1" do
     test "returns module cache hit rate analytics with correct calculations" do
       # Given

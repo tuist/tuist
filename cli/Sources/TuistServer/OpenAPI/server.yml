@@ -500,6 +500,16 @@ components:
       type: object
       x-struct:
       x-validate:
+    ModuleCacheBuildReason:
+      enum:
+        - hit
+        - changed
+        - upstream
+        - cold
+      title: ModuleCacheBuildReason
+      type: string
+      x-struct:
+      x-validate:
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
@@ -1008,6 +1018,15 @@ components:
       title: WebhookTestCaseCreatedEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCaseCreatedEvent
+      x-validate:
+    ModuleCacheModulesLimit:
+      default: 30
+      description: The maximum number of modules to return, most invalidated first.
+      maximum: 200
+      minimum: 1
+      title: ModuleCacheModulesLimit
+      type: integer
+      x-struct:
       x-validate:
     RunsBuild:
       description: Represents a single build run.
@@ -2235,6 +2254,15 @@ components:
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
+      x-validate:
+    ModuleCacheBuildsOrder:
+      default: desc
+      enum:
+        - asc
+        - desc
+      title: ModuleCacheBuildsOrder
+      type: string
+      x-struct:
       x-validate:
     TestRunStatus:
       enum:
@@ -5198,6 +5226,15 @@ components:
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
       x-validate:
+    ModuleCacheBuildsLimit:
+      default: 25
+      description: The maximum number of builds to return in a single page.
+      maximum: 200
+      minimum: 1
+      title: ModuleCacheBuildsLimit
+      type: integer
+      x-struct:
+      x-validate:
     GradleTasksIndexPageSize:
       default: 20
       description: The maximum number of tasks to return in a single page.
@@ -7355,6 +7392,201 @@ paths:
       summary: Create a test case run attachment and get a presigned upload URL.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/module-cache/metrics:
+    get:
+      callbacks: {}
+      operationId: moduleCacheMetrics
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive start of the window. Defaults to 30 days ago.
+          in: query
+          name: start_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive end of the window. Defaults to now.
+          in: query
+          name: end_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Restrict to a single git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict the cache and miss reason series to one module. Covers every module when omitted.
+          in: query
+          name: name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  dates:
+                    items:
+                      format: date
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  dependents_counts:
+                    description: How many modules transitively depended on `name` each day. Null when `name` is omitted.
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
+                    x-struct:
+                    x-validate:
+                  hit_rates:
+                    items:
+                      type: number
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  invalidations:
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  miss_reasons:
+                    properties:
+                      changed:
+                        items:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      cold:
+                        items:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      upstream:
+                        items:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - changed
+                      - upstream
+                      - cold
+                    type: object
+                    x-struct:
+                    x-validate:
+                  module_counts:
+                    description: Distinct modules the project built each day. Never scoped to `name`.
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  reuses:
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - dates
+                  - invalidations
+                  - reuses
+                  - hit_rates
+                  - miss_reasons
+                  - module_counts
+                type: object
+                x-struct:
+                x-validate:
+          description: Module cache metrics
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Daily module cache metrics for a project, or for a single module.
+      tags:
+        - Module cache
   /api/projects/{account_handle}/{project_handle}/generations/{generation_id}:
     get:
       callbacks: {}
@@ -7541,6 +7773,246 @@ paths:
       summary: Get a generation by ID.
       tags:
         - Generations
+  /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}/builds:
+    get:
+      callbacks: {}
+      operationId: listModuleCacheModuleBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The name of the module.
+          in: path
+          name: module_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive start of the window. Defaults to 30 days ago.
+          in: query
+          name: start_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive end of the window. Defaults to now.
+          in: query
+          name: end_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Restrict to a single git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to commits whose sha starts with this prefix.
+          in: query
+          name: commit_sha
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to builds with this outcome.
+          in: query
+          name: reason
+          required: false
+          schema:
+            enum:
+              - hit
+              - changed
+              - upstream
+              - cold
+            title: ModuleCacheBuildReason
+            type: string
+            x-struct:
+            x-validate:
+        - description: Newest first (desc) or oldest first (asc).
+          in: query
+          name: order
+          required: false
+          schema:
+            default: desc
+            enum:
+              - asc
+              - desc
+            title: ModuleCacheBuildsOrder
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 25
+            description: The maximum number of builds to return in a single page.
+            maximum: 200
+            minimum: 1
+            title: ModuleCacheBuildsLimit
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Pass the `end_cursor` of a previous response to fetch the next page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Pass the `start_cursor` of a previous response to fetch the previous page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        cache_status:
+                          description: Whether the module cache hit, and from where.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: The branch the run was on.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: The commit the run was on.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: When the run happened.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        reason:
+                          description: 'Why the module missed: changed (its own content differed), upstream (only a dependency differed) or cold (no comparable prior build).'
+                          enum:
+                            - hit
+                            - changed
+                            - upstream
+                            - cold
+                          type: string
+                          x-struct:
+                          x-validate:
+                        run_id:
+                          description: The ID of the command run.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Empty for commands that produce no activity log, such as generate and cache.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - run_id
+                        - scheme
+                        - ran_at
+                        - git_branch
+                        - git_commit_sha
+                        - cache_status
+                        - reason
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - builds
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of builds
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the builds a module took part in, with why the module cache missed.
+      tags:
+        - Module cache
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -10548,17 +11020,17 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
+        - description: Page number for pagination.
           in: query
-          name: page_size
+          name: page
           required: false
           schema:
             type: integer
             x-struct:
             x-validate:
-        - description: Page number for pagination.
+        - description: Number of items per page.
           in: query
-          name: page
+          name: page_size
           required: false
           schema:
             type: integer
@@ -20670,6 +21142,198 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/module-cache/modules:
+    get:
+      callbacks: {}
+      operationId: listModuleCacheModules
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive start of the window. Defaults to 30 days ago.
+          in: query
+          name: start_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive end of the window. Defaults to now.
+          in: query
+          name: end_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Restrict to a single git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 30
+            description: The maximum number of modules to return, most invalidated first.
+            maximum: 200
+            minimum: 1
+            title: ModuleCacheModulesLimit
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  module_count:
+                    description: The number of modules on the project's latest commit on module_count_branch.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  module_count_branch:
+                    description: "The branch module_count was read from: git_branch, or the project's default branch."
+                    type: string
+                    x-struct:
+                    x-validate:
+                  modules:
+                    items:
+                      properties:
+                        appearances:
+                          description: Builds the module took part in.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        blast_radius:
+                          description: How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        dependency_induced:
+                          description: Invalidations caused only by a dependency changing.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        hit_rate:
+                          description: Percentage of appearances that were hits.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        invalidation_rate:
+                          description: Percentage of appearances that were misses.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        invalidations:
+                          description: Builds where the module was a cache miss.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The module name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        product:
+                          description: The product the module builds.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        self_changes:
+                          description: Invalidations caused by the module's own content changing.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        unclassified:
+                          description: 'Invalidations with no comparable prior build: first-seen, cold or evicted.'
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - product
+                        - appearances
+                        - invalidations
+                        - invalidation_rate
+                        - hit_rate
+                        - self_changes
+                        - dependency_induced
+                        - unclassified
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - modules
+                  - module_count
+                  - module_count_branch
+                type: object
+                x-struct:
+                x-validate:
+          description: List of modules
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List a project's modules ranked by module cache invalidations.
+      tags:
+        - Module cache
   /api/projects/{account_handle}/{project_handle}/builds:
     get:
       callbacks: {}
@@ -25474,6 +26138,206 @@ paths:
       summary: Get a Bazel remote-cache event by its identifier.
       tags:
         - Bazel
+  /api/projects/{account_handle}/{project_handle}/module-cache/modules/{module_name}:
+    get:
+      callbacks: {}
+      operationId: getModuleCacheModule
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The name of the module.
+          in: path
+          name: module_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive start of the window. Defaults to 30 days ago.
+          in: query
+          name: start_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive end of the window. Defaults to now.
+          in: query
+          name: end_datetime
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: Restrict to runs executed on CI (true) or locally (false). Covers both when omitted.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Restrict to a single git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  appearances:
+                    description: Builds the module took part in.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  blast_radius:
+                    description: How many modules transitively depend on this one, or null when no build in the window carries dependency edges.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  dependency_induced:
+                    description: Invalidations caused only by a dependency changing.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  dependents:
+                    description: The modules that directly depend on this one.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
+                    x-struct:
+                    x-validate:
+                  depends_on:
+                    description: "The modules this one directly depends on, from the dependency graph of the project's latest commit. Null when no build in the window carries dependency edges. These are graph edges, not the `dependencies` entry of a target's subhashes."
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
+                    x-struct:
+                    x-validate:
+                  hit_rate:
+                    description: Percentage of appearances that were hits.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  invalidation_rate:
+                    description: Percentage of appearances that were misses.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  invalidations:
+                    description: Builds where the module was a cache miss.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The module name.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  product:
+                    description: The product the module builds.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  self_changes:
+                    description: Invalidations caused by the module's own content changing.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  transitive_dependents:
+                    description: Every module this one invalidates downstream when it changes. Sized by blast_radius.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
+                    x-struct:
+                    x-validate:
+                  unclassified:
+                    description: 'Invalidations with no comparable prior build: first-seen, cold or evicted.'
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - name
+                  - product
+                  - appearances
+                  - invalidations
+                  - invalidation_rate
+                  - hit_rate
+                  - self_changes
+                  - dependency_induced
+                  - unclassified
+                type: object
+                x-struct:
+                x-validate:
+          description: The module
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Module not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a module's cache invalidations and its dependency graph neighbours.
+      tags:
+        - Module cache
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}

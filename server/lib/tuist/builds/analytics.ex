@@ -2906,6 +2906,93 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  @doc """
+  One module's invalidation row, or nil when the module took part in no build in
+  the window.
+
+  `module_invalidations/1` only returns modules that were invalidated at least
+  once, so a module that only ever reused from cache has no row there. It is
+  still a module, so it gets a zeroed row, with its blast radius read from the
+  dependency graph rather than from the row that does not exist.
+
+  ## Options
+    Those of `module_invalidations/1`, with `:name` required.
+  """
+  def module_summary(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    case opts |> module_invalidations() |> List.first() do
+      nil -> reused_only_module_summary(opts, name)
+      row -> row
+    end
+  end
+
+  defp reused_only_module_summary(opts, name) do
+    timeseries = module_invalidation_timeseries(opts)
+    appearances = Enum.sum(timeseries.invalidations) + Enum.sum(timeseries.reuses)
+
+    if appearances == 0 do
+      nil
+    else
+      %{
+        name: name,
+        product: "",
+        appearances: appearances,
+        invalidations: 0,
+        invalidation_rate: 0.0,
+        hit_rate: 100.0,
+        self_changes: 0,
+        dependency_induced: 0,
+        unclassified: 0,
+        blast_radius: module_dependents_count(opts)
+      }
+    end
+  end
+
+  @doc """
+  Where one module sits in the project's latest dependency graph: `:depends_on`
+  (the modules it is invalidated by), `:dependents` (the modules that directly
+  depend on it) and `:transitive_dependents` (everything it invalidates
+  downstream, which is its blast radius).
+
+  All three are nil when no build in the window carries dependency edges, which
+  is the older-CLI case — an empty list would claim the module is a leaf.
+
+  These are the graph edges the CLI reports in `xcode_targets.dependencies`, not
+  the `dependencies` subhash of the target's cache hash.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_neighbors(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    opts
+    |> Keyword.delete(:name)
+    |> latest_graph_dependencies()
+    |> case do
+      edges when map_size(edges) == 0 ->
+        %{depends_on: nil, dependents: nil, transitive_dependents: nil}
+
+      edges ->
+        %{
+          depends_on: edges |> Map.get(name, []) |> Enum.sort(),
+          dependents: direct_dependents(edges, name),
+          transitive_dependents: edges |> module_transitive_dependents(name) |> Enum.sort()
+        }
+    end
+  end
+
+  defp direct_dependents(edges, name) do
+    edges
+    |> Enum.filter(fn {_module, deps} -> name in deps end)
+    |> Enum.map(fn {module, _deps} -> module end)
+    |> Enum.sort()
+  end
+
   defp module_invalidation_filters(opts, alias_name \\ "e") do
     {sql, params} =
       case Keyword.get(opts, :is_ci) do
