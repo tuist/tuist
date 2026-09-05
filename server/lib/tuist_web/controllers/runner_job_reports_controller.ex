@@ -1,6 +1,14 @@
-defmodule TuistWeb.RunnerBuildkiteJobsController do
+defmodule TuistWeb.RunnerJobReportsController do
   @moduledoc """
-  Ingests a Buildkite job's log and outcome from the runner that ran it.
+  Ingests a job's log and outcome from the runner that ran it.
+
+  The route carries no provider in its path. Nothing about a runner
+  reporting its own output is Buildkite-specific: the token is scoped to
+  one job, the runner name comes from the session, and an exit status
+  plus a cancelled flag is how any agent describes an outcome. Buildkite
+  is simply the first lane whose provider gives us no way to read those
+  back ourselves. The log parser does strip Buildkite's timestamp
+  markers, but leaves a line without them untouched.
 
   The GitHub lane pulls both from GitHub after the fact: logs from the
   Actions Logs API, the outcome from the `workflow_job.completed`
@@ -51,7 +59,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
   @max_log_bytes 64 * 1024 * 1024
 
   @doc """
-  `POST /api/internal/runners/buildkite/logs`
+  `POST /api/internal/runners/jobs/logs`
 
       { "lines": ["...", "..."], "first_line_number": 1 }
 
@@ -77,7 +85,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsController do
   end
 
   @doc """
-  `POST /api/internal/runners/buildkite/finish`
+  `POST /api/internal/runners/jobs/finish`
 
       {
         "exit_status": 0,

@@ -1,4 +1,4 @@
-defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
+defmodule TuistWeb.RunnerJobReportsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
@@ -72,7 +72,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/logs", %{
+        |> post("/api/internal/runners/jobs/logs", %{
           "lines" => ["\e_bk;t=1756900000000\aRunning tests", "All tests passed"],
           "first_line_number" => 1
         })
@@ -84,7 +84,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/logs", %{"lines" => [1, 2]})
+        |> post("/api/internal/runners/jobs/logs", %{"lines" => [1, 2]})
 
       assert json_response(conn, 400)["error"] =~ "lines"
     end
@@ -93,13 +93,13 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed("not-a-real-token")
-        |> post("/api/internal/runners/buildkite/logs", %{"lines" => ["x"]})
+        |> post("/api/internal/runners/jobs/logs", %{"lines" => ["x"]})
 
       assert json_response(conn, 401)["error"] == "invalid report token"
     end
 
     test "refuses an unauthenticated request", %{conn: conn} do
-      conn = post(conn, "/api/internal/runners/buildkite/logs", %{"lines" => []})
+      conn = post(conn, "/api/internal/runners/jobs/logs", %{"lines" => []})
 
       assert json_response(conn, 401)["error"] == "missing bearer token"
     end
@@ -113,7 +113,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/logs", %{"lines" => ["x"]})
+        |> post("/api/internal/runners/jobs/logs", %{"lines" => ["x"]})
 
       assert json_response(conn, 401)["error"] == "invalid report token"
     end
@@ -140,7 +140,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/finish", %{
+        |> post("/api/internal/runners/jobs/finish", %{
           "exit_status" => 0,
           "cancelled" => false,
           "started_at" => 1_750_684_800,
@@ -166,7 +166,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/finish", %{
+        |> post("/api/internal/runners/jobs/finish", %{
           "exit_status" => 1,
           "cancelled" => true
         })
@@ -182,7 +182,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/finish", %{"exit_status" => 0})
+        |> post("/api/internal/runners/jobs/finish", %{"exit_status" => 0})
 
       assert response(conn, 204)
     end
@@ -202,7 +202,7 @@ defmodule TuistWeb.RunnerBuildkiteJobsControllerTest do
       conn =
         conn
         |> authed(token)
-        |> post("/api/internal/runners/buildkite/finish", %{"exit_status" => 0})
+        |> post("/api/internal/runners/jobs/finish", %{"exit_status" => 0})
 
       assert json_response(conn, 500)["error"] == "finish report failed"
     end

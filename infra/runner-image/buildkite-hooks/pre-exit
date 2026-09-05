@@ -102,7 +102,7 @@ if lines and lines[-1] == "":
 json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
 ' "${first}" >"${body}"
 
-    http=$(post "${REPORT_URL}/buildkite/logs" "${body}")
+    http=$(post "${REPORT_URL}/jobs/logs" "${body}")
     rm -f "${body}"
     if [ "${http}" != "204" ]; then
       echo "$(date -u +%FT%TZ) buildkite-hook: log chunk from line ${first} returned ${http}"
@@ -162,7 +162,7 @@ JSON
 
   attempt=1
   while [ "${attempt}" -le 5 ]; do
-    http=$(post "${REPORT_URL}/buildkite/finish" "${body}")
+    http=$(post "${REPORT_URL}/jobs/finish" "${body}")
     if [ "${http}" = "204" ]; then
       rm -f "${body}"
       return 0
