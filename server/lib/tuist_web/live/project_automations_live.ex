@@ -10,6 +10,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Environment
   alias Tuist.Slack
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -33,6 +34,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
       )
       |> assign(:flash_message, nil)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Automations"),
+          subtitle: dgettext("dashboard_projects", "Project settings")
+        )
+      )
       |> assign(
         :automation_channel_selection_url,
         SlackOAuthController.alert_channel_selection_url(selected_account.id)

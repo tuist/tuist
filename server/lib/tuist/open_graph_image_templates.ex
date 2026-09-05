@@ -11,11 +11,14 @@ defmodule Tuist.OpenGraphImageTemplates do
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogImage
   alias Tuist.Marketing.OgImages, as: MarketingImages
   alias Tuist.Marketing.OpenGraph
+  alias Tuist.OpenGraph.ProjectImage
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
 
-  @max_title_length 500
-  @max_description_length 1_000
+  @max_title_length 240
+  @max_description_length 500
 
   def spec(%{"template" => "marketing", "title" => title} = params) do
     with true <- allowed_keys?(params, ["template", "title"], ["icon"]),
@@ -117,6 +120,43 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
+  def spec(%{"template" => "project", "title" => title, "project" => project} = params) do
+    optional_keys = [
+      "subtitle",
+      "badge",
+      "metric_one_label",
+      "metric_one_value",
+      "metric_two_label",
+      "metric_two_value",
+      "chart",
+      "chart_label",
+      "chart_kind",
+      "chart_categories",
+      "locale"
+    ]
+
+    with true <- allowed_keys?(params, ["template", "title", "project"], optional_keys),
+         true <- valid_text?(title, 160),
+         true <- valid_text?(project, 510),
+         true <- valid_optional_text?(Map.get(params, "subtitle"), 200),
+         true <- valid_optional_text?(Map.get(params, "badge"), 60),
+         true <- valid_optional_text?(Map.get(params, "metric_one_label"), 80),
+         true <- valid_optional_text?(Map.get(params, "metric_one_value"), 100),
+         true <- valid_optional_text?(Map.get(params, "metric_two_label"), 80),
+         true <- valid_optional_text?(Map.get(params, "metric_two_value"), 100),
+         true <- valid_optional_text?(Map.get(params, "chart_label"), 100),
+         true <- valid_optional_text?(Map.get(params, "locale"), 20),
+         {:ok, chart} <- chart_values(Map.get(params, "chart")),
+         {:ok, chart_kind} <- chart_kind(Map.get(params, "chart_kind"), chart),
+         {:ok, chart_categories} <- chart_categories(Map.get(params, "chart_categories"), chart, chart_kind),
+         true <- valid_chart_label?(Map.get(params, "chart_label"), chart),
+         {:ok, resolved_project} <- public_project(project) do
+      project_spec(params, title, resolved_project, chart, chart_kind, chart_categories)
+    else
+      _ -> :error
+    end
+  end
+
   def spec(_params), do: :error
 
   defp marketing_spec(params, title, icon_path) do
@@ -171,6 +211,40 @@ defmodule Tuist.OpenGraphImageTemplates do
         end
 
       OpenGraphImageRenderer.render(html, title)
+    end)
+  end
+
+  defp project_spec(params, title, %Project{} = project, chart, chart_kind, chart_categories) do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+    tuist_logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+
+    asset_hash = OpenGraphImages.key([project_asset_hash(), project.logo_storage_key || ""])
+
+    build_spec(params, asset_hash, fn ->
+      with {:ok, {logo_binary, logo_content_type}} <- project_logo(project) do
+        html =
+          ProjectImage.render_html(
+            title: title,
+            project: Map.fetch!(params, "project"),
+            subtitle: Map.get(params, "subtitle"),
+            badge: Map.get(params, "badge"),
+            metric_one_label: Map.get(params, "metric_one_label"),
+            metric_one_value: Map.get(params, "metric_one_value"),
+            metric_two_label: Map.get(params, "metric_two_label"),
+            metric_two_value: Map.get(params, "metric_two_value"),
+            chart: chart,
+            chart_label: Map.get(params, "chart_label"),
+            chart_kind: chart_kind,
+            chart_categories: chart_categories,
+            logo_binary: logo_binary,
+            logo_content_type: logo_content_type,
+            fonts_dir: fonts_dir,
+            tuist_logo_path: tuist_logo_path
+          )
+
+        OpenGraphImageRenderer.render(html, title)
+      end
     end)
   end
 
@@ -239,6 +313,83 @@ defmodule Tuist.OpenGraphImageTemplates do
       {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
+
+  defp project_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OpenGraphImages.cached_key(:project_open_graph_template_assets, [
+      {:module, ProjectImage},
+      {:dir, Path.join(priv_dir, "static/fonts")},
+      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+    ])
+  end
+
+  defp project_logo(%Project{logo_storage_key: nil}), do: {:ok, {nil, nil}}
+
+  defp project_logo(%Project{} = project) do
+    case Projects.read_project_logo(project) do
+      {:ok, binary} -> {:ok, {binary, Projects.project_logo_content_type(project)}}
+      {:error, reason} -> {:error, {:project_logo_unavailable, reason}}
+    end
+  end
+
+  defp public_project(slug) do
+    case Projects.get_project_by_slug(slug) do
+      {:ok, %Project{visibility: :public} = project} -> {:ok, project}
+      _ -> :error
+    end
+  end
+
+  defp chart_values(nil), do: {:ok, []}
+
+  defp chart_values(value) when is_binary(value) do
+    values = String.split(value, ",", trim: true)
+
+    if length(values) in 2..16 do
+      values
+      |> Enum.reduce_while({:ok, []}, fn value, {:ok, parsed} ->
+        case Integer.parse(value) do
+          {integer, ""} when integer >= 0 and integer <= 9_007_199_254_740_991 ->
+            {:cont, {:ok, [integer | parsed]}}
+
+          _ ->
+            {:halt, :error}
+        end
+      end)
+      |> case do
+        {:ok, parsed} -> {:ok, Enum.reverse(parsed)}
+        :error -> :error
+      end
+    else
+      :error
+    end
+  end
+
+  defp chart_values(_value), do: :error
+
+  defp chart_kind(nil, []), do: {:ok, "line"}
+  defp chart_kind(nil, _chart), do: {:ok, "line"}
+  defp chart_kind(kind, _chart) when kind in ["line", "bars"], do: {:ok, kind}
+  defp chart_kind(_kind, _chart), do: :error
+
+  defp chart_categories(nil, _chart, "line"), do: {:ok, []}
+
+  defp chart_categories(value, chart, "bars") when is_binary(value) do
+    categories = String.split(value, "|", trim: true)
+
+    if length(categories) == length(chart) and
+         Enum.all?(categories, &valid_text?(&1, 30)) do
+      {:ok, categories}
+    else
+      :error
+    end
+  end
+
+  defp chart_categories(_value, _chart, _kind), do: :error
+
+  defp valid_chart_label?(nil, []), do: true
+  defp valid_chart_label?(label, chart) when chart != [], do: valid_text?(label, 100)
+  defp valid_chart_label?(_label, _chart), do: false
 
   defp allowed_keys?(params, required, optional) do
     keys = Map.keys(params)

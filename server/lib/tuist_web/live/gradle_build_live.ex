@@ -15,6 +15,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -93,6 +94,36 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
     |> assign(:machine_metrics, machine_metrics)
+    |> assign_open_graph(build, title, local_hits, remote_hits, cacheable, from_cache)
+  end
+
+  defp assign_open_graph(socket, build, title, local_hits, remote_hits, cacheable, from_cache) do
+    cache_hit_rate = Gradle.cache_hit_rate(build)
+
+    assign(
+      socket,
+      OpenGraph.project_image_assigns(socket.assigns.selected_project,
+        title: title,
+        subtitle: Enum.join(Enum.reject([build.git_branch, build.gradle_version], &(&1 in [nil, ""])), " · "),
+        badge: build.status |> to_string() |> String.capitalize(),
+        metric_one_label: dgettext("dashboard_builds", "Build duration"),
+        metric_one_value: DateFormatter.format_duration_from_milliseconds(build.duration_ms),
+        metric_two_label: dgettext("dashboard_cache", "Cache hit rate"),
+        metric_two_value:
+          if(is_nil(cache_hit_rate),
+            do: dgettext("dashboard_builds", "None"),
+            else: "#{cache_hit_rate}%"
+          ),
+        chart: [local_hits, remote_hits, max(cacheable - from_cache, 0)],
+        chart_label: dgettext("dashboard_cache", "Cacheable task breakdown"),
+        chart_kind: "bars",
+        chart_categories: [
+          dgettext("dashboard_cache", "Local hits"),
+          dgettext("dashboard_cache", "Remote hits"),
+          dgettext("dashboard_cache", "Misses")
+        ]
+      )
+    )
   end
 
   @doc """

@@ -49,7 +49,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:175
 #: lib/tuist_web/live/gradle_builds_live.html.heex:10
-#: lib/tuist_web/live/gradle_cache_live.ex:206
+#: lib/tuist_web/live/gradle_cache_live.ex:211
 #: lib/tuist_web/live/gradle_cache_live.html.heex:46
 #: lib/tuist_web/live/gradle_overview_live.ex:166
 #: lib/tuist_web/live/gradle_overview_live.ex:170
@@ -67,8 +67,8 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:599
-#: lib/tuist_web/live/gradle_build_live.ex:674
+#: lib/tuist_web/live/gradle_build_live.ex:623
+#: lib/tuist_web/live/gradle_build_live.ex:698
 #: lib/tuist_web/live/gradle_build_live.html.heex:693
 #: lib/tuist_web/live/gradle_build_live.html.heex:747
 #, elixir-autogen, elixir-format
@@ -140,8 +140,8 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:635
-#: lib/tuist_web/live/gradle_build_live.ex:816
+#: lib/tuist_web/live/gradle_build_live.ex:659
+#: lib/tuist_web/live/gradle_build_live.ex:840
 #: lib/tuist_web/live/gradle_builds_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Build"
@@ -169,8 +169,8 @@ msgstr ""
 msgid "Build duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:31
-#: lib/tuist_web/live/gradle_build_live.ex:35
+#: lib/tuist_web/live/gradle_build_live.ex:32
+#: lib/tuist_web/live/gradle_build_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Build not found."
 msgstr ""
@@ -204,8 +204,8 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_runs_live.ex:253
 #: lib/tuist_web/live/gradle_builds_live.ex:177
 #: lib/tuist_web/live/gradle_builds_live.html.heex:26
-#: lib/tuist_web/live/gradle_cache_live.ex:208
-#: lib/tuist_web/live/gradle_cache_live.ex:209
+#: lib/tuist_web/live/gradle_cache_live.ex:213
+#: lib/tuist_web/live/gradle_cache_live.ex:214
 #: lib/tuist_web/live/gradle_cache_live.html.heex:62
 #: lib/tuist_web/live/gradle_overview_live.ex:168
 #: lib/tuist_web/live/gradle_overview_live.ex:172
@@ -227,7 +227,7 @@ msgid "Cache Summary"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:861
-#: lib/tuist_web/live/gradle_cache_live.ex:192
+#: lib/tuist_web/live/gradle_cache_live.ex:197
 #: lib/tuist_web/live/gradle_cache_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
@@ -238,7 +238,7 @@ msgstr ""
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
 msgstr ""
 
-#: lib/tuist_web/live/gradle_cache_live.ex:201
+#: lib/tuist_web/live/gradle_cache_live.ex:206
 #: lib/tuist_web/live/gradle_cache_live.html.heex:139
 #: lib/tuist_web/live/gradle_cache_live.html.heex:559
 #: lib/tuist_web/live/gradle_overview_live.html.heex:90
@@ -260,7 +260,7 @@ msgid "Cache key"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:872
-#: lib/tuist_web/live/gradle_cache_live.ex:183
+#: lib/tuist_web/live/gradle_cache_live.ex:188
 #: lib/tuist_web/live/gradle_cache_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
@@ -352,8 +352,8 @@ msgstr ""
 msgid "Configuration time"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:563
-#: lib/tuist_web/live/gradle_build_live.ex:645
+#: lib/tuist_web/live/gradle_build_live.ex:587
+#: lib/tuist_web/live/gradle_build_live.ex:669
 #: lib/tuist_web/live/gradle_build_live.html.heex:509
 #: lib/tuist_web/live/gradle_build_live.html.heex:556
 #, elixir-autogen, elixir-format
@@ -383,10 +383,10 @@ msgstr ""
 msgid "Download throughput"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:561
-#: lib/tuist_web/live/gradle_build_live.ex:601
-#: lib/tuist_web/live/gradle_build_live.ex:653
-#: lib/tuist_web/live/gradle_build_live.ex:690
+#: lib/tuist_web/live/gradle_build_live.ex:585
+#: lib/tuist_web/live/gradle_build_live.ex:625
+#: lib/tuist_web/live/gradle_build_live.ex:677
+#: lib/tuist_web/live/gradle_build_live.ex:714
 #: lib/tuist_web/live/gradle_build_live.html.heex:127
 #: lib/tuist_web/live/gradle_build_live.html.heex:228
 #: lib/tuist_web/live/gradle_build_live.html.heex:262
@@ -408,7 +408,7 @@ msgid "Duration"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:249
-#: lib/tuist_web/live/gradle_cache_live.ex:234
+#: lib/tuist_web/live/gradle_cache_live.ex:239
 #: lib/tuist_web/live/gradle_cache_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Environment"
@@ -422,14 +422,14 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:710
-#: lib/tuist_web/live/gradle_build_live.ex:793
+#: lib/tuist_web/live/gradle_build_live.ex:734
+#: lib/tuist_web/live/gradle_build_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Executed"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:711
-#: lib/tuist_web/live/gradle_build_live.ex:794
+#: lib/tuist_web/live/gradle_build_live.ex:735
+#: lib/tuist_web/live/gradle_build_live.ex:818
 #: lib/tuist_web/live/gradle_build_runs_live.ex:224
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:113
 #: lib/tuist_web/live/gradle_builds_live.html.heex:697
@@ -464,13 +464,14 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:70
+#: lib/tuist_web/live/gradle_build_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Gradle Build"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/gradle_cache_live.ex:30
+#: lib/tuist_web/live/gradle_cache_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
@@ -498,7 +499,7 @@ msgstr ""
 msgid "Hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:813
+#: lib/tuist_web/live/gradle_build_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Invalid"
 msgstr ""
@@ -567,14 +568,14 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:751
+#: lib/tuist_web/live/gradle_build_live.ex:775
 #: lib/tuist_web/live/gradle_build_live.html.heex:992
 #: lib/tuist_web/live/gradle_build_live.html.heex:1154
 #: lib/tuist_web/live/gradle_build_runs_live.ex:254
 #: lib/tuist_web/live/gradle_builds_live.ex:176
 #: lib/tuist_web/live/gradle_builds_live.html.heex:18
-#: lib/tuist_web/live/gradle_cache_live.ex:207
-#: lib/tuist_web/live/gradle_cache_live.ex:210
+#: lib/tuist_web/live/gradle_cache_live.ex:212
+#: lib/tuist_web/live/gradle_cache_live.ex:215
 #: lib/tuist_web/live/gradle_cache_live.html.heex:54
 #: lib/tuist_web/live/gradle_overview_live.ex:167
 #: lib/tuist_web/live/gradle_overview_live.ex:171
@@ -584,8 +585,8 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:707
-#: lib/tuist_web/live/gradle_build_live.ex:790
+#: lib/tuist_web/live/gradle_build_live.ex:731
+#: lib/tuist_web/live/gradle_build_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "Local hit"
 msgstr ""
@@ -595,7 +596,7 @@ msgstr ""
 msgid "Machine Metrics"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:753
+#: lib/tuist_web/live/gradle_build_live.ex:777
 #: lib/tuist_web/live/gradle_build_live.html.heex:1030
 #: lib/tuist_web/live/gradle_build_live.html.heex:1166
 #, elixir-autogen, elixir-format
@@ -651,7 +652,7 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:811
+#: lib/tuist_web/live/gradle_build_live.ex:835
 #, elixir-autogen, elixir-format
 msgid "No entry"
 msgstr ""
@@ -661,18 +662,18 @@ msgstr ""
 msgid "No recent builds yet"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:804
+#: lib/tuist_web/live/gradle_build_live.ex:828
 #, elixir-autogen, elixir-format
 msgid "No remote entry"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:800
+#: lib/tuist_web/live/gradle_build_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:713
-#: lib/tuist_web/live/gradle_build_live.ex:796
+#: lib/tuist_web/live/gradle_build_live.ex:737
+#: lib/tuist_web/live/gradle_build_live.ex:820
 #, elixir-autogen, elixir-format
 msgid "No source"
 msgstr ""
@@ -692,7 +693,7 @@ msgstr ""
 msgid "Operations can overlap. Build timing includes its settings and project configuration."
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:703
+#: lib/tuist_web/live/gradle_build_live.ex:727
 #: lib/tuist_web/live/gradle_build_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Outcome"
@@ -703,7 +704,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:812
+#: lib/tuist_web/live/gradle_build_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Partially invalid"
 msgstr ""
@@ -725,19 +726,19 @@ msgstr ""
 msgid "Passed runs"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:562
-#: lib/tuist_web/live/gradle_build_live.ex:631
+#: lib/tuist_web/live/gradle_build_live.ex:586
+#: lib/tuist_web/live/gradle_build_live.ex:655
 #: lib/tuist_web/live/gradle_build_live.html.heex:501
 #: lib/tuist_web/live/gradle_build_live.html.heex:538
 #, elixir-autogen, elixir-format
 msgid "Phase"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:637
-#: lib/tuist_web/live/gradle_build_live.ex:818
+#: lib/tuist_web/live/gradle_build_live.ex:661
+#: lib/tuist_web/live/gradle_build_live.ex:842
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:74
 #: lib/tuist_web/live/gradle_builds_live.html.heex:686
-#: lib/tuist_web/live/gradle_cache_live.ex:233
+#: lib/tuist_web/live/gradle_cache_live.ex:238
 #: lib/tuist_web/live/gradle_cache_live.html.heex:295
 #: lib/tuist_web/live/gradle_cache_live.html.heex:632
 #, elixir-autogen, elixir-format
@@ -764,7 +765,7 @@ msgstr ""
 msgid "Recent Builds"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:752
+#: lib/tuist_web/live/gradle_build_live.ex:776
 #: lib/tuist_web/live/gradle_build_live.html.heex:1009
 #: lib/tuist_web/live/gradle_build_live.html.heex:1160
 #, elixir-autogen, elixir-format
@@ -776,8 +777,8 @@ msgstr ""
 msgid "Remote entries stored"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:708
-#: lib/tuist_web/live/gradle_build_live.ex:791
+#: lib/tuist_web/live/gradle_build_live.ex:732
+#: lib/tuist_web/live/gradle_build_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
 msgstr ""
@@ -789,12 +790,12 @@ msgstr ""
 msgid "Requested tasks"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:809
+#: lib/tuist_web/live/gradle_build_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Reused"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:547
+#: lib/tuist_web/live/gradle_build_live.ex:571
 #: lib/tuist_web/live/gradle_build_live.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Root build"
@@ -823,8 +824,8 @@ msgstr ""
 msgid "Set up Gradle cache for your project"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:636
-#: lib/tuist_web/live/gradle_build_live.ex:817
+#: lib/tuist_web/live/gradle_build_live.ex:660
+#: lib/tuist_web/live/gradle_build_live.ex:841
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -836,8 +837,8 @@ msgstr ""
 msgid "Size"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:712
-#: lib/tuist_web/live/gradle_build_live.ex:795
+#: lib/tuist_web/live/gradle_build_live.ex:736
+#: lib/tuist_web/live/gradle_build_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr ""
@@ -851,7 +852,7 @@ msgstr ""
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:564
+#: lib/tuist_web/live/gradle_build_live.ex:588
 #: lib/tuist_web/live/gradle_build_live.html.heex:229
 #: lib/tuist_web/live/gradle_build_live.html.heex:236
 #: lib/tuist_web/live/gradle_build_live.html.heex:308
@@ -861,7 +862,7 @@ msgstr ""
 msgid "Started after"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:747
+#: lib/tuist_web/live/gradle_build_live.ex:771
 #: lib/tuist_web/live/gradle_build_live.html.heex:103
 #: lib/tuist_web/live/gradle_build_live.html.heex:1151
 #: lib/tuist_web/live/gradle_build_runs_live.ex:219
@@ -875,8 +876,8 @@ msgstr ""
 msgid "Status of Gradle's configuration cache for this build."
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:600
-#: lib/tuist_web/live/gradle_build_live.ex:682
+#: lib/tuist_web/live/gradle_build_live.ex:624
+#: lib/tuist_web/live/gradle_build_live.ex:706
 #: lib/tuist_web/live/gradle_build_live.html.heex:701
 #: lib/tuist_web/live/gradle_build_live.html.heex:764
 #, elixir-autogen, elixir-format
@@ -1011,8 +1012,8 @@ msgstr ""
 msgid "Total time spent in recorded artifact transforms."
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:598
-#: lib/tuist_web/live/gradle_build_live.ex:666
+#: lib/tuist_web/live/gradle_build_live.ex:622
+#: lib/tuist_web/live/gradle_build_live.ex:690
 #: lib/tuist_web/live/gradle_build_live.html.heex:685
 #: lib/tuist_web/live/gradle_build_live.html.heex:729
 #, elixir-autogen, elixir-format
@@ -1048,13 +1049,13 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.html.heex:56
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:135
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:189
-#: lib/tuist_web/live/gradle_cache_live.ex:238
+#: lib/tuist_web/live/gradle_cache_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:709
-#: lib/tuist_web/live/gradle_build_live.ex:792
+#: lib/tuist_web/live/gradle_build_live.ex:733
+#: lib/tuist_web/live/gradle_build_live.ex:816
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
 msgstr ""
@@ -1064,7 +1065,7 @@ msgstr ""
 msgid "Upload throughput"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:810
+#: lib/tuist_web/live/gradle_build_live.ex:834
 #, elixir-autogen, elixir-format
 msgid "Valid"
 msgstr ""
@@ -1141,42 +1142,42 @@ msgid "p99 cache hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:183
-#: lib/tuist_web/live/gradle_cache_live.ex:245
+#: lib/tuist_web/live/gradle_cache_live.ex:250
 #: lib/tuist_web/live/gradle_overview_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:182
-#: lib/tuist_web/live/gradle_cache_live.ex:244
+#: lib/tuist_web/live/gradle_cache_live.ex:249
 #: lib/tuist_web/live/gradle_overview_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:180
-#: lib/tuist_web/live/gradle_cache_live.ex:242
+#: lib/tuist_web/live/gradle_cache_live.ex:247
 #: lib/tuist_web/live/gradle_overview_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:181
-#: lib/tuist_web/live/gradle_cache_live.ex:243
+#: lib/tuist_web/live/gradle_cache_live.ex:248
 #: lib/tuist_web/live/gradle_overview_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:179
-#: lib/tuist_web/live/gradle_cache_live.ex:241
+#: lib/tuist_web/live/gradle_cache_live.ex:246
 #: lib/tuist_web/live/gradle_overview_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:807
-#: lib/tuist_web/live/gradle_build_live.ex:830
+#: lib/tuist_web/live/gradle_build_live.ex:831
+#: lib/tuist_web/live/gradle_build_live.ex:854
 #: lib/tuist_web/live/gradle_build_live.html.heex:391
 #: lib/tuist_web/live/gradle_build_live.html.heex:1185
 #: lib/tuist_web/live/gradle_build_live.html.heex:1205

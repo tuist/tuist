@@ -24,7 +24,12 @@ defmodule TuistWeb.TestRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Runs"),
+          fallback: "test-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}

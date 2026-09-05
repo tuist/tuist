@@ -15,7 +15,7 @@ defmodule TuistWeb.BazelInvocationsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Invocations")} · #{account.name}/#{project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(OpenGraph.project_image_assigns(project, title: dgettext("dashboard_projects", "Invocations")))
       |> assign_async(:invocation_summary, fn -> {:ok, %{invocation_summary: Bazel.summary(project.id)}} end)
 
     {:ok, socket}

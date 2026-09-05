@@ -25,8 +25,10 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
@@ -104,6 +106,29 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme),
+          subtitle: run.git_branch,
+          badge: run.status |> to_string() |> String.capitalize(),
+          metric_one_label: dgettext("dashboard_tests", "Test duration"),
+          metric_one_value: DateFormatter.format_duration_from_milliseconds(run.duration),
+          metric_two_label: dgettext("dashboard_tests", "Test cases"),
+          metric_two_value: to_string(test_metrics.total_count),
+          chart: [
+            max(test_metrics.total_count - test_metrics.failed_count - test_metrics.flaky_count, 0),
+            test_metrics.flaky_count,
+            test_metrics.failed_count
+          ],
+          chart_label: dgettext("dashboard_tests", "Test result breakdown"),
+          chart_kind: "bars",
+          chart_categories: [
+            dgettext("dashboard_tests", "Passed"),
+            dgettext("dashboard_tests", "Flaky"),
+            dgettext("dashboard_tests", "Failed")
+          ]
+        )
+      )
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}

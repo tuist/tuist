@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   alias Tuist.Bundles
   alias Tuist.Projects
   alias Tuist.Repo
+  alias TuistWeb.Helpers.OpenGraph
 
   @approval_policies [:everyone, :selected]
 
@@ -23,6 +24,12 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Bundles")} · #{selected_project.name} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Bundles"),
+          subtitle: dgettext("dashboard_projects", "Project settings")
+        )
+      )
       |> assign(:has_vcs_connection, has_vcs_connection)
       |> assign(:approval_policies, @approval_policies)
       |> assign_threshold_defaults(selected_project)

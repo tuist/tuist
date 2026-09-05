@@ -23,7 +23,13 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       socket
       |> assign(:module_name, module_name)
       |> assign(:head_title, "#{module_name} · #{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("module-cache"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: module_name,
+          subtitle: dgettext("dashboard_cache", "Module Cache"),
+          fallback: "module-cache"
+        )
+      )
 
     {:ok, socket}
   end

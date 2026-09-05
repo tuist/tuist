@@ -15,6 +15,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   """
 
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
+  alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -44,6 +45,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},

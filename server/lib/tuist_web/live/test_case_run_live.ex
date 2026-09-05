@@ -14,7 +14,9 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -72,6 +74,18 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: test_case_run.name,
+          subtitle:
+            Enum.join(Enum.reject([test_case_run.module_name, test_case_run.suite_name], &(&1 in [nil, ""])), " · "),
+          badge: test_case_run.status |> to_string() |> String.capitalize(),
+          metric_one_label: dgettext("dashboard_tests", "Duration"),
+          metric_one_value: DateFormatter.format_duration_from_milliseconds(test_case_run.duration),
+          metric_two_label: dgettext("dashboard_tests", "Branch"),
+          metric_two_value: test_case_run.git_branch
+        )
+      )
       |> assign_text_attachment_urls(test_case_run)
 
     {:ok, socket}

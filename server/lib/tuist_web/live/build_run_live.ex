@@ -20,8 +20,10 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Tests
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
@@ -68,6 +70,17 @@ defmodule TuistWeb.BuildRunLive do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
     end
 
+    local_hits = run.cacheable_task_local_hits_count || 0
+    remote_hits = run.cacheable_task_remote_hits_count || 0
+    cacheable_tasks = run.cacheable_tasks_count || 0
+    cache_hits = local_hits + remote_hits
+    cache_misses = max(cacheable_tasks - cache_hits, 0)
+
+    cache_hit_rate =
+      if cacheable_tasks > 0,
+        do: "#{round(cache_hits / cacheable_tasks * 100)}%",
+        else: dgettext("dashboard_builds", "None")
+
     socket =
       socket
       |> assign(:run, run)
@@ -91,6 +104,25 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:expanded_target_names, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
       |> assign_build_data(run)
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: if(run.scheme == "", do: dgettext("dashboard_builds", "Build Run"), else: run.scheme),
+          subtitle: Enum.join(Enum.reject([run.configuration, run.git_branch], &(&1 in [nil, ""])), " · "),
+          badge: run.status |> to_string() |> String.capitalize(),
+          metric_one_label: dgettext("dashboard_builds", "Build duration"),
+          metric_one_value: DateFormatter.format_duration_from_milliseconds(run.duration),
+          metric_two_label: dgettext("dashboard_cache", "Cache hit rate"),
+          metric_two_value: cache_hit_rate,
+          chart: [local_hits, remote_hits, cache_misses],
+          chart_label: dgettext("dashboard_cache", "Cacheable task breakdown"),
+          chart_kind: "bars",
+          chart_categories: [
+            dgettext("dashboard_cache", "Local hits"),
+            dgettext("dashboard_cache", "Remote hits"),
+            dgettext("dashboard_cache", "Misses")
+          ]
+        )
+      )
 
     {:ok, socket}
   end

@@ -34,7 +34,12 @@ defmodule TuistWeb.BundlesLive do
       )
       |> assign(:available_filters, define_filters(project))
       |> assign(:bundle_type_items, bundle_type_items)
-      |> assign(OpenGraph.og_image_assigns("bundles"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_cache", "Bundles"),
+          fallback: "bundles"
+        )
+      )
 
     {:ok, socket}
   end

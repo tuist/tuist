@@ -520,6 +520,33 @@ defmodule Tuist.Storage do
     end
   end
 
+  def list_objects(prefix, actor, opts \\ []) do
+    max_keys = Keyword.get(opts, :max_keys, 1000)
+    continuation_token = Keyword.get(opts, :continuation_token)
+
+    case storage_provider(actor) do
+      :azure_blob ->
+        AzureBlob.list_objects(Environment.azure_blob_container_name(),
+          prefix: prefix,
+          max_keys: max_keys,
+          continuation_token: continuation_token
+        )
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        list_opts =
+          maybe_put_continuation_token(
+            [prefix: prefix, max_keys: max_keys],
+            continuation_token
+          )
+
+        bucket_name
+        |> ExAws.S3.list_objects_v2(list_opts)
+        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+    end
+  end
+
   defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
     request_opts = fast_api_req_opts(opts)

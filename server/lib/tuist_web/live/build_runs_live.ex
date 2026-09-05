@@ -14,7 +14,12 @@ defmodule TuistWeb.BuildRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("build-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Build Runs"),
+          fallback: "build-runs"
+        )
+      )
 
     socket =
       if Project.gradle_project?(project) do
