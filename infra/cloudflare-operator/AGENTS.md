@@ -5,10 +5,10 @@ against the Cloudflare API. It exists so zone-level Cloudflare
 configuration lives in git and reaches production through a reviewed
 PR, not through the Cloudflare dashboard.
 
-**Scope today: `CloudflareRateLimit` only.** Additional CRDs (cache
-rules, WAF custom rules, zone settings, AI Crawl Control) are
-follow-up work; each is a separate PR so the first production
-deployment has one small reviewable surface.
+**Scope today: `CloudflareRateLimit` and `CloudflareCustomRule`.**
+Additional custom resources, such as cache rules, zone settings, and
+Artificial Intelligence Crawl Control, should remain separate kinds
+rather than overloading either ruleset shape.
 
 ## Why an operator, not Terraform
 
@@ -22,8 +22,8 @@ update the same rule across reconciles with no client-side state.
 
 ## Safe-first-deploy design
 
-The rate-limit CRD is designed so the first deployment against a
-live zone is provably zero-risk:
+Both custom resource definitions are designed so the first deployment
+against a live zone is provably zero-risk:
 
 - **`spec.mode` defaults to `read_only`.** In read_only the operator
   computes the intended diff, logs it, mirrors it into
@@ -105,7 +105,7 @@ go build ./...
 go test ./...
 ```
 
-The reconciler is tested with a scripted fake implementing the
+The reconcilers are tested with a scripted fake implementing the
 narrow `RulesetAPI` interface, so tests don't need real Cloudflare
 credentials.
 

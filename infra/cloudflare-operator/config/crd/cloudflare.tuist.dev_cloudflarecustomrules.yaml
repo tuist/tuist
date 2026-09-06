@@ -1,0 +1,89 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cloudflarecustomrules.cloudflare.tuist.dev
+spec:
+  group: cloudflare.tuist.dev
+  scope: Cluster
+  names:
+    plural: cloudflarecustomrules
+    singular: cloudflarecustomrule
+    kind: CloudflareCustomRule
+    shortNames: [cfcustom]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - {name: Zone, type: string, jsonPath: .spec.zoneId}
+        - {name: Mode, type: string, jsonPath: .spec.mode}
+        - {name: Action, type: string, jsonPath: .spec.action}
+        - {name: Message, type: string, jsonPath: .status.message}
+        - {name: Age, type: date, jsonPath: .metadata.creationTimestamp}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            apiVersion: {type: string}
+            kind: {type: string}
+            metadata: {type: object}
+            spec:
+              type: object
+              required: [zoneId, description, expression, action]
+              x-kubernetes-validations:
+                - rule: "self.zoneId == oldSelf.zoneId"
+                  message: "spec.zoneId is immutable"
+                - rule: "has(self.adopt) || self.createNewRule == true"
+                  message: "either spec.adopt.ruleId or spec.createNewRule=true must be set"
+                - rule: "!has(oldSelf.adopt) || (has(self.adopt) && self.adopt.ruleId == oldSelf.adopt.ruleId)"
+                  message: "spec.adopt is immutable once set"
+              properties:
+                zoneId: {type: string}
+                description: {type: string}
+                expression: {type: string}
+                action:
+                  type: string
+                  enum: [block, managed_challenge, js_challenge, log]
+                enabled: {type: boolean, default: true}
+                mode:
+                  type: string
+                  enum: [read_only, active]
+                  default: read_only
+                paused: {type: boolean, default: false}
+                createNewRule: {type: boolean, default: false}
+                retainOnDelete: {type: boolean, default: true}
+                adopt:
+                  type: object
+                  required: [ruleId]
+                  properties:
+                    ruleId: {type: string}
+            status:
+              type: object
+              properties:
+                ref: {type: string}
+                ruleId: {type: string}
+                rulesetId: {type: string}
+                managedZoneId: {type: string}
+                mode: {type: string}
+                proposedChanges: {type: string}
+                observedGeneration: {type: integer, format: int64}
+                message: {type: string}
+                lastReconciledAt: {type: string, format: date-time}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason]
+                    properties:
+                      type: {type: string, maxLength: 316}
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      observedGeneration: {type: integer, format: int64, minimum: 0}
+                      lastTransitionTime: {type: string, format: date-time}
+                      reason: {type: string, maxLength: 1024}
+                      message: {type: string, maxLength: 32768}
+
