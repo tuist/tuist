@@ -161,5 +161,14 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     end
   end
 
+  defp handle_post_message_error("invalid_token", project) do
+    Logger.warning("Deleting revoked Slack installation for account #{project.account_id}")
+
+    case Slack.delete_installation(project.account.slack_installation) do
+      {:ok, _installation} -> {:discard, :invalid_token}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp handle_post_message_error(reason, _project), do: {:error, reason}
 end
