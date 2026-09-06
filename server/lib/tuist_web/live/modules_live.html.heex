@@ -363,7 +363,7 @@
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
       </div>
 
-      <.error_card_section :if={@modules.failed} data-part="error" />
+      <.error_state :if={@modules.failed} data-part="error" />
 
       <.empty_card_section
         :if={@modules.ok? && Enum.empty?(@modules.result)}
