@@ -17,9 +17,11 @@ spec:
         kind: GitRepository
         name: flux-system
         namespace: flux-system
+      # GitRepository-backed value files are resolved from the source root,
+      # not from the chart directory.
       valuesFiles:
-        - values.yaml
-        - values-mgmt.yaml
+        - ./infra/helm/cloudflare-operator/values.yaml
+        - ./infra/helm/cloudflare-operator/values-mgmt.yaml
   install:
     createNamespace: true
     remediation:
