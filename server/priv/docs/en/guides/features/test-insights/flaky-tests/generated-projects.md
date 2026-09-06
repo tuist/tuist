@@ -86,26 +86,54 @@ tuist test --skip-quarantine
 
 ## Stress-testing new tests {#stress-testing-new-tests}
 
-Flaky tests are cheapest to fix while their author still holds the context that produced them. The stress gate reruns the test cases a branch adds several times each, in a fresh process per repetition, and flags any that prove flaky before the change merges. Tuist decides what counts as new by checking which test cases have not run in CI on the project's default branch in the last 90 days, so tests inherited from a base class, Swift Testing display names, parameterized cases, and annotation-driven discovery all count.
+The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
 
-The gate is off unless you enable it, and it takes a mode rather than a switch so anyone reading the pipeline can see whether the job can fail on flakiness:
+A test case counts as new when it hasn't run in CI on the project's default branch in the last 90 days.
 
-- **`report`**: prints a warning for each flaky test case and exits on the first pass's own result. Start here and watch what the gate would have blocked for a couple of weeks.
-- **`enforce`**: identical, but a flaky test case fails the run with the same exit code as a failed test.
+### Enabling it
 
-Pass the option ahead of the passthrough arguments, or set the `TUIST_TEST_STRESS_NEW_TESTS` environment variable to vary it per matrix lane:
+The gate is off by default. Set a mode:
+
+- **`report`**: warns about each flaky test case. The run still exits on its own result.
+- **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
+
+Start with `report` for a couple of weeks to see what `enforce` would have blocked.
+
+Pass it ahead of the passthrough arguments, or set `TUIST_TEST_STRESS_NEW_TESTS` to vary the mode per CI lane:
 
 ```sh
 tuist test --stress-new-tests report
 ```
 
-Each new test case is rerun according to its own duration: up to 5 seconds earns 10 repetitions, up to 10 seconds 5, up to 30 seconds 3, up to 5 minutes 2, and slower test cases are excluded and reported as such. The pass reuses what the first pass built, is capped at 200 candidates and 10 minutes of wall-clock time, and every bound reports when it bites. The bounds are set by Tuist and travel with the plan, so they never require a CLI release.
+### How many times each test reruns
 
-The gate runs nothing, and says so, when the first pass already failed, when the project has no default branch or no CI history on it yet, or when more than 30% of the test cases the default branch already knows read as new (a renamed module, for example). A branch that adds no tests prints nothing and costs one request. If the server cannot be reached, the run's own result stands: the gate never blocks a merge because Tuist was down.
+It depends on how long the test case took on the first pass:
 
-Muted tests are stressed and recorded but cannot fail the gate, and skipped tests never become candidates. The gate's reruns are recorded as repetitions of the test case run that produced them, like the retries of a run that retries on failure, so a test case whose reruns disagreed is flaky and says so on the dashboard. It cannot be quarantined for it: automations only act on a test case that has already passed on the default branch, and a test the gate calls new has not.
+| First pass | Reruns |
+| --- | --- |
+| Up to 5s | 10 |
+| Up to 10s | 5 |
+| Up to 30s | 3 |
+| Up to 5min | 2 |
+| Over 5min | Not rerun |
 
-In the dashboard, every stressed test case is badged in the run's test case list. A test case that failed some of its reruns is flaky, so it appears with the run's flaky tests like any other. Opening it shows every execution the gate asked for, in order, beside the run's own.
+Reruns reuse what the first pass built. The pass stops at 200 test cases or 10 minutes, whichever comes first, and says which limit it hit.
+
+### When the gate doesn't run
+
+- The first pass already failed. Fix those tests first.
+- The project has no default branch, or nothing has run in CI on it yet.
+- More than 30% of the project's known test cases look new. That is usually a rename or a move rather than new tests.
+- Tuist is unreachable. Your run's own result stands.
+
+### Quarantined tests
+
+Muted test cases are rerun and recorded, but can't fail the gate. Skipped test cases are never rerun. A flaky new test is reported but never quarantined automatically: automations only act on test cases that have already passed on the default branch.
+
+### In the dashboard
+
+Stressed test cases are badged in the run's test case list. One that failed some of its reruns is marked flaky and shows up with the run's other flaky tests. Open it to see every rerun beside the run's own attempt.
+
 
 ## Slack notifications {#slack-notifications}
 
