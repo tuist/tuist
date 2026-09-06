@@ -3472,6 +3472,9 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 	// request.
 	cpuMilli := cpuRequestMilli(instance)
 	cpuCeilingMilli := instance.Spec.CPUCeilingMilli
+	if cpuCeilingMilli > 0 && cpuCeilingMilli < cpuRequestBands[0] {
+		cpuCeilingMilli = cpuRequestBands[0]
+	}
 	if cpuCeilingMilli > 0 && cpuMilli > cpuCeilingMilli {
 		cpuMilli = cpuCeilingMilli
 	}

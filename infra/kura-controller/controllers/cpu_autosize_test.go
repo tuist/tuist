@@ -555,3 +555,25 @@ func TestCPUCeilingKeepsThePodBurstable(t *testing.T) {
 		t.Fatal("memory request equals its limit, which would make the pod Guaranteed")
 	}
 }
+
+// The CRD rejects a ceiling under the smallest reservation, but a CR written
+// before that rule must not produce a pod whose request sits under its own
+// floor.
+func TestCPUCeilingNeverDragsTheRequestUnderTheFloor(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{CPUCeilingMilli: 5},
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 600},
+		},
+	}
+
+	r := defaultResources(instance, false)
+
+	floor := resource.NewMilliQuantity(int64(cpuRequestBands[0]), resource.DecimalSI)
+	if r.Requests.Cpu().Cmp(*floor) < 0 {
+		t.Fatalf("CPU request = %s, want at least the %s floor", r.Requests.Cpu(), floor)
+	}
+	if r.Requests.Cpu().Cmp(*r.Limits.Cpu()) > 0 {
+		t.Fatalf("request %s exceeds limit %s, which the API rejects", r.Requests.Cpu(), r.Limits.Cpu())
+	}
+}
