@@ -55,7 +55,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       plan = StressNewTests.plan(project, [case_attrs("testNew")])
 
       assert plan.candidates == []
-      assert plan.guard == %{kind: "no_default_branch", new_count: 1, inventory_count: 0}
+      assert plan.guard == %{kind: "no_default_branch", new_count: 1, known_count: 0}
     end
 
     test "fires the premise guard when the default branch has no CI history", %{project: project, account: account} do
@@ -65,7 +65,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       plan = StressNewTests.plan(project, [case_attrs("testNew"), case_attrs("testOld")])
 
       assert plan.candidates == []
-      assert plan.guard == %{kind: "no_default_branch_history", new_count: 2, inventory_count: 0}
+      assert plan.guard == %{kind: "no_default_branch_history", new_count: 2, known_count: 0}
     end
 
     test "prices the test cases with no default-branch history and leaves the known ones out", %{
@@ -84,7 +84,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
         ])
 
       assert plan.guard == nil
-      assert plan.inventory_count == 2
+      assert plan.known_count == 2
 
       assert plan.candidates == [
                %{
@@ -139,7 +139,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert length(below_floor.candidates) == floor - 1
 
       above_floor = StressNewTests.plan(project, Enum.map(1..floor, &case_attrs("testNew#{&1}")))
-      assert above_floor.guard == %{kind: "bulk_change", new_count: floor, inventory_count: 1}
+      assert above_floor.guard == %{kind: "bulk_change", new_count: floor, known_count: 1}
       assert above_floor.candidates == []
     end
   end
@@ -184,7 +184,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
             new_count: 2,
             stressed_count: 1,
             excluded_count: 1,
-            inventory_count: 40,
+            known_count: 40,
             test_cases: [
               %{
                 name: "testNew",
@@ -228,7 +228,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       assert stored.stress_new_count == 2
       assert stored.stress_stressed_count == 1
       assert stored.stress_excluded_count == 1
-      assert stored.stress_inventory_count == 40
+      assert stored.stress_known_count == 40
 
       candidates = StressNewTests.list_candidates(test.id)
 
@@ -270,7 +270,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
       plan = StressNewTests.plan(project, [case_attrs("testOld")])
 
       assert plan.candidates == []
-      assert plan.inventory_count == 1
+      assert plan.known_count == 1
     end
 
     test "a test case dormant for longer than the window reads as new again", %{project: project, account: account} do
@@ -281,9 +281,9 @@ defmodule Tuist.Tests.StressNewTestsTest do
 
       assert Enum.map(plan.candidates, & &1.name) == ["testDormant"]
 
-      # The dormant case leaves the inventory with it, so the bulk-change ratio
+      # The dormant case leaves the known set with it, so the bulk-change ratio
       # keeps comparing two halves of one population.
-      assert plan.inventory_count == 1
+      assert plan.known_count == 1
     end
   end
 
@@ -356,7 +356,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
         stress_new_count: 1,
         stress_stressed_count: 1,
         stress_excluded_count: 0,
-        stress_inventory_count: 40
+        stress_known_count: 40
       }
 
       merged =
@@ -366,7 +366,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
           new_count: 2,
           stressed_count: 1,
           excluded_count: 1,
-          inventory_count: 40
+          known_count: 40
         })
 
       assert merged == %{
@@ -376,7 +376,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
                stress_new_count: 3,
                stress_stressed_count: 2,
                stress_excluded_count: 1,
-               stress_inventory_count: 40
+               stress_known_count: 40
              }
 
       assert StressNewTests.merge_run_attrs(existing, nil).stress_outcome == "passed"

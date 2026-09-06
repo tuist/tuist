@@ -83,7 +83,7 @@ class StressNewTestsGateTest {
         assertEquals("skipped", report.outcome)
         assertEquals("bulk_change", report.skipReason)
         assertEquals(70, report.newCount)
-        assertEquals(100, report.inventoryCount)
+        assertEquals(100, report.knownCount)
     }
 
     @Test
@@ -277,7 +277,7 @@ class TuistStressPlanServiceTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
                 """
-                {"guard":null,"inventory_count":40,
+                {"guard":null,"known_count":40,
                  "candidates":[{"name":"testNew()","suite_name":"com.example.FooTest","module_name":":app","repetitions":10,"excluded_reason":null}],
                  "parameters":{"candidate_cap":200,"wall_clock_ceiling_ms":600000,"bulk_change_ratio":0.3,"bulk_change_floor":50,"repetition_curve":[]}}
                 """.trimIndent()

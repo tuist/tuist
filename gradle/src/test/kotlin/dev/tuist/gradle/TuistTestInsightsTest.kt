@@ -56,7 +56,7 @@ class TuistTestInsightsTest {
             newCount = 1,
             stressedCount = 1,
             excludedCount = 0,
-            inventoryCount = 40,
+            knownCount = 40,
             testCases = listOf(
                 StressNewTestsCandidateReport(
                     name = "testNew",

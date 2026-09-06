@@ -874,7 +874,7 @@ defmodule TuistWeb.API.TestsControllerTest do
            stress_new_count: 2,
            stress_stressed_count: 1,
            stress_excluded_count: 1,
-           stress_inventory_count: 40,
+           stress_known_count: 40,
            test_case_runs: []
          }}
       end)
@@ -896,7 +896,7 @@ defmodule TuistWeb.API.TestsControllerTest do
               new_count: 2,
               stressed_count: 1,
               excluded_count: 1,
-              inventory_count: 40,
+              known_count: 40,
               has_result_bundle: true,
               test_cases: []
             }
@@ -915,7 +915,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           "stress_new_count" => 2,
           "stress_stressed_count" => 1,
           "stress_excluded_count" => 1,
-          "stress_inventory_count" => 40
+          "stress_known_count" => 40
         }
       )
     end

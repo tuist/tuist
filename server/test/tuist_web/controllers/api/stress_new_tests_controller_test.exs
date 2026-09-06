@@ -36,7 +36,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
             new_count: 1,
             stressed_count: 1,
             excluded_count: 0,
-            inventory_count: 12,
+            known_count: 12,
             test_cases: [
               %{
                 name: "testNew",
@@ -56,7 +56,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
       assert test_run.stress_mode == "enforce"
       assert test_run.stress_outcome == "disagreed"
       assert test_run.stress_new_count == 1
-      assert test_run.stress_inventory_count == 12
+      assert test_run.stress_known_count == 12
 
       [candidate] = Tuist.Tests.StressNewTests.list_candidates(test_run.id)
       assert candidate.name == "testNew"
@@ -98,7 +98,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["guard"] == nil
-      assert response["inventory_count"] == 1
+      assert response["known_count"] == 1
 
       assert response["candidates"] == [
                %{
@@ -125,7 +125,7 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["candidates"] == []
-      assert response["guard"] == %{"kind" => "no_default_branch_history", "new_count" => 1, "inventory_count" => 0}
+      assert response["guard"] == %{"kind" => "no_default_branch_history", "new_count" => 1, "known_count" => 0}
     end
 
     test "answers the full response shape when a guard fires", %{conn: conn, user: user, project: project} do
@@ -139,11 +139,11 @@ defmodule TuistWeb.API.StressNewTestsControllerTest do
       # Every key the schema marks required has to be present, or the generated client
       # cannot decode the response and a guarded run warns instead of staying quiet.
       assert response["candidates"] == []
-      assert response["inventory_count"] == 0
+      assert response["known_count"] == 0
       assert is_map(response["parameters"])
       assert response["guard"]["kind"] == "no_default_branch_history"
 
-      for key <- ["candidates", "inventory_count", "parameters"] do
+      for key <- ["candidates", "known_count", "parameters"] do
         assert Map.has_key?(response, key)
       end
     end

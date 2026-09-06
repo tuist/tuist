@@ -35,7 +35,7 @@ defmodule Tuist.Tests.XcresultProcessingTest do
       "stress_new_count" => 3,
       "stress_stressed_count" => 3,
       "stress_excluded_count" => 0,
-      "stress_inventory_count" => 50
+      "stress_known_count" => 50
     }
 
     attrs = XcresultProcessing.base_test_attrs(args)
@@ -43,7 +43,7 @@ defmodule Tuist.Tests.XcresultProcessingTest do
     assert attrs.stress_mode == "enforce"
     assert attrs.stress_outcome == "passed"
     assert attrs.stress_new_count == 3
-    assert attrs.stress_inventory_count == 50
+    assert attrs.stress_known_count == 50
   end
 
   test "base_test_attrs leaves the stress columns alone when the job has none", %{

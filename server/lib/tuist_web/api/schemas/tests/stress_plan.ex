@@ -26,14 +26,14 @@ defmodule TuistWeb.API.Schemas.Tests.StressPlan do
               "`no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio."
           },
           new_count: %Schema{type: :integer, description: "How many reported test cases had no default-branch history."},
-          inventory_count: %Schema{
+          known_count: %Schema{
             type: :integer,
             description: "How many test cases have run in CI on the default branch."
           }
         },
-        required: [:kind, :new_count, :inventory_count]
+        required: [:kind, :new_count, :known_count]
       },
-      inventory_count: %Schema{
+      known_count: %Schema{
         type: :integer,
         description: "How many test cases have run in CI on the default branch."
       },
@@ -91,7 +91,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressPlan do
           },
           bulk_change_ratio: %Schema{
             type: :number,
-            description: "Share of the default-branch inventory above which the bulk-change guard fires."
+            description: "Share of the known test cases above which the bulk-change guard fires."
           },
           bulk_change_floor: %Schema{
             type: :integer,
@@ -101,6 +101,6 @@ defmodule TuistWeb.API.Schemas.Tests.StressPlan do
         required: [:repetition_curve, :candidate_cap, :wall_clock_ceiling_ms, :bulk_change_ratio, :bulk_change_floor]
       }
     },
-    required: [:candidates, :parameters, :inventory_count]
+    required: [:candidates, :parameters, :known_count]
   })
 end

@@ -108,7 +108,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
     public let newCount: Int
     public let stressedCount: Int
     public let excludedCount: Int
-    public let inventoryCount: Int
+    public let knownCount: Int
     public let candidates: [StressNewTestsCandidate]
     /// The bundles the gate's passes wrote, for a caller that uploads them for server-side parsing.
     public let resultBundlePaths: [AbsolutePath]
@@ -122,7 +122,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
         newCount: Int,
         stressedCount: Int,
         excludedCount: Int,
-        inventoryCount: Int,
+        knownCount: Int,
         candidates: [StressNewTestsCandidate],
         resultBundlePaths: [AbsolutePath] = []
     ) {
@@ -132,7 +132,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
         self.newCount = newCount
         self.stressedCount = stressedCount
         self.excludedCount = excludedCount
-        self.inventoryCount = inventoryCount
+        self.knownCount = knownCount
         self.candidates = candidates
         self.resultBundlePaths = resultBundlePaths
     }
@@ -146,7 +146,7 @@ public struct StressNewTestsResult: Equatable, Sendable {
         .init(
             excluded_count: excludedCount,
             has_result_bundle: uploadedResultBundle,
-            inventory_count: inventoryCount,
+            known_count: knownCount,
             mode: mode == .enforce ? .enforce : .report,
             new_count: newCount,
             outcome: .init(rawValue: outcome.rawValue) ?? .skipped,
@@ -256,7 +256,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 newCount: 0,
                 stressedCount: 0,
                 excludedCount: 0,
-                inventoryCount: 0,
+                knownCount: 0,
                 candidates: []
             )
             // Nothing is printed: the run already has failing tests to look at, and a note
@@ -292,7 +292,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 newCount: 0,
                 stressedCount: 0,
                 excludedCount: 0,
-                inventoryCount: 0,
+                knownCount: 0,
                 candidates: []
             )
         }
@@ -306,7 +306,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 newCount: guardSignal.new_count,
                 stressedCount: 0,
                 excludedCount: 0,
-                inventoryCount: guardSignal.inventory_count,
+                knownCount: guardSignal.known_count,
                 candidates: []
             )
         }
@@ -339,7 +339,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
                 newCount: 0,
                 stressedCount: 0,
                 excludedCount: 0,
-                inventoryCount: plan.inventory_count,
+                knownCount: plan.known_count,
                 candidates: []
             )
         }
@@ -359,7 +359,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
             newCount: candidates.count,
             stressedCount: stressedCount,
             excludedCount: candidates.count - stressedCount,
-            inventoryCount: plan.inventory_count,
+            knownCount: plan.known_count,
             candidates: candidates,
             resultBundlePaths: resultBundlePaths
         )
@@ -575,7 +575,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         case .no_default_branch_history:
             return "Skipped stress testing new tests: no test case has run in CI on the default branch yet, so all \(signal.new_count) of this run's test cases would count as new."
         case .bulk_change:
-            return "Skipped stress testing new tests: \(signal.new_count) test cases look new against \(signal.inventory_count) on the default branch, which usually means they were renamed or moved rather than added."
+            return "Skipped stress testing new tests: \(signal.new_count) test cases look new against \(signal.known_count) on the default branch, which usually means they were renamed or moved rather than added."
         }
     }
 }

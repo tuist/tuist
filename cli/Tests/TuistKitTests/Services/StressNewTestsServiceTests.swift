@@ -67,7 +67,7 @@ struct StressNewTestsServiceTests {
         .init(
             candidates: candidates,
             _guard: guardSignal,
-            inventory_count: 40,
+            known_count: 40,
             parameters: .init(
                 bulk_change_floor: 50,
                 bulk_change_ratio: 0.3,
@@ -124,7 +124,7 @@ struct StressNewTestsServiceTests {
                 serverURL: .any,
                 testCases: .matching { $0.map(\.name) == ["testNew()"] }
             )
-            .willReturn(plan(candidates: [], guardSignal: .init(inventory_count: 100, kind: .bulk_change, new_count: 70)))
+            .willReturn(plan(candidates: [], guardSignal: .init(kind: .bulk_change, known_count: 100, new_count: 70)))
 
         var skipped = testCase("testSkipped()")
         skipped = TestCase(
@@ -149,7 +149,7 @@ struct StressNewTestsServiceTests {
         #expect(result?.outcome == .skipped)
         #expect(result?.skipReason == .bulkChange)
         #expect(result?.newCount == 70)
-        #expect(result?.inventoryCount == 100)
+        #expect(result?.knownCount == 100)
         #expect(result?.blocks == false)
     }
 
@@ -304,7 +304,7 @@ struct StressNewTestsServiceTests {
         )
 
         #expect(result?.outcome == .noCandidates)
-        #expect(result?.inventoryCount == 40)
+        #expect(result?.knownCount == 40)
     }
 
     @Test(.withMockedDependencies())

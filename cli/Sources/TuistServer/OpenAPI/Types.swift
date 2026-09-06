@@ -6172,8 +6172,8 @@ public enum Components {
             public var has_result_bundle: Swift.Bool?
             /// How many test cases have run in CI on the default branch, as the plan measured it.
             ///
-            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/inventory_count`.
-            public var inventory_count: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/known_count`.
+            public var known_count: Swift.Int?
             /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///
             /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
@@ -6426,7 +6426,7 @@ public enum Components {
             /// - Parameters:
             ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
             ///   - has_result_bundle: Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
-            ///   - inventory_count: How many test cases have run in CI on the default branch, as the plan measured it.
+            ///   - known_count: How many test cases have run in CI on the default branch, as the plan measured it.
             ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
             ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
             ///   - outcome: `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
@@ -6436,7 +6436,7 @@ public enum Components {
             public init(
                 excluded_count: Swift.Int,
                 has_result_bundle: Swift.Bool? = nil,
-                inventory_count: Swift.Int? = nil,
+                known_count: Swift.Int? = nil,
                 mode: Components.Schemas.StressNewTestsResult.modePayload,
                 new_count: Swift.Int,
                 outcome: Components.Schemas.StressNewTestsResult.outcomePayload,
@@ -6446,7 +6446,7 @@ public enum Components {
             ) {
                 self.excluded_count = excluded_count
                 self.has_result_bundle = has_result_bundle
-                self.inventory_count = inventory_count
+                self.known_count = known_count
                 self.mode = mode
                 self.new_count = new_count
                 self.outcome = outcome
@@ -6457,7 +6457,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case excluded_count
                 case has_result_bundle
-                case inventory_count
+                case known_count
                 case mode
                 case new_count
                 case outcome
@@ -6551,10 +6551,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StressPlan/guard`.
             public struct _guardPayload: Codable, Hashable, Sendable {
-                /// How many test cases have run in CI on the default branch.
-                ///
-                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/inventory_count`.
-                public var inventory_count: Swift.Int
                 /// `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
@@ -6567,6 +6563,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
                 public var kind: Components.Schemas.StressPlan._guardPayload.kindPayload
+                /// How many test cases have run in CI on the default branch.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/known_count`.
+                public var known_count: Swift.Int
                 /// How many reported test cases had no default-branch history.
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressPlan/guard/new_count`.
@@ -6574,21 +6574,21 @@ public enum Components {
                 /// Creates a new `_guardPayload`.
                 ///
                 /// - Parameters:
-                ///   - inventory_count: How many test cases have run in CI on the default branch.
                 ///   - kind: `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///   - known_count: How many test cases have run in CI on the default branch.
                 ///   - new_count: How many reported test cases had no default-branch history.
                 public init(
-                    inventory_count: Swift.Int,
                     kind: Components.Schemas.StressPlan._guardPayload.kindPayload,
+                    known_count: Swift.Int,
                     new_count: Swift.Int
                 ) {
-                    self.inventory_count = inventory_count
                     self.kind = kind
+                    self.known_count = known_count
                     self.new_count = new_count
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case inventory_count
                     case kind
+                    case known_count
                     case new_count
                 }
             }
@@ -6598,8 +6598,8 @@ public enum Components {
             public var _guard: Components.Schemas.StressPlan._guardPayload?
             /// How many test cases have run in CI on the default branch.
             ///
-            /// - Remark: Generated from `#/components/schemas/StressPlan/inventory_count`.
-            public var inventory_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/StressPlan/known_count`.
+            public var known_count: Swift.Int
             /// The project's stress parameters, so the client can report which bound bit.
             ///
             /// - Remark: Generated from `#/components/schemas/StressPlan/parameters`.
@@ -6608,7 +6608,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_floor`.
                 public var bulk_change_floor: Swift.Int
-                /// Share of the default-branch inventory above which the bulk-change guard fires.
+                /// Share of the known test cases above which the bulk-change guard fires.
                 ///
                 /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_ratio`.
                 public var bulk_change_ratio: Swift.Double
@@ -6659,7 +6659,7 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - bulk_change_floor: Minimum number of new test cases before the bulk-change guard applies.
-                ///   - bulk_change_ratio: Share of the default-branch inventory above which the bulk-change guard fires.
+                ///   - bulk_change_ratio: Share of the known test cases above which the bulk-change guard fires.
                 ///   - candidate_cap: Maximum number of candidates a run stresses.
                 ///   - repetition_curve: Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
                 ///   - wall_clock_ceiling_ms: Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
@@ -6693,23 +6693,23 @@ public enum Components {
             /// - Parameters:
             ///   - candidates: The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
             ///   - _guard: The guard that kept the gate from producing candidates, if one fired.
-            ///   - inventory_count: How many test cases have run in CI on the default branch.
+            ///   - known_count: How many test cases have run in CI on the default branch.
             ///   - parameters: The project's stress parameters, so the client can report which bound bit.
             public init(
                 candidates: Components.Schemas.StressPlan.candidatesPayload,
                 _guard: Components.Schemas.StressPlan._guardPayload? = nil,
-                inventory_count: Swift.Int,
+                known_count: Swift.Int,
                 parameters: Components.Schemas.StressPlan.parametersPayload
             ) {
                 self.candidates = candidates
                 self._guard = _guard
-                self.inventory_count = inventory_count
+                self.known_count = known_count
                 self.parameters = parameters
             }
             public enum CodingKeys: String, CodingKey {
                 case candidates
                 case _guard = "guard"
-                case inventory_count
+                case known_count
                 case parameters
             }
         }

@@ -12,7 +12,7 @@ defmodule Tuist.IngestRepo.Migrations.AddStressNewTestsToTestRuns do
       add :stress_new_count, :UInt32, default: 0
       add :stress_stressed_count, :UInt32, default: 0
       add :stress_excluded_count, :UInt32, default: 0
-      add :stress_inventory_count, :UInt32, default: 0
+      add :stress_known_count, :UInt32, default: 0
     end
 
     execute("""
@@ -47,7 +47,7 @@ defmodule Tuist.IngestRepo.Migrations.AddStressNewTestsToTestRuns do
       remove :stress_new_count
       remove :stress_stressed_count
       remove :stress_excluded_count
-      remove :stress_inventory_count
+      remove :stress_known_count
     end
   end
 end

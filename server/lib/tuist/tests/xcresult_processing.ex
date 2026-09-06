@@ -62,7 +62,7 @@ defmodule Tuist.Tests.XcresultProcessing do
     )
   end
 
-  @stress_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_inventory_count)
+  @stress_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count)
 
   # Only what the job carried: a job enqueued without them leaves the columns to
   # their defaults, exactly as before the gate existed.

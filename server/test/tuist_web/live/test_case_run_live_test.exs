@@ -88,7 +88,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
             new_count: 1,
             stressed_count: 1,
             excluded_count: 0,
-            inventory_count: 5,
+            known_count: 5,
             test_cases: [
               %{
                 name: "testNew",
@@ -174,7 +174,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
             new_count: 1,
             stressed_count: 1,
             excluded_count: 0,
-            inventory_count: 5,
+            known_count: 5,
             test_cases: [
               %{
                 name: "testNew",

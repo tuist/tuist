@@ -76,7 +76,7 @@ data class StressPlanTestCase(
 
 data class StressPlan(
     val guard: StressGuard?,
-    @SerializedName("inventory_count") val inventoryCount: Int,
+    @SerializedName("known_count") val knownCount: Int,
     val candidates: List<StressPlanCandidate>,
     val parameters: StressParameters
 )
@@ -84,7 +84,7 @@ data class StressPlan(
 data class StressGuard(
     val kind: String,
     @SerializedName("new_count") val newCount: Int,
-    @SerializedName("inventory_count") val inventoryCount: Int
+    @SerializedName("known_count") val knownCount: Int
 )
 
 data class StressPlanCandidate(
@@ -109,7 +109,7 @@ data class StressNewTestsReport(
     @SerializedName("new_count") val newCount: Int,
     @SerializedName("stressed_count") val stressedCount: Int,
     @SerializedName("excluded_count") val excludedCount: Int,
-    @SerializedName("inventory_count") val inventoryCount: Int,
+    @SerializedName("known_count") val knownCount: Int,
     @SerializedName("test_cases") val testCases: List<StressNewTestsCandidateReport>
 ) {
     val blockingCandidates: List<StressNewTestsCandidateReport>
@@ -265,7 +265,7 @@ internal class StressNewTestsGate(
         if (firstPassFailed) {
             // Nothing is printed: the build already has failing tests to look at, and a note
             // about what the gate did not do on top of them is noise.
-            return skipped("first_pass_failed", newCount = 0, inventoryCount = 0)
+            return skipped("first_pass_failed", newCount = 0, knownCount = 0)
         }
 
         val ran = executed.filter { it.resultType != TestResult.ResultType.SKIPPED }
@@ -282,12 +282,12 @@ internal class StressNewTestsGate(
             )
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to fetch the stress gate plan: ${e.message}. Nothing was stressed.")
-            return skipped("plan_unavailable", newCount = 0, inventoryCount = 0)
+            return skipped("plan_unavailable", newCount = 0, knownCount = 0)
         }
 
         response.guard?.let { guard ->
             logger.lifecycle("Tuist: " + guardDescription(guard))
-            return skipped(guard.kind, newCount = guard.newCount, inventoryCount = guard.inventoryCount)
+            return skipped(guard.kind, newCount = guard.newCount, knownCount = guard.knownCount)
         }
 
         val quarantined = ran.filter { it.isQuarantined }
@@ -316,7 +316,7 @@ internal class StressNewTestsGate(
                 newCount = 0,
                 stressedCount = 0,
                 excludedCount = 0,
-                inventoryCount = response.inventoryCount,
+                knownCount = response.knownCount,
                 testCases = emptyList()
             )
         }
@@ -408,21 +408,21 @@ internal class StressNewTestsGate(
             newCount = candidates.size,
             stressedCount = stressed,
             excludedCount = candidates.size - stressed,
-            inventoryCount = response.inventoryCount,
+            knownCount = response.knownCount,
             testCases = candidates.map { it.toReport() }
         )
         print(report, response.parameters.wallClockCeilingMs, response.parameters.candidateCap)
         return report
     }
 
-    private fun skipped(reason: String, newCount: Int, inventoryCount: Int) = StressNewTestsReport(
+    private fun skipped(reason: String, newCount: Int, knownCount: Int) = StressNewTestsReport(
         mode = mode,
         outcome = "skipped",
         skipReason = reason,
         newCount = newCount,
         stressedCount = 0,
         excludedCount = 0,
-        inventoryCount = inventoryCount,
+        knownCount = knownCount,
         testCases = emptyList()
     )
 
@@ -483,7 +483,7 @@ internal class StressNewTestsGate(
                 "Skipped stress testing new tests: no test case has run in CI on the default branch yet, so all ${guard.newCount} " +
                     "of this build's test cases would count as new."
             else ->
-                "Skipped stress testing new tests: ${guard.newCount} test cases look new against ${guard.inventoryCount} on the " +
+                "Skipped stress testing new tests: ${guard.newCount} test cases look new against ${guard.knownCount} on the " +
                     "default branch, which usually means they were renamed or moved rather than added."
         }
 

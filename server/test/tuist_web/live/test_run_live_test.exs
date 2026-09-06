@@ -83,7 +83,7 @@ defmodule TuistWeb.TestRunLiveTest do
           new_count: 1,
           stressed_count: 1,
           excluded_count: 0,
-          inventory_count: 40,
+          known_count: 40,
           test_cases: [
             %{
               name: "testAppliesDiscount",

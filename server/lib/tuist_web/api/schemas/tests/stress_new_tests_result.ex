@@ -48,7 +48,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
         description:
           "How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute."
       },
-      inventory_count: %Schema{
+      known_count: %Schema{
         type: :integer,
         description: "How many test cases have run in CI on the default branch, as the plan measured it."
       },

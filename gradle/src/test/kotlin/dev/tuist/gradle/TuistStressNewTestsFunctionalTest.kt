@@ -46,7 +46,7 @@ class TuistStressNewTestsFunctionalTest {
                     path.endsWith("/tests/stress-new-tests/plan") ->
                         MockResponse().setResponseCode(200).setBody(
                             """
-                            {"guard":null,"inventory_count":40,
+                            {"guard":null,"known_count":40,
                              "candidates":[{"name":"flaky()","suite_name":"dev.tuist.fixture.FlakyTest","module_name":"stress-fixture","repetitions":$repetitions,"excluded_reason":null}],
                              "parameters":{"candidate_cap":200,"wall_clock_ceiling_ms":600000,"bulk_change_ratio":0.3,"bulk_change_floor":50,"repetition_curve":[]}}
                             """.trimIndent()

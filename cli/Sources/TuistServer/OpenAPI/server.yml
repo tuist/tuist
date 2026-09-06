@@ -2269,7 +2269,7 @@ components:
           type: boolean
           x-struct:
           x-validate:
-        inventory_count:
+        known_count:
           description: How many test cases have run in CI on the default branch, as the plan measured it.
           type: integer
           x-struct:
@@ -2518,11 +2518,6 @@ components:
           description: The guard that kept the gate from producing candidates, if one fired.
           nullable: true
           properties:
-            inventory_count:
-              description: How many test cases have run in CI on the default branch.
-              type: integer
-              x-struct:
-              x-validate:
             kind:
               description: "`no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio."
               enum:
@@ -2530,6 +2525,11 @@ components:
                 - no_default_branch_history
                 - bulk_change
               type: string
+              x-struct:
+              x-validate:
+            known_count:
+              description: How many test cases have run in CI on the default branch.
+              type: integer
               x-struct:
               x-validate:
             new_count:
@@ -2540,11 +2540,11 @@ components:
           required:
             - kind
             - new_count
-            - inventory_count
+            - known_count
           type: object
           x-struct:
           x-validate:
-        inventory_count:
+        known_count:
           description: How many test cases have run in CI on the default branch.
           type: integer
           x-struct:
@@ -2558,7 +2558,7 @@ components:
               x-struct:
               x-validate:
             bulk_change_ratio:
-              description: Share of the default-branch inventory above which the bulk-change guard fires.
+              description: Share of the known test cases above which the bulk-change guard fires.
               type: number
               x-struct:
               x-validate:
@@ -2607,7 +2607,7 @@ components:
       required:
         - candidates
         - parameters
-        - inventory_count
+        - known_count
       title: StressPlan
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.StressPlan

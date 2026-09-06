@@ -6,8 +6,8 @@ defmodule Tuist.Tests.StressNewTests do
   the subset that has not run in CI on the project's default branch in the
   trailing ninety days, each priced with the number of repetitions its own
   duration earns on the repetition curve. The guards whose inputs only the
-  server holds (the default branch and its history, the size of the project's
-  inventory) are decided here and returned as a signal the client prints. The
+  server holds (the default branch and its history, how many test cases the
+  default branch already knows) are decided here and returned as a signal the client prints. The
   candidate cap is applied here too, so both clients only have to run what they
   are handed and stop at the wall-clock ceiling.
 
@@ -78,29 +78,29 @@ defmodule Tuist.Tests.StressNewTests do
     if blank?(default_branch) do
       guard("no_default_branch", length(test_cases), 0)
     else
-      inventory_count = default_branch_inventory_count(project.id, default_branch)
+      known_count = known_test_case_count(project.id, default_branch)
 
-      if inventory_count == 0 do
+      if known_count == 0 do
         guard("no_default_branch_history", length(test_cases), 0)
       else
         new_test_cases = reject_known(project.id, default_branch, test_cases)
         new_count = length(new_test_cases)
 
         if new_count >= parameters.bulk_change_floor and
-             new_count > parameters.bulk_change_ratio * inventory_count do
-          guard("bulk_change", new_count, inventory_count)
+             new_count > parameters.bulk_change_ratio * known_count do
+          guard("bulk_change", new_count, known_count)
         else
-          %{guard: nil, candidates: price(new_test_cases, parameters), inventory_count: inventory_count}
+          %{guard: nil, candidates: price(new_test_cases, parameters), known_count: known_count}
         end
       end
     end
   end
 
-  defp guard(kind, new_count, inventory_count) do
+  defp guard(kind, new_count, known_count) do
     %{
-      guard: %{kind: kind, new_count: new_count, inventory_count: inventory_count},
+      guard: %{kind: kind, new_count: new_count, known_count: known_count},
       candidates: [],
-      inventory_count: inventory_count
+      known_count: known_count
     }
   end
 
@@ -161,7 +161,7 @@ defmodule Tuist.Tests.StressNewTests do
   # Counted over the same window as the newness lookup above. A test case that
   # falls out of the window leaves both sides at once, which is what keeps the
   # bulk-change ratio comparing two halves of one population.
-  defp default_branch_inventory_count(project_id, default_branch) do
+  defp known_test_case_count(project_id, default_branch) do
     ClickHouseRepo.one(
       from(bp in TestCaseBranchPresence,
         where: bp.project_id == ^project_id,
@@ -231,7 +231,7 @@ defmodule Tuist.Tests.StressNewTests do
       stress_new_count: Map.get(stress, :new_count) || 0,
       stress_stressed_count: Map.get(stress, :stressed_count) || 0,
       stress_excluded_count: Map.get(stress, :excluded_count) || 0,
-      stress_inventory_count: Map.get(stress, :inventory_count) || 0
+      stress_known_count: Map.get(stress, :known_count) || 0
     }
   end
 
@@ -252,7 +252,7 @@ defmodule Tuist.Tests.StressNewTests do
       stress_new_count: existing.stress_new_count + incoming.stress_new_count,
       stress_stressed_count: existing.stress_stressed_count + incoming.stress_stressed_count,
       stress_excluded_count: existing.stress_excluded_count + incoming.stress_excluded_count,
-      stress_inventory_count: max(existing.stress_inventory_count, incoming.stress_inventory_count)
+      stress_known_count: max(existing.stress_known_count, incoming.stress_known_count)
     }
   end
 
