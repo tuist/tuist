@@ -222,14 +222,14 @@ defmodule Tuist.CommandEvents do
     command_event = struct(Event, event_attrs)
     {:ok, _} = Event.Buffer.insert(command_event)
 
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
-
-    Tuist.PubSub.broadcast(
-      command_event,
-      "#{account.name}/#{project.name}",
-      :command_event_created
-    )
+    with project when not is_nil(project) <- Repo.get(Project, command_event.project_id),
+         account when not is_nil(account) <- Repo.get(Account, project.account_id) do
+      Tuist.PubSub.broadcast(
+        command_event,
+        "#{account.name}/#{project.name}",
+        :command_event_created
+      )
+    end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_run_command(),
