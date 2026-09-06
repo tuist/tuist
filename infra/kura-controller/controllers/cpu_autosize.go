@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -23,7 +24,18 @@ const (
 	cpuShrinkMinBuckets = 8
 
 	cpuScheduleCapTTL = 24 * time.Hour
+
+	// This read is optional and runs before primary selection on the single
+	// reconcile worker, so it may not outlast a metrics-server that accepts the
+	// connection and never answers. Losing a sample costs nothing: the ring
+	// holds six-hour windows and the next pass is 30 seconds away.
+	cpuMetricsTimeout = 2 * time.Second
 )
+
+// The scheduler names the short resource only in the condition message, built
+// per unfittable resource by NodeResourcesFit. Reason is `Unschedulable` for
+// every scheduling failure, disk, taints and affinity included.
+const insufficientCPUPredicate = "Insufficient cpu"
 
 // cpuUnobservedWindow marks a window that closed with no reading. It is
 // distinct from a reading of zero, which an idle pod genuinely produces.
@@ -47,6 +59,8 @@ func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *
 	if r.MetricsClient == nil || len(pods) == 0 {
 		return
 	}
+	ctx, cancel := context.WithTimeout(ctx, cpuMetricsTimeout)
+	defer cancel()
 	usage, err := r.MetricsClient.PodCPUMilli(ctx, instance.Namespace, selectorLabels(instance))
 	if err != nil {
 		log.FromContext(ctx).V(1).Info("failed to read Kura pod CPU usage", "error", err)
@@ -216,7 +230,7 @@ func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, no
 	var stuck, admitted int32
 	for i := range pods {
 		milli := podCPURequestMilli(&pods[i])
-		if podUnschedulable(&pods[i]) {
+		if podUnschedulableForCPU(&pods[i]) {
 			if stuck == 0 || milli < stuck {
 				stuck = milli
 			}
@@ -246,14 +260,19 @@ func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, no
 	instance.Status.CPUAutosize = state
 }
 
-func podUnschedulable(pod *corev1.Pod) bool {
+// podUnschedulableForCPU is true only when the scheduler reports CPU among
+// what it could not fit. Lowering the reservation places a pod that CPU is
+// blocking and does nothing for one blocked on disk, a taint or affinity,
+// where it would shrink the instance's guarantee for a day without moving it.
+func podUnschedulableForCPU(pod *corev1.Pod) bool {
 	if pod.Status.Phase != corev1.PodPending {
 		return false
 	}
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodScheduled &&
 			condition.Status == corev1.ConditionFalse &&
-			condition.Reason == corev1.PodReasonUnschedulable {
+			condition.Reason == corev1.PodReasonUnschedulable &&
+			strings.Contains(condition.Message, insufficientCPUPredicate) {
 			return true
 		}
 	}

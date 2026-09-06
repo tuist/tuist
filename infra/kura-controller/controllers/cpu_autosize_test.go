@@ -288,14 +288,15 @@ func TestCPURequestSurvivesAControllerRestart(t *testing.T) {
 	}
 }
 
-func pendingPod(name string, milli int64, reason string) corev1.Pod {
+func pendingPod(name string, milli int64, reason string, message string) corev1.Pod {
 	pod := runningPod(name, milli)
 	pod.Spec.NodeName = ""
 	pod.Status.Phase = corev1.PodPending
 	pod.Status.Conditions = []corev1.PodCondition{{
-		Type:   corev1.PodScheduled,
-		Status: corev1.ConditionFalse,
-		Reason: reason,
+		Type:    corev1.PodScheduled,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: message,
 	}}
 	return pod
 }
@@ -360,7 +361,7 @@ func TestScheduleCapBacksOffAnUnschedulableRequest(t *testing.T) {
 			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000, PeakMilli: 800},
 		},
 	}
-	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}
+	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable, insufficientCPUMessage)}
 
 	applyScheduleCap(instance, pods, time.Now())
 
@@ -382,7 +383,7 @@ func TestScheduleCapPrefersASchedulableSiblingsRequest(t *testing.T) {
 	}
 	pods := []corev1.Pod{
 		runningPod("kura-acme-us-east-1-0", 100),
-		pendingPod("kura-acme-us-east-1-1", 1000, corev1.PodReasonUnschedulable),
+		pendingPod("kura-acme-us-east-1-1", 1000, corev1.PodReasonUnschedulable, insufficientCPUMessage),
 	}
 
 	applyScheduleCap(instance, pods, time.Now())
@@ -401,7 +402,7 @@ func TestScheduleCapDoesNotOscillate(t *testing.T) {
 			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
 		},
 	}
-	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, now)
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable, insufficientCPUMessage)}, now)
 	capped := cpuRequestMilli(instance)
 
 	// The pod schedules at the capped size and the ring still wants 1000m.
@@ -421,7 +422,7 @@ func TestScheduleCapExpires(t *testing.T) {
 			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
 		},
 	}
-	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, now)
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable, insufficientCPUMessage)}, now)
 
 	applyScheduleCap(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", 100)}, now.Add(cpuScheduleCapTTL+time.Minute))
 
@@ -437,7 +438,7 @@ func TestScheduleCapIgnoresOtherPendingReasons(t *testing.T) {
 			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
 		},
 	}
-	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, "SchedulerError")}
+	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, "SchedulerError", "")}
 
 	applyScheduleCap(instance, pods, time.Now())
 
@@ -451,7 +452,7 @@ func TestScheduleCapIgnoresOtherPendingReasons(t *testing.T) {
 func TestScheduleCapSurvivesAnObservationPass(t *testing.T) {
 	instance, pods := instanceWithPods("kura-acme-us-east-1-0")
 	instance.Status.CPUAutosize = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000}
-	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable)}, time.Now())
+	applyScheduleCap(instance, []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable, insufficientCPUMessage)}, time.Now())
 	capped := cpuRequestMilli(instance)
 
 	r := &KuraInstanceReconciler{MetricsClient: &stubMetricsClient{usage: map[string]int64{
@@ -575,5 +576,99 @@ func TestCPUCeilingNeverDragsTheRequestUnderTheFloor(t *testing.T) {
 	}
 	if r.Requests.Cpu().Cmp(*r.Limits.Cpu()) > 0 {
 		t.Fatalf("request %s exceeds limit %s, which the API rejects", r.Requests.Cpu(), r.Limits.Cpu())
+	}
+}
+
+const insufficientCPUMessage = "0/36 nodes are available: 1 Insufficient cpu, 35 node(s) didn't match Pod's node affinity/selector."
+
+type deadlineMetricsClient struct {
+	hadDeadline bool
+	budget      time.Duration
+}
+
+func (d *deadlineMetricsClient) PodCPUMilli(ctx context.Context, _ string, _ map[string]string) (map[string]int64, error) {
+	deadline, ok := ctx.Deadline()
+	d.hadDeadline = ok
+	if ok {
+		d.budget = time.Until(deadline)
+	}
+	return nil, context.DeadlineExceeded
+}
+
+// This read is optional, and it runs before primary selection on the
+// controller's single reconcile worker. A metrics-server that accepts the
+// connection and never answers would otherwise stall failover for every
+// instance in the fleet, not just this one.
+func TestObserveCPUUsageBoundsTheMetricsRead(t *testing.T) {
+	instance, pods := instanceWithPods("kura-acme-us-east-1-0")
+	opened := time.Now().UTC().Truncate(cpuBucketDuration).Add(-4 * cpuBucketDuration)
+	existing := &kurav1alpha1.KuraInstanceCPUAutosize{
+		RequestMilli:     600,
+		PeakMilli:        480,
+		BucketStartedAt:  &metav1.Time{Time: opened},
+		BucketPeaksMilli: []int32{480},
+	}
+	instance.Status.CPUAutosize = existing.DeepCopy()
+	client := &deadlineMetricsClient{}
+
+	(&KuraInstanceReconciler{MetricsClient: client}).observeCPUUsage(context.Background(), instance, pods)
+
+	if !client.hadDeadline {
+		t.Fatal("the metrics read was given no deadline")
+	}
+	if client.budget <= 0 || client.budget >= 30*time.Second {
+		t.Fatalf("metrics budget = %s, want a short one well inside the reconcile cadence", client.budget)
+	}
+	if !reflect.DeepEqual(instance.Status.CPUAutosize, existing) {
+		t.Fatalf("the window moved when the read expired: %+v", instance.Status.CPUAutosize)
+	}
+}
+
+// Unschedulable is the reason for every scheduling failure, so the message is
+// the only thing that says which resource was short. Lowering the CPU
+// reservation for a pod blocked on disk does not place it, and the reduced
+// guarantee then outlives the real cause.
+func TestScheduleCapIgnoresNonCPUSchedulingFailures(t *testing.T) {
+	for name, message := range map[string]string{
+		"disk":     "0/36 nodes are available: 3 Insufficient ephemeral-storage.",
+		"egress":   "0/36 nodes are available: 3 Insufficient tuist.dev/egress-mbps.",
+		"taints":   "0/36 nodes are available: 36 node(s) had untolerated taint {node.kubernetes.io/unreachable: }.",
+		"affinity": "0/36 nodes are available: 36 node(s) didn't match Pod's node affinity/selector.",
+		"volume":   "0/36 nodes are available: 1 node(s) had volume node affinity conflict.",
+		"empty":    "",
+	} {
+		instance := &kurav1alpha1.KuraInstance{
+			Status: kurav1alpha1.KuraInstanceStatus{
+				CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+			},
+		}
+		pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable, message)}
+
+		applyScheduleCap(instance, pods, time.Now())
+
+		if got := cpuRequestMilli(instance); got != 1000 {
+			t.Fatalf("%s: request fell to %dm for a failure CPU cannot fix", name, got)
+		}
+		if got := instance.Status.CPUAutosize.ScheduleCapMilli; got != 0 {
+			t.Fatalf("%s: capped at %dm for a failure CPU cannot fix", name, got)
+		}
+	}
+}
+
+// A node short of several resources at once still names CPU among them, and
+// lowering the reservation can place the pod there.
+func TestScheduleCapAppliesWhenCPUIsOneOfSeveralShortages(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		Status: kurav1alpha1.KuraInstanceStatus{
+			CPUAutosize: &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 1000},
+		},
+	}
+	pods := []corev1.Pod{pendingPod("kura-acme-us-east-1-0", 1000, corev1.PodReasonUnschedulable,
+		"0/36 nodes are available: 1 Insufficient cpu, 2 Insufficient ephemeral-storage.")}
+
+	applyScheduleCap(instance, pods, time.Now())
+
+	if got := cpuRequestMilli(instance); got >= 1000 {
+		t.Fatalf("request = %dm, want it backed off when CPU is among the shortages", got)
 	}
 }

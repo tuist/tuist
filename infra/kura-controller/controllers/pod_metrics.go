@@ -17,7 +17,13 @@ type metricsServerClient struct {
 // It bypasses the manager's cached client because that API serves a computed
 // view with no resourceVersion and no watch, so it cannot back an informer.
 func NewPodMetricsClient(config *rest.Config) (PodMetricsClient, error) {
-	client, err := metricsclient.NewForConfig(config)
+	// Copied, not mutated: this config is the manager's. The per-call context
+	// carries the real budget; this bounds a transport that never answers at
+	// all.
+	bounded := rest.CopyConfig(config)
+	bounded.Timeout = cpuMetricsTimeout
+
+	client, err := metricsclient.NewForConfig(bounded)
 	if err != nil {
 		return nil, err
 	}
