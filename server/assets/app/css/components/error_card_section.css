@@ -4,3 +4,9 @@
     padding-bottom: var(--noora-spacing-7);
   }
 }
+
+/* Noora aligns a large alert's icon with the first line. The error state is
+   always two short lines, so the icon reads as centred against both. */
+.noora-alert[data-error] {
+  align-items: center;
+}
