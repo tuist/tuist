@@ -3825,35 +3825,14 @@ histogram_quantile(
   ran into its timeout counts as slow rather than disappearing from the
   distribution. The repo stops a read at 15 s server-side and 20 s
   client-side, so the histogram's top buckets are 15 000, 20 000 and 30 000.
-
-### Tuist server LiveView async work slow
-
-```promql
-histogram_quantile(
-  0.9,
-  sum by (cluster, namespace, view, le) (
-    rate(tuist_live_view_assign_async_duration_milliseconds_bucket[10m])
-  )
-) > 10000
-```
-
-- Pending period: 10 minutes
-- Severity: warning
-- Folder `Alerts`, group `Server`
-- Summary: `{{ $labels.view }} took over 10s at p90 to load its data for 10 minutes in {{ $labels.cluster }}`
-- The HTTP request duration rules see only a LiveView's initial render. The
-  data a dashboard page shows loads afterwards inside `assign_async` over the
-  socket, which is where the 2026-09-05 Modules page outage happened while
-  every HTTP p90 stayed flat. `TuistWeb.Async` wraps `assign_async` for every
-  LiveView and emits the function's wall-clock and outcome (`ok`, `error`,
-  `exception`) tagged with the view module; `Tuist.LiveView.PromExPlugin`
-  exports it. The stock PromEx LiveView plugin was not enabled instead: it
-  measures `mount` and `handle_event`, neither of which covers async loads,
-  and its `handle_event` histogram is tagged per event name per view, which on
-  91 views is far more series than one histogram per view.
-- `result="exception"` is the same signal as the failures rule for pages whose
-  work is not a ClickHouse query; it is not a separate rule because the
-  exception itself reaches the error tracker.
+- This is the rule that covers dashboard pages. They are LiveViews: the
+  initial render returns in milliseconds and the data is loaded afterwards
+  over the socket, so the HTTP request duration rules stay flat while a page
+  is unusable, which is how the 2026-09-05 Modules page outage went unseen.
+  Nothing measures those loads at the view layer, deliberately, since every
+  one of them is a ClickHouse read and this histogram already counts it. A
+  page that becomes slow for another reason, an object store or an external
+  API, would not show up here.
 
 ### Slow or cancelled ClickHouse query
 

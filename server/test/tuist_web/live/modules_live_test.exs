@@ -343,20 +343,6 @@ defmodule TuistWeb.ModulesLiveTest do
     organization: organization,
     project: project
   } do
-    handler_id = {__MODULE__, make_ref()}
-    test_pid = self()
-
-    :telemetry.attach(
-      handler_id,
-      Tuist.Telemetry.event_name_live_view_assign_async(),
-      fn _event, measurements, metadata, _config ->
-        send(test_pid, {:assign_async, measurements, metadata})
-      end,
-      nil
-    )
-
-    on_exit(fn -> :telemetry.detach(handler_id) end)
-
     stub(Analytics, :module_invalidations, fn _opts ->
       raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
     end)
@@ -373,10 +359,6 @@ defmodule TuistWeb.ModulesLiveTest do
     # The analytics card loads independently of the table.
     assert has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
     refute has_element?(lv, "[data-part=\"analytics-error\"]")
-
-    assert_receive {:assign_async, %{duration: duration}, %{view: ModulesLive, result: :exception}}
-    assert is_integer(duration)
-    assert_receive {:assign_async, _measurements, %{view: ModulesLive, result: :ok}}
   end
 
   describe "page_of/3" do

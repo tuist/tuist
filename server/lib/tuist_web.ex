@@ -74,9 +74,7 @@ defmodule TuistWeb do
       use Phoenix.LiveView
       use Gettext, backend: TuistWeb.Gettext
 
-      import Phoenix.LiveView, except: [assign_async: 3, assign_async: 4]
       import TuistWeb.AppLayoutComponents
-      import TuistWeb.Async
 
       on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
