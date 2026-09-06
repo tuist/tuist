@@ -142,15 +142,6 @@ Each rerun is a nested Gradle build filtered to that one test case, so every rer
 - The project has no default branch, or nothing has run in CI on it yet.
 - More than 30% of the project's test cases look new. Rerunning that many would take longer than it's worth. Expect this on a project that only just started reporting to Tuist, or after a rename that moves a lot of tests at once.
 
-### Quarantined tests
-
-Muted test cases are rerun and recorded, but can't fail the gate. Skipped test cases are never rerun. A flaky new test is reported but never quarantined automatically: automations only act on test cases that have already passed on the default branch.
-
-### In the dashboard
-
-Stressed test cases are badged in the run's test case list. One that failed some of its reruns is marked flaky and shows up with the run's other flaky tests. Open it to see every rerun beside the run's own attempt.
-
-
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
