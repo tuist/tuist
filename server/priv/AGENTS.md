@@ -6,6 +6,9 @@ This directory contains database migrations and other private assets.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
+- Marketing and app image assets are checked by `mise run marketing:image-budget`.
+  Signup artwork is WebP at twice its rendered width; keep replacements within
+  the static-image budget.
 
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.

@@ -5,6 +5,9 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 ## Responsibilities
 
 - JS/CSS sources built by esbuild.
+- Marketing imports only the Noora tooltip hook through the `noora/hooks` source
+  alias. Add hooks as templates need them instead of importing the full runtime,
+  which brings ECharts into pages without charts. Noora CSS remains shared.
 - Asset builds for development and production.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
