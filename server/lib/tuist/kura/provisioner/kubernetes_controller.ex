@@ -494,6 +494,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
+      cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
       egress_revision_suffix(egress)
@@ -553,6 +554,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
     if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile
   end
+
+  # Keyed on the granted ceiling, not on whether one was granted: the reconciler
+  # converges on the revision, so retuning a plan's number has to move it or the
+  # instances on that plan keep a manifest that no longer describes them. An
+  # ungoverned region renders no ceiling and takes no suffix, so its instances
+  # do not roll for a field they never gain.
+  defp cpu_revision_suffix(%{cpu_ceiling_milli: milli}) when is_integer(milli), do: "+cpu#{milli}"
+  defp cpu_revision_suffix(_), do: ""
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
   # peer changes the desired revision and the reconciler re-applies the manifest.

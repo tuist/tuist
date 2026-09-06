@@ -208,6 +208,39 @@ func cpuRequestMilli(instance *kurav1alpha1.KuraInstance) int32 {
 	return milli
 }
 
+// seedCPURequest adopts the request the instance is already running with, so
+// the first reading is compared against what is live rather than against the
+// cold-start constant. Without it the shrink gate never covers the largest
+// move of all: an instance carrying the flat request this replaces would drop
+// to the cold start on one quiet sample, before any history exists to justify
+// it. A brand-new instance has no pods to read, and keeps the cold start.
+//
+// A starting point rather than a floor: once a decision is persisted it
+// governs, or an instance that legitimately shrank would be dragged back up
+// by pods still running the value it shrank from.
+func seedCPURequest(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
+	if state := instance.Status.CPUAutosize; state != nil && state.RequestMilli > 0 {
+		return
+	}
+
+	var seed int32
+	for i := range pods {
+		if milli := podCPURequestMilli(&pods[i]); milli > seed {
+			seed = milli
+		}
+	}
+	if seed == 0 {
+		return
+	}
+
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		state = &kurav1alpha1.KuraInstanceCPUAutosize{}
+	}
+	state.RequestMilli = seed
+	instance.Status.CPUAutosize = state
+}
+
 // applyScheduleCap bounds the template request by what the scheduler has
 // shown it will admit. A raise the node cannot fit deletes the running pod
 // and leaves the replacement Pending, and a Pending pod reports no metrics,

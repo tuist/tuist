@@ -7,9 +7,15 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -670,5 +676,137 @@ func TestScheduleCapAppliesWhenCPUIsOneOfSeveralShortages(t *testing.T) {
 
 	if got := cpuRequestMilli(instance); got >= 1000 {
 		t.Fatalf("request = %dm, want it backed off when CPU is among the shortages", got)
+	}
+}
+
+// Every live instance arrives with no observation and a pod template already
+// running the flat request this replaces. Comparing the first reading against
+// the cold-start constant instead of that live value would drop the whole
+// fleet in one pass, which is exactly the change the shrink gate exists to
+// hold back.
+func TestFirstObservationHoldsTheRunningRequest(t *testing.T) {
+	instance, _ := instanceWithPods()
+	pods := []corev1.Pod{
+		runningPod("kura-acme-us-east-1-0", 500),
+		runningPod("kura-acme-us-east-1-1", 500),
+	}
+	r := &KuraInstanceReconciler{MetricsClient: &stubMetricsClient{usage: map[string]int64{
+		"kura-acme-us-east-1-0": 3,
+		"kura-acme-us-east-1-1": 2,
+	}}}
+
+	seedCPURequest(instance, pods)
+	r.observeCPUUsage(context.Background(), instance, pods)
+
+	if got := cpuRequestMilli(instance); got != 500 {
+		t.Fatalf("request = %dm after one quiet reading, want the running 500m held", got)
+	}
+}
+
+// Held only until there is history to justify moving, then it drops in one
+// step to what the instance was actually observed to need.
+func TestSeededRequestFallsOnceTheWindowIsLongEnough(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	instance, _ := instanceWithPods()
+	seedCPURequest(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", 500)})
+
+	state := instance.Status.CPUAutosize
+	for i := 0; i < cpuShrinkMinBuckets-1; i++ {
+		state = observeCPUPeak(state, 3, now.Add(time.Duration(i)*cpuBucketDuration))
+		if state.RequestMilli != 500 {
+			t.Fatalf("request fell to %dm after only %d windows", state.RequestMilli, i+1)
+		}
+	}
+
+	state = observeCPUPeak(state, 3, now.Add(time.Duration(cpuShrinkMinBuckets-1)*cpuBucketDuration))
+	if state.RequestMilli != cpuRequestBands[0] {
+		t.Fatalf("request = %dm, want the floor %dm once the window was long enough", state.RequestMilli, cpuRequestBands[0])
+	}
+}
+
+// A metrics-server that never answers must not shrink anything either: with
+// no reading at all the instance keeps what it is running.
+func TestSeedHoldsTheRunningRequestWithoutAnyReading(t *testing.T) {
+	instance, _ := instanceWithPods()
+
+	seedCPURequest(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", 500)})
+
+	if got := cpuRequestMilli(instance); got != 500 {
+		t.Fatalf("request = %dm with no reading, want the running 500m", got)
+	}
+}
+
+// A brand-new instance has no pods to read a request from, so it starts at
+// the cold-start constant rather than at nothing.
+func TestSeedLeavesANewInstanceOnTheColdStart(t *testing.T) {
+	instance, _ := instanceWithPods()
+
+	seedCPURequest(instance, nil)
+
+	if got := cpuRequestMilli(instance); got != cpuColdStartMilli {
+		t.Fatalf("request = %dm, want the cold-start %dm", got, cpuColdStartMilli)
+	}
+}
+
+// The seed is a starting point, not a floor: once a decision exists it
+// governs, or an instance that legitimately shrank would be dragged back up
+// by whatever its pods happen to be running.
+func TestSeedDoesNotOverrideAnExistingDecision(t *testing.T) {
+	instance, _ := instanceWithPods()
+	instance.Status.CPUAutosize = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 50}
+
+	seedCPURequest(instance, []corev1.Pod{runningPod("kura-acme-us-east-1-0", 500)})
+
+	if got := cpuRequestMilli(instance); got != 50 {
+		t.Fatalf("request = %dm, want the persisted decision of 50m", got)
+	}
+}
+
+// Covers the call site, not just the function: the seed has to run inside
+// Reconcile and before the StatefulSet is templated, or a live instance is
+// re-templated from the flat request straight to the cold start.
+func TestReconcileHoldsTheRunningRequestOnFirstPass(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-acme-us-east-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "acme",
+			TenantID:         "acme",
+			Region:           "us-east",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	live := runningPod("kura-acme-us-east-1-0", 500)
+	live.Labels = selectorLabels(instance)
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "1"},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, &live, sharedSecret).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, request.NamespacedName, sts); err != nil {
+		t.Fatal(err)
+	}
+	if got := sts.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu().String(); got != "500m" {
+		t.Fatalf("templated CPU request = %q, want the running 500m held on the first pass", got)
 	}
 }

@@ -426,6 +426,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	seedCPURequest(instance, pods)
 	r.observeCPUUsage(ctx, instance, pods)
 	applyScheduleCap(instance, pods, time.Now())
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
