@@ -737,7 +737,8 @@ defmodule Tuist.Ops.Database do
   defp json_safe(%DateTime{} = v), do: DateTime.to_iso8601(v)
   defp json_safe(%Date{} = v), do: Date.to_iso8601(v)
   defp json_safe(%Time{} = v), do: Time.to_iso8601(v)
-  defp json_safe(v) when is_binary(v) or is_number(v) or is_boolean(v), do: v
+  defp json_safe(v) when is_number(v) or is_boolean(v), do: v
+  defp json_safe(v) when is_binary(v), do: if(String.valid?(v), do: v, else: inspect(v))
   defp json_safe(v), do: inspect(v)
 
   defp csv_value(nil), do: ""
