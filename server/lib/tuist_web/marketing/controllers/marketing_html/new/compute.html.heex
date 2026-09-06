@@ -27,40 +27,73 @@ dithered dividers. --%>
           "Runners that spin up in seconds and scale with your team and your agents."
         )}
       </p>
-      <%!-- The one-line migration: swap the runs-on label. Code stays
-      untranslated, like the illustrations' annotations. The added line
-      types out once per page load behind a blinking terminal cursor
-      (ComputeHeroDiff); the typed/cursor spans stay glued together on one
-      line so no whitespace opens between the text and the caret. --%>
-      <div data-part="diff" aria-hidden="true" id="compute-hero-diff" phx-hook="ComputeHeroDiff">
-        <span data-part="line" data-line="removed">
-          <span data-part="sign">-</span>
-          <span data-part="code">runs-on: macos-latest</span>
-        </span>
-        <span data-part="line" data-line="added">
-          <span data-part="sign">+</span>
-          <span data-part="code"><span data-part="typed">runs-on: tuist-macos</span><span data-part="cursor"></span></span>
-        </span>
+      <%!-- The migration, one per CI: a GitHub/Buildkite switch over the
+      diff it selects (swap the runs-on label, or the agent queue). Code
+      stays untranslated, like the illustrations' annotations. The added
+      line types out behind a blinking terminal cursor — once per page
+      load, and again whenever the switch changes CI (ComputeHeroDiff);
+      the typed/cursor spans stay glued together on one line so no
+      whitespace opens between the text and the caret. --%>
+      <div data-part="migration" id="compute-hero-migration" phx-hook="ComputeHeroDiff">
+        <.button_group data-part="ci-switch" aria-label={dgettext("marketing", "CI provider")}>
+          <.button_group_item
+            type="button"
+            label="GitHub"
+            data-ci="github"
+            data-selected
+            aria-pressed="true"
+          />
+          <.button_group_item
+            type="button"
+            label="Buildkite"
+            data-ci="buildkite"
+            aria-pressed="false"
+          />
+        </.button_group>
+        <div data-part="diff" data-ci="github" aria-hidden="true" id="compute-hero-diff">
+          <span data-part="variant" data-ci="github">
+            <span data-part="line" data-line="removed">
+              <span data-part="sign">-</span>
+              <span data-part="code">runs-on: macos-latest</span>
+            </span>
+            <span data-part="line" data-line="added">
+              <span data-part="sign">+</span>
+              <span data-part="code"><span data-part="typed">runs-on: tuist-macos</span><span data-part="cursor"></span></span>
+            </span>
+          </span>
+          <span data-part="variant" data-ci="buildkite">
+            <span data-part="line" data-line="removed">
+              <span data-part="sign">-</span>
+              <span data-part="code">queue: "macos"</span>
+            </span>
+            <span data-part="line" data-line="added">
+              <span data-part="sign">+</span>
+              <span data-part="code"><span data-part="typed">queue: "tuist-macos"</span><span data-part="cursor"></span></span>
+            </span>
+          </span>
+        </div>
       </div>
       <%!-- First-paint arm for the typewriter: stashes and clears the
-      added line before the browser paints, so the full text never
+      added lines before the browser paints, so the full text never
       flashes ahead of the hook's typing. Skips under reduced motion.
       The CSP nonce is required — without it the browser blocks the
       inline script and the hook's fallback arming takes over. The
-      watchdog restores the line if the hook never takes over (a stale
+      watchdog restores the lines if the hook never takes over (a stale
       or failed bundle.js) — an empty strip must not outlive the arm. --%>
       <script nonce={TuistWeb.CSP.get_csp_nonce()}>
         (() => {
           if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
           var diff = document.getElementById("compute-hero-diff");
-          var typed = diff && diff.querySelector('[data-part="typed"]');
-          if (!typed) return;
-          typed.dataset.text = typed.textContent;
-          typed.textContent = "";
+          var typed = diff ? diff.querySelectorAll('[data-part="typed"]') : [];
+          if (!typed.length) return;
+          typed.forEach((span) => {
+            span.dataset.text = span.textContent;
+            span.textContent = "";
+          });
           diff.setAttribute("data-armed", "");
           setTimeout(() => {
-            if (typed.textContent === "" && !diff.hasAttribute("data-typing")) {
-              typed.textContent = typed.dataset.text;
+            if (!diff.hasAttribute("data-typing") && !diff.hasAttribute("data-hooked")) {
+              typed.forEach((span) => (span.textContent = span.dataset.text));
               diff.removeAttribute("data-armed");
             }
           }, 3000);
