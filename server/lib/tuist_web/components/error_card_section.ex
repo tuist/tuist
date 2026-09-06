@@ -29,6 +29,7 @@ defmodule TuistWeb.Components.ErrorCardSection do
     ~H"""
     <.alert
       status="error"
+      type="secondary"
       size="large"
       title={@title || dgettext("dashboard", "Something went wrong")}
       description={
