@@ -998,7 +998,7 @@
 
                 & > [data-part="logo"] {
                   fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
-                  width: 17px;
+                  width: 18px;
                   height: 18px;
                 }
 
