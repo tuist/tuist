@@ -12,6 +12,29 @@ defmodule Tuist.Docs.CLI.Renderer do
   @deprecated_regex ~r/\[(?:D|d)eprecated\]/
   @angle_bracket_regex ~r/<([^>]+)>/
 
+  # Filtered out of the arguments before they reach ArgumentParser, so they are absent from the
+  # spec and have to be documented here to appear on the command pages.
+  @global_arguments [
+    %{
+      value_name: "verbose",
+      kind: "flag",
+      names: [%{"kind" => "long", "name" => "verbose"}],
+      is_optional: true,
+      is_deprecated: false,
+      env_var: nil,
+      abstract: "Display verbose logs, including the debug information commands emit."
+    },
+    %{
+      value_name: "quiet",
+      kind: "flag",
+      names: [%{"kind" => "long", "name" => "quiet"}],
+      is_optional: true,
+      is_deprecated: false,
+      env_var: nil,
+      abstract: "Silence all the output except errors."
+    }
+  ]
+
   def build_pages(spec) do
     spec
     |> get_in(["command", "subcommands"])
@@ -180,19 +203,24 @@ defmodule Tuist.Docs.CLI.Renderer do
       if arguments == [] do
         ""
       else
-        args =
-          Enum.map_join(arguments, "\n", fn arg ->
-            badges = render_badges(arg)
-            env_line = if arg.env_var, do: "\n**Environment variable** `#{arg.env_var}`\n", else: ""
-            usage = render_usage(full_command, arg)
-
-            "### #{arg.value_name}#{badges}\n#{env_line}\n#{arg.abstract}\n\n#{usage}"
-          end)
-
-        "\n## Arguments\n\n#{args}"
+        "\n## Arguments\n\n" <> render_arguments(full_command, arguments)
       end
 
-    header <> subcommands_section <> args_section
+    global_args_section =
+      "\n## Global arguments\n\nThese arguments are available on every Tuist command.\n\n" <>
+        render_arguments(full_command, @global_arguments)
+
+    header <> subcommands_section <> args_section <> global_args_section
+  end
+
+  defp render_arguments(full_command, arguments) do
+    Enum.map_join(arguments, "\n", fn arg ->
+      badges = render_badges(arg)
+      env_line = if arg.env_var, do: "\n**Environment variable** `#{arg.env_var}`\n", else: ""
+      usage = render_usage(full_command, arg)
+
+      "### #{arg.value_name}#{badges}\n#{env_line}\n#{arg.abstract}\n\n#{usage}"
+    end)
   end
 
   defp render_badges(arg) do

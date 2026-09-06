@@ -3,9 +3,6 @@ import ArgumentParser
 public struct InspectCommand: AsyncParsableCommand {
     public init() {}
 
-    @OptionGroup
-    var loggingOptions: LoggingOptions
-
     public static var configuration: CommandConfiguration {
         var subcommands: [ParsableCommand.Type] = [
             InspectBundleCommand.self,

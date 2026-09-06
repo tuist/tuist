@@ -62,9 +62,6 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @OptionGroup
-    var loggingOptions: LoggingOptions
-
     public func run() async throws {
         #if os(macOS)
             try await InspectBundleCommandService()
