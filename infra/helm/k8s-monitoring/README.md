@@ -142,6 +142,49 @@ dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
 documented operational requirement justifies the additional ingestion cost.
 See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
 
+## Metrics cost controls
+
+Grafana Cloud bills metrics per active series, so cardinality is the cost
+driver. The plan includes 10,000 series; everything above that is overage.
+
+Three layers trim what leaves the cluster, cheapest first:
+
+1. **Per-feature allow-lists** (`<feature>.metricsTuning`). `useDefaultAllowList`
+   plus explicit `includeMetrics` / `excludeMetrics`. This is where a metric
+   family that no dashboard or alert reads should be removed.
+2. **Per-feature relabeling** (`extraMetricProcessingRules`,
+   `extraDiscoveryRules`). Used to drop a namespace or a label value rather
+   than a whole metric, e.g. pod-scoped kube-state metrics for
+   `tuist-runners`.
+3. **Destination write relabeling** (`destinations.grafana-cloud-metrics.metricProcessingRules`).
+   Last stop, applied to every feature at once. Drops restart-scoped labels
+   and histogram buckets outside production.
+
+Histogram buckets are the single largest shape, around a third of all billable
+series, and their cardinality tracks route and worker coverage rather than
+traffic. They are dropped for `tuist-staging`, `tuist-canary` and
+`tuist-pentest`. `_count` and `_sum` survive, so request rates and mean
+latency still work everywhere; `histogram_quantile` percentiles are
+production-only.
+
+Two cost levers are **not** chart values and have to be changed on the stack:
+
+| Lever | Where |
+|---|---|
+| `traces_service_graph_*` series (~3.4k) | Tempo → Metrics generator → service graphs. Generated from received spans inside Grafana Cloud, so they never pass through Alloy and no `write_relabel_config` here can drop them. |
+| Adaptive Metrics aggregation rules | Grafana Cloud → Adaptive Metrics. Recommendations need a Cloud access policy token; the stack API token used by dashboards cannot read them. |
+
+To see what is actually costing money, query the cardinality API rather than
+guessing:
+
+```bash
+curl -s -u "$GRAFANA_USER:$GRAFANA_TOKEN" \
+  "$PROM_URL/api/v1/cardinality/label_values?label_names\[\]=__name__&limit=100"
+```
+
+Swap `__name__` for `cluster` or `job` to attribute series to an environment or
+a scrape target, and add `selector={cluster="tuist-staging"}` to scope it.
+
 ## Log and trace sampling
 
 Routine request logs are sampled before they leave the cluster. The pipeline

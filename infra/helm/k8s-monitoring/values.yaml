@@ -94,19 +94,50 @@ k8s-monitoring:
       # feature-level allow-lists below. These labels are restart-scoped
       # Kubernetes identifiers that multiply otherwise equivalent series and
       # are not used by dashboards in this repo.
+      #
+      # The last rule drops histogram buckets outside production. Buckets are
+      # the most expensive shape we ship, roughly a third of all billable
+      # series, and their cardinality follows route/worker coverage rather
+      # than traffic, so an acceptance-test cluster that serves a handful of
+      # requests still mints the full `path` x `le` x `method` cross product.
+      # Staging carried 7.9k bucket series against production's 21.7k on a
+      # fraction of the load. `_count` and `_sum` survive the drop, so request
+      # rates and mean latency still work in every environment; only
+      # `histogram_quantile` percentiles become production-only.
+      #
+      # The Kura and Oban latency alerts already scope themselves to
+      # production, by `cluster` and by `instance="production"` respectively.
+      # The two Phoenix route-latency alerts do not: they aggregate
+      # `by (le, path)` across every environment, so acceptance-test traffic
+      # on staging and canary currently folds into what reads as a production
+      # SLO. This rule makes them production-only, which is what they were
+      # measuring for. Pin `cluster="tuist-production"` on them in Grafana as
+      # well so the scoping does not depend on a drop rule.
+      #
+      # The chart sets `cluster` in the first write_relabel_config of this
+      # same chain, so the label is populated by the time this rule runs.
+      #
+      # `traces_service_graph_request_.*` used to be dropped here. It never
+      # matched anything: those series are produced by Grafana Cloud Tempo's
+      # own metrics generator from received spans, not by Alloy, so they enter
+      # the Prometheus instance without passing through this remote_write.
+      # They carry no `cluster` / `job` / `instance` label, only span-derived
+      # ones plus `source`. Turning them off is a stack-side setting
+      # (Tempo -> Metrics generator -> service graphs), not a chart value.
       metricProcessingRules: |
         write_relabel_config {
           action = "labeldrop"
           regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
         }
         write_relabel_config {
-          source_labels = ["__name__"]
-          regex = "traces_service_graph_request_.*"
+          source_labels = ["job"]
+          regex = "integrations/(process|self)"
           action = "drop"
         }
         write_relabel_config {
-          source_labels = ["job"]
-          regex = "integrations/(process|self)"
+          source_labels = ["cluster", "__name__"]
+          separator = ";"
+          regex = "tuist-(staging|canary|pentest);.+_bucket"
           action = "drop"
         }
 
@@ -325,6 +356,18 @@ k8s-monitoring:
           # monitor actual usage / pressure through PVC and kubelet volume
           # stats. The phase gauge fans out by PV × phase and is unused.
           - kube_persistentvolume_status_phase
+          # ReplicaSet bookkeeping gauges. Every rollout leaves a ReplicaSet
+          # behind up to the Deployment's revisionHistoryLimit, so the whole
+          # kube_replicaset_* family carries one series per historical
+          # revision, 573 of them across the fleet, eight metrics deep. These
+          # four are inert: a creation timestamp and three generation /
+          # label-bookkeeping counters. The rollout state the Kubernetes app
+          # and our dashboards actually read (`_owner`, `_spec_replicas`,
+          # `_status_replicas`, `_status_ready_replicas`) is kept.
+          - kube_replicaset_created
+          - kube_replicaset_metadata_generation
+          - kube_replicaset_status_observed_generation
+          - kube_replicaset_status_fully_labeled_replicas
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -605,6 +648,19 @@ k8s-monitoring:
         - cilium_controllers_.*
         - cilium_datapath_.*
         - cilium_policy_endpoint_enforcement_status
+        # Hubble's flow counters key on `source`, which holds the peer
+        # identity: a workload path for cluster traffic, but a bare remote
+        # address for anything arriving from the internet. That is unbounded:
+        # every scanner that gets a packet dropped mints a series which stays
+        # billable long after the traffic stops. `hubble_drop_total` alone was
+        # the largest metric on the kube-system scrape targets. Nothing reads
+        # it; the Kura policy-drop alert uses `cilium_drop_count_total` from
+        # the agent, which is not matched here.
+        - hubble_.*
+        # Cilium's embedded Envoy exposes latency histograms for its own admin
+        # and proxy listeners. The buckets fan out per listener address per
+        # node, no dashboard or alert reads them, and we run no L7 policy.
+        - envoy_.*
         # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
         # per scraped pod across the hundreds of Go infra pods (Cilium,
         # operators, controllers) and churn on every restart. The Tuist
