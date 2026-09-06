@@ -140,8 +140,7 @@ Each rerun is a nested Gradle build filtered to that one test case, so every rer
 
 - The first pass already failed. Fix those tests first.
 - The project has no default branch, or nothing has run in CI on it yet.
-- More than 30% of the project's known test cases look new. That is usually a rename or a move rather than new tests.
-- Tuist is unreachable. Your run's own result stands.
+- More than 30% of the project's test cases look new. Rerunning that many would take longer than it's worth. Expect this on a project that only just started reporting to Tuist, or after a rename that moves a lot of tests at once.
 
 ### Quarantined tests
 
