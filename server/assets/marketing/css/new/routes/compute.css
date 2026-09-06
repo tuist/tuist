@@ -910,12 +910,6 @@
               & > [data-part="subtitle"] {
                 color: light-dark(var(--noora-green-600), var(--noora-green-400));
               }
-
-              /* While the next job runs (the living ellipsis), the line
-                 reads as pending — grey, not passed-green. */
-              &[data-state="running"] > [data-part="subtitle"] {
-                color: var(--noora-surface-label-secondary);
-              }
             }
 
             & > [data-box="workspace"] {
