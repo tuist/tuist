@@ -71,8 +71,8 @@
        hero copy at the bottom left sits on quiet ground. */
     & > [data-part="illustration"] {
       position: absolute;
-      inset: 0;
       mask-image: radial-gradient(circle farthest-corner at 100% 0%, #000 0%, transparent 75%);
+      inset: 0;
       pointer-events: none;
 
       @media (max-width: 720px) {
@@ -104,33 +104,55 @@
       text-wrap: pretty;
     }
 
-    /* The runs-on diff: each line is one 20px strip (code/large regular's
-       line box, no padding — the strip hugs the text like the Figma comp)
+    /* The migration: the GitHub/Buildkite switch 8px above the diff it
+       selects. */
+    & > [data-part="migration"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+    }
+
+    /* The diff: each line is one 20px strip (code/large regular's line
+       box, no padding — the strip hugs the text like the Figma comp)
        whose background runs behind the sign, the 24px gutter gap, and the
        code. Removed line: disabled label on the tertiary surface (both
        theme-reactive). Added line: Purple/500 on Purple/50 per the comp's
        variables; dark mode follows the marketing alpha-tint recipe the
-       cache page's cached boxes use. */
-    & > [data-part="diff"] {
+       cache page's cached boxes use. One variant per CI (data-ci on the
+       diff picks it); a variant is a transparent wrapper so its lines
+       stack in the diff's own column. */
+    & [data-part="diff"] {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
+      /* The diff hugs its widest line and the strips stretch to it, so the
+         removed and added lines are the same length. */
+      align-items: stretch;
       gap: var(--noora-spacing-2);
       font: var(--noora-font-weight-regular) var(--noora-font-code-large);
 
-      & > [data-part="line"] {
+      & > [data-part="variant"] {
+        display: none;
+      }
+
+      &[data-ci="github"] > [data-part="variant"][data-ci="github"],
+      &[data-ci="buildkite"] > [data-part="variant"][data-ci="buildkite"] {
+        display: contents;
+      }
+
+      & [data-part="line"] {
         display: flex;
         align-items: center;
         gap: var(--noora-spacing-8);
         white-space: nowrap;
       }
 
-      & > [data-part="line"][data-line="removed"] {
+      & [data-part="line"][data-line="removed"] {
         background: var(--noora-surface-background-tertiary);
         color: var(--noora-surface-label-disabled);
       }
 
-      & > [data-part="line"][data-line="added"] {
+      & [data-part="line"][data-line="added"] {
         background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
         color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
 
@@ -355,18 +377,18 @@
                transparent baseline border means only colors transition —
                no width jump. */
             & [data-part="block"] {
-              border: 1px solid transparent;
               transition:
                 background 0.9s ease,
                 border-color 0.9s ease,
                 opacity 0.9s ease;
+              border: 1px solid transparent;
             }
 
             & [data-part="block"][data-lit],
             & [data-part="block"][data-active] {
+              animation: marketing-compute-tile-in 0.5s linear;
               border: 1px solid var(--noora-purple-400);
               background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
-              animation: marketing-compute-tile-in 0.5s linear;
             }
 
             /* The cycle's free slot: the grid keeps the cell while the
@@ -431,9 +453,9 @@
                 height: 39px;
 
                 & > [data-part="os"] {
+                  stroke: var(--marketing-illustration-neutral-4);
                   width: 16px;
                   height: 16px;
-                  stroke: var(--marketing-illustration-neutral-4);
                 }
 
                 & > [data-part="mini"] {
@@ -502,16 +524,16 @@
 
                   & > [data-part="glyph"] {
                     flex: none;
+                    fill: var(--noora-surface-label-secondary);
                     width: 16px;
                     height: 16px;
-                    fill: var(--noora-surface-label-secondary);
                   }
 
                   & > [data-part="title"] {
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) 13px/20px var(--noora-font-body);
-                    white-space: nowrap;
                     text-box: trim-both cap alphabetic;
+                    white-space: nowrap;
                   }
                 }
 
@@ -741,12 +763,12 @@
               }
 
               & [data-wire="dashed"] > path {
-                stroke: var(--marketing-illustration-neutral-4);
-                stroke-dasharray: 5 5;
                 /* The dashes drift continuously along the flow — toward
                    Tuist cache / the dashboard. data-march flips the drift
                    for paths authored from the dashboard outward. */
                 animation: marketing-compute-dash-march 0.9s linear infinite;
+                stroke: var(--marketing-illustration-neutral-4);
+                stroke-dasharray: 5 5;
 
                 &[data-march="reverse"] {
                   animation-direction: reverse;
@@ -793,13 +815,13 @@
                 position: absolute;
                 top: 19px;
                 right: 16px;
+                /* Always alive — the same soft pulse as the hero
+                   mosaic's settled dots. */
+                animation: marketing-compute-status-pulse 1.6s ease-in-out infinite;
                 border-radius: var(--noora-radius-99);
                 background: var(--noora-purple-400);
                 width: 10px;
                 height: 10px;
-                /* Always alive — the same soft pulse as the hero
-                   mosaic's settled dots. */
-                animation: marketing-compute-status-pulse 1.6s ease-in-out infinite;
 
                 @media (prefers-reduced-motion: reduce) {
                   animation: none;
@@ -840,7 +862,6 @@
                    body tokens, so sized literally. The dashboard's brand
                    name keeps body-medium. */
                 font: var(--noora-font-weight-regular) 13px/20px var(--noora-font-body);
-                white-space: nowrap;
                 /* Inter's ascent runs deeper than its descent, so the
                    title's line box carries more dead air above the caps
                    than the mono line leaves below its baseline — reading
@@ -851,13 +872,14 @@
                    Firefox has no text-box yet and keeps the untrimmed
                    rendering. */
                 text-box: trim-start cap alphabetic;
+                white-space: nowrap;
               }
 
               & > [data-part="subtitle"] {
                 color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
-                white-space: nowrap;
                 text-box: trim-end cap alphabetic;
+                white-space: nowrap;
               }
 
               /* Tabular digits scene-wide: several values re-roll every
@@ -964,13 +986,13 @@
                 position: absolute;
                 top: 6px;
                 left: 6px;
+                box-shadow:
+                  8px 0 0 var(--marketing-illustration-neutral-2),
+                  16px 0 0 var(--marketing-illustration-neutral-2);
                 border-radius: var(--noora-radius-99);
                 background: var(--marketing-illustration-neutral-2);
                 width: 4px;
                 height: 4px;
-                box-shadow:
-                  8px 0 0 var(--marketing-illustration-neutral-2),
-                  16px 0 0 var(--marketing-illustration-neutral-2);
               }
 
               & > [data-part="brand"] {
@@ -981,9 +1003,9 @@
                 gap: var(--noora-spacing-3);
 
                 & > [data-part="logo"] {
+                  fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
                   width: 17px;
                   height: 18px;
-                  fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
                 }
 
                 & > [data-part="name"] {
@@ -1248,10 +1270,10 @@
                 color: var(--noora-surface-label-secondary);
 
                 & > svg {
-                  width: 15px;
-                  height: 15px;
                   /* The session is live — the dashed ring spins slowly. */
                   animation: marketing-compute-session-spin 3.2s linear infinite;
+                  width: 15px;
+                  height: 15px;
 
                   @media (prefers-reduced-motion: reduce) {
                     animation: none;
@@ -1260,11 +1282,11 @@
               }
 
               & > [data-part="session-title"] {
+                overflow: hidden;
                 color: var(--noora-surface-label-primary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-large);
-                white-space: nowrap;
-                overflow: hidden;
                 text-overflow: ellipsis;
+                white-space: nowrap;
               }
             }
 
@@ -1272,6 +1294,10 @@
               display: flex;
               flex-direction: column;
               gap: var(--noora-spacing-4);
+              /* The comp melts the whole box away at the bottom — ring
+                 and background included — while the upper edge keeps its
+                 border. The stepped row opacities layer on top. */
+              mask-image: linear-gradient(180deg, #000 60%, transparent 98%);
               box-sizing: border-box;
               /* Comp: border/light/default ring, 6px radius, tertiary
                  surface. A real border rather than the shadow token: the
@@ -1283,10 +1309,6 @@
               padding: var(--noora-spacing-5);
               height: 196px;
               overflow: hidden;
-              /* The comp melts the whole box away at the bottom — ring
-                 and background included — while the upper edge keeps its
-                 border. The stepped row opacities layer on top. */
-              mask-image: linear-gradient(180deg, #000 60%, transparent 98%);
 
               /* The tail rows melt out stepwise. */
               & > [data-part="term-line"]:nth-child(5) {
@@ -1546,7 +1568,6 @@
     opacity: 0;
   }
 }
-
 
 /* Dashed wires' continuous drift (one 5+5 dash period per loop). */
 @keyframes marketing-compute-dash-march {

@@ -185,6 +185,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       html = html_response(conn, 200)
       assert html =~ "marketing-compute"
+      # The hero's CI switch and both migration diffs it toggles between.
+      assert html =~ ~s(data-part="ci-switch")
+      assert html =~ "runs-on: tuist-macos"
+      assert html =~ ~s(queue: "tuist-macos")
       assert html =~ "/marketing/assets/bundle-new.css"
       refute html =~ "/marketing/assets/bundle.css"
     end

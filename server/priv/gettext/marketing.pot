@@ -156,6 +156,11 @@ msgstr ""
 msgid "Bundle analysis"
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "CI provider"
+msgstr ""
+
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:64
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:149
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:271
