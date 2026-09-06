@@ -95,25 +95,71 @@ defmodule Tuist.Runners.WorkflowJobs do
     else
       now = DateTime.utc_now()
 
-      row =
-        attrs
-        |> base_row()
-        |> Map.merge(%{
-          status: "queued",
-          enqueued_at: Map.get(attrs, :enqueued_at) || now,
-          inserted_at: DateTime.truncate(now, :second),
-          updated_at: DateTime.truncate(now, :second)
-        })
-
-      {:ok, _} =
-        Repo.transaction(fn ->
-          {count, rows} = Repo.insert_all(WorkflowJob, [row], on_conflict: :nothing, returning: true)
-
-          if count == 1, do: emit_transition_event(hd(rows), now)
-        end)
-
-      :ok
+      insert_queued_rows([queued_row(attrs, now)], now)
     end
+  end
+
+  @doc """
+  Inserts `queued` rows for a whole batch in a fixed number of round
+  trips rather than one set per job.
+
+  A poll can reserve up to a hundred jobs at once, and the per-job path
+  costs an advisory lock, two existence queries, a transaction and two
+  inserts each. This collapses that to one completion lookup, one insert
+  and one transition-event insert for the batch.
+
+  It drops the per-job advisory lock the single path takes. That lock
+  stops a `completed` delivery from being overtaken by a late `queued`
+  one, which is a GitHub redelivery shape: a Buildkite job reaches a
+  completion only after it was dispatched, which needs the lifecycle row
+  this function writes, so a completion cannot race the first insert.
+  The completion lookup below still refuses anything already settled,
+  and `on_conflict: :nothing` still refuses anything already present.
+  """
+  def enqueue_many_if_missing([]), do: :ok
+
+  def enqueue_many_if_missing(attrs_list) when is_list(attrs_list) do
+    now = DateTime.utc_now()
+    settled = completed_ids(Enum.map(attrs_list, &Map.fetch!(&1, :workflow_job_id)))
+
+    attrs_list
+    |> Enum.reject(&MapSet.member?(settled, Map.fetch!(&1, :workflow_job_id)))
+    |> Enum.map(&queued_row(&1, now))
+    |> insert_queued_rows(now)
+  end
+
+  defp queued_row(attrs, now) do
+    attrs
+    |> base_row()
+    |> Map.merge(%{
+      status: "queued",
+      enqueued_at: Map.get(attrs, :enqueued_at) || now,
+      inserted_at: DateTime.truncate(now, :second),
+      updated_at: DateTime.truncate(now, :second)
+    })
+  end
+
+  defp insert_queued_rows([], _now), do: :ok
+
+  defp insert_queued_rows(rows, now) do
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {_count, inserted} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing, returning: true)
+
+        emit_transition_events(inserted, now)
+      end)
+
+    :ok
+  end
+
+  defp completed_ids([]), do: MapSet.new()
+
+  defp completed_ids(workflow_job_ids) do
+    JobCompletion
+    |> where([completion], completion.workflow_job_id in ^workflow_job_ids)
+    |> select([completion], completion.workflow_job_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @doc """
@@ -341,6 +387,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       limit: ^k,
       select: %{
         workflow_job_id: j.workflow_job_id,
+        provider: j.provider,
         account_id: j.account_id,
         fleet_name: j.fleet_name,
         platform: j.platform,
@@ -510,7 +557,8 @@ defmodule Tuist.Runners.WorkflowJobs do
     :claimed_at,
     :started_at,
     :pod_name,
-    :fleet_name
+    :fleet_name,
+    :provider
   ]
 
   defp orphan_fields, do: @orphan_fields
@@ -666,6 +714,29 @@ defmodule Tuist.Runners.WorkflowJobs do
     where(query, [j], j.claimed_at == ^claimed_at)
   end
 
+  # One statement for the batch: emitting these per row was what still
+  # made a large poll scale with the number of jobs after the inserts
+  # themselves were batched.
+  defp emit_transition_events([], _transition_at), do: :ok
+
+  defp emit_transition_events(rows, %DateTime{} = transition_at) do
+    inserted_at = DateTime.truncate(transition_at, :second)
+
+    Repo.insert_all(
+      WorkflowJobTransitionEvent,
+      Enum.map(rows, fn row ->
+        %{
+          workflow_job_id: row.workflow_job_id,
+          account_id: row.account_id,
+          payload: ch_row(row, transition_at),
+          inserted_at: inserted_at
+        }
+      end)
+    )
+
+    :ok
+  end
+
   defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do
     Repo.insert_all(WorkflowJobTransitionEvent, [
       %{
@@ -726,6 +797,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @candidate_defaults [
+    provider: "github",
     platform: "",
     vcpus: 0,
     memory_gb: 0,

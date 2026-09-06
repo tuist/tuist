@@ -1,0 +1,982 @@
+defmodule Tuist.Runners.Buildkite do
+  @moduledoc """
+  Buildkite lane of the runner fleet.
+
+  The GitHub lane is push-shaped: GitHub delivers `workflow_job.queued`,
+  `Tuist.Runners.Dispatch` resolves the account and pool, and a
+  lifecycle row lands in `runner_workflow_jobs`. Buildkite has no webhook
+  we need; the Stacks API is a pull interface, so this module owns the
+  other half of that shape and produces the same lifecycle rows. From the
+  claim onwards the two lanes are the same code.
+
+  ## The queue is the dispatch label
+
+  A GitHub job routes with `runs-on: <profile>`; a Buildkite job routes
+  with `agents: { queue: <key> }`. So a customer names their Buildkite
+  queue after the Tuist runner profile they want, and the queue key goes
+  through `Dispatch.resolve_dispatch_target/2` exactly as a `runs-on`
+  label does. Profiles, shapes and pools need no Buildkite-specific
+  branch.
+
+  ## Reservation and the claim
+
+  `Claims.attempt/5` is a reservation against the account's concurrency
+  budget; a Stacks reservation is a reservation against the rest of the
+  Buildkite organization. Both are needed, and they are taken at
+  different times: Buildkite's at poll time (so a sibling stack cannot
+  take the job while it sits in our queue), ours at claim time.
+
+  ## Stacks
+
+  Every Stacks endpoint answers only for a key that has been registered,
+  and a registration binds that key to one self-hosted queue. So the
+  fleet registers one stack per (installation, queue) rather than one per
+  installation, and `stack_key_for/2` derives the key deterministically
+  so any later call can recompute the stack that reserved a job.
+
+  Registration is driven by the 404 rather than tracked: a list that
+  comes back `:not_found` registers and retries once. Registration is
+  idempotent, the steady state costs nothing, and a stack deleted out
+  from under us heals on the next pass.
+
+  Buildkite returns a lapsed reservation to `scheduled` on its own, which
+  is `StaleClaimsWorker`'s job done upstream. Reservations run for
+  `reservation_seconds/0` and are retaken after they lapse, which is also
+  how a job that was cancelled or taken by another stack is noticed: it
+  simply does not come back.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.Accounts
+  alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Repo
+  alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Buildkite.Client
+  alias Tuist.Runners.Buildkite.Installation
+  alias Tuist.Runners.Buildkite.Job
+  alias Tuist.Runners.Buildkite.ReportToken
+  alias Tuist.Runners.Claims
+  alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.ArchiveLogsWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
+
+  require Logger
+
+  # Buildkite's maximum. A longer hold means fewer renewal round trips,
+  # and a renewal is the only path that can misread a live job as gone.
+  @reservation_seconds 3600
+  @acquisition_token_lifetime_seconds 900
+  @list_limit 100
+
+  # The log arrives after the finish report, so archiving cannot run at
+  # the finish the way it does on the GitHub lane. This is long enough
+  # for a large log to finish uploading.
+  @archive_delay_seconds 300
+
+  # Non-terminal lifecycle states a lapsed reservation can still speak to.
+  @recoverable_statuses ~w(queued claimed running)
+
+  @doc """
+  How long a Stacks reservation is held. Buildkite's default, and well
+  above the poll interval, so a job we queued stays ours across several
+  passes without a re-reserve having to win a race.
+  """
+  def reservation_seconds, do: @reservation_seconds
+
+  @doc """
+  The installation bound to `account_id`, or `nil`.
+  """
+  def get_installation(account_id) when is_integer(account_id) do
+    Repo.one(from(i in Installation, where: i.account_id == ^account_id))
+  end
+
+  @doc """
+  Every installation the poller should visit.
+  """
+  def list_pollable_installations do
+    Repo.all(from(i in Installation, where: i.enabled == true, order_by: [asc: i.id]))
+  end
+
+  @doc """
+  Creates or replaces an account's Buildkite installation.
+  """
+  def upsert_installation(account_id, attrs) when is_integer(account_id) do
+    attrs = attrs |> Map.new() |> Map.put(:account_id, account_id)
+
+    case get_installation(account_id) do
+      nil -> %Installation{} |> Installation.changeset(attrs) |> Repo.insert()
+      installation -> installation |> Installation.changeset(attrs) |> Repo.update()
+    end
+  end
+
+  @doc """
+  Removes an account's Buildkite installation. Queued lifecycle rows are
+  left alone: they drain or age out through the same paths as GitHub's.
+  """
+  def delete_installation(account_id) when is_integer(account_id) do
+    case get_installation(account_id) do
+      nil -> :ok
+      installation -> with {:ok, _} <- Repo.delete(installation), do: :ok
+    end
+  end
+
+  @doc """
+  The stack key this installation uses for `queue_key`.
+
+  Buildkite caps a key at 80 bytes and accepts only alphanumerics,
+  underscores and dashes, while a queue key may be up to 100 characters
+  and is the customer's to name. An over-long or unusual queue key is
+  therefore folded into a digest suffix rather than truncated: two
+  queues whose names share a prefix must not collapse onto one stack,
+  which would let them reserve each other's jobs.
+  """
+  def stack_key_for(%Installation{stack_key: base}, queue_key) do
+    sanitized = String.replace(queue_key, ~r/[^A-Za-z0-9_-]/, "-")
+    candidate = "#{base}-#{sanitized}"
+
+    if byte_size(candidate) <= 80 and sanitized == queue_key do
+      candidate
+    else
+      digest = :sha256 |> :crypto.hash(queue_key) |> Base.encode16(case: :lower) |> binary_part(0, 12)
+      prefix = binary_part(base, 0, min(byte_size(base), 80 - 13))
+      "#{prefix}-#{digest}"
+    end
+  end
+
+  @doc """
+  The Buildkite job behind a surrogate `workflow_job_id`, or `nil` when
+  the id belongs to the GitHub lane.
+  """
+  def get_job(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.one(from(j in Job, where: j.workflow_job_id == ^workflow_job_id))
+  end
+
+  @doc """
+  What Buildkite currently holds a job at, for a lifecycle row that has
+  gone stale at `running`, in the vocabulary `OrphanedRunnersWorker`
+  acts on: `{"queued", ""}` when Buildkite could hand the job to an agent
+  again, `{"in_progress", ""}` while an agent or a reservation holds it,
+  and `{"completed", conclusion}` once Buildkite is done with it. A job
+  Buildkite no longer knows is over too.
+  """
+  def orphan_status(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
+    with {:ok, job} <- fetch_job(workflow_job_id),
+         {:ok, installation} <- fetch_installation(account_id),
+         {:ok, states} <-
+           Client.job_states(installation, stack_key_for(installation, job.queue_key), [job.job_uuid]) do
+      orphan_status_for(Map.get(states, job.job_uuid))
+    end
+  end
+
+  @schedulable_states ~w(pending waiting limiting limited scheduled unblocked)
+  @held_states ~w(reserved assigned accepted running canceling timing_out)
+  @cancelled_states ~w(canceled timed_out expired skipped broken waiting_failed blocked_failed unblocked_failed)
+
+  # A finished job whose runner never reported has no known outcome,
+  # which is the answer the GitHub lane gives for a pruned job as well.
+  defp orphan_status_for(nil), do: {:ok, {"completed", ""}}
+  defp orphan_status_for("finished"), do: {:ok, {"completed", ""}}
+  defp orphan_status_for(state) when state in @schedulable_states, do: {:ok, {"queued", ""}}
+  defp orphan_status_for(state) when state in @held_states, do: {:ok, {"in_progress", ""}}
+  defp orphan_status_for(state) when state in @cancelled_states, do: {:ok, {"completed", "cancelled"}}
+  defp orphan_status_for(state), do: {:error, {:unknown_state, state}}
+
+  defp fetch_job(workflow_job_id) do
+    case get_job(workflow_job_id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
+  end
+
+  defp fetch_installation(account_id) do
+    case get_installation(account_id) do
+      nil -> {:error, :not_found}
+      installation -> {:ok, installation}
+    end
+  end
+
+  @doc """
+  One poll pass over an installation: for every queue the account's
+  profiles name, take what Buildkite has scheduled, reserve it, and turn
+  it into queued lifecycle rows.
+
+  Returns `{:ok, enqueued_count}`, or `{:error, reason}` when the
+  installation itself is unusable (a revoked token, a deleted cluster) so
+  the caller can record it against the installation.
+  """
+  def poll(%Installation{} = installation) do
+    with {:ok, account} <- fetch_enabled_account(installation),
+         :ok <- check_allowance(account),
+         {:ok, queue_keys} <- queue_keys_for(account) do
+      renew_lapsed_reservations(installation, account)
+
+      enqueued =
+        Enum.reduce_while(queue_keys, 0, fn queue_key, acc ->
+          case poll_queue(installation, account, queue_key) do
+            {:ok, count} ->
+              {:cont, acc + count}
+
+            {:error, reason} when reason in [:unauthorized, :not_found] ->
+              {:halt, {:error, reason}}
+
+            {:error, reason} ->
+              Logger.warning("runners: buildkite queue poll failed",
+                account: account.name,
+                queue: queue_key,
+                reason: inspect(reason)
+              )
+
+              {:cont, acc}
+          end
+        end)
+
+      case enqueued do
+        {:error, _reason} = error -> error
+        count -> {:ok, count}
+      end
+    end
+  end
+
+  # A reservation caps out at an hour, and a job can legitimately wait
+  # longer than that when the account is at its concurrency limit. When
+  # one lapses Buildkite puts the job back in `scheduled`, so we take it
+  # again.
+  #
+  # Deliberately only after the lapse, never before it. Re-reserving a
+  # job this stack already holds is not something the API documents an
+  # answer for, and the ambiguous answer is the dangerous one: if a
+  # pre-emptive renewal came back `not_reserved` we could not tell "our
+  # own reservation, nothing to do" from "gone, cancel it" — and one of
+  # those readings cancels live customer jobs. After the lapse the job is
+  # genuinely back in the pool, so `not_reserved` has exactly one
+  # meaning: something else has it, or it no longer exists.
+  defp renew_lapsed_reservations(installation, account) do
+    case lapsed_reservations(account.id) do
+      [] ->
+        :ok
+
+      lapsed ->
+        # A reservation belongs to the stack that took it, and a stack
+        # serves one queue, so renewals are grouped by queue rather than
+        # sent as one batch for the account.
+        lapsed
+        |> Enum.group_by(& &1.queue_key)
+        |> Enum.each(fn {queue_key, jobs} -> renew_queue(installation, account, queue_key, jobs) end)
+
+        :ok
+    end
+  end
+
+  defp renew_queue(installation, account, queue_key, jobs) do
+    uuids = Enum.map(jobs, & &1.job_uuid)
+    stack_key = stack_key_for(installation, queue_key)
+
+    case Client.reserve(installation, stack_key, uuids, @reservation_seconds) do
+      {:ok, reserved} ->
+        reserved_set = MapSet.new(reserved)
+        {retaken, lost} = Enum.split_with(jobs, &MapSet.member?(reserved_set, &1.job_uuid))
+
+        mark_reserved(Enum.map(retaken, & &1.job_uuid))
+        Enum.each(retaken, &recover_stranded(&1, account))
+
+        # Only a job we had merely queued is abandoned on a refused
+        # reservation. For a `claimed` or `running` row a refusal is
+        # ambiguous — the job may be executing right now on a runner whose
+        # acquisition took it out of the schedulable pool — and completing
+        # that as cancelled would destroy a live build's record.
+        lost |> Enum.filter(&(&1.status == "queued")) |> Enum.each(&abandon(&1, account))
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: buildkite reservation renewal failed",
+          account: account.name,
+          queue: queue_key,
+          count: length(uuids),
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  # `queued` rows are the ordinary case: we hold the job and have not
+  # dispatched it yet.
+  #
+  # `claimed` and `running` are the recovery case. A runner that dies
+  # after dispatch but before its agent acquires the job leaves the
+  # lifecycle row non-terminal forever: `Claims.release_by_pod_name/1`
+  # deletes the claim without requeueing (on GitHub, whether the job runs
+  # again is GitHub's call), `OrphanedRunnersWorker` resolves that through
+  # the GitHub API which knows nothing about a Buildkite job, and
+  # `known_job_uuids/1` filters the job out of every later poll because a
+  # lifecycle row exists. Without this the job is stranded permanently.
+  defp lapsed_reservations(account_id) do
+    now = DateTime.utc_now()
+
+    Repo.all(
+      from(j in Job,
+        join: w in WorkflowJob,
+        on: w.workflow_job_id == j.workflow_job_id,
+        where:
+          j.account_id == ^account_id and not is_nil(j.reserved_until) and
+            j.reserved_until < ^now and w.status in ^@recoverable_statuses,
+        select: %{
+          job_uuid: j.job_uuid,
+          workflow_job_id: j.workflow_job_id,
+          queue_key: j.queue_key,
+          status: w.status
+        }
+      )
+    )
+  end
+
+  # Buildkite granted the reservation again, which it only does for a job
+  # sitting in `scheduled`. Nothing is running it, so a non-terminal
+  # lifecycle row is a runner that died between dispatch and acquisition.
+  # Requeueing returns it to the dispatch pool under the same surrogate id.
+  defp recover_stranded(%{status: "queued"}, _account), do: :ok
+
+  defp recover_stranded(%{workflow_job_id: workflow_job_id, status: status}, account) do
+    Logger.info("runners: recovering stranded buildkite job",
+      account: account.name,
+      workflow_job_id: workflow_job_id,
+      state: status
+    )
+
+    WorkflowJobs.requeue(workflow_job_id)
+  end
+
+  defp mark_reserved([]), do: :ok
+
+  defp mark_reserved(job_uuids) do
+    reserved_until =
+      DateTime.utc_now()
+      |> DateTime.add(@reservation_seconds, :second)
+      |> DateTime.truncate(:second)
+
+    Repo.update_all(
+      from(j in Job, where: j.job_uuid in ^job_uuids),
+      set: [reserved_until: reserved_until]
+    )
+
+    :ok
+  end
+
+  # The job went back to Buildkite's pool and did not come back to us:
+  # cancelled, or picked up by another stack. Either way this account
+  # will never run it, and leaving the row queued would hold a dashboard
+  # entry open forever and keep offering the job to Pods that cannot
+  # mint a token for it.
+  defp abandon(%{workflow_job_id: workflow_job_id}, account) do
+    Logger.info("runners: buildkite job no longer reservable, completing",
+      account: account.name,
+      workflow_job_id: workflow_job_id
+    )
+
+    Jobs.complete(workflow_job_id, "cancelled")
+  end
+
+  # A stack key answers nothing until it is registered, so the first list
+  # against a new queue 404s by design. Registering on that signal keeps
+  # the steady state at one request and self-heals a stack deleted out
+  # from under us.
+  #
+  # A 404 that survives registration means the queue itself is not there.
+  # That is an ordinary state, not a failure: a profile is ours and a
+  # queue is the customer's, so any profile they have not made a matching
+  # queue for lands here every pass. It is reported as `:queue_absent` so
+  # the caller can skip that queue and keep polling the rest.
+  defp list_scheduled_jobs(installation, account, queue_key) do
+    stack_key = stack_key_for(installation, queue_key)
+
+    case Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit) do
+      {:error, :not_found} -> register_then_list(installation, account, stack_key, queue_key)
+      result -> result
+    end
+  end
+
+  defp register_then_list(installation, account, stack_key, queue_key) do
+    metadata = %{
+      "tuist_account" => account.name,
+      "tuist_environment" => to_string(Environment.env())
+    }
+
+    with {:ok, _stack} <- Client.register_stack(installation, stack_key, queue_key, metadata),
+         {:ok, listing} <-
+           Client.list_scheduled_jobs(installation, stack_key, queue_key, @list_limit) do
+      Logger.info("runners: registered buildkite stack",
+        account: account.name,
+        queue: queue_key
+      )
+
+      {:ok, listing}
+    else
+      {:error, :not_found} -> {:error, :queue_absent}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp poll_queue(installation, account, queue_key) do
+    case list_scheduled_jobs(installation, account, queue_key) do
+      # The customer has no Buildkite queue for this profile. Profiles and
+      # queues are named independently, so this is the normal state for
+      # any profile they have not wired up, and it must not stop the
+      # queues they have.
+      {:error, :queue_absent} ->
+        Logger.debug("runners: buildkite queue does not exist",
+          account: account.name,
+          queue: queue_key
+        )
+
+        {:ok, 0}
+
+      # Buildkite is telling every stack on this queue to stand down,
+      # usually mid-incident. Reserving here would take jobs out of
+      # circulation that the operator has deliberately held.
+      {:ok, %{dispatch_paused: true}} ->
+        Logger.info("runners: buildkite queue dispatch paused",
+          account: account.name,
+          queue: queue_key
+        )
+
+        {:ok, 0}
+
+      {:ok, %{jobs: []}} ->
+        {:ok, 0}
+
+      {:ok, %{jobs: jobs}} ->
+        reserve_and_enqueue(installation, account, queue_key, jobs)
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp reserve_and_enqueue(installation, account, queue_key, jobs) do
+    known = known_job_uuids(Enum.map(jobs, & &1.job_uuid))
+    fresh = Enum.reject(jobs, &MapSet.member?(known, &1.job_uuid))
+
+    if fresh == [] do
+      # Every job on the queue already has a mapping row. Ordinarily that
+      # means we queued them on an earlier pass and they are working
+      # through the fleet, but it is also what a job stuck outside the
+      # lifecycle looks like, so say so rather than returning a bare zero.
+      Logger.info("runners: buildkite jobs already mapped",
+        account: account.name,
+        queue: queue_key,
+        count: length(jobs)
+      )
+
+      {:ok, 0}
+    else
+      case Dispatch.resolve_dispatch_target(account, [queue_key]) do
+        {:ok, target} ->
+          do_reserve_and_enqueue(installation, account, queue_key, fresh, target)
+
+        {:error, reason} ->
+          # The queue exists on Buildkite but names no Tuist profile. That
+          # is the customer's own queue for their own agents, so it is not
+          # ours to reserve from. Logged at info, not debug: it is
+          # indistinguishable from a working queue in the logs otherwise,
+          # and a customer whose profile and queue names have drifted apart
+          # sees jobs sit forever with nothing explaining why.
+          Logger.info("runners: buildkite queue matches no profile",
+            account: account.name,
+            queue: queue_key,
+            count: length(fresh),
+            reason: inspect(reason)
+          )
+
+          {:ok, 0}
+      end
+    end
+  end
+
+  defp do_reserve_and_enqueue(installation, account, queue_key, jobs, target) do
+    uuids = Enum.map(jobs, & &1.job_uuid)
+
+    stack_key = stack_key_for(installation, queue_key)
+
+    with {:ok, reserved} <- Client.reserve(installation, stack_key, uuids, @reservation_seconds) do
+      reserved_set = MapSet.new(reserved)
+      reserved_until = DateTime.add(DateTime.utc_now(), @reservation_seconds, :second)
+
+      count =
+        jobs
+        |> Enum.filter(&MapSet.member?(reserved_set, &1.job_uuid))
+        |> enqueue_all(installation, account, target, reserved_until)
+
+      if count > 0 do
+        Logger.info("runners: buildkite enqueued",
+          account: account.name,
+          queue: queue_key,
+          fleet: target.pool_name,
+          count: count
+        )
+      else
+        # Buildkite granted none of what we asked for. Another stack on the
+        # same queue holding them is the benign reading; anything else here
+        # is a reservation we should be getting and are not.
+        Logger.info("runners: buildkite reserved none",
+          account: account.name,
+          queue: queue_key,
+          requested: length(uuids)
+        )
+      end
+
+      :telemetry.execute(
+        Telemetry.event_name_buildkite_poll(),
+        %{scheduled: length(jobs), reserved: count},
+        %{account: account.name, queue: queue_key}
+      )
+
+      {:ok, count}
+    end
+  end
+
+  # One insert for the batch, one read back, one lifecycle write. A poll
+  # can reserve up to `@list_limit` jobs, and doing this per job cost an
+  # advisory lock, several existence queries and a transaction each.
+  #
+  # The surrogate id comes from a database default and `ON CONFLICT DO
+  # NOTHING` returns no row for a mapping that already existed, so the ids
+  # are read back rather than taken from what the insert returned. That
+  # read is authoritative whether this pass created the rows or an earlier
+  # one did.
+  #
+  # An earlier shape treated "no surrogate returned" as "already queued"
+  # and skipped the lifecycle write. Since the mapping row was already
+  # there, the job could never be picked up again: it sat scheduled on
+  # Buildkite forever while every later pass filtered it out as known.
+  defp enqueue_all([], _installation, _account, _target, _reserved_until), do: 0
+
+  defp enqueue_all(jobs, installation, account, target, reserved_until) do
+    {rows, rejected} = mapping_rows(jobs, installation, account, reserved_until)
+
+    Enum.each(rejected, fn {job, errors} ->
+      Logger.warning("runners: buildkite job insert failed",
+        account: account.name,
+        job_uuid: job.job_uuid,
+        errors: inspect(errors)
+      )
+    end)
+
+    Repo.insert_all(Job, rows, on_conflict: :nothing)
+
+    uuids = Enum.map(rows, & &1.job_uuid)
+    ids_by_uuid = mapping_ids(uuids)
+
+    {ready, unreadable} = Enum.split_with(jobs, &Map.has_key?(ids_by_uuid, &1.job_uuid))
+
+    Enum.each(unreadable, fn job ->
+      Logger.warning("runners: buildkite job mapping unreadable after write",
+        account: account.name,
+        job_uuid: job.job_uuid
+      )
+    end)
+
+    :ok =
+      ready
+      |> Enum.map(&lifecycle_attrs(account, target, &1, Map.fetch!(ids_by_uuid, &1.job_uuid)))
+      |> WorkflowJobs.enqueue_many_if_missing()
+
+    length(ready)
+  end
+
+  # `insert_all` bypasses the changeset, so the rows are validated in
+  # memory first and an invalid one is dropped rather than written.
+  defp mapping_rows(jobs, installation, account, reserved_until) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    reserved_until = DateTime.truncate(reserved_until, :second)
+
+    jobs
+    |> Enum.map(fn job ->
+      attrs = %{
+        job_uuid: job.job_uuid,
+        account_id: account.id,
+        organization_slug: installation.organization_slug,
+        pipeline_slug: job.pipeline_slug,
+        build_uuid: job.build_uuid,
+        build_number: job.build_number,
+        queue_key: job.queue_key,
+        reserved_until: reserved_until
+      }
+
+      case %Job{} |> Job.changeset(attrs) |> Ecto.Changeset.apply_action(:insert) do
+        {:ok, _valid} -> {:ok, Map.merge(attrs, %{inserted_at: now, updated_at: now})}
+        {:error, changeset} -> {:error, {job, changeset.errors}}
+      end
+    end)
+    |> Enum.split_with(&match?({:ok, _}, &1))
+    |> then(fn {ok, errors} ->
+      {Enum.map(ok, fn {:ok, row} -> row end), Enum.map(errors, fn {:error, pair} -> pair end)}
+    end)
+  end
+
+  defp mapping_ids([]), do: %{}
+
+  defp mapping_ids(uuids) do
+    Job
+    |> where([j], j.job_uuid in ^uuids)
+    |> select([j], {j.job_uuid, j.workflow_job_id})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  # Buildkite's coordinates are mapped onto the lifecycle table's
+  # GitHub-shaped columns rather than added beside them: `repository`
+  # carries `org/pipeline`, `workflow_run_id` the build number,
+  # `workflow_name` the pipeline. The dashboard renders these columns
+  # generically, so the Buildkite lane shows up in the existing job list
+  # and detail views with no per-provider branch, and the provider column
+  # is what tells them apart where it matters.
+  defp lifecycle_attrs(account, target, job, workflow_job_id) do
+    %{
+      workflow_job_id: workflow_job_id,
+      provider: "buildkite",
+      account_id: account.id,
+      fleet_name: target.pool_name,
+      requested_dispatch_label: target.requested_dispatch_label,
+      platform: Atom.to_string(target.platform),
+      vcpus: target.vcpus,
+      memory_gb: target.memory_gb,
+      repository: repository_handle(job),
+      workflow_run_id: job.build_number,
+      workflow_name: job.pipeline_slug,
+      run_attempt: 1,
+      job_name: job.step_key,
+      head_branch: job.build_branch,
+      head_sha: "",
+      enqueued_at: usec(job.scheduled_at) || DateTime.utc_now()
+    }
+  end
+
+  # `runner_workflow_jobs.enqueued_at` is `:utc_datetime_usec`, and the
+  # lifecycle row is written with `insert_all`, which dumps without
+  # casting and raises on anything coarser than microseconds. Buildkite
+  # stamps milliseconds.
+  #
+  # Normalised here, at the write, rather than only where the API
+  # response is parsed: this is the boundary the database requirement
+  # actually lives at, and a parser-only fix leaves any other caller that
+  # builds this map free to reintroduce the crash. That crash was
+  # expensive — it fired *after* the pass had reserved the job on
+  # Buildkite, so the job sat reserved and invisible to every stack until
+  # its reservation lapsed, with Oban discarding the error.
+  defp usec(nil), do: nil
+
+  defp usec(%DateTime{microsecond: {value, _precision}} = datetime) do
+    %{datetime | microsecond: {value, 6}}
+  end
+
+  defp repository_handle(%{pipeline_slug: ""}), do: ""
+  defp repository_handle(%{pipeline_slug: pipeline}), do: pipeline
+
+  defp known_job_uuids([]), do: MapSet.new()
+
+  # A job counts as known only once it has a LIFECYCLE row, not merely a
+  # mapping row. The mapping is written first and the lifecycle second, so
+  # keying the skip on the mapping alone means any job whose lifecycle
+  # write did not land is skipped on every subsequent pass while it sits
+  # scheduled on Buildkite. Joining the two makes the poller self-healing:
+  # a half-written job is simply picked up again.
+  defp known_job_uuids(uuids) do
+    from(j in Job,
+      join: w in WorkflowJob,
+      on: w.workflow_job_id == j.workflow_job_id,
+      where: j.job_uuid in ^uuids,
+      select: j.job_uuid
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  defp queue_keys_for(account) do
+    case Profiles.list_for_account(account) do
+      [] -> {:error, :no_profiles}
+      profiles -> {:ok, Enum.map(profiles, &Profile.dispatch_label/1)}
+    end
+  end
+
+  defp fetch_enabled_account(%Installation{account_id: account_id}) do
+    case Accounts.get_account_by_id(account_id) do
+      {:ok, account} ->
+        if FeatureFlags.runners_enabled?(account) do
+          {:ok, account}
+        else
+          {:error, :runners_disabled}
+        end
+
+      _ ->
+        {:error, :no_account}
+    end
+  end
+
+  defp check_allowance(account) do
+    if Allowance.exhausted?(account) do
+      {:error, :allowance_exhausted}
+    else
+      :ok
+    end
+  end
+
+  @doc """
+  Mints the per-job credential a Pod uses to take `workflow_job_id`.
+
+  The Buildkite counterpart of GitHub's JIT config, and the point where
+  the two lanes diverge in `Tuist.Runners.serve_claim/2`.
+  """
+  def mint_acquisition(account_id, workflow_job_id) when is_integer(workflow_job_id) do
+    with %Job{} = job <- get_job(workflow_job_id),
+         %Installation{} = installation <- get_installation(account_id),
+         {:ok, %{token: token}} <-
+           Client.issue_acquisition_token(
+             installation,
+             stack_key_for(installation, job.queue_key),
+             job.job_uuid,
+             @acquisition_token_lifetime_seconds
+           ) do
+      {:ok,
+       %{
+         token: token,
+         job_uuid: job.job_uuid,
+         organization_slug: job.organization_slug,
+         report_token: ReportToken.mint(%{workflow_job_id: workflow_job_id, account_id: account_id})
+       }}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Whether a Buildkite job may touch the account's shared cache.
+
+  Buildkite only builds a fork's pull request when the pipeline opts in,
+  but that is the customer's setting and not something we can read, so
+  the check is made here on the same fail-closed terms as the GitHub
+  lane: the job's own environment must either name no pull-request repo
+  at all, or name the pipeline's own repository.
+  """
+  def job_trusted?(account_id, workflow_job_id) do
+    with %Job{} = job <- get_job(workflow_job_id),
+         %Installation{} = installation <- get_installation(account_id),
+         {:ok, payload} <-
+           Client.get_job(installation, stack_key_for(installation, job.queue_key), job.job_uuid) do
+      env = Map.get(payload, "env", %{})
+
+      case {Map.get(env, "BUILDKITE_PULL_REQUEST_REPO"), Map.get(env, "BUILDKITE_REPO")} do
+        {nil, _repo} -> true
+        {"", _repo} -> true
+        {pr_repo, repo} when is_binary(repo) and repo != "" -> same_repository?(pr_repo, repo)
+        _ -> false
+      end
+    else
+      _ -> false
+    end
+  rescue
+    _ -> false
+  end
+
+  # Buildkite reports the fork's remote in whatever form the build was
+  # created with, so the same repository can arrive as an SSH remote in
+  # one field and an HTTPS one in the other. Compare on the host and path
+  # rather than the string.
+  defp same_repository?(left, right) do
+    normalize_remote(left) == normalize_remote(right)
+  end
+
+  defp normalize_remote(nil), do: nil
+
+  # `git@host:path` and `https://host/path` name the same repository, so
+  # both reduce to `host/path`. The host stays in the result: dropping it
+  # would make any host serving the same path compare equal, and this
+  # comparison is what decides whether a job reaches the account's cache.
+  defp normalize_remote(remote) when is_binary(remote) do
+    remote
+    |> String.trim()
+    |> String.downcase()
+    |> String.replace(~r{^[a-z][a-z0-9+.\-]*://}, "")
+    |> String.replace(~r{^[^@/]+@}, "")
+    |> String.replace(~r{^([^/:]+):}, "\\1/", global: false)
+    |> String.replace_suffix(".git", "")
+    |> String.trim_trailing("/")
+  end
+
+  @doc """
+  Whether a job is still accepting log lines.
+
+  Open while the job has not completed, and for `grace_seconds` after it
+  did: the log is uploaded after the finish report, so a settled job is
+  still expecting its own upload. Past that a recovered token can no
+  longer append to a job that is done.
+
+  A job with no lifecycle row has not settled as far as we can tell, so
+  it stays open. The token already proves the job exists, and the line
+  ceiling bounds what it can store; refusing here would drop the logs of
+  any job whose lifecycle write did not land.
+  """
+  def log_window_open?(workflow_job_id, grace_seconds) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      nil -> true
+      %WorkflowJob{completed_at: nil} -> true
+      %WorkflowJob{completed_at: at} -> DateTime.diff(DateTime.utc_now(), at, :second) <= grace_seconds
+    end
+  end
+
+  @doc """
+  The runner name bound to a job's open session.
+
+  The finish report names its job through the report token, but the claim
+  and session layers are keyed on the runner, so the two have to be
+  joined before the completion can release anything. Returns
+  `{:error, :no_session}` once the session is closed, which is a settled
+  job rather than a failure.
+  """
+  def runner_name_for_job(workflow_job_id, account_id) do
+    case RunnerSessions.live_for_workflow_job(workflow_job_id, account_id) do
+      {:ok, %{runner_name: runner_name}} when is_binary(runner_name) and runner_name != "" ->
+        {:ok, runner_name}
+
+      _ ->
+        {:error, :no_session}
+    end
+  end
+
+  @doc """
+  Completes a Buildkite job from what its agent reported on the way out.
+
+  The GitHub lane learns all of this from the `workflow_job.completed`
+  webhook. Here the agent runs inside our own VM, so the VM is the
+  source: a `pre-exit` hook posts the window and the exit status, which
+  means the customer configures no webhook and hands us no second
+  credential.
+
+  The billable window is the job's own start and finish, not the Pod's,
+  for the same reason as the GitHub lane: the Pod boots a VM before the
+  job can start and holds the host through cache work afterwards, and
+  that overhead is ours.
+  """
+  def record_job_finished(runner_name, account_id, report) when is_binary(runner_name) and is_integer(account_id) do
+    %{workflow_job_id: workflow_job_id, conclusion: conclusion} = report
+
+    window = observed_window(workflow_job_id)
+
+    case RunnerSessions.record_execution(runner_name, workflow_job_id, account_id, window) do
+      {:error, changeset} ->
+        # The window is recorded nowhere else, so a failed write here is
+        # lost usage rather than lost attribution. Refuse the report and
+        # let the agent's retry carry it.
+        {:error, {:session_execution_write_failed, inspect(changeset.errors)}}
+
+      _outcome ->
+        Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
+          Claims.complete_by_runner_name(runner_name, account_id, workflow_job_id)
+
+          case Jobs.complete(workflow_job_id, conclusion) do
+            {:ok, _job} -> enqueue_archive(workflow_job_id, account_id)
+            {:error, :not_found} -> :ok
+            other -> other
+          end
+        end)
+    end
+  end
+
+  # The billable window is measured by us, never reported by the job.
+  #
+  # The report arrives from a hook running inside the customer's own job,
+  # which can read its credential and post whatever it likes. Timestamps
+  # taken from that body would let a job bill itself for zero seconds.
+  # `started_at` is the lifecycle row's, stamped server-side when the
+  # dispatch marked the job running, and the end is when this report
+  # lands. The hook posts the finish before uploading the log so that
+  # upload is not inside the window.
+  defp observed_window(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      %WorkflowJob{started_at: %DateTime{} = started_at} ->
+        %{started_at: started_at, ended_at: DateTime.utc_now()}
+
+      _ ->
+        %{started_at: nil, ended_at: nil}
+    end
+  end
+
+  # The GitHub lane archives from `FetchLogsWorker`, at the end of the
+  # pull that ingested the lines. Here ingestion finished before this
+  # report arrived, so the finish is the point at which the log is known
+  # to be whole.
+  defp enqueue_archive(workflow_job_id, account_id) do
+    %{workflow_job_id: workflow_job_id, account_id: account_id}
+    |> ArchiveLogsWorker.new(schedule_in: @archive_delay_seconds)
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue buildkite log archive",
+          workflow_job_id: workflow_job_id,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  @doc """
+  An exit status the agent reported, as a lifecycle conclusion.
+
+  Buildkite's own vocabulary for a finished job is a numeric exit status
+  plus a cancellation flag; the lifecycle table speaks GitHub's, and the
+  dashboard renders that. Mapping here keeps the difference from
+  reaching either.
+  """
+  def conclusion_for(%{cancelled: true}), do: "cancelled"
+  def conclusion_for(%{exit_status: 0}), do: "success"
+  def conclusion_for(_report), do: "failure"
+
+  @doc """
+  Records the outcome of a poll pass against the installation, so the
+  settings page can show a customer why nothing is being picked up.
+  """
+  def record_poll_result(%Installation{} = installation, :ok) do
+    installation
+    |> Ecto.Changeset.change(%{
+      last_polled_at: DateTime.truncate(DateTime.utc_now(), :second),
+      last_error: nil,
+      last_error_at: nil
+    })
+    |> Repo.update()
+  end
+
+  def record_poll_result(%Installation{} = installation, {:error, reason}) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    installation
+    |> Ecto.Changeset.change(%{
+      last_polled_at: now,
+      last_error: describe_error(reason),
+      last_error_at: now
+    })
+    |> Repo.update()
+  end
+
+  defp describe_error(:unauthorized),
+    do: "Buildkite rejected the agent token. Check that it is a cluster token and still valid."
+
+  defp describe_error(:not_found), do: "Buildkite does not recognize this stack. Check the organization and cluster."
+
+  defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
+  defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+  defp describe_error(:no_profiles), do: "The account has no runner profiles to map queues onto."
+  defp describe_error(reason), do: inspect(reason)
+end

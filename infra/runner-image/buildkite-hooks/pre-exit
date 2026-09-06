@@ -1,0 +1,182 @@
+#!/bin/bash
+# Buildkite global `pre-exit` hook. Runs after the job's command, for
+# every job the agent takes, including a failed or cancelled one.
+#
+# Identical on the macOS and Linux fleets; only the path it reads differs,
+# and that arrives as TUIST_RUNNER_JOB_ENV. Keep the two copies in step.
+#
+# This is where the job's log and outcome reach Tuist. The agent is
+# started with `--enable-job-log-tmpfile`, which writes the job's output
+# verbatim to BUILDKITE_JOB_LOG_TMPFILE — but the agent removes that file
+# at the end of the job, and on the first staging run it was already gone
+# by the time this hook ran. The `post-command` hook therefore copies it
+# to ${STATE_DIR}/job.log while the command has only just finished, and
+# this hook uploads that copy, falling back to the tmpfile if present.
+#
+# Authentication is the job-scoped report token dispatch minted, NOT the
+# Pod's ServiceAccount token. That distinction is what lets this hook run
+# on the Linux fleet at all: there the job container deliberately holds
+# no SA token, so untrusted workflow code never sits beside a credential
+# that could claim more work. A report token can only write this job's
+# log and declare this job's outcome, both of which the job could already
+# do.
+#
+# Everything below is best-effort with respect to the job: a reporting
+# failure must never change the exit status the customer sees. It is not
+# best-effort with respect to the server, which is why the finish report
+# retries — that request carries the billable window, and it is recorded
+# nowhere else.
+
+set -uo pipefail
+
+STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/var/log/tuist-runner}"
+JOB_ENV="${TUIST_RUNNER_JOB_ENV:-/etc/tuist-runner-job.env}"
+
+mkdir -p "${STATE_DIR}" 2>/dev/null || true
+# Tee rather than redirect: the file dies with the machine, so anything
+# only written there is invisible the moment the runner is reaped. The
+# first staging run shipped no logs and left nothing to explain why.
+exec > >(tee -a "${STATE_DIR}/buildkite-hook.log") 2>&1
+
+# Chunked so one request never has to carry a whole build's output.
+# ClickHouse keys log lines by (job, line number), so a retried chunk
+# collapses on merge and the hook can resend freely.
+CHUNK_LINES=5000
+
+if [ -f "${JOB_ENV}" ]; then
+  # shellcheck disable=SC1090
+  source "${JOB_ENV}"
+fi
+
+REPORT_TOKEN="${TUIST_RUNNER_REPORT_TOKEN:-}"
+REPORT_URL="${TUIST_RUNNER_REPORT_URL:-}"
+
+if [ -z "${REPORT_TOKEN}" ] || [ -z "${REPORT_URL}" ]; then
+  echo "$(date -u +%FT%TZ) buildkite-hook: no report credential staged; skipping report"
+  exit 0
+fi
+
+post() {
+  # $1 url, $2 body file
+  curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --max-time 30 \
+    --request POST \
+    --header "Authorization: Bearer ${REPORT_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --data-binary "@${2}" \
+    "$1" 2>/dev/null
+}
+
+upload_logs() {
+  # Prefer the copy `post-command` took. The agent documents
+  # BUILDKITE_JOB_LOG_TMPFILE as removed at the end of the job, so by the
+  # time this hook runs it may already be gone — which is exactly what
+  # happened on the first staging run.
+  local log_file=""
+  if [ -f "${STATE_DIR}/job.log" ]; then
+    log_file="${STATE_DIR}/job.log"
+  elif [ -n "${BUILDKITE_JOB_LOG_TMPFILE:-}" ] && [ -f "${BUILDKITE_JOB_LOG_TMPFILE}" ]; then
+    log_file="${BUILDKITE_JOB_LOG_TMPFILE}"
+  fi
+
+  if [ -z "${log_file}" ]; then
+    echo "$(date -u +%FT%TZ) buildkite-hook: no job log to upload (post-command capture missing and BUILDKITE_JOB_LOG_TMPFILE=${BUILDKITE_JOB_LOG_TMPFILE:-unset})"
+    return 0
+  fi
+
+  local total first body http
+  total=$(wc -l <"${log_file}" | tr -d ' ')
+  [ "${total}" -gt 0 ] 2>/dev/null || return 0
+
+  first=1
+  while [ "${first}" -le "${total}" ]; do
+    body=$(mktemp)
+    # `sed -n 'a,bp'` slices without re-reading the file from the top for
+    # each chunk the way `head | tail` would.
+    sed -n "${first},$((first + CHUNK_LINES - 1))p" "${log_file}" \
+      | python3 -c '
+import json, sys
+lines = sys.stdin.read().split("\n")
+if lines and lines[-1] == "":
+    lines.pop()
+json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
+' "${first}" >"${body}"
+
+    http=$(post "${REPORT_URL}/jobs/logs" "${body}")
+    rm -f "${body}"
+    if [ "${http}" != "204" ]; then
+      echo "$(date -u +%FT%TZ) buildkite-hook: log chunk from line ${first} returned ${http}"
+    fi
+    first=$((first + CHUNK_LINES))
+  done
+  echo "$(date -u +%FT%TZ) buildkite-hook: uploaded ${total} log lines from ${log_file}"
+}
+
+report_finish() {
+  local body http attempt exit_status
+  body=$(mktemp)
+
+  # The billable window is measured server-side and is not reported from
+  # here: this hook runs inside the customer's job, which can read this
+  # credential, and a job that timed its own work could bill itself for
+  # nothing. The server ends the window when this request lands, which is
+  # why the finish is posted before the log upload rather than after.
+  #
+  # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone.
+  # BUILDKITE_LAST_HOOK_EXIT_STATUS is the exit status of the hook that
+  # ran immediately before this one, and the agent resets it as each hook
+  # completes, so it adds at most the last post-command hook's failure.
+  #
+  # The agent runs pre-exit hooks global first, then the repository's,
+  # then the plugins', so this hook cannot see a failure raised only by
+  # one of those; such a job is reported here as passing. Buildkite's own
+  # verdict is out of reach for a stack: the Stacks API exposes a job's
+  # state but not its exit status, and the REST API would need a token
+  # far broader than the cluster token this integration asks for.
+  exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
+  if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
+     && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then
+    echo "$(date -u +%FT%TZ) buildkite-hook: command succeeded but a later hook exited ${BUILDKITE_LAST_HOOK_EXIT_STATUS}; reporting failure"
+    exit_status="${BUILDKITE_LAST_HOOK_EXIT_STATUS}"
+  fi
+
+  # These land in a JSON number literal. Anything non-numeric would make
+  # the report unparseable, and the window is recorded nowhere else.
+  case "${exit_status}" in
+    '' | *[!0-9]*)
+      echo "$(date -u +%FT%TZ) buildkite-hook: unusable exit status '${exit_status}'; reporting failure"
+      exit_status=1
+      ;;
+  esac
+
+  # A cancelled job reports separately: a cancel is not a failure and must
+  # not read as one on the dashboard.
+  cat >"${body}" <<JSON
+{
+  "exit_status": ${exit_status},
+  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false}
+}
+JSON
+
+  attempt=1
+  while [ "${attempt}" -le 5 ]; do
+    http=$(post "${REPORT_URL}/jobs/finish" "${body}")
+    if [ "${http}" = "204" ]; then
+      rm -f "${body}"
+      return 0
+    fi
+    echo "$(date -u +%FT%TZ) buildkite-hook: finish attempt ${attempt} returned ${http}"
+    sleep $((attempt * 2))
+    attempt=$((attempt + 1))
+  done
+
+  rm -f "${body}"
+  echo "$(date -u +%FT%TZ) buildkite-hook: finish report gave up; job window is lost"
+}
+
+# The finish closes the billable window server-side, so it goes first and
+# the log upload is not counted against the customer.
+report_finish
+upload_logs
+
+exit 0

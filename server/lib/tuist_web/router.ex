@@ -854,6 +854,8 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/jobs/logs", RunnerJobReportsController, :logs
+    post "/runners/jobs/finish", RunnerJobReportsController, :finish
   end
 
   scope "/api/internal", TuistWeb.Internal do
