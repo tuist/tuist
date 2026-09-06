@@ -5,9 +5,14 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
+  alias Tuist.Runners.Buildkite
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+
+  # The fields the Buildkite modal renders an input for.
+  @buildkite_form_fields [:organization_slug, :agent_token]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -48,6 +53,12 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
+      |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(buildkite_field_errors: %{})
+      |> assign(buildkite_form_error: nil)
+      |> assign(buildkite_flash: nil)
+      |> assign(buildkite_has_changes: false)
+      |> assign_buildkite_installation()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -68,6 +79,90 @@ defmodule TuistWeb.IntegrationsLive do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("close-connect-buildkite-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-buildkite-modal"})}
+  end
+
+  @impl true
+  def handle_event("connect-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    # Only what the modal showed: the slug and the token on first connect,
+    # the token alone afterwards (the slug is edited on the card). The
+    # stack key identifies this controller to Buildkite and scopes its
+    # reservations, so it is derived from the account rather than typed: a
+    # customer-chosen key that collided with another account's would hand
+    # them each other's reservations.
+    attrs =
+      params
+      |> Map.take(["organization_slug", "agent_token"])
+      |> Map.new(fn {field, value} -> {String.to_existing_atom(field), String.trim(value)} end)
+      |> Map.put(:stack_key, "tuist-#{account.id}")
+
+    case Buildkite.upsert_installation(account.id, attrs) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
+         |> assign_buildkite_installation()
+         |> push_event("close-modal", %{id: "connect-buildkite-modal"})}
+
+      {:error, changeset} ->
+        {field_errors, form_error} = split_buildkite_errors(changeset)
+
+        {:noreply, assign(socket, buildkite_field_errors: field_errors, buildkite_form_error: form_error)}
+    end
+  end
+
+  @impl true
+  def handle_event("validate-buildkite", params, %{assigns: %{buildkite_installation: installation}} = socket) do
+    values = Map.merge(socket.assigns.buildkite_form_values, Map.take(params, ["organization_slug", "agent_token"]))
+
+    has_changes =
+      String.trim(values["organization_slug"]) != installation.organization_slug or
+        String.trim(values["agent_token"]) != ""
+
+    {:noreply, assign(socket, buildkite_form_values: values, buildkite_has_changes: has_changes, buildkite_flash: nil)}
+  end
+
+  @impl true
+  def handle_event("save-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    token = params |> Map.get("agent_token", "") |> String.trim()
+    attrs = %{organization_slug: params |> Map.get("organization_slug", "") |> String.trim()}
+
+    # A blank token keeps the current one: it is never shown again, so
+    # there is nothing for the customer to re-enter.
+    attrs = if token == "", do: attrs, else: Map.put(attrs, :agent_token, token)
+
+    case Buildkite.upsert_installation(account.id, attrs) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_field_errors: %{})
+         |> assign(buildkite_flash: {"success", dgettext("dashboard_integrations", "Buildkite connection saved.")})
+         |> assign_buildkite_installation()}
+
+      {:error, changeset} ->
+        {field_errors, form_error} = split_buildkite_errors(changeset)
+
+        {:noreply,
+         assign(socket,
+           buildkite_field_errors: field_errors,
+           buildkite_flash: if(form_error, do: {"error", form_error}),
+           buildkite_form_values: Map.take(params, ["organization_slug", "agent_token"])
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-buildkite", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Buildkite.delete_installation(account.id)
+
+    {:noreply,
+     socket
+     |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil, buildkite_flash: nil)
+     |> assign_buildkite_installation()}
   end
 
   @impl true
@@ -361,6 +456,59 @@ defmodule TuistWeb.IntegrationsLive do
     Tuist.Environment.github_app_configured?() or
       not is_nil(github_installation) or
       Entitlements.allows?(account, :github_enterprise_server)
+  end
+
+  # Rendered on both sides of the connected/not-connected split, so the
+  # header is defined once.
+  defp buildkite_header(assigns) do
+    ~H"""
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_integrations", "Buildkite")}</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+        )}
+      </span>
+    </div>
+    """
+  end
+
+  defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
+    installation = Buildkite.get_installation(account.id)
+
+    socket
+    |> assign(buildkite_installation: installation)
+    |> assign(buildkite_has_changes: false)
+    |> assign(
+      buildkite_form_values: %{
+        "organization_slug" => (installation && installation.organization_slug) || "",
+        "agent_token" => ""
+      }
+    )
+  end
+
+  # Errors land on the input that caused them. `stack_key` is derived, not
+  # typed, so it has no input to attach to and would be invisible as a
+  # field error; it becomes a banner instead.
+  defp split_buildkite_errors(changeset) do
+    errors =
+      Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+        Regex.replace(~r/%\{(\w+)\}/, message, fn _whole, key ->
+          opts |> Keyword.get(String.to_existing_atom(key), "") |> to_string()
+        end)
+      end)
+
+    {shown, hidden} = Enum.split_with(errors, fn {field, _} -> field in @buildkite_form_fields end)
+
+    field_errors = Map.new(shown, fn {field, messages} -> {Atom.to_string(field), List.first(messages)} end)
+
+    form_error =
+      hidden
+      |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field} #{&1}") end)
+      |> List.first()
+
+    {field_errors, form_error}
   end
 
   defp vcs_connections(account, opts \\ []) do

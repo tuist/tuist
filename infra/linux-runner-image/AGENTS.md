@@ -133,6 +133,18 @@ queued jobs. The controller's `podtemplate.Build` splits the Pod:
   and `exec`s the runner. A leaked JIT post-claim grants nothing
   the runner isn't already running under.
 
+A Buildkite job goes through the same split. The poller stages a
+`<jit>.buildkite-env` file instead of a JIT, holding the single-job
+acquisition token plus a **report token**, and `run-job.sh` runs
+`buildkite-agent` rather than `./run.sh`. The report token is what
+makes this work under token isolation: a Buildkite job reports its own
+log and outcome from a `pre-exit` hook, which needs a credential, and
+the SA token is exactly the credential this split exists to keep out of
+that container. A report token names one job and authorizes only what
+that job could already do — write its own log, declare its own exit
+status — so staging it changes nothing about what the container can
+reach. See `Tuist.Runners.Buildkite.ReportToken`.
+
 A warm-standby Pod therefore sits in `Pending` (poller polling in
 Init) until a job is claimed, not `Running`. macOS keeps the
 single-container shape — the Tart VM is the isolation boundary and

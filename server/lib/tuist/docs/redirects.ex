@@ -151,7 +151,8 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/features/insights/xcode-cache", "/guides/features/build-insights/xcode"},
     {:exact, "/guides/features/insights/gradle-cache", "/guides/features/build-insights/gradle"},
     {:exact, "/contributors/translate", "/contributors/languages"},
-    {:exact, "/cli/logging", "/cli/debugging"}
+    {:exact, "/cli/logging", "/cli/debugging"},
+    {:exact, "/guides/features/runners/getting-started", "/guides/features/runners/github-actions"}
   ]
 
   def rules, do: @rules

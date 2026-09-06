@@ -2632,14 +2632,14 @@ msgstr ""
 msgid "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:33
-#, elixir-autogen, elixir-format
-msgid "Invocations"
-msgstr ""
-
 #: lib/tuist_web/controllers/error_html.ex:112
 #, elixir-autogen, elixir-format
 msgid "503"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:33
+#, elixir-autogen, elixir-format
+msgid "Invocations"
 msgstr ""
 
 #: lib/tuist_web/plugs/loader_plug.ex:108
