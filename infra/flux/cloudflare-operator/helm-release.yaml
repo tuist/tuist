@@ -1,0 +1,30 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudflare-operator
+  namespace: flux-system
+spec:
+  interval: 10m
+  releaseName: cloudflare-operator
+  targetNamespace: cloudflare-operator
+  storageNamespace: cloudflare-operator
+  chart:
+    spec:
+      chart: ./infra/helm/cloudflare-operator
+      interval: 10m
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      valuesFiles:
+        - values.yaml
+        - values-mgmt.yaml
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      strategy: rollback

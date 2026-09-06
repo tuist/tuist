@@ -3,6 +3,8 @@
 # configuration is global, not per-env.
 
 image:
-  # Set at deploy time by the release workflow (defaults to the
-  # chart's appVersion).
-  tag: ""
+  # Built from f13d662ff12b, the commit that introduced the operator.
+  # Keep the human-readable tag and immutable multi-platform digest
+  # together so reviewers can trace both the source and deployed bytes.
+  tag: sha-f13d662ff12b
+  digest: sha256:dcd9825f51b6d0521fe5ccb69aa0594a2149c6a53fcb42bea12d67c11953e685

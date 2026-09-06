@@ -1,0 +1,25 @@
+# Imported from the live tuist.dev http_ratelimit entry-point ruleset on
+# 2026-09-05. Keep this resource in read_only until its status reports no
+# proposed changes, then switch mode to active in a separate pull request.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareRateLimit
+metadata:
+  name: public-pages-anti-bombardment
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Public pages – anti-bombardment"
+  expression: "(http.request.method eq \"GET\")"
+  action: managed_challenge
+  enabled: true
+  mode: read_only
+  adopt:
+    ruleId: 20a7e7c0f002481baa1b6b91af90e3ba
+  retainOnDelete: true
+  ratelimit:
+    characteristics:
+      - "ip.src"
+      - "cf.colo.id"
+    requestsPerPeriod: 60
+    period: 10
+    mitigationTimeoutSeconds: 0
+    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"
