@@ -29,7 +29,7 @@ namespace: cloudflare-operator
 # ExternalSecret pulling the Cloudflare API token from 1Password. The
 # item must expose a field named `token` scoped with:
 #   - Zone:Read
-#   - Zone WAF:Edit
+#   - Zone WAF:Edit (rate limits and custom firewall rules)
 #   - (once cache-rules land) Cache Rules:Edit
 externalSecret:
   enabled: true

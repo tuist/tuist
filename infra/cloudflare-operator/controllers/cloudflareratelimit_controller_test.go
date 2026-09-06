@@ -250,11 +250,9 @@ func TestReconcile_Adopt_ZeroChangeIsNoop(t *testing.T) {
 	}
 }
 
-// TestImportedPublicPagesRateLimitMatchesCapturedLiveRule guards the
-// production adoption gate. The expected rule below is the Cloudflare
-// response captured during import; changing the Git-managed manifest
-// makes this test fail until the intended drift is reviewed explicitly.
-func TestImportedPublicPagesRateLimitMatchesCapturedLiveRule(t *testing.T) {
+// TestPublicPagesRateLimitExcludesVerifiedBots guards the handoff between
+// the human-facing challenge rule and the separate crawler rule.
+func TestPublicPagesRateLimitExcludesVerifiedBots(t *testing.T) {
 	manifestPath := filepath.Join("..", "..", "flux", "cloudflare-config", "public-pages-rate-limit.yaml")
 	manifest, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -300,15 +298,18 @@ func TestImportedPublicPagesRateLimitMatchesCapturedLiveRule(t *testing.T) {
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if cf.addCalls != 0 || cf.updateCalls != 0 || cf.createCalls != 0 {
-		t.Fatalf("imported rule must be a no-op: add=%d update=%d create=%d", cf.addCalls, cf.updateCalls, cf.createCalls)
+	if cf.addCalls != 0 || cf.updateCalls != 1 || cf.createCalls != 0 {
+		t.Fatalf("expected one reviewed adoption update: add=%d update=%d create=%d", cf.addCalls, cf.updateCalls, cf.createCalls)
+	}
+	if gotRule := cf.ruleset.Rules[0]; gotRule.Expression != `(http.request.method eq "GET" and not cf.client.bot)` {
+		t.Errorf("updated expression = %q", gotRule.Expression)
 	}
 	got := &cfv1alpha1.CloudflareRateLimit{}
 	if err := kClient.Get(context.Background(), types.NamespacedName{Name: cr.Name}, got); err != nil {
 		t.Fatalf("get reconciled resource: %v", err)
 	}
-	if got.Status.Message != "read_only: in sync (adopted)" {
-		t.Errorf("status message = %q, want zero-change adoption", got.Status.Message)
+	if got.Status.Message != "would update adopted rule" {
+		t.Errorf("status message = %q, want adopted update", got.Status.Message)
 	}
 	if got.Status.ProposedChanges != "" {
 		t.Errorf("unexpected proposed changes: %q", got.Status.ProposedChanges)

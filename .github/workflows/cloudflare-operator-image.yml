@@ -3,8 +3,9 @@ name: Cloudflare Operator Image
 # PR validation + ad-hoc image build for cloudflare-operator, the
 # Kubernetes controller that reconciles CRDs under cloudflare.tuist.dev
 # against the Cloudflare API so that zone-level configuration (rate
-# limits today, cache rules / WAF custom rules / AI Crawl Control /
-# zone settings as follow-on CRDs) lives in git.
+# limits and Web Application Firewall custom rules today, with cache rules,
+# crawler controls, and zone settings as possible follow-on resources) lives
+# in git.
 #
 # Steady-state image promotion for the operator will follow the same
 # pattern as the other infra controllers; today this workflow handles

@@ -17,5 +17,5 @@ description: >
   local state volume to attach.
 
 type: application
-version: 0.1.1
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
