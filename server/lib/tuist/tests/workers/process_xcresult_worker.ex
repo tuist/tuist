@@ -50,7 +50,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # account to serve the bundle from. Surfacing these as Oban errors lights
   # up Sentry every five attempts for a state a replay cannot fix, so mark
   # the run `failed_processing` once and cancel the job.
-  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found, :project_not_found]
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found, :project_not_found, :object_not_found]
 
   # A parse timeout is the one failure that costs a worker slot the full
   # NIF deadline (10 minutes) before it reports anything, so it is also the
