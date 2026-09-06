@@ -2,7 +2,6 @@ defmodule Tuist.Tests.StressNewTestsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
@@ -112,36 +111,42 @@ defmodule Tuist.Tests.StressNewTestsTest do
              ]
     end
 
-    test "excludes candidates beyond the project's cap", %{project: project, account: account} do
-      run_on_main(project, account, ["testOld"])
-      project = %{project | stress_new_tests_candidate_cap: 1}
+    test "excludes the candidates beyond the cap", %{project: project, account: account} do
+      cap = StressNewTests.parameters().candidate_cap
+      # Large enough that the bulk-change guard does not fire before the cap does.
+      run_on_main(project, account, Enum.map(1..(cap * 4), &"testOld#{&1}"))
+      # Zero-padded so the candidates are priced in numeric order.
+      name = &"testNew#{String.pad_leading(to_string(&1), 4, "0")}"
+      new_cases = Enum.map(1..(cap + 1), &case_attrs(name.(&1)))
 
-      plan = StressNewTests.plan(project, [case_attrs("testB"), case_attrs("testA")])
+      plan = StressNewTests.plan(project, new_cases)
 
-      assert Enum.map(plan.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
-               {"testA", 10, nil},
-               {"testB", 0, "candidate_cap"}
+      assert plan.guard == nil
+      {stressed, excluded} = Enum.split_with(plan.candidates, &is_nil(&1.excluded_reason))
+      assert length(stressed) == cap
+
+      assert Enum.map(excluded, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
+               {name.(cap + 1), 0, "candidate_cap"}
              ]
     end
 
     test "fires the bulk-change guard only above the floor", %{project: project, account: account} do
+      floor = StressNewTests.parameters().bulk_change_floor
       run_on_main(project, account, ["testOld"])
-      new_cases = Enum.map(1..3, &case_attrs("testNew#{&1}"))
 
-      below_floor = StressNewTests.plan(project, new_cases)
+      below_floor = StressNewTests.plan(project, Enum.map(1..(floor - 1), &case_attrs("testNew#{&1}")))
       assert below_floor.guard == nil
-      assert length(below_floor.candidates) == 3
+      assert length(below_floor.candidates) == floor - 1
 
-      project = %{project | stress_new_tests_bulk_change_floor: 3}
-      above_floor = StressNewTests.plan(project, new_cases)
-      assert above_floor.guard == %{kind: "bulk_change", new_count: 3, inventory_count: 1}
+      above_floor = StressNewTests.plan(project, Enum.map(1..floor, &case_attrs("testNew#{&1}")))
+      assert above_floor.guard == %{kind: "bulk_change", new_count: floor, inventory_count: 1}
       assert above_floor.candidates == []
     end
   end
 
   describe "repetitions_for/2" do
     test "returns the first bucket the duration fits in and zero past the curve" do
-      curve = StressNewTests.parameters(%Project{}).repetition_curve
+      curve = StressNewTests.parameters().repetition_curve
 
       assert StressNewTests.repetitions_for(nil, curve) == 10
       assert StressNewTests.repetitions_for(5_000, curve) == 10
@@ -339,49 +344,6 @@ defmodule Tuist.Tests.StressNewTestsTest do
 
       refute changeset.valid?
       assert %{source: ["is invalid"]} = errors_on(changeset)
-    end
-
-    test "a project accepts a curve and rejects parameters outside their bounds", %{project: project} do
-      curve = [%{"max_duration_ms" => 5_000, "repetitions" => 10}]
-
-      changeset =
-        Project.update_changeset(project, %{
-          stress_new_tests_repetition_curve: curve,
-          stress_new_tests_candidate_cap: 50,
-          stress_new_tests_wall_clock_ceiling_ms: 60_000,
-          stress_new_tests_bulk_change_ratio: 0.5,
-          stress_new_tests_bulk_change_floor: 0
-        })
-
-      assert changeset.valid?
-      assert Ecto.Changeset.get_change(changeset, :stress_new_tests_repetition_curve) == curve
-
-      changeset =
-        Project.update_changeset(project, %{
-          stress_new_tests_candidate_cap: 0,
-          stress_new_tests_wall_clock_ceiling_ms: 0,
-          stress_new_tests_bulk_change_ratio: 1.5,
-          stress_new_tests_bulk_change_floor: -1
-        })
-
-      refute changeset.valid?
-      errors = errors_on(changeset)
-      assert errors[:stress_new_tests_candidate_cap]
-      assert errors[:stress_new_tests_wall_clock_ceiling_ms]
-      assert errors[:stress_new_tests_bulk_change_ratio]
-      assert errors[:stress_new_tests_bulk_change_floor]
-    end
-
-    test "the stored curve is what the plan prices repetitions from", %{project: project, account: account} do
-      run_on_main(project, account, ["testOld"])
-      project = %{project | stress_new_tests_repetition_curve: [%{"max_duration_ms" => 100, "repetitions" => 2}]}
-
-      plan = StressNewTests.plan(project, [case_attrs("testFast", 50), case_attrs("testSlow", 500)])
-
-      assert Enum.map(plan.candidates, &{&1.name, &1.repetitions, &1.excluded_reason}) == [
-               {"testFast", 2, nil},
-               {"testSlow", 0, "too_slow"}
-             ]
     end
   end
 

@@ -4,13 +4,12 @@ defmodule Tuist.Tests.StressNewTests do
 
   The client runs the suite, sends the test cases that executed, and gets back
   the subset that has not run in CI on the project's default branch in the
-  trailing ninety days, each
-  priced with the number of repetitions its own duration earns on the project's
-  curve. The guards whose inputs only the server holds (the default branch and
-  its history, the size of the project's inventory) are decided here and
-  returned as a signal the client prints. The candidate cap is applied here too,
-  so both clients only have to run what they are handed and stop at the
-  wall-clock ceiling.
+  trailing ninety days, each priced with the number of repetitions its own
+  duration earns on the repetition curve. The guards whose inputs only the
+  server holds (the default branch and its history, the size of the project's
+  inventory) are decided here and returned as a signal the client prints. The
+  candidate cap is applied here too, so both clients only have to run what they
+  are handed and stop at the wall-clock ceiling.
 
   The gate's verdict per candidate is recorded in `test_run_stress_candidates`.
   The reruns themselves are executions of the test case like any other, so they
@@ -38,38 +37,35 @@ defmodule Tuist.Tests.StressNewTests do
   # Trailing window of default-branch CI history a test case is looked up in.
   @window_days 90
 
+  # The curve is ordered ascending: the first bucket a duration fits wins, and a
+  # test case slower than the last bucket is excluded.
+  @parameters %{
+    repetition_curve: [
+      %{max_duration_ms: 5_000, repetitions: 10},
+      %{max_duration_ms: 10_000, repetitions: 5},
+      %{max_duration_ms: 30_000, repetitions: 3},
+      %{max_duration_ms: 300_000, repetitions: 2}
+    ],
+    candidate_cap: 200,
+    wall_clock_ceiling_ms: 600_000,
+    bulk_change_ratio: 0.3,
+    bulk_change_floor: 50
+  }
+
   def modes, do: @modes
   def run_outcomes, do: @run_outcomes
   def skip_reasons, do: @skip_reasons
   def guard_kinds, do: @guard_kinds
   def excluded_reasons, do: @excluded_reasons
 
-  def parameters(project) do
-    %{
-      repetition_curve:
-        project.stress_new_tests_repetition_curve
-        |> Enum.map(fn bucket ->
-          %{
-            max_duration_ms: fetch_bucket(bucket, :max_duration_ms),
-            repetitions: fetch_bucket(bucket, :repetitions)
-          }
-        end)
-        |> Enum.sort_by(& &1.max_duration_ms),
-      candidate_cap: project.stress_new_tests_candidate_cap,
-      wall_clock_ceiling_ms: project.stress_new_tests_wall_clock_ceiling_ms,
-      bulk_change_ratio: project.stress_new_tests_bulk_change_ratio,
-      bulk_change_floor: project.stress_new_tests_bulk_change_floor
-    }
-  end
-
-  defp fetch_bucket(bucket, key), do: Map.get(bucket, key) || Map.fetch!(bucket, Atom.to_string(key))
+  def parameters, do: @parameters
 
   @doc """
   Decides which of `test_cases` (maps with `name`, `suite_name`, `module_name`
   and `duration` in milliseconds) the gate should stress for `project`.
   """
   def plan(project, test_cases) do
-    parameters = parameters(project)
+    parameters = parameters()
 
     project
     |> compute(dedupe(test_cases), parameters)

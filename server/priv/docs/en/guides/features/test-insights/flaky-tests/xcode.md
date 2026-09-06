@@ -115,7 +115,7 @@ Pass the option ahead of the passthrough arguments, or set the `TUIST_TEST_STRES
 tuist xcodebuild test --stress-new-tests report -scheme MyScheme
 ```
 
-Each new test case is rerun according to its own duration: up to 5 seconds earns 10 repetitions, up to 10 seconds 5, up to 30 seconds 3, up to 5 minutes 2, and slower test cases are excluded and reported as such. The pass reuses what the first pass built, is capped at 200 candidates and 10 minutes of wall-clock time, and every bound reports when it bites. The parameters are stored on the project and tuned by Tuist from telemetry, so they never require a CLI release.
+Each new test case is rerun according to its own duration: up to 5 seconds earns 10 repetitions, up to 10 seconds 5, up to 30 seconds 3, up to 5 minutes 2, and slower test cases are excluded and reported as such. The pass reuses what the first pass built, is capped at 200 candidates and 10 minutes of wall-clock time, and every bound reports when it bites. The bounds are set by Tuist and travel with the plan, so they never require a CLI release.
 
 The gate runs nothing, and says so, when the first pass already failed, when the project has no default branch or no CI history on it yet, or when more than 30% of the project's test inventory reads as new (a renamed module, for example). A branch that adds no tests prints nothing and costs one request. If the server cannot be reached, the run's own result stands: the gate never blocks a merge because Tuist was down.
 
