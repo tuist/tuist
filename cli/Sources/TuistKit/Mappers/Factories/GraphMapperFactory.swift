@@ -273,6 +273,13 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 preserveGraphBeforeFocus: shouldPreserveHashingGraph
             )
 
+            // Emptying `includedTargets` above also drops the focus mapper, and with it the only
+            // check that the requested targets exist. Validate them separately so a misspelled
+            // target fails instead of silently generating the whole workspace.
+            if includedTargets.isEmpty, !cacheSources.isEmpty {
+                mappers.append(ValidateIncludedTargetsGraphMapper(includedTargets: cacheSources))
+            }
+
             if cacheProfile != .none {
                 if !shouldPreserveHashingGraph {
                     mappers.append(

@@ -145,6 +145,15 @@ public struct GenerateService {
             cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
         }
 
+        if !includedTargets.isEmpty,
+           config.project.generatedProject?.cacheOptions.keepSourceTargets == true
+        {
+            AlertController.current.warning(.alert(
+                "The targets you passed don't scope the generated project.",
+                takeaway: "keepSourceTargets keeps every target in the project and looks up every replaceable target in the cache. Disable it to generate a focused project."
+            ))
+        }
+
         let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: includedTargets,
