@@ -1,7 +1,7 @@
 import Foundation
 import XCLogParser
 
-struct TimelineLog {
+struct BuildStepLog {
     struct Key: Hashable {
         let signature: String
         let start: Double

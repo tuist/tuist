@@ -68,51 +68,51 @@ struct XCActivityLogParserTests {
     // MARK: - Incremental Build
 
     @Test(arguments: ["clean-build", "incremental-build", "xcode_26_cas_incremental_build", "failed-build"])
-    func timeline_usesOnlyIntervalsFromThisBuild(fixture: String) async throws {
+    func buildSteps_usesOnlyIntervalsFromThisBuild(fixture: String) async throws {
         let result = try await parseFixture(fixture)
-        #expect(!result.timeline_events.isEmpty)
-        #expect(Set(result.timeline_events.map(\.event_id)).count == result.timeline_events.count)
+        #expect(!result.build_steps.isEmpty)
+        #expect(Set(result.build_steps.map(\.event_id)).count == result.build_steps.count)
         let duration = (result.time_stopped_recording - result.time_started_recording) * 1000
-        for event in result.timeline_events {
+        for event in result.build_steps {
             #expect(event.start_ms >= 0)
             #expect(event.duration_ms > 0)
             #expect(event.start_ms + event.duration_ms <= duration + 0.001)
         }
     }
 
-    @Test func timeline_classifiesModernSwiftCompilation() async throws {
+    @Test func buildSteps_classifiesModernSwiftCompilation() async throws {
         let result = try await parseFixture("clean-build")
-        #expect(result.timeline_events.contains { $0.category == "swiftCompilation" && $0.target == "App" })
-        #expect(result.timeline_events.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emit Swift module") })
-        #expect(result.timeline_events.contains { $0.category == "scriptExecution" })
-        #expect(!result.timeline_events.contains { $0.title.hasPrefix("Build target ") })
+        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.target == "App" })
+        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emit Swift module") })
+        #expect(result.build_steps.contains { $0.category == "scriptExecution" })
+        #expect(!result.build_steps.contains { $0.title.hasPrefix("Build target ") })
     }
 
-    @Test func timeline_retainsRecordedStepCommands() async throws {
+    @Test func buildSteps_retainsRecordedStepCommands() async throws {
         let result = try await parseFixture("xcode_26_cas_clean_build")
-        let step = try #require(result.timeline_events.first { $0.log.hasPrefix("EmitSwiftModule normal") })
+        let step = try #require(result.build_steps.first { $0.log.hasPrefix("EmitSwiftModule normal") })
         #expect(step.log.contains("EmitSwiftModule normal"))
         #expect(step.log.contains("cd "))
         #expect(!step.log_truncated)
     }
 
-    @Test func timeline_logPreservesOutputAndBoundsUTF8() {
-        let log = TimelineLog.render(signature: "Compile App", command: "cd /workspace", output: "<warning>\nhello", messages: ["<warning>", "note"], limit: 1000)
+    @Test func buildSteps_logPreservesOutputAndBoundsUTF8() {
+        let log = BuildStepLog.render(signature: "Compile App", command: "cd /workspace", output: "<warning>\nhello", messages: ["<warning>", "note"], limit: 1000)
         #expect(log.text == "Compile App\ncd /workspace\n<warning>\nhello\nnote")
         #expect(!log.truncated)
-        let truncated = TimelineLog.render(signature: "a🙂b", command: "", output: "", messages: [], limit: 4)
+        let truncated = BuildStepLog.render(signature: "a🙂b", command: "", output: "", messages: [], limit: 4)
         #expect(truncated.text == "a")
         #expect(truncated.truncated)
-        #expect(TimelineLog.render(signature: "command", command: "", output: "", messages: [], limit: 0).truncated)
+        #expect(BuildStepLog.render(signature: "command", command: "", output: "", messages: [], limit: 0).truncated)
     }
 
-    @Test func timeline_rejectsStaleAndInvalidIntervals() {
-        #expect(TimelineEvent.interval(start: 9, end: 11, buildStart: 10, buildEnd: 20) == nil)
-        #expect(TimelineEvent.interval(start: 11, end: 21, buildStart: 10, buildEnd: 20) == nil)
-        #expect(TimelineEvent.interval(start: 12, end: 11, buildStart: 10, buildEnd: 20) == nil)
-        #expect(TimelineEvent.interval(start: 12, end: 12, buildStart: 10, buildEnd: 20) == nil)
-        #expect(TimelineEvent.interval(start: .nan, end: 12, buildStart: 10, buildEnd: 20) == nil)
-        let interval = TimelineEvent.interval(start: 10.5, end: 12, buildStart: 10, buildEnd: 20)
+    @Test func buildSteps_rejectsStaleAndInvalidIntervals() {
+        #expect(BuildStepData.interval(start: 9, end: 11, buildStart: 10, buildEnd: 20) == nil)
+        #expect(BuildStepData.interval(start: 11, end: 21, buildStart: 10, buildEnd: 20) == nil)
+        #expect(BuildStepData.interval(start: 12, end: 11, buildStart: 10, buildEnd: 20) == nil)
+        #expect(BuildStepData.interval(start: 12, end: 12, buildStart: 10, buildEnd: 20) == nil)
+        #expect(BuildStepData.interval(start: .nan, end: 12, buildStart: 10, buildEnd: 20) == nil)
+        let interval = BuildStepData.interval(start: 10.5, end: 12, buildStart: 10, buildEnd: 20)
         #expect(interval?.0 == 500)
         #expect(interval?.1 == 1500)
     }

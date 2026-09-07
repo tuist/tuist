@@ -342,7 +342,7 @@ defmodule TuistWeb.BuildRunLive do
   @impl true
   def handle_event("load-timeline-log", %{"event_id" => event_id}, socket)
       when is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991 do
-    log = Builds.build_timeline_log(socket.assigns.run.id, event_id)
+    log = Builds.build_step_log(socket.assigns.run.id, event_id)
     {:reply, %{log: log}, socket}
   end
 

@@ -12,7 +12,7 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
-  alias Tuist.Builds.TimelineEvent
+  alias Tuist.Builds.Step
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -155,7 +155,7 @@ defmodule Tuist.Builds do
       create_cacheable_tasks(build_map, cacheable_tasks)
       create_cas_outputs(build_map, cas_outputs)
       create_machine_metrics(build_map, machine_metrics)
-      create_timeline_events(build_map, Map.get(attrs, :timeline_events, []))
+      create_build_steps(build_map, Map.get(attrs, :build_steps, []))
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
 
@@ -199,22 +199,22 @@ defmodule Tuist.Builds do
     BuildFile.Buffer.insert_all(files)
   end
 
-  defp create_timeline_events(build, events) do
+  defp create_build_steps(build, steps) do
     inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
 
     entries =
-      Enum.map(events, fn event ->
-        event
+      Enum.map(steps, fn step ->
+        step
         |> Map.take([:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
         |> Map.merge(%{
           build_run_id: build.id,
           inserted_at: inserted_at,
-          log: Map.get(event, :log, ""),
-          log_truncated: Map.get(event, :log_truncated, false)
+          log: Map.get(step, :log, ""),
+          log_truncated: Map.get(step, :log_truncated, false)
         })
       end)
 
-    TimelineEvent.Buffer.insert_all(entries)
+    Step.Buffer.insert_all(entries)
   end
 
   def build_timeline(build_run_id) do
@@ -222,7 +222,7 @@ defmodule Tuist.Builds do
 
     events =
       ClickHouseRepo.all(
-        from(e in TimelineEvent,
+        from(e in Step,
           hints: ["FINAL"],
           where: e.build_run_id == ^build_run_id,
           order_by: [asc: e.start_ms, asc: e.event_id],
@@ -234,9 +234,9 @@ defmodule Tuist.Builds do
     %{events: Enum.take(events, limit), truncated: length(events) > limit}
   end
 
-  def build_timeline_log(build_run_id, event_id) when is_integer(event_id) and event_id >= 0 do
+  def build_step_log(build_run_id, event_id) when is_integer(event_id) and event_id >= 0 do
     ClickHouseRepo.one(
-      from(e in TimelineEvent,
+      from(e in Step,
         hints: ["FINAL"],
         where: e.build_run_id == ^build_run_id and e.event_id == ^event_id,
         select: map(e, [:log, :log_truncated]),

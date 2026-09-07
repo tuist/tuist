@@ -1,10 +1,12 @@
-defmodule Tuist.Builds.TimelineEvent do
-  @moduledoc false
+defmodule Tuist.Builds.Step do
+  @moduledoc """
+  Recorded leaf operations from a build activity log, shared by build analytics views.
+  """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
   @primary_key false
-  schema "build_timeline_events" do
+  schema "build_steps" do
     field :build_run_id, Ecto.UUID
     field :event_id, Ch, type: "UInt64"
     field :title, :string

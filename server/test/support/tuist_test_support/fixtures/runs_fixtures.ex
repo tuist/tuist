@@ -71,7 +71,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         issues: Keyword.get(attrs, :issues, []),
         files: Keyword.get(attrs, :files, []),
         targets: Keyword.get(attrs, :targets, []),
-        timeline_events: Keyword.get(attrs, :timeline_events, []),
+        build_steps: Keyword.get(attrs, :build_steps, []),
         cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
         cas_outputs: Keyword.get(attrs, :cas_outputs, []),
         cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),

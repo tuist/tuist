@@ -79,16 +79,16 @@ public struct XCActivityLogParser: Sendable {
             files: files,
             cacheable_tasks: cacheableTasks,
             cas_outputs: casOutputs,
-            timeline_events: extractTimeline(from: steps, build: buildStep, activityLog: activityLog)
+            build_steps: extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog)
         )
     }
 
     // MARK: - Build Steps
 
-    private func extractTimeline(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog) -> [TimelineEvent] {
-        var logs = TimelineLog(root: activityLog.mainSection)
+    private func extractBuildSteps(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog) -> [BuildStepData] {
+        var logs = BuildStepLog(root: activityLog.mainSection)
         var targets = [String: (String, String)]()
-        var events = [TimelineEvent]()
+        var events = [BuildStepData]()
         for (index, step) in steps.enumerated() {
             let inherited = targets[step.parentIdentifier] ?? ("", "")
             let target = step.type == .target && step.title.hasPrefix("Build target ")
@@ -101,19 +101,19 @@ public struct XCActivityLogParser: Sendable {
             // Container steps include their children's time. Emitting only leaf
             // operations avoids counting Swift driver and target wrappers twice.
             guard step.type == .detail, step.subSteps.isEmpty,
-                  let (start, duration) = TimelineEvent.interval(
+                  let (start, duration) = BuildStepData.interval(
                       start: step.startTimestamp, end: step.endTimestamp,
                       buildStart: build.startTimestamp, buildEnd: build.endTimestamp
                   )
             else { continue }
 
             let log = logs.extract(step: step)
-            events.append(TimelineEvent(
+            events.append(BuildStepData(
                 event_id: index,
                 title: String(step.title.prefix(1000)),
                 target: target,
                 project: project,
-                category: timelineCategory(step),
+                category: buildStepCategory(step),
                 start_ms: start,
                 duration_ms: duration,
                 status: (step.errors ?? []).contains { $0.severity == 2 } ? "failure" : "success",
@@ -124,7 +124,7 @@ public struct XCActivityLogParser: Sendable {
         return events
     }
 
-    private func timelineCategory(_ step: BuildStep) -> String {
+    private func buildStepCategory(_ step: BuildStep) -> String {
         if step.signature.hasPrefix("SwiftCompile ") || step.signature.hasPrefix("SwiftEmitModule ")
             || step.signature.hasPrefix("EmitSwiftModule ") {
             return "swiftCompilation"

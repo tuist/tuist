@@ -1,8 +1,8 @@
-defmodule Tuist.IngestRepo.Migrations.CreateBuildTimelineEvents do
+defmodule Tuist.IngestRepo.Migrations.CreateBuildSteps do
   use Ecto.Migration
 
   def change do
-    create table(:build_timeline_events,
+    create table(:build_steps,
              primary_key: false,
              engine: "ReplacingMergeTree",
              options:

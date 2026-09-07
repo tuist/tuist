@@ -39,7 +39,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       status: "success"
     }
 
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, timeline_events: [event])
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, build_steps: [event])
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
     refute has_element?(lv, "#build-timeline")
     lv |> element("a", "Timeline") |> render_click()

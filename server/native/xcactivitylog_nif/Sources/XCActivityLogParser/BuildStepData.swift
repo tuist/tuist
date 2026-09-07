@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TimelineEvent: Encodable, Sendable {
+public struct BuildStepData: Encodable, Sendable {
     public let event_id: Int
     public let title: String
     public let target: String

@@ -20,8 +20,8 @@ defmodule Tuist.BuildsTest do
         status: "success"
       }
 
-      {:ok, build} = RunsFixtures.build_fixture(timeline_events: [event, event])
-      {:ok, other} = RunsFixtures.build_fixture(timeline_events: [%{event | title: "Other.swift"}])
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event, event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | title: "Other.swift"}])
 
       assert %{events: [stored], truncated: false} = Builds.build_timeline(build.id)
       assert stored.title == "Compile App.swift"
@@ -44,11 +44,11 @@ defmodule Tuist.BuildsTest do
         log_truncated: true
       }
 
-      {:ok, build} = RunsFixtures.build_fixture(timeline_events: [event])
-      {:ok, other} = RunsFixtures.build_fixture(timeline_events: [%{event | log: "Other command"}])
-      assert Builds.build_timeline_log(build.id, 3) == %{log: event.log, log_truncated: true}
-      assert Builds.build_timeline_log(other.id, 3).log == "Other command"
-      assert Builds.build_timeline_log(build.id, 4) == nil
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | log: "Other command"}])
+      assert Builds.build_step_log(build.id, 3) == %{log: event.log, log_truncated: true}
+      assert Builds.build_step_log(other.id, 3).log == "Other command"
+      assert Builds.build_step_log(build.id, 4) == nil
       assert %{events: [stored]} = Builds.build_timeline(build.id)
       refute Map.has_key?(stored, :log)
     end

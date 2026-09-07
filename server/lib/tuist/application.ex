@@ -13,7 +13,7 @@ defmodule Tuist.Application do
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
-  alias Tuist.Builds.TimelineEvent
+  alias Tuist.Builds.Step
   alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
@@ -302,7 +302,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
         Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
         Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
-        Supervisor.child_spec(TimelineEvent.Buffer, id: TimelineEvent.Buffer),
+        Supervisor.child_spec(Step.Buffer, id: Step.Buffer),
         Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
         Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
         Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
