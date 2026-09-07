@@ -44,6 +44,7 @@ use crate::{
         BackfillBodyFramePrelude, BackfillEntriesPage, BackfillEntry, BackfillUnavailable,
         read_backfill_body_frame_prelude,
     },
+    reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
     store::{BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
@@ -1077,6 +1078,65 @@ where
         )));
     };
     let state = context.state;
+    // Recipes are indexed as capacity-sensitive records even though their
+    // bodies are inline. That keeps an age-bounded pass from accepting a
+    // recipe after it has deliberately stopped fetching segment-backed
+    // chunks. Store the body inline here so the normal recipe reader can use
+    // it after catch-up.
+    if producer == ArtifactProducer::Reapi && is_recipe_key(&meta.key) {
+        if prelude.body_len > MAX_INLINE_REPLICATION_BODY_BYTES {
+            let mut sink = tokio::io::sink();
+            tokio::io::copy(&mut reader.take(prelude.body_len), &mut sink)
+                .await
+                .map_err(|error| {
+                    PassAbort::Hard(format!("failed to discard oversized recipe body: {error}"))
+                })?;
+            return Ok(PresentApply::SkippedUnusable);
+        }
+        let mut body = vec![0_u8; prelude.body_len as usize];
+        reader.read_exact(&mut body).await.map_err(|error| {
+            PassAbort::Hard(format!("failed to read backfill recipe body: {error}"))
+        })?;
+        return match deferred {
+            Some(batch) => {
+                let staged = state
+                    .store
+                    .stage_backfill_inline_apply(
+                        batch,
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        &body,
+                        prelude.version_ms,
+                        meta.branch.as_deref(),
+                    )
+                    .await
+                    .map_err(PassAbort::Hard)?;
+                Ok(match staged {
+                    BackfillStageOutcome::Staged => PresentApply::Staged,
+                    BackfillStageOutcome::Converged => PresentApply::Applied,
+                })
+            }
+            None => {
+                state
+                    .store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        &body,
+                        prelude.version_ms,
+                        meta.branch.as_deref(),
+                        None,
+                    )
+                    .await
+                    .map_err(PassAbort::Hard)?;
+                Ok(PresentApply::Applied)
+            }
+        };
+    }
     match prelude.kind {
         BackfillRecordKind::NamespaceTombstone => Err(PassAbort::Hard(
             "present frame carries a tombstone kind".to_owned(),

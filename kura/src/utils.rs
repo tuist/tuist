@@ -580,6 +580,19 @@ pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
     format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0")
 }
 
+/// Reverse index from a physical CAS chunk to the chunked-blob recipes that
+/// reference it. It shares the existing key-value column family so a binary
+/// predating chunked blobs can still open the database during rollback.
+const CHUNK_RECIPE_REF_PREFIX: &str = "chunk_ref/";
+
+pub fn chunk_recipe_ref_key(chunk_artifact_id: &str, recipe_artifact_id: &str) -> String {
+    format!("{CHUNK_RECIPE_REF_PREFIX}{chunk_artifact_id}\0{recipe_artifact_id}")
+}
+
+pub fn chunk_recipe_ref_prefix(chunk_artifact_id: &str) -> String {
+    format!("{CHUNK_RECIPE_REF_PREFIX}{chunk_artifact_id}\0")
+}
+
 /// Reserved keyspace for the backfill subsystem, shared with inline-artifact
 /// bytes and `blob_ref/` rows in the `key_value` column family for the same
 /// rollback-safety reason as [`ACTION_CACHE_BLOB_REF_PREFIX`]: a new column
