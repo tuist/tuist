@@ -295,7 +295,10 @@ defmodule TuistWeb.GradleBuildLiveTest do
       )
 
     assert cache_html =~ "No remote entry, then stored"
-    assert cache_html =~ "Confirmed remote misses"
+    refute cache_html =~ "Confirmed remote misses"
+    refute cache_html =~ "Missed execution time"
+    refute cache_html =~ "Remote entries stored"
+    assert length(Floki.find(Floki.parse_fragment!(cache_html), "[data-part=cache-summary-card] .tuist-widget")) == 5
 
     {:ok, lv, setup_html} =
       live(
