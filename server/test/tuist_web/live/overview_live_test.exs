@@ -189,11 +189,87 @@ defmodule TuistWeb.OverviewLiveTest do
 
       assert has_element?(lv, ".bazel-overview")
       assert has_element?(lv, "[data-part=analytics-card]", "Analytics")
+      assert has_element?(lv, "[data-part=analytics-content]")
+      assert has_element?(lv, "#bazel-overview-analytics-environment-dropdown")
       assert has_element?(lv, "[data-part=invocations-card]", "Invocations")
+      assert has_element?(lv, "#bazel-overview-builds-environment-dropdown")
       assert has_element?(lv, "[data-part=invocations-card]", "No invocations yet")
       refute has_element?(lv, "#bazel-recent-invocations-chart")
       refute has_element?(lv, "#bazel-average-invocation-duration-chart")
       refute has_element?(lv, "[data-part=bazel-remote-cache]")
+    end
+
+    test "filters Bazel overview invocations by environment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      base_invocation = %{
+        command: "build",
+        status: "success",
+        exit_code: 0,
+        started_at: NaiveDateTime.add(now, -5, :second),
+        finished_at: now,
+        duration_ms: 5_000,
+        project_id: project.id,
+        account_handle: project.account.name,
+        project_handle: project.name,
+        cache_endpoint: "cache.tuist.dev"
+      }
+
+      Bazel.create_invocations([
+        Map.merge(base_invocation, %{invocation_id: "local-overview-invocation", is_ci: false}),
+        Map.merge(base_invocation, %{invocation_id: "ci-overview-invocation", is_ci: true})
+      ])
+
+      cache_event = %{
+        client_kind: "bazel",
+        operation: "action_cache",
+        action_digest: "action",
+        size: 128,
+        duration_ms: 5,
+        action_mnemonic: "SwiftCompile",
+        target_label: "//App:App",
+        configuration_id: "config-1",
+        project_id: project.id,
+        account_handle: project.account.name,
+        project_handle: project.name,
+        cache_endpoint: "cache.tuist.dev"
+      }
+
+      ReapiCache.create_cache_events([
+        Map.merge(cache_event, %{
+          invocation_id: "local-overview-invocation",
+          outcome: "miss"
+        }),
+        Map.merge(cache_event, %{
+          invocation_id: "ci-overview-invocation",
+          outcome: "hit"
+        })
+      ])
+
+      params = %{
+        "analytics-environment" => "ci",
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2000-01-01T00:00:00Z",
+        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "builds-environment" => "ci",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+
+      {:ok, lv, _html} = live(conn, path)
+      html = render_async(lv, @render_async_timeout)
+
+      assert html =~ "ci-overview-invocation"
+      refute html =~ "local-overview-invocation"
+      assert has_element?(lv, "#bazel-action-cache-hit-rate", "100.0%")
+      assert has_element?(lv, "#bazel-action-cache-lookups", "1")
     end
 
     test "applies the invocation date range to both overview charts", %{

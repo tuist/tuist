@@ -689,7 +689,7 @@ defmodule TuistWeb.BazelCacheLive do
   defp hit_rate_title("p99"), do: dgettext("dashboard_projects", "p99 action cache hit rate")
   defp hit_rate_title("p90"), do: dgettext("dashboard_projects", "p90 action cache hit rate")
   defp hit_rate_title("p50"), do: dgettext("dashboard_projects", "p50 action cache hit rate")
-  defp hit_rate_title(_), do: dgettext("dashboard_projects", "Avg. action cache hit rate")
+  defp hit_rate_title(_), do: dgettext("dashboard_projects", "Avg. cache hit rate")
   defp percentile_legend_color("p99"), do: "p99"
   defp percentile_legend_color("p90"), do: "p90"
   defp percentile_legend_color("p50"), do: "p50"

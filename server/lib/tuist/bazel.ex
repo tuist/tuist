@@ -500,6 +500,28 @@ defmodule Tuist.Bazel do
     )
   end
 
+  def list_invocation_log_tail(project_id, invocation_id, before_sequence_number, limit, opts \\ []) do
+    query = invocation_log_query(project_id, invocation_id, opts)
+
+    query =
+      if is_integer(before_sequence_number) do
+        where(query, [log], log.sequence_number < ^before_sequence_number)
+      else
+        query
+      end
+
+    query
+    |> then(
+      &ClickHouseRepo.all(
+        from(log in &1,
+          order_by: [desc: log.sequence_number],
+          limit: ^limit
+        )
+      )
+    )
+    |> Enum.reverse()
+  end
+
   def invocation_log_query_options(invocation) do
     [
       start_datetime: shift_datetime(invocation.started_at, -@ingest_pruning_slack_seconds),
@@ -615,6 +637,7 @@ defmodule Tuist.Bazel do
       |> from(hints: ["FINAL"])
       |> where([invocation], invocation.project_id == ^project_id)
       |> maybe_filter_commands(Keyword.get(opts, :commands))
+      |> maybe_filter_environment(Keyword.get(opts, :is_ci))
 
     query =
       case Keyword.get(opts, :start_datetime) do
@@ -731,6 +754,12 @@ defmodule Tuist.Bazel do
   end
 
   defp maybe_filter_commands(query, _commands), do: query
+
+  defp maybe_filter_environment(query, is_ci) when is_boolean(is_ci) do
+    where(query, [invocation], invocation.is_ci == ^is_ci)
+  end
+
+  defp maybe_filter_environment(query, _is_ci), do: query
 
   defp cache_summary_query_options(invocations) do
     first_started_at = invocations |> Enum.min_by(& &1.started_at, NaiveDateTime) |> Map.fetch!(:started_at)

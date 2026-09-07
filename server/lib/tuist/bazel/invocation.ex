@@ -4,7 +4,7 @@ defmodule Tuist.Bazel.Invocation do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :command, :inserted_at],
+    filterable: [:project_id, :status, :command, :is_ci, :inserted_at],
     sortable: [:inserted_at, :started_at, :finished_at, :duration_ms, :status, :command],
     default_order: %{order_by: [:finished_at], order_directions: [:desc]}
   }

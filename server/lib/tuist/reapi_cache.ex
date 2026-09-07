@@ -3,6 +3,7 @@ defmodule Tuist.ReapiCache do
 
   import Ecto.Query
 
+  alias Tuist.Bazel.Invocation
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
@@ -632,7 +633,10 @@ defmodule Tuist.ReapiCache do
   end
 
   defp cache_event_query(project_id, opts) do
-    query = from(event in CacheEvent, where: event.project_id == ^project_id)
+    query =
+      CacheEvent
+      |> from(where: [project_id: ^project_id])
+      |> maybe_filter_invocation_environment(project_id, Keyword.get(opts, :is_ci))
 
     query =
       case Keyword.get(opts, :start_datetime) do
@@ -665,6 +669,19 @@ defmodule Tuist.ReapiCache do
         )
     end
   end
+
+  defp maybe_filter_invocation_environment(query, project_id, is_ci) when is_boolean(is_ci) do
+    invocation_ids =
+      from(invocation in Invocation,
+        hints: ["FINAL"],
+        where: invocation.project_id == ^project_id and invocation.is_ci == ^is_ci,
+        select: invocation.invocation_id
+      )
+
+    where(query, [event], event.invocation_id in subquery(invocation_ids))
+  end
+
+  defp maybe_filter_invocation_environment(query, _project_id, _is_ci), do: query
 
   defp cache_event_ingest_query(project_id, options) do
     query = from(event in CacheEvent, where: event.project_id == ^project_id)

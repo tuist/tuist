@@ -21,7 +21,15 @@
     }
   }
 
-  & [data-part="filters"] {
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="bazel-invocations-table-section"] > [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }

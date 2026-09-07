@@ -50,8 +50,8 @@ defmodule TuistWeb.BazelInvocationLive do
          |> assign(:selected_tab, "overview")
          |> assign(:logs, [])
          |> assign(:log_output, "")
-         |> assign(:logs_current_page, 1)
-         |> assign(:logs_total_pages, 0)
+         |> assign(:logs_oldest_sequence_number, nil)
+         |> assign(:logs_have_older, false)
          |> assign(:available_filters, cache_filters("actions"))
          |> assign(:cache_events, [])
          |> assign(:cache_detail_metrics, ReapiCache.empty_invocation_detail_metrics())
@@ -83,21 +83,11 @@ defmodule TuistWeb.BazelInvocationLive do
     project = socket.assigns.selected_project
     invocation = socket.assigns.invocation
 
-    {logs, logs_meta} =
+    {logs, logs_have_older} =
       if selected_tab == "logs" do
-        Bazel.list_invocation_logs(
-          project.id,
-          invocation.invocation_id,
-          %{
-            order_by: [:sequence_number],
-            order_directions: [:asc],
-            page: parse_page(params["logs-page"]),
-            page_size: @logs_page_size
-          },
-          Bazel.invocation_log_query_options(invocation)
-        )
+        load_log_tail(project.id, invocation, nil)
       else
-        {[], %{current_page: 1, total_pages: 0}}
+        {[], false}
       end
 
     {cache_events, cache_detail_metrics, cache_meta, active_cache_filters, available_filters, cache_sort_by,
@@ -114,8 +104,8 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:selected_tab, selected_tab)
      |> assign(:logs, logs)
      |> assign(:log_output, Enum.map_join(logs, "", & &1.message))
-     |> assign(:logs_current_page, logs_meta.current_page)
-     |> assign(:logs_total_pages, logs_meta.total_pages)
+     |> assign(:logs_oldest_sequence_number, oldest_log_sequence_number(logs))
+     |> assign(:logs_have_older, logs_have_older)
      |> assign(:uri, URI.new!(uri))
      |> assign(:cache_events, cache_events)
      |> assign(:cache_detail_metrics, cache_detail_metrics)
@@ -153,6 +143,25 @@ defmodule TuistWeb.BazelInvocationLive do
     |> push_event("close-dropdown", %{id: "all", all: true})
     |> push_event("close-popover", %{id: "all", all: true})
     |> then(&{:noreply, &1})
+  end
+
+  def handle_event("load_older_logs", _params, %{assigns: %{logs_have_older: false}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("load_older_logs", _params, socket) do
+    %{selected_project: project, invocation: invocation, logs_oldest_sequence_number: before_sequence_number} =
+      socket.assigns
+
+    {older_logs, logs_have_older} = load_log_tail(project.id, invocation, before_sequence_number)
+    logs = older_logs ++ socket.assigns.logs
+
+    {:noreply,
+     socket
+     |> assign(:logs, logs)
+     |> assign(:log_output, Enum.map_join(logs, "", & &1.message))
+     |> assign(:logs_oldest_sequence_number, oldest_log_sequence_number(logs))
+     |> assign(:logs_have_older, logs_have_older)}
   end
 
   def handle_event("search_cache_requests", %{"search" => search}, socket) do
@@ -386,10 +395,7 @@ defmodule TuistWeb.BazelInvocationLive do
         <.logs_card
           log_output={@log_output}
           has_logs={@has_logs}
-          current_page={@logs_current_page}
-          total_pages={@logs_total_pages}
-          uri={@uri}
-          path={detail_path(assigns)}
+          has_older={@logs_have_older}
         />
       </div>
     </div>
@@ -433,10 +439,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
   attr :log_output, :string, required: true
   attr :has_logs, :boolean, required: true
-  attr :current_page, :integer, required: true
-  attr :total_pages, :integer, required: true
-  attr :uri, :map, required: true
-  attr :path, :string, required: true
+  attr :has_older, :boolean, required: true
 
   def logs_card(assigns) do
     ~H"""
@@ -446,11 +449,12 @@ defmodule TuistWeb.BazelInvocationLive do
         <span :if={not @has_logs} data-part="empty-logs">
           {dgettext("dashboard_projects", "No logs were captured for this invocation.")}
         </span>
-        <.pagination_group
-          :if={@total_pages > 1}
-          current_page={@current_page}
-          number_of_pages={@total_pages}
-          page_patch={fn page -> logs_page_patch(@path, @uri, page) end}
+        <.button
+          :if={@has_older}
+          id="bazel-load-older-logs"
+          label={dgettext("dashboard_projects", "Load older logs")}
+          variant="secondary"
+          phx-click="load_older_logs"
         />
       </.card_section>
     </.card>
@@ -1387,7 +1391,23 @@ defmodule TuistWeb.BazelInvocationLive do
   end
 
   defp cache_page_patch(path, uri, page), do: "#{path}?#{Query.put(uri.query, "page", to_string(page))}"
-  defp logs_page_patch(path, uri, page), do: "#{path}?#{Query.put(uri.query, "logs-page", to_string(page))}"
+
+  defp load_log_tail(project_id, invocation, before_sequence_number) do
+    logs =
+      Bazel.list_invocation_log_tail(
+        project_id,
+        invocation.invocation_id,
+        before_sequence_number,
+        @logs_page_size + 1,
+        Bazel.invocation_log_query_options(invocation)
+      )
+
+    has_older = length(logs) > @logs_page_size
+    {if(has_older, do: Enum.drop(logs, 1), else: logs), has_older}
+  end
+
+  defp oldest_log_sequence_number([]), do: nil
+  defp oldest_log_sequence_number([log | _logs]), do: log.sequence_number
 
   defp invocation_result_label(%{status: "success"}), do: dgettext("dashboard_builds", "Passed")
 

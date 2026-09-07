@@ -28,6 +28,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:bazel_resource_kind, resource_kind)
       |> assign(:bazel_base_path, socket.assigns[:bazel_base_path] || "invocations")
       |> assign(:bazel_invocation_commands, socket.assigns[:bazel_invocation_commands])
+      |> assign(:bazel_show_analytics, socket.assigns[:bazel_show_analytics] != false)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("overview"))
       |> assign(:available_filters, define_filters(resource_kind))
@@ -46,10 +47,14 @@ defmodule TuistWeb.BazelInvocationsLive do
       DatePicker.date_picker_params(params, "analytics")
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
+    analytics_environment = analytics_environment_param(params["analytics-environment"])
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
-        Filter.Operations.convert_filters_to_flop(active_filters)
+        build_flop_filters(active_filters)
+
+    filters = maybe_add_environment_filter(filters, analytics_environment, socket.assigns.bazel_show_analytics)
+    analytics_opts = analytics_opts(analytics_period, socket.assigns.bazel_invocation_commands, analytics_environment)
 
     {invocations, meta} =
       Bazel.list_invocations(
@@ -62,7 +67,7 @@ defmodule TuistWeb.BazelInvocationsLive do
           page_size: @page_size,
           commands: socket.assigns.bazel_invocation_commands
         },
-        period_opts(analytics_period)
+        analytics_opts
       )
 
     commands = socket.assigns.bazel_invocation_commands
@@ -80,6 +85,8 @@ defmodule TuistWeb.BazelInvocationsLive do
      |> assign(:analytics_period, analytics_period)
      |> assign(:analytics_granularity, time_series_granularity(analytics_period))
      |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
+     |> assign(:analytics_environment, analytics_environment)
+     |> assign(:analytics_environment_label, environment_label(analytics_environment))
      |> assign(:analytics_selected_widget, analytics_selected_widget)
      |> assign(:has_any_invocations, has_any_invocations)
      |> assign(:selected_duration_type, params["duration-type"] || "avg")
@@ -91,12 +98,13 @@ defmodule TuistWeb.BazelInvocationsLive do
             invocation_summary_with_trends(
               project.id,
               analytics_period,
-              commands
+              commands,
+              analytics_environment
             ),
           invocation_analytics:
             Bazel.invocation_analytics(
               project.id,
-              period_opts(analytics_period, commands)
+              analytics_opts
             )
         }}
      end)}
@@ -173,42 +181,58 @@ defmodule TuistWeb.BazelInvocationsLive do
   def render(assigns) do
     ~H"""
     <div id="bazel-invocations" class="bazel-invocations">
+      <div :if={@bazel_show_analytics} data-part="filters">
+        <.dropdown
+          id="bazel-builds-environment-dropdown"
+          label={@analytics_environment_label}
+          secondary_text={dgettext("dashboard_projects", "Environment:")}
+        >
+          <.dropdown_item
+            :for={{value, label} <- environment_options()}
+            value={value}
+            label={label}
+            patch={"?#{Query.put(@uri.query, "analytics-environment", value)}"}
+            data-selected={@analytics_environment == value}
+          >
+            <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.date_picker
+          id="bazel-invocations-date-range-picker"
+          name="analytics-date-range"
+          presets={date_picker_presets()}
+          selected_preset={@analytics_preset}
+          period={@analytics_period}
+          on_period_change="analytics_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_projects", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel",
+                  detail: %{id: "bazel-invocations-date-range-picker"}
+                )
+              }
+            />
+            <.button
+              label={dgettext("dashboard_projects", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply",
+                  detail: %{id: "bazel-invocations-date-range-picker"}
+                )
+              }
+            />
+          </:actions>
+        </.date_picker>
+      </div>
       <.card
+        :if={@bazel_show_analytics}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-invocation-analytics-card"
       >
-        <:actions>
-          <.date_picker
-            id="bazel-invocations-date-range-picker"
-            name="analytics-date-range"
-            presets={date_picker_presets()}
-            selected_preset={@analytics_preset}
-            period={@analytics_period}
-            on_period_change="analytics_period_changed"
-            max={Date.utc_today()}
-          >
-            <:actions>
-              <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "bazel-invocations-date-range-picker"}
-                  )
-                }
-              />
-              <.button
-                label={dgettext("dashboard_projects", "Apply")}
-                phx-click={
-                  JS.dispatch("phx:date-picker-apply",
-                    detail: %{id: "bazel-invocations-date-range-picker"}
-                  )
-                }
-              />
-            </:actions>
-          </.date_picker>
-        </:actions>
         <div data-part="widgets">
           <.widget
             id="bazel-total-invocations"
@@ -283,6 +307,7 @@ defmodule TuistWeb.BazelInvocationsLive do
             }
             metrics={if @invocation_summary.ok?, do: duration_metrics(@invocation_summary.result)}
             selected_type={@selected_duration_type}
+            legend_color={duration_legend_color(@selected_duration_type)}
             event_name="select_duration_type"
             phx_click="select_widget"
             phx_value_widget="build-duration"
@@ -377,7 +402,7 @@ defmodule TuistWeb.BazelInvocationsLive do
               </:col>
               <:col
                 :let={invocation}
-                :if={@bazel_base_path != "builds"}
+                :if={@bazel_resource_kind != :builds}
                 label={dgettext("dashboard_projects", "Command")}
                 patch={column_patch_sort(assigns, "command")}
                 sort_order={@invocations_sort_by == "command" && @invocations_sort_order}
@@ -475,9 +500,11 @@ defmodule TuistWeb.BazelInvocationsLive do
     if numeric(summary.total) == 0, do: nil, else: "#{Float.round(success_rate_value(summary), 1)}%"
   end
 
-  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands) do
-    summary = Bazel.summary(project_id, period_opts(period, commands))
-    previous_summary = Bazel.summary(project_id, period_opts(previous_period(start_datetime, end_datetime), commands))
+  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment) do
+    summary = Bazel.summary(project_id, analytics_opts(period, commands, environment))
+
+    previous_summary =
+      Bazel.summary(project_id, analytics_opts(previous_period(start_datetime, end_datetime), commands, environment))
 
     Map.merge(summary, %{
       total_trend: trend(previous_summary.total, summary.total),
@@ -505,7 +532,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   defp duration_title("p99", :builds), do: dgettext("dashboard_projects", "p99 build duration")
   defp duration_title("p90", :builds), do: dgettext("dashboard_projects", "p90 build duration")
   defp duration_title("p50", :builds), do: dgettext("dashboard_projects", "p50 build duration")
-  defp duration_title(_, :builds), do: dgettext("dashboard_projects", "Average build duration")
+  defp duration_title(_, :builds), do: dgettext("dashboard_projects", "Avg. build duration")
   defp duration_title("p99", _), do: dgettext("dashboard_projects", "p99 invocation duration")
   defp duration_title("p90", _), do: dgettext("dashboard_projects", "p90 invocation duration")
   defp duration_title("p50", _), do: dgettext("dashboard_projects", "p50 invocation duration")
@@ -546,6 +573,11 @@ defmodule TuistWeb.BazelInvocationsLive do
   defp duration_trend(summary, "p90"), do: summary.p90_duration_trend
   defp duration_trend(summary, "p50"), do: summary.median_duration_trend
   defp duration_trend(summary, _), do: summary.average_duration_trend
+
+  defp duration_legend_color("p99"), do: "p99"
+  defp duration_legend_color("p90"), do: "p90"
+  defp duration_legend_color("p50"), do: "p50"
+  defp duration_legend_color(_), do: "secondary"
 
   defp analytics_has_data?(analytics, _widget), do: Enum.any?(analytics.total_values, &(numeric(&1) > 0))
 
@@ -684,7 +716,7 @@ defmodule TuistWeb.BazelInvocationsLive do
     "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/#{socket.assigns.bazel_base_path}?#{URI.encode_query(params)}"
   end
 
-  defp invocation_detail_path(%{bazel_base_path: "builds"} = assigns, invocation_id) do
+  defp invocation_detail_path(%{bazel_resource_kind: :builds} = assigns, invocation_id) do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{invocation_id}"
   end
 
@@ -696,6 +728,50 @@ defmodule TuistWeb.BazelInvocationsLive do
   defp sort_field("status"), do: :status
   defp sort_field("duration"), do: :duration_ms
   defp sort_field(_), do: :finished_at
+
+  defp analytics_environment_param(environment) when environment in ["ci", "local"], do: environment
+  defp analytics_environment_param(_environment), do: "any"
+
+  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
+  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
+  defp environment_label(_environment), do: dgettext("dashboard_projects", "Any")
+
+  defp environment_options do
+    [
+      {"any", dgettext("dashboard_projects", "Any")},
+      {"ci", dgettext("dashboard_projects", "CI")},
+      {"local", dgettext("dashboard_projects", "Local")}
+    ]
+  end
+
+  defp analytics_opts(period, commands, environment) do
+    period
+    |> period_opts(commands)
+    |> maybe_put_environment(environment)
+  end
+
+  defp maybe_put_environment(opts, "ci"), do: Keyword.put(opts, :is_ci, true)
+  defp maybe_put_environment(opts, "local"), do: Keyword.put(opts, :is_ci, false)
+  defp maybe_put_environment(opts, _environment), do: opts
+
+  defp maybe_add_environment_filter(filters, "ci", true), do: [%{field: :is_ci, op: :==, value: true} | filters]
+
+  defp maybe_add_environment_filter(filters, "local", true), do: [%{field: :is_ci, op: :==, value: false} | filters]
+
+  defp maybe_add_environment_filter(filters, _environment, _show_analytics), do: filters
+
+  defp build_flop_filters(filters) do
+    {environment_filters, remaining_filters} = Enum.split_with(filters, &(&1.id == "is_ci"))
+
+    environment_flop_filters =
+      Enum.flat_map(environment_filters, fn
+        %{value: :ci, operator: operator} -> [%{field: :is_ci, op: operator, value: true}]
+        %{value: :local, operator: operator} -> [%{field: :is_ci, op: operator, value: false}]
+        _ -> []
+      end)
+
+    Filter.Operations.convert_filters_to_flop(remaining_filters) ++ environment_flop_filters
+  end
 
   defp define_filters(resource_kind) do
     status_filter =
@@ -723,6 +799,23 @@ defmodule TuistWeb.BazelInvocationsLive do
         value: ""
       }
 
-    if resource_kind == :builds, do: [status_filter], else: [status_filter, command_filter]
+    environment_filter =
+      %Filter.Filter{
+        id: "is_ci",
+        field: :is_ci,
+        display_name: dgettext("dashboard_projects", "Environment"),
+        type: :option,
+        options: [:ci, :local],
+        options_display_names: %{
+          ci: dgettext("dashboard_projects", "CI"),
+          local: dgettext("dashboard_projects", "Local")
+        },
+        operator: :==,
+        value: nil
+      }
+
+    if resource_kind == :builds,
+      do: [status_filter, environment_filter],
+      else: [status_filter, command_filter, environment_filter]
   end
 end

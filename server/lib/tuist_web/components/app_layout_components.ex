@@ -28,32 +28,8 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
-      <.sidebar_item
-        :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Builds")}
-        icon="versions"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-          )
-        }
-      />
-      <.sidebar_item
-        :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Bazel cache")}
-        icon="server"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"
-          )
-        }
-      />
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project)}
+        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -161,6 +137,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
       </.sidebar_group>
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project)}
+        label={dgettext("dashboard", "Bazel cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"
+          )
+        }
+      />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"

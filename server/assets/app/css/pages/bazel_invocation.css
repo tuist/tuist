@@ -662,6 +662,8 @@
   & [data-part="logs-section"] {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
 
     & [data-part="log-output"] {
       box-sizing: border-box;
