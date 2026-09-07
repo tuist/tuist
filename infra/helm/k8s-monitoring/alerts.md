@@ -2863,6 +2863,17 @@ limit in the summary, which is what the on-call needs to pick the lever:
   floor rather than loss. If that proves to be steady state on an instance,
   raise the floor or move those two kinds to a rate-based tier; do not raise
   the bar for the HTTP kinds, which are loss.
+  - `reapi_write_decode` now sheds only after the elastic pool is also spent.
+    Write decoding borrows the ceiling headroom above the floor-derived budget
+    while pressure is normal, so a shed means the pod exhausted its floor *and*
+    that headroom, or it was above normal pressure and the borrow was closed.
+    Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` before reaching for the
+    profile: a pod resting at its elastic capacity has a floor genuinely too
+    small for its workload, while one at zero during the shed was shedding on
+    pressure, and **Kura pod under memory pressure** is the rule to read. The
+    pool is empty by construction on an instance with no published floor,
+    where the budget is already the whole headroom.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
   the fixed 128-upload cap every instance runs regardless of size. An orphaned
