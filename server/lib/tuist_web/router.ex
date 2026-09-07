@@ -251,6 +251,10 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :ops_api do
+    plug TuistWeb.Authorization, [:current_user, :read, :ops]
+  end
+
   pipeline :scim_api do
     plug :put_request_kind, "scim"
     plug :accepts, ["scim+json", "json"]
@@ -477,6 +481,12 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api]
 
     get "/api/kura/rollout-status", KuraRolloutStatusController, :show
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :authenticated_api, :ops_api]
+
+    get "/api/ops/kura/pods/:pod/metrics", OpsKuraMetricsController, :show
   end
 
   scope "/", TuistWeb do
