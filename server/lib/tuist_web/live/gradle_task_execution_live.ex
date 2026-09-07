@@ -23,6 +23,7 @@ defmodule TuistWeb.GradleTaskExecutionLive do
        socket
        |> assign(:selected_project, Repo.preload(project, vcs_connection: :github_app_installation))
        |> assign(:task, task)
+       |> assign(:cache_status, cache_status(task))
        |> assign(:build, Repo.preload(build, :built_by_account))
        |> assign(:head_title, "#{task.task_path} · Task execution · Tuist")}
     else
@@ -41,16 +42,19 @@ defmodule TuistWeb.GradleTaskExecutionLive do
     "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/tasks/#{URI.encode(assigns.task.task_path, &URI.char_unreserved?/1)}?#{query}"
   end
 
-  defp cacheability(%{cacheability: "disabled"}), do: dgettext("dashboard_gradle", "Not cacheable")
-  defp cacheability(%{cacheability: "cacheable"}), do: dgettext("dashboard_gradle", "Cacheable")
-  defp cacheability(%{cacheable: true}), do: dgettext("dashboard_gradle", "Cacheable")
-  defp cacheability(_), do: dgettext("dashboard_gradle", "Unknown cacheability")
+  defp cache_status(%{cacheability: "disabled"}), do: {dgettext("dashboard_gradle", "Not cacheable"), "neutral"}
 
-  defp lookup("hit"), do: dgettext("dashboard_gradle", "Hit")
-  defp lookup("miss"), do: dgettext("dashboard_gradle", "Miss")
-  defp lookup("error"), do: dgettext("dashboard_gradle", "Failed")
-  defp lookup("not_requested"), do: dgettext("dashboard_gradle", "Not requested")
-  defp lookup(_), do: dgettext("dashboard_gradle", "Unknown")
+  defp cache_status(%{outcome: "local_hit"}), do: {dgettext("dashboard_gradle", "Local hit"), "information"}
+  defp cache_status(%{remote_cache_lookup_outcome: "hit"}), do: {dgettext("dashboard_gradle", "Hit"), "information"}
+  defp cache_status(%{remote_cache_lookup_outcome: "miss"}), do: {dgettext("dashboard_gradle", "Miss"), "warning"}
+  defp cache_status(%{remote_cache_lookup_outcome: "error"}), do: {dgettext("dashboard_gradle", "Error"), "destructive"}
+
+  defp cache_status(%{outcome: outcome}) when outcome in ["remote_hit", "cache_hit"],
+    do: {outcome_label(outcome), "information"}
+
+  defp cache_status(%{cacheability: "cacheable"}), do: {dgettext("dashboard_gradle", "Cacheable"), "neutral"}
+  defp cache_status(%{cacheable: true}), do: {dgettext("dashboard_gradle", "Cacheable"), "neutral"}
+  defp cache_status(_), do: {dgettext("dashboard_gradle", "Unknown cacheability"), "neutral"}
 
   defp duration(nil), do: "—"
   defp duration(value), do: DateFormatter.format_duration_from_milliseconds(value)

@@ -47,7 +47,13 @@
             else: "—"}
         </.detail>
         <.detail label={dgettext("dashboard_gradle", "Cache")}>
-          <.badge label={cacheability(@task)} color="neutral" style="light-fill" size="large" />
+          <.badge
+            label={elem(@cache_status, 0)}
+            color={elem(@cache_status, 1)}
+            style="light-fill"
+            size="large"
+            data-part="cache-status"
+          />
         </.detail>
         <.detail label={dgettext("dashboard_gradle", "Branch")}>
           <.branch_link
@@ -85,12 +91,6 @@
           {if @task.incremental,
             do: dgettext("dashboard_gradle", "Yes"),
             else: dgettext("dashboard_gradle", "No")}
-        </.detail>
-        <.detail
-          :if={@task.remote_cache_lookup_outcome not in [nil, "", "unknown"]}
-          label={dgettext("dashboard_gradle", "Remote lookup")}
-        >
-          {lookup(@task.remote_cache_lookup_outcome)}
         </.detail>
         <.detail
           :if={not is_nil(@task.remote_cache_lookup_duration_ms)}

@@ -131,6 +131,47 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
     end
   end
 
+  test "cache badge combines eligibility and observed cache results", context do
+    %{project: project, organization: organization, conn: conn} = context
+
+    scenarios = [
+      {"remote_hit", "cacheable", "hit", "Hit", "information"},
+      {"local_hit", "cacheable", "not_requested", "Local hit", "information"},
+      {"executed", "cacheable", "miss", "Miss", "warning"},
+      {"executed", "cacheable", "error", "Error", "destructive"},
+      {"executed", "cacheable", "not_requested", "Cacheable", "neutral"},
+      {"executed", "disabled", "not_requested", "Not cacheable", "neutral"}
+    ]
+
+    tasks =
+      scenarios
+      |> Enum.with_index()
+      |> Enum.map(fn {{outcome, cacheability, lookup, _, _}, index} ->
+        base = task(":")
+
+        %{
+          base
+          | task_path: ":task#{index}",
+            outcome: outcome,
+            execution: %{base.execution | cacheability: cacheability, remote_cache_lookup_outcome: lookup}
+        }
+      end)
+
+    build_id = GradleFixtures.build_fixture(project_id: project.id, tasks: tasks)
+    executions = Gradle.list_tasks(build_id)
+
+    for {{_, _, _, label, color}, index} <- Enum.with_index(scenarios) do
+      execution = Enum.find(executions, &(&1.task_path == ":task#{index}"))
+
+      {:ok, view, html} =
+        live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}/tasks/#{execution.id}")
+
+      assert has_element?(view, "[data-part=cache-status][data-color=#{color}]", label)
+      refute html =~ "Remote lookup"
+      refute html =~ "Not requested"
+    end
+  end
+
   test "execution lookup rejects another project, another build and invalid IDs", context do
     %{project: project, organization: organization, conn: conn} = context
     other_project = ProjectsFixtures.project_fixture(account_id: organization.account.id)

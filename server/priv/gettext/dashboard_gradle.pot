@@ -141,7 +141,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.html.heex:168
 #: lib/tuist_web/live/gradle_build_runs_live.ex:233
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:122
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:52
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -323,7 +323,7 @@ msgid "Cancelled"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:175
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:60
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Commit"
 msgstr ""
@@ -439,7 +439,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_runs_live.ex:224
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:113
 #: lib/tuist_web/live/gradle_builds_live.html.heex:697
-#: lib/tuist_web/live/gradle_task_execution_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -601,6 +600,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/gradle_task.ex:13
 #: lib/tuist_web/live/gradle_build_live.ex:706
+#: lib/tuist_web/live/gradle_task_execution_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Local hit"
 msgstr ""
@@ -693,7 +693,6 @@ msgid "No tasks"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:400
-#: lib/tuist_web/live/gradle_task_execution_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Not requested"
 msgstr ""
@@ -811,7 +810,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.ex:546
 #: lib/tuist_web/live/gradle_build_live.html.heex:595
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:72
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Root build"
 msgstr ""
@@ -1064,7 +1063,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:135
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:189
 #: lib/tuist_web/live/gradle_cache_live.ex:238
-#: lib/tuist_web/live/gradle_task_execution_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -1284,7 +1282,7 @@ msgid "Finalized by"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_execution_component.html.heex:83
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:83
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Incremental"
 msgstr ""
@@ -1360,7 +1358,6 @@ msgid "Refresh the page to try again."
 msgstr ""
 
 #: lib/tuist_web/live/gradle_execution_component.html.heex:86
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Remote lookup"
 msgstr ""
@@ -1441,13 +1438,13 @@ msgid "No data in this period"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_bottlenecks_live.ex:550
-#: lib/tuist_web/live/gradle_task_execution_live.ex:44
+#: lib/tuist_web/live/gradle_task_execution_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Not cacheable"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_bottlenecks_live.ex:551
-#: lib/tuist_web/live/gradle_task_execution_live.ex:47
+#: lib/tuist_web/live/gradle_task_execution_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Unknown cacheability"
 msgstr ""
@@ -1554,7 +1551,7 @@ msgstr ""
 msgid "Artifact size"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:69
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Build path"
 msgstr ""
@@ -1564,8 +1561,8 @@ msgstr ""
 msgid "Cache"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.ex:45
-#: lib/tuist_web/live/gradle_task_execution_live.ex:46
+#: lib/tuist_web/live/gradle_task_execution_live.ex:55
+#: lib/tuist_web/live/gradle_task_execution_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Cacheable"
 msgstr ""
@@ -1580,7 +1577,7 @@ msgstr ""
 msgid "Execution details"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.ex:49
+#: lib/tuist_web/live/gradle_task_execution_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -1590,17 +1587,17 @@ msgstr ""
 msgid "Lookup duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.ex:50
+#: lib/tuist_web/live/gradle_task_execution_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:87
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "No"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.ex:29
+#: lib/tuist_web/live/gradle_task_execution_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Task execution not found."
 msgstr ""
@@ -1610,7 +1607,7 @@ msgstr ""
 msgid "Task overview"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:77
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Task type"
 msgstr ""
@@ -1620,7 +1617,12 @@ msgstr ""
 msgid "Upload duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:86
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Yes"
+msgstr ""
+
+#: lib/tuist_web/live/gradle_task_execution_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "Error"
 msgstr ""
