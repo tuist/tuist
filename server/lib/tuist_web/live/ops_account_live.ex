@@ -816,14 +816,27 @@ defmodule TuistWeb.OpsAccountLive do
   # The second line: how much observation stands behind the first. Days are
   # what the measurements are grouped into, so an operator can see whether this
   # is one bad afternoon or a standing pattern.
-  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: %{"ring_turnover" => turnover} = evidence})
+       when not is_nil(turnover) do
     dngettext(
       "dashboard",
       "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       evidence["window_days"],
       bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
-      turnover: evidence["ring_turnover"] || 0
+      turnover: turnover
+    )
+  end
+
+  # No node reported the ring it was running, so there is no turnover to
+  # quote and the volume stands on its own.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded).",
+      "Seen on %{count} consecutive days of measurements (%{bytes} discarded).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0)
     )
   end
 
