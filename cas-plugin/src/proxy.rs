@@ -5787,8 +5787,30 @@ mod tests {
 
     // Stores a childless object and returns its digest.
     fn store_probe_object(state: &PathState, payload: &[u8]) -> Vec<u8> {
+        store_probe_object_with_refs(state, payload, &[])
+    }
+
+    fn store_probe_object_with_refs(
+        state: &PathState,
+        payload: &[u8],
+        refs: &[Vec<u8>],
+    ) -> Vec<u8> {
         unsafe {
             let cas = state.cas.read().unwrap().unwrap();
+            let refs: Vec<_> = refs
+                .iter()
+                .map(|digest| {
+                    let mut id = llcas_objectid_t { opaque: 0 };
+                    let mut error = std::ptr::null_mut();
+                    assert!(!(state.up.llcas_cas_get_objectid)(
+                        cas,
+                        llcas_digest_t { data: digest.as_ptr(), size: digest.len() },
+                        &mut id,
+                        &mut error,
+                    ));
+                    id
+                })
+                .collect();
             let data = llcas_data_t {
                 data: payload.as_ptr() as *const std::ffi::c_void,
                 size: payload.len(),
@@ -5799,8 +5821,8 @@ mod tests {
                 !(state.up.llcas_cas_store_object)(
                     cas,
                     data,
-                    std::ptr::null(),
-                    0,
+                    refs.as_ptr(),
+                    refs.len(),
                     &mut id,
                     &mut error
                 ),
@@ -6451,6 +6473,86 @@ mod tests {
                     blob: entry.blob.clone(),
                     contents: entry.contents.clone(),
                 });
+        }
+    }
+
+    /// Characterizes the scheduling window between returning a resolve hit and
+    /// starting its materializer. The graph and digests come from Apple's CAS;
+    /// only the worker schedule and a failed child decode are injected. Both
+    /// snapshot hits and per-key hits enter `commit_and_materialize` here.
+    #[test]
+    fn a_demand_load_before_materialization_can_persist_an_incomplete_graph() {
+        let source_dir = TempCasDir::new("demand-race-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"demand-race-child");
+        let root = store_probe_object_with_refs(source, b"demand-race-root", &[child.clone()]);
+        let (mut manifest, blobs) = walk_closure(source, &root).expect("complete source graph");
+        assert_eq!(manifest.len(), 2);
+        for (entry, blob) in manifest.iter_mut().zip(blobs) {
+            entry.contents = Some(blob.expect("fresh publisher cache"));
+        }
+
+        for (label, demand_first, child_available) in [
+            ("demand-first-incomplete", true, false),
+            ("materializer-first-incomplete", false, false),
+            ("demand-first-complete", true, true),
+        ] {
+            let dir = TempCasDir::new(label);
+            let proxy = test_proxy();
+            let state = proxy.path_state(&dir.path()).expect("fresh reader CAS");
+            let remote = proxy.remote_for("tuist/demand-race");
+            let mut manifest = manifest.clone();
+            if !child_available {
+                manifest[1].contents = Some(b"not a frame".to_vec());
+            }
+
+            // Capture the real queued job instead of racing the OS scheduler.
+            // The production materializer runs below, at the chosen point.
+            let (scheduled, jobs) = std::sync::mpsc::channel();
+            proxy.materializer.configure(1, move |item| {
+                scheduled.send(item).expect("test is waiting for the job");
+            });
+            let resolved = proxy
+                .commit_and_materialize(&remote, state, b"demand-race-key", manifest, 0)
+                .expect("resolve");
+            let job = jobs.recv_timeout(Duration::from_secs(5)).expect("queued materialization");
+            assert!(proxy.materializer.drain_stop_timeout(Duration::from_secs(5)).is_empty());
+            assert_eq!(resolved, Some(root.clone()));
+            assert!(!state.load_present(&root), "{label}: starts empty");
+
+            if !demand_first {
+                proxy.materialize_job(&job);
+            }
+            let produced = proxy
+                .fetch_object(state, &dir.path(), "", &root)
+                .expect("demand load");
+            if demand_first {
+                proxy.materialize_job(&job);
+            }
+
+            let root_present = demand_first || child_available;
+            assert_eq!(produced, root_present, "{label}: demand result");
+            assert_eq!(state.load_present(&root), root_present, "{label}: root");
+            assert_eq!(state.load_present(&child), child_available, "{label}: child");
+            assert_eq!(
+                state.stats_incomplete_closures.load(Ordering::Relaxed),
+                u64::from(!child_available),
+                "{label}: materializer observes the incomplete graph"
+            );
+
+            // Reopen after disposing the writer: the bad graph lives on disk,
+            // not just in the proxy's in-memory presence cache.
+            state.reopen_cas().expect("reopen persisted reader CAS");
+            if root_present {
+                let (_, refs) = unsafe { encode_node_blob(state, &root) }.expect("root loads");
+                assert_eq!(refs, vec![child.clone()], "{label}: real child reference");
+            }
+            assert_eq!(
+                unsafe { encode_node_blob(state, &child) }.is_ok(),
+                child_available,
+                "{label}: replay can load the child only in the healthy control"
+            );
+            println!("{label}: demand={produced}, persisted root={root_present}, child={child_available}");
         }
     }
 
