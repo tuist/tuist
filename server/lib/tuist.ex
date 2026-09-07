@@ -72,6 +72,7 @@ defmodule Tuist do
       Kura.PlacementProposal,
       Kura.PlacementProposals,
       Kura.PlacerRegions,
+      Kura.PodMetrics,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
