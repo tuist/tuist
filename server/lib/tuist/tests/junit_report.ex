@@ -18,7 +18,7 @@ defmodule Tuist.Tests.JunitReport do
         |> Enum.flat_map(&test_cases_for_suite/1)
         |> Enum.take(@max_test_cases)
 
-      {:ok, %{test_suites: suites_for(test_suites, test_cases), test_cases: test_cases}}
+      {:ok, %{test_suites: suites_for(test_cases), test_cases: test_cases}}
     else
       {:error, _reason} -> {:error, :invalid_report}
     end
@@ -54,7 +54,7 @@ defmodule Tuist.Tests.JunitReport do
 
       %{
         name: attribute(test_case, "name") || "Unnamed test",
-        test_suite_name: suite_name,
+        test_suite_name: attribute(test_case, "classname") || suite_name,
         status: status,
         duration: duration_milliseconds(test_case),
         failures: failures
@@ -62,17 +62,11 @@ defmodule Tuist.Tests.JunitReport do
     end)
   end
 
-  defp suites_for(test_suites, test_cases) do
-    case_names = MapSet.new(Enum.map(test_cases, & &1.test_suite_name))
-
-    test_suites
-    |> Enum.map(&attribute(&1, "name"))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.filter(&MapSet.member?(case_names, &1))
-    |> Enum.map(fn name ->
-      suite_test_cases = Enum.filter(test_cases, &(&1.test_suite_name == name))
-
+  defp suites_for(test_cases) do
+    test_cases
+    |> Enum.group_by(& &1.test_suite_name)
+    |> Enum.sort_by(fn {name, _cases} -> name end)
+    |> Enum.map(fn {name, suite_test_cases} ->
       %{
         name: name,
         status: aggregate_status(suite_test_cases),

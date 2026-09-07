@@ -3,6 +3,19 @@ defmodule Tuist.Tests.JunitReportTest do
 
   alias Tuist.Tests.JunitReport
 
+  test "distinguishes the same method name in different reported classes" do
+    report = """
+    <testsuite name="All tests">
+      <testcase classname="FirstClass" name="test"><failure>failed</failure></testcase>
+      <testcase classname="SecondClass" name="test"/>
+    </testsuite>
+    """
+
+    assert {:ok, parsed} = JunitReport.parse(report)
+    assert Enum.map(parsed.test_cases, & &1.test_suite_name) == ["FirstClass", "SecondClass"]
+    assert Enum.map(parsed.test_suites, & &1.name) == ["FirstClass", "SecondClass"]
+  end
+
   test "parses individual JUnit test cases and their failures" do
     report = """
     <?xml version="1.0" encoding="UTF-8"?>

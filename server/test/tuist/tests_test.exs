@@ -5459,6 +5459,37 @@ defmodule Tuist.TestsTest do
   end
 
   describe "cross-run flaky detection" do
+    test "does not compare unrelated Bazel runs without commit metadata" do
+      project = ProjectsFixtures.project_fixture(build_system: :bazel)
+
+      for status <- ["success", "failure"] do
+        {:ok, run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "",
+            scheme: "//...",
+            is_ci: true,
+            status: status,
+            test_modules: [
+              %{
+                name: "//app:tests",
+                status: status,
+                duration: 10,
+                test_cases: [%{name: "test", status: status, duration: 10}]
+              }
+            ]
+          )
+
+        {[test_case_run], _} =
+          Tests.list_test_case_runs(%{
+            filters: [%{field: :test_run_id, op: :==, value: run.id}]
+          })
+
+        refute test_case_run.is_flaky
+      end
+    end
+
     test "durably corrects an earlier failure only once after a later success" do
       project = ProjectsFixtures.project_fixture()
       commit_sha = "historical_flaky_#{System.unique_integer([:positive])}"

@@ -5,6 +5,7 @@ This directory contains the core business logic and domain modules for the serve
 ## Responsibilities
 
 - Ecto schemas, contexts, and domain services.
+- External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.
 - Business rules for accounts, projects, bundles, previews, and analytics.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
