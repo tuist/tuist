@@ -5,6 +5,7 @@ Settings plugin written in Kotlin. `TuistBuildInsights` uploads build reports; `
 - Register the build insights service only through the configuration-cache-aware `onOperationCompletion` registry. A single service provider cannot hold both task and operation subscriptions. Keep it an operation-only listener so configuration reuse restores the correct subscription.
 - Completion events are ordered. Propagate nested cache metadata to parents until the owning task finishes; do not depend on start events from this registry.
 - Internal Gradle APIs can change. Catch unavailable operations without failing the build, and mark incomplete telemetry honestly. Integration tests must exercise real builds and configuration-cache reuse.
+- Exclude machine counter reads from configuration input tracking and restore tracking in a finally block. Linux `/proc` counters are telemetry, not configuration inputs, and change between builds.
 - Cacheability is task capability, not global build-cache availability. Fall back to `@CacheableTask` for disabled-cache or skipped lookups, while honoring observed task-specific disabled reasons.
 - Run tests with `./gradlew test --no-build-cache --no-watch-fs`. When validating source changed outside Gradle's file watcher, force compilation with `--rerun-tasks`.
 

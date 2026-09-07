@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.Project
 import org.gradle.internal.build.event.BuildEventListenerRegistryInternal
 import org.gradle.api.logging.Logging
@@ -25,6 +26,7 @@ import org.gradle.internal.operations.OperationProgressEvent
 import org.gradle.internal.operations.OperationStartEvent
 import org.gradle.operations.configuration.ConfigurationCacheCheckFingerprintBuildOperationType
 import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
+import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -152,7 +154,13 @@ abstract class TuistBuildInsightsService :
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
-    private val machineMetricsCollector = MachineMetricsCollector().also { it.start() }
+
+    @get:Inject
+    abstract val objects: ObjectFactory
+
+    private val machineMetricsCollector = MachineMetricsCollector(
+        inputTrackingState = objects.newInstance(MetricsInputTracking::class.java).state
+    ).also { it.start() }
 
     internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
@@ -495,3 +503,5 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         }
     }
 }
+
+internal abstract class MetricsInputTracking @Inject constructor(val state: InputTrackingState)
