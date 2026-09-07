@@ -6,6 +6,7 @@ defmodule TuistWeb.Components.TrendBadge do
   use Noora
 
   attr :trend_value, :integer, required: true
+  attr :label, :string, default: nil, doc: "Optional formatted trend value, replacing the percentage label."
 
   attr :trend_type, :atom,
     default: :regular,
@@ -25,9 +26,10 @@ defmodule TuistWeb.Components.TrendBadge do
     <.badge
       size="large"
       label={
-        if @trend_value > 0,
-          do: "+#{formatted_value}%",
-          else: "#{formatted_value}%"
+        @label ||
+          if @trend_value > 0,
+            do: "+#{formatted_value}%",
+            else: "#{formatted_value}%"
       }
       color={
         cond do

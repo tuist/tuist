@@ -281,8 +281,8 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 |------|-------------|---------------------|
 | `get_gradle_integration_guide` | Return the complete authentication, project setup, Gradle plugin, cache policy, and two-build verification workflow. Agents should call it before editing an existing Android or Gradle project. | None |
 | `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
-| `get_gradle_build` | Get detailed information and custom metadata for a specific Gradle build run. | `build_run_id` |
-| `list_gradle_build_tasks` | List tasks for a specific Gradle build run, including outcome and cache status. | `build_run_id` |
+| `get_gradle_build` | Get build metadata, execution options, and the duration of the longest dependency chain. Set `include_execution_graph` to inspect task/transform dependencies and ordering; missing timings remain null. | `build_run_id` |
+| `list_gradle_build_tasks` | List task outcomes, composite build identity, actual cacheability and execution reasons, incremental status, and observed remote operation timings. | `build_run_id` |
 
 #### Bazel invocations
 

@@ -58,20 +58,20 @@ defmodule TuistWeb.GradleBuildLive do
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
-        do: aggregates.cache_download_bytes / (aggregates.download_duration_ms / 1000),
-        else: 0
+        do: aggregates.timed_download_bytes / (aggregates.download_duration_ms / 1000)
 
     upload_throughput =
       if aggregates.upload_duration_ms > 0,
-        do: aggregates.cache_upload_bytes / (aggregates.upload_duration_ms / 1000),
-        else: 0
+        do: aggregates.timed_upload_bytes / (aggregates.upload_duration_ms / 1000)
 
     slug = "#{account.name}/#{socket.assigns.selected_project.name}"
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
-    local_hits = build.tasks_local_hit_count || 0
-    remote_hits = build.tasks_remote_hit_count || 0
-    from_cache = local_hits + remote_hits
+    from_cache =
+      Enum.sum(
+        Enum.map([build.tasks_local_hit_count, build.tasks_remote_hit_count, build.tasks_cache_hit_count], &(&1 || 0))
+      )
+
     cacheable = build.cacheable_tasks_count || 0
 
     socket
@@ -104,6 +104,7 @@ defmodule TuistWeb.GradleBuildLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     socket
+    |> assign(:execution_params, params)
     |> assign(:selected_tab, selected_tab)
     |> assign(:uri, uri)
     |> assign_tab_data(selected_tab, params)
@@ -702,9 +703,10 @@ defmodule TuistWeb.GradleBuildLive do
         field: :outcome,
         display_name: dgettext("dashboard_gradle", "Outcome"),
         type: :option,
-        options: [:local_hit, :remote_hit, :up_to_date, :executed, :failed, :skipped, :no_source],
+        options: [:cache_hit, :local_hit, :remote_hit, :up_to_date, :executed, :failed, :skipped, :no_source],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local hit"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit (origin unknown)"),
           remote_hit: dgettext("dashboard_gradle", "Remote hit"),
           up_to_date: dgettext("dashboard_gradle", "Up-to-date"),
           executed: dgettext("dashboard_gradle", "Executed"),
@@ -746,9 +748,10 @@ defmodule TuistWeb.GradleBuildLive do
         field: :outcome,
         display_name: dgettext("dashboard_gradle", "Status"),
         type: :option,
-        options: [:local_hit, :remote_hit, :executed],
+        options: [:cache_hit, :local_hit, :remote_hit, :executed],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit (origin unknown)"),
           remote_hit: dgettext("dashboard_gradle", "Remote"),
           executed: dgettext("dashboard_gradle", "Missed")
         },
@@ -780,17 +783,19 @@ defmodule TuistWeb.GradleBuildLive do
     end
   end
 
-  defp outcome_color("local_hit"), do: "success"
+  defp outcome_color("local_hit"), do: "information"
+  defp outcome_color("cache_hit"), do: "information"
   defp outcome_color("remote_hit"), do: "information"
-  defp outcome_color("up_to_date"), do: "information"
-  defp outcome_color("executed"), do: "secondary"
+  defp outcome_color("up_to_date"), do: "primary"
+  defp outcome_color("executed"), do: "success"
   defp outcome_color("failed"), do: "destructive"
-  defp outcome_color(_), do: "secondary"
+  defp outcome_color(_), do: "neutral"
 
   defp outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
+  defp outcome_label("cache_hit"), do: dgettext("dashboard_gradle", "Cache hit (origin unknown)")
   defp outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
   defp outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
-  defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Executed")
+  defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Succeeded")
   defp outcome_label("failed"), do: dgettext("dashboard_gradle", "Failed")
   defp outcome_label("skipped"), do: dgettext("dashboard_gradle", "Skipped")
   defp outcome_label("no_source"), do: dgettext("dashboard_gradle", "No source")

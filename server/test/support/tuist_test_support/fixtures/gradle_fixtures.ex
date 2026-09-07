@@ -41,6 +41,9 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         configuration_operations: Keyword.get(attrs, :configuration_operations, []),
         artifact_transforms: Keyword.get(attrs, :artifact_transforms, []),
         inserted_at: Keyword.get(attrs, :inserted_at),
+        execution_graph: Keyword.get(attrs, :execution_graph),
+        telemetry_version: Keyword.get(attrs, :telemetry_version, 0),
+        build_options: Keyword.get(attrs, :build_options, %{}),
         tasks: Keyword.get(attrs, :tasks, [])
       })
 

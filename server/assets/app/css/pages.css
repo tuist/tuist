@@ -16,6 +16,7 @@
 @import "./pages/gradle_build_runs.css";
 @import "./pages/gradle_builds.css";
 @import "./pages/gradle_cache.css";
+@import "./pages/gradle_bottlenecks.css";
 @import "./pages/gradle_overview.css";
 @import "./pages/bazel_invocations.css";
 @import "./pages/bazel_overview.css";
@@ -59,3 +60,5 @@
 @import "./pages/machine_metrics.css";
 @import "./pages/usage.css";
 @import "./pages/xcode_cache.css";
+
+@import "./pages/gradle_execution.css";
