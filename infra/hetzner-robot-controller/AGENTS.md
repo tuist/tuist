@@ -226,31 +226,26 @@ Tests use controller-runtime's `fake.Client` and an in-memory
 ## Releasing
 
 `.github/workflows/hetzner-robot-controller-release.yml` cuts the
-tag and publishes the image on push to `main`, and the mgmt
-cluster runs whatever tag `infra/k8s/mgmt/hetzner-robot-controller.yaml`
+tag and publishes the image on push to `main`, and the mgmt cluster
+runs whatever tag `infra/k8s/mgmt/hetzner-robot-controller.yaml`
 pins. Renovate raises the pin once a release exists.
 
-A change here only ships if its commit is **scoped to this
-component**. `cliff.toml` matches
-`<type>(...hetzner-robot-controller...)` and its last parser skips
-every other scoped commit, so a change landing under `fix(infra)`
-or `feat(server)` is invisible to `mise run release:check`: no tag
-is cut, and `if: needs.check.outputs.should-release == 'true'`
-skips the release job.
+What makes a commit releasable is the **paths it touches**, not its
+scope. `include_paths` in `mise/tasks/release/components.json`
+restricts the range to this directory, and `cliff.toml` then accepts
+any conventional commit in it apart from `chore` and `ci`. A change
+landing under `feat(server)` or `fix(infra)` releases exactly as one
+under `fix(hetzner-robot-controller)` does.
 
-Nothing reports that. CI is green, `main` carries the change, and
-the cluster keeps running the old image until someone compares the
-pin against the code. It happened to the WWN four-disk fix, which
-merged under `feat(server)` in
-[#12814](https://github.com/tuist/tuist/pull/12814) and left the
-mgmt cluster on `0.1.0` with a filler that still installed a
-four-disk box across two of its disks.
-
-So scope commits touching this directory
-`<type>(hetzner-robot-controller)`. If one lands under the wrong
-scope, the recovery is another commit here carrying the right one;
-`workflow_dispatch` does not help, because the release job is
-gated on the same check.
+`cliff.toml` used to match on the scope instead, and that is how the
+WWN four-disk fix shipped nowhere. It merged under `feat(server)` in
+[#12814](https://github.com/tuist/tuist/pull/12814), `release:check`
+found nothing releasable, the release job was skipped by
+`if: needs.check.outputs.should-release == 'true'`, and the mgmt
+cluster kept running `0.1.0` with a filler that installs a four-disk
+box across two of its disks. Nothing reported it: CI was green and
+`main` carried the fix, so the drift was visible only by comparing
+the pin against the code.
 
 ## Future work
 
