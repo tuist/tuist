@@ -136,7 +136,7 @@ spec:
           # this line, so bump it by hand to the released version.
           # `hetzner-robot-controller-image.yml` only builds
           # `:sha-*`/`:latest` for pre-release iteration.
-          image: ghcr.io/tuist/tuist-hetzner-robot-controller:0.1.0
+          image: ghcr.io/tuist/tuist-hetzner-robot-controller:0.2.0
           imagePullPolicy: IfNotPresent
           args:
             - --leader-elect=true
