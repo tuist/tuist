@@ -23,6 +23,7 @@ use crate::{
     analytics::Analytics,
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     http,
     io::IoController,
@@ -138,9 +139,6 @@ async fn run_with_config(
         .map_err(|error| format!("failed to create directories: {error}"))?;
     let auth = AuthEngine::from_env(metrics.clone())
         .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
@@ -183,7 +181,18 @@ async fn run_with_config(
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store = Store::open(&config, io.clone(), memory.clone())?;
+    let store = Arc::new(Store::open(&config, io.clone(), memory.clone())?);
+    let analytics =
+        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
+            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .map_err(|error| format!("failed to initialize Bazel test-artifact delivery: {error}"))?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -212,10 +221,12 @@ async fn run_with_config(
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -223,12 +234,14 @@ async fn run_with_config(
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -285,6 +298,7 @@ async fn run_with_config(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -614,6 +628,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.outbox_messages,
                             snapshot.outbox_bulk_messages,
                         );
+                        state
+                            .metrics
+                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics
@@ -1177,6 +1194,7 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    state.rebuild_replication_targets().await;
     Ok(())
 }
 

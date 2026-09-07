@@ -18,6 +18,7 @@ use crate::{
     auth::SharedAuth,
     backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     io::IoController,
@@ -44,6 +45,10 @@ pub struct AppState {
     pub runtime: Arc<RuntimeState>,
     pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
+    /// Bounded, post-write delivery of Bazel's conventional test artifacts.
+    /// This is separate from aggregate cache analytics because it may read one
+    /// small blob under the background memory budget.
+    pub bazel_test_artifacts: Option<BazelTestArtifactDelivery>,
     pub usage: Option<Usage>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
@@ -59,6 +64,12 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into discovery/replication
     // targets on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// The replication target list, shared immutable and replaced whole by
+    /// `rebuild_replication_targets` whenever one of its inputs changes
+    /// (static seeds, the heartbeat peer list, the discovered view). Every
+    /// write reads it, so it is a pointer load rather than a walk of the
+    /// readiness state under its lock.
+    pub(crate) replication_target_cache: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
@@ -135,6 +146,19 @@ pub struct ReplicationBackoff {
     failures: u32,
 }
 
+/// The replication targets known before any membership pass: the static
+/// seeds minus the node itself.
+pub fn static_replication_targets(config: &Config) -> Vec<String> {
+    config
+        .peers
+        .iter()
+        .filter(|peer| **peer != config.node_url)
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 impl AppState {
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
@@ -174,6 +198,7 @@ pub struct RolloutStatusReport {
     pub http_inflight: usize,
     pub grpc_inflight: usize,
     pub outbox_messages: u64,
+    pub outbox_capacity: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
@@ -392,7 +417,36 @@ impl AppState {
             .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
+        self.refresh_outbox_capacity(discovery_observed).await;
         membership_update
+    }
+
+    /// Re-derives the outbox cap from every peer whose messages may occupy
+    /// the queue: the current replication targets (what a write enqueues for)
+    /// plus the discovered-only history, whose messages `process_outbox`
+    /// never prunes within a process lifetime. Counting that history keeps a
+    /// departed sibling's share — and a sibling's share through a status-probe
+    /// blip, which empties the discovered set the same way — for as long as
+    /// its messages can sit in the queue, so the cap only shrinks behind a
+    /// departure whose messages are actually dropped.
+    ///
+    /// `observed` says whether the view behind an empty set was actually
+    /// seen: every discovery target answered, or there were none to ask. An
+    /// unobserved empty set means the node has no peer view (control plane or
+    /// discovery unreachable), not that every peer left — the same reading
+    /// `process_outbox` gives it when it declines to prune — so the last
+    /// derived total holds rather than collapsing to one share under a
+    /// backlog that is not going anywhere. An observed empty set is a mesh
+    /// that really has no peers, and the total returns to one share.
+    pub async fn refresh_outbox_capacity(&self, observed: bool) {
+        let targets = self.rebuild_replication_targets().await;
+        let mut peers: BTreeSet<String> = targets.iter().cloned().collect();
+        peers.extend(self.discovered_only_peer_history().await);
+        if peers.is_empty() && !observed {
+            return;
+        }
+        self.store.set_replication_peer_count(peers.len());
+        self.store.retain_outbox_targets(&peers);
     }
 
     pub async fn initial_discovery_completed(&self) -> bool {
@@ -428,13 +482,24 @@ impl AppState {
         }
     }
 
-    pub async fn replication_targets(&self) -> Vec<String> {
+    /// The peers a write enqueues one outbox message for. A shared snapshot:
+    /// exact as of the last input change, which every input mutation
+    /// follows with `rebuild_replication_targets`.
+    pub fn replication_targets(&self) -> Arc<Vec<String>> {
+        self.replication_target_cache.load_full()
+    }
+
+    /// Re-derives the replication targets from the static seeds, the
+    /// heartbeat peer list and the discovered view, and publishes them.
+    pub async fn rebuild_replication_targets(&self) -> Arc<Vec<String>> {
         let snapshot = self.readiness_snapshot().await;
         let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
         targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
-        targets.into_iter().collect()
+        let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());
+        self.replication_target_cache.store(targets.clone());
+        targets
     }
 
     /// Segment count as a percentage of the ring's desired total, the ring
@@ -559,6 +624,7 @@ impl AppState {
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
             outbox_messages: metrics.outbox_messages,
+            outbox_capacity: self.store.outbox_max_depth() as u64,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
             peer_connection_failure_count: metrics.peer_connection_failure_count,
@@ -731,6 +797,121 @@ mod tests {
         assert!(observed.initial_discovery_completed);
         assert!(observed.generation_changed);
         assert_eq!(readiness.generation, 1);
+    }
+
+    /// The membership pass is what re-derives the outbox cap: the store
+    /// cannot see the peer set, and the cap has to count every target a write
+    /// would enqueue for, so it is read from `replication_targets` rather
+    /// than from the discovered set alone.
+    #[tokio::test]
+    async fn membership_view_rederives_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            // Only the node itself is a static seed: one share to start.
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 10);
+
+        context
+            .state
+            .dynamic_peers
+            .store(std::sync::Arc::new(vec!["http://peer-c:7443".to_string()]));
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            30,
+            "two discovered peers plus one dynamic peer"
+        );
+
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([("http://peer-a:7443".to_string(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost peer gives its share back"
+        );
+
+        // A discovered-only peer's messages are never pruned, so its share
+        // survives its absence from the view — whether it left or its status
+        // probe merely failed this pass.
+        context
+            .state
+            .note_discovered_only_peers(vec!["http://peer-a:7443".to_string()])
+            .await;
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "an empty view keeps the discovered-only share and the dynamic peer"
+        );
+    }
+
+    /// An empty derived set is "no peer view", the reading the prune path
+    /// gives it, so the capacity holds instead of collapsing to one share.
+    #[tokio::test]
+    async fn an_empty_peer_view_holds_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 20);
+
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost view keeps the last derived capacity"
+        );
+
+        // F6: an OBSERVED empty view (every discovery target answered, or
+        // there are none) is a mesh that really has no peers, and the
+        // capacity returns to one share instead of freezing.
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            10,
+            "an observed empty mesh drops to the single-share floor"
+        );
     }
 
     #[tokio::test]

@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1290,6 +1291,66 @@ func TestFinalizeVolumePromoteAccounting(t *testing.T) {
 			t.Fatalf("upload samples = %d; want %d (an accept uploaded too)", got, uploadsBefore+1)
 		}
 	})
+}
+
+// The CAS's share of the image is a FOOTPRINT, and the compiler is given half of
+// it, because llcas keeps a primary and an upstream generation and a prune only
+// ever collects what falls off behind them.
+//
+// Getting this wrong is not a rounding error: handing the compiler the whole
+// share is what let a correctly pruning store want ~22 GiB inside a 20 GiB image
+// (cap 20, cas 11) and fill the account's volume every ~2 days.
+// The marker is the only channel the host has for telling the guest what the
+// compilation cache may occupy, and the guest feeds the same number to both the
+// compiler (COMPILATION_CACHE_LIMIT_SIZE) and the teardown prune. Staging the
+// footprint here instead of the generation limit is the bug that let a store
+// bounded exactly as configured still overrun the image.
+func TestWriteCASEnabledStagesThePerGenerationLimit(t *testing.T) {
+	statusDir := t.TempDir()
+	r := &Reconciler{Volumes: &VolumeManager{Root: t.TempDir(), CapGiB: 20, CASGiB: 11}}
+
+	r.writeCASEnabled(statusDir)
+
+	raw, err := os.ReadFile(filepath.Join(statusDir, casEnabledFile))
+	if err != nil {
+		t.Fatalf("reading the cas-enabled marker: %v", err)
+	}
+	staged, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+	if err != nil {
+		t.Fatalf("marker %q is not a byte count: %v", raw, err)
+	}
+	_, casBytes := cacheImageSplit(20, 11)
+	if staged != casGenerationLimit(casBytes) {
+		t.Fatalf("staged %d; want %d (half the %d-byte footprint)", staged, casGenerationLimit(casBytes), casBytes)
+	}
+	// The guest is fail-safe on a non-numeric budget by falling back to a VM-local
+	// cold cache, so a marker that stops being a plain integer silently costs every
+	// job on the fleet its warm compilation cache.
+	if staged == 0 {
+		t.Fatal("a zero limit would leave the store unbounded")
+	}
+}
+
+func TestCASGenerationLimitLeavesRoomForBothGenerations(t *testing.T) {
+	const gib = uint64(1024 * 1024 * 1024)
+
+	_, casBytes := cacheImageSplit(20, 11)
+	limit := casGenerationLimit(casBytes)
+	if limit != casBytes/2 {
+		t.Fatalf("generation limit = %d; want half the %d-byte footprint", limit, casBytes)
+	}
+	// The bound that matters: the store's settled footprint (primary + upstream)
+	// has to fit the share the split gave it, or the two pruners over-commit the
+	// image no matter how diligently each keeps its own budget.
+	if settled := limit * casGenerationsRetained; settled > casBytes {
+		t.Fatalf("settled footprint %d exceeds the CAS share %d", settled, casBytes)
+	}
+	// ...and the whole image still adds up, which is the invariant a per-generation
+	// limit staged as a footprint quietly broke.
+	binaryBytes, _ := cacheImageSplit(20, 11)
+	if binaryBytes+casBytes+2*gib > 20*gib {
+		t.Fatalf("binary(%d)+cas(%d)+reserve exceeds a 20 GiB cap", binaryBytes, casBytes)
+	}
 }
 
 func TestCacheImageSplit(t *testing.T) {

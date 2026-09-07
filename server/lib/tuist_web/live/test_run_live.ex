@@ -15,6 +15,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Runs.SelectiveTestingTab
 
   alias Noora.Filter
+  alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
@@ -97,6 +98,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
       |> assign_initial_flaky_runs_state()
+      |> assign(:bazel_invocation_logs, [])
+      |> assign(:bazel_invocation_logs_meta, %{current_page: 1, total_pages: 1})
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
@@ -541,11 +544,41 @@ defmodule TuistWeb.TestRunLive do
     assign_flaky_runs_data(socket, flaky_runs, meta, params)
   end
 
+  defp assign_tab_data(
+         %{assigns: %{run: %{build_system: "bazel", bazel_invocation_id: invocation_id}}} = socket,
+         "logs",
+         params
+       )
+       when invocation_id not in [nil, ""] do
+    page = String.to_integer(params["logs-page"] || "1")
+
+    {logs, meta} =
+      Bazel.list_invocation_logs(socket.assigns.selected_project.id, invocation_id, %{
+        order_by: [:sequence_number],
+        order_directions: [:asc],
+        page: page,
+        page_size: @table_page_size
+      })
+
+    socket
+    |> assign(:bazel_invocation_logs, Enum.map(logs, &bazel_log/1))
+    |> assign(:bazel_invocation_logs_meta, meta)
+  end
+
   defp assign_tab_data(socket, _tab, params) do
     socket
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)
+  end
+
+  defp bazel_log(log) do
+    %{
+      id: log.id,
+      type: log.stream,
+      message: log.message,
+      timestamp: Calendar.strftime(log.observed_at, "%H:%M:%S")
+    }
   end
 
   defp load_tab_data(selected_test_tab, run, params) do

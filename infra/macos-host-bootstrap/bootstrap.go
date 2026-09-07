@@ -380,12 +380,14 @@ type Config struct {
 	// RunnerCacheVolumeGiB > 0.
 	CacheVolumeMasterCapGiB int
 
-	// CacheVolumeCASGiB is the Xcode compilation cache's byte budget WITHIN
-	// each per-account cache image (folded in as a subdir), passed to
+	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
+	// WITHIN each per-account cache image (folded in as a subdir), passed to
 	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
 	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// 0 (default) leaves the compilation cache VM-local. Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
+	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
+	// bounds one generation of a store that keeps two — so this is what the
+	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
+	// Only meaningful when RunnerCacheVolumeGiB > 0.
 	CacheVolumeCASGiB int
 }
 

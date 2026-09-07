@@ -1175,10 +1175,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: infra/runner-image/go.mod
-
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
       # authenticates with the tuist-bot token. `crane auth login`
@@ -1197,12 +1193,14 @@ jobs:
 
       - uses: ./.github/actions/reclaim-tart-disk
 
-      - name: Build runner shell agent
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
+      # Every binary runner.pkr.hcl provisions. Shared with runner-image.yml
+      # because each `provisioner "file"` there is a mandatory input, and one
+      # built in only one of the two callers fails the other — on this path,
+      # taking down the whole release cascade. See the action.
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          mise-version: ${{ env.MISE_VERSION }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build profile
         id: build

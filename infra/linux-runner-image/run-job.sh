@@ -22,6 +22,48 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+BUILDKITE_ENV_PATH="${JIT_PATH}.buildkite-env"
+
+# Buildkite branch. The poller stages a credential file instead of a JIT
+# when the claimed job came from a customer's Buildkite cluster.
+#
+# None of the GitHub idle-watchdog machinery below applies here. An
+# acquisition token names one job UUID, so the assignment already
+# happened server-side before this container started: the agent either
+# takes that job or exits. There is no window in which a registered agent
+# waits to be given work, which is the whole hazard that watchdog bounds.
+if [ -s "${BUILDKITE_ENV_PATH}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${BUILDKITE_ENV_PATH}"
+  set +a
+
+  if [ -z "${BUILDKITE_AGENT_TOKEN:-}" ] || [ -z "${BUILDKITE_AGENT_ACQUIRE_JOB:-}" ]; then
+    echo "$(date -u +%FT%TZ) run-job: buildkite env staged but incomplete; aborting"
+    exit 1
+  fi
+
+  # The hooks read their settings from here rather than from the
+  # environment: the agent sanitizes the job environment, so what this
+  # process exports does not necessarily reach a hook.
+  export TUIST_RUNNER_JOB_ENV="${BUILDKITE_ENV_PATH}"
+  export TUIST_RUNNER_STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/tmp/tuist-runner}"
+  mkdir -p "${TUIST_RUNNER_STATE_DIR}" 2>/dev/null || true
+
+  if [ -x /usr/local/bin/vitals.sh ]; then
+    /usr/local/bin/vitals.sh &
+  fi
+
+  echo "$(date -u +%FT%TZ) run-job: acquiring buildkite job ${BUILDKITE_AGENT_ACQUIRE_JOB}"
+  exec /usr/local/bin/buildkite-agent start \
+    --name "$(hostname)" \
+    --hooks-path /usr/local/share/tuist/buildkite-hooks \
+    --build-path "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}" \
+    --enable-job-log-tmpfile \
+    --job-log-path "${TUIST_RUNNER_STATE_DIR}" \
+    --disconnect-after-job
+fi
+
 if [ ! -s "${JIT_PATH}" ]; then
   echo "$(date -u +%FT%TZ) run-job: no JIT staged at ${JIT_PATH}; nothing to run"
   exit 0

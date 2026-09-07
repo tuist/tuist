@@ -120,7 +120,8 @@ defmodule Tuist.Environment do
     * `:web` (default) — full Phoenix endpoint, every Oban queue, every
       ingestion buffer. What the existing server pods run.
     * `:processor` — no Phoenix listener, narrowed Oban queue set to
-      `:process_build`. Booted by processor-deployment.yaml.
+      `:process_build` and `:process_bazel_tests`. Booted by
+      processor-deployment.yaml.
     * `:xcresult_processor` — no Phoenix listener, Oban queue set
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
@@ -265,6 +266,22 @@ defmodule Tuist.Environment do
 
   def kura_capacity_admission_required? do
     tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
+  end
+
+  def turnstile_enabled? do
+    truthy?(System.get_env("TUIST_TURNSTILE_ENABLED", "0"))
+  end
+
+  def turnstile_required? do
+    tuist_hosted?() and turnstile_enabled?()
+  end
+
+  def turnstile_site_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SITE_KEY") || get([:turnstile, :site_key], secrets)
+  end
+
+  def turnstile_secret_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
   end
 
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
@@ -1261,6 +1278,18 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
+  # The in-cluster ClickHouse the workload is migrating onto, while
+  # `clickhouse_url/1` still points at the system of record. Set only for the
+  # duration of the migration: it is what the schema clone writes into, what
+  # the backfill fills, and what shadow writes are mirrored to. Absent
+  # everywhere else, which is what keeps all of that inert.
+  def clickhouse_bare_metal_url(secrets \\ secrets()) do
+    case get([:clickhouse, :bare_metal_url], secrets) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
   def ops_clickhouse_url(secrets \\ secrets()) do
     get([:ops, :clickhouse_url], secrets) ||
       build_ops_clickhouse_url(
@@ -1324,6 +1353,39 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Whether writes are mirrored onto the in-cluster ClickHouse. Separate from
+  # the URL being set, because the destination has to exist and hold the
+  # schema before it can accept a write: the schema clone runs after the
+  # release that first deploys the server, so a single switch would mirror
+  # writes into a database with no tables and log an error for each one.
+  def clickhouse_shadow_writes_enabled?(secrets \\ secrets()) do
+    not is_nil(clickhouse_bare_metal_url(secrets)) and
+      truthy?(get([:clickhouse, :shadow_writes_enabled], secrets, default_value: "0"))
+  end
+
+  # The instant that divides the two halves of the migration: the backfill
+  # copies rows from before it, and shadow writes carry everything from it on.
+  # It has to be named rather than inferred, because the only correct value is
+  # the moment dual writes were switched on, which this code cannot observe
+  # after the fact. Guessing it either way corrupts the copy: a cutoff before
+  # that moment loses the rows written in between, and one after it copies
+  # rows the dual write already delivered.
+  def clickhouse_backfill_cutoff(secrets \\ secrets()) do
+    with value when is_binary(value) and value != "" <- get([:clickhouse, :backfill_cutoff], secrets),
+         {:ok, cutoff, _offset} <- DateTime.from_iso8601(value) do
+      DateTime.truncate(cutoff, :second)
+    else
+      _ -> nil
+    end
+  end
+
+  def clickhouse_shadow_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
+      nil -> 5
+      value -> String.to_integer(value)
+    end
+  end
+
   def clickhouse_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
@@ -1353,6 +1415,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end
 
+  def delegate_process_bazel_tests? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BAZEL_TESTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1368,6 +1434,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_bazel_tests_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_BAZEL_TESTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 1
     end
   end
 

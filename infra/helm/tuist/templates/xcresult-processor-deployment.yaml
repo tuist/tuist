@@ -231,6 +231,11 @@ spec:
                   fieldPath: metadata.name
             {{- end }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            # This processor writes the test tables, so it has to mirror them
+            # too. Without it the dual write covers only what the web pods
+            # insert, and every row parsed out of an xcresult reaches the
+            # system of record alone.
+            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -40,6 +40,28 @@ defmodule Tuist.MCP.Components.Tools.ProjectAndAutomationAlertToolsTest do
                "visibility" => "private"
              }
     end
+
+    test "returns a Bazel project with schema-valid structured content" do
+      account = %{id: 1, name: "acme"}
+
+      project = %{
+        id: 2,
+        account: account,
+        name: "app",
+        default_branch: "main",
+        visibility: :private,
+        build_system: :bazel
+      }
+
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :project_read, :subject, ^project -> :ok end)
+      stub(Projects, :get_repository_url, fn ^project -> "https://github.com/acme/app" end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"structuredContent" => %{"build_system" => "bazel"}} =
+               GetProject.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
+    end
   end
 
   describe "list_automation_alerts" do

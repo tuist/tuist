@@ -402,7 +402,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Check marketing image budget
+      - name: Check marketing and app image budgets
         working-directory: ${{ github.workspace }}
         run: ./mise/tasks/marketing/image-budget.sh
   esbuild:

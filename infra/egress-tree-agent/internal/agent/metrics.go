@@ -14,6 +14,7 @@ type Metrics struct {
 	AttachedPods         prometheus.Gauge
 	ReturnAttachFailures prometheus.Counter
 	SkippedPods          prometheus.Gauge
+	LinkAttaches         prometheus.Counter
 	LinkReattaches       prometheus.Counter
 	SiblingOverflow      prometheus.Counter
 	NodeBudgetMbps       prometheus.Gauge
@@ -61,9 +62,13 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 			Name: "kura_egress_tree_skipped_pods",
 			Help: "Annotated pods not attached this cycle (unresolvable device or malformed annotation).",
 		}),
+		LinkAttaches: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kura_egress_tree_link_attach_total",
+			Help: "First tcx link attaches on new pod devices; one per pod creation.",
+		}),
 		LinkReattaches: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "kura_egress_tree_link_reattach_total",
-			Help: "tcx link attach or reattach operations on pod devices.",
+			Help: "tcx links put back after being stripped or displaced from the head of a pod device's chain.",
 		}),
 		SiblingOverflow: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "kura_egress_tree_sibling_overflow_total",
@@ -129,7 +134,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 	registry.MustRegister(
 		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.ReturnAttachFailures,
 		m.SkippedPods,
-		m.LinkReattaches, m.SiblingOverflow, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
+		m.LinkAttaches, m.LinkReattaches, m.SiblingOverflow, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
 		m.ClassBacklogBytes, m.ClassLendedPackets, m.ClassBorrowedPackets,
 		m.ClassRateBytes, m.ClassCeilBytes,
 		m.DirectPackets, m.PodRedirected, m.PodGuardPass,

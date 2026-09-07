@@ -7,6 +7,7 @@ mod auth;
 mod backfill;
 mod backpressure;
 mod bandwidth;
+mod bazel_test_artifacts;
 mod config;
 mod constants;
 mod enrollment;

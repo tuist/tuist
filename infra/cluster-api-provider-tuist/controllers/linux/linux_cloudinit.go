@@ -899,6 +899,7 @@ func kataSetup(sudo, sudoE string, enabled bool) string {
 # written in: registering it against a v2 config is silently ignored, and the
 # node then reports Ready while every runtimeClassName=kata-qemu Pod hangs.
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
+%[5]s
 %[2]sapt-get install -y zstd
 # kata-static expands with a top-level opt/, so extracting at / lands the shim
 # and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
@@ -932,7 +933,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath)
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

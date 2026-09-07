@@ -1,0 +1,69 @@
+name: Build runner image binaries
+description: |
+  Builds every compiled artifact `infra/runner-image/runner.pkr.hcl` provisions
+  into `infra/runner-image/build/`, ready for `packer build`.
+
+  Shared because the template has TWO callers — `runner-image.yml` (the
+  standalone bake) and `server-production-deployment.yml`'s `runner-image-build`
+  matrix (the one a release goes through) — and every `provisioner "file"` in
+  that template is a MANDATORY input. A binary added to the template but built in
+  only one of them fails the other with `Bad source './build/<name>'`, which on
+  the production path takes down the whole cascade rather than just the image.
+  That already happened once, with `tuist-cas-proxy`. Adding a new provisioned
+  binary means adding it here, once.
+
+inputs:
+  mise-version:
+    description: Version of mise to install (pass the workflow's MISE_VERSION)
+    required: true
+  github-token:
+    description: GitHub token for mise (falls back to MISE_GITHUB_TOKEN)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: infra/runner-image/go.mod
+
+    # The trusted interactive shell bridge (`/opt/tuist/runner-shell-agent`).
+    - name: Build runner shell agent
+      shell: bash
+      working-directory: infra/runner-image
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
+
+    # The Rust toolchain the cas-plugin needs, resolved from cas-plugin/mise.toml
+    # rather than pinned here (single source of truth, as cli-build-publish does).
+    - uses: ./.github/actions/mise-install
+      with:
+        version: ${{ inputs.mise-version }}
+        install: rust
+        cache: "false"
+        working-directory: cas-plugin
+        github-token: ${{ inputs.github-token }}
+
+    # The image's last-resort CAS prune client (`/opt/tuist/tuist-cas-proxy`). A
+    # plain `xcodebuild` workflow never runs Tuist, so it installs no cas-proxy of
+    # its own — and without a binary in the image nothing on the machine can bound
+    # the compilation cache those jobs write, which is how the per-account cache
+    # volume filled every ~2 days.
+    #
+    # Native arm64: the guest is Apple Silicon macOS, like these builders, so no
+    # universal binary is needed (the CLI bundle builds one because it ships to
+    # developer machines; this copy never leaves the image).
+    #
+    # Built FROM the crate directory, as mise/tasks/cli/bundle.sh does, so mise
+    # resolves the toolchain from cas-plugin/mise.toml rather than the root's.
+    - name: Build CAS prune client
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p infra/runner-image/build
+        (cd cas-plugin && cargo build --release --bin tuist-cas-proxy)
+        install -m 0755 cas-plugin/target/release/tuist-cas-proxy \
+          infra/runner-image/build/tuist-cas-proxy

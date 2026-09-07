@@ -1226,7 +1226,7 @@ async fn reject_overloaded_public_writes(
                 "server is shedding writes due to memory pressure",
             );
         }
-        if state.store.outbox_depth() >= state.config.outbox_max_depth {
+        if state.store.outbox_saturated(&state.replication_targets()) {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(
                 &state.metrics,
@@ -1687,6 +1687,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
         "outbox_messages": status.outbox_messages,
+        "outbox_capacity": status.outbox_capacity,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
         "peer_connection_failure_count": status.peer_connection_failure_count,
@@ -1927,7 +1928,7 @@ async fn put_keyvalue(
             );
         }
     };
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
 
     match state
         .store
@@ -2318,7 +2319,7 @@ async fn complete_module_upload(
             namespace_id: upload.namespace_id,
         });
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     match state
         .store
         .complete_multipart_upload_and_enqueue(&query.upload_id, &body.parts, &targets)
@@ -2379,7 +2380,7 @@ async fn clean_namespace(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     match state
         .store
         .delete_namespace_and_enqueue(&namespace.namespace_id, &targets)
@@ -3219,6 +3220,14 @@ async fn internal_replicate_artifact(
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
+            // The sender is the only side that otherwise records this shed,
+            // so a receiver refusing peer writes would look healthy in its
+            // own logs.
+            tracing::warn!(
+                namespace_id = %query.namespace_id,
+                key = %query.key,
+                "shed peer artifact replication: {error}"
+            );
             return error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
@@ -3466,7 +3475,7 @@ async fn put_blob_artifact(
         }
     };
 
-    let targets = replication_targets(&state).await;
+    let targets = replication_targets(&state);
     let result = state
         .store
         .persist_artifact_from_path_and_enqueue(
@@ -4673,6 +4682,57 @@ mod tests {
             .expect("inline fetch should succeed")
             .expect("replicated artifact should be persisted");
         assert_eq!(stored.len(), body_len);
+    }
+
+    // Regression test: a replication body with no Content-Length reserved the
+    // route ceiling (MAX_REPLICATION_BODY_BYTES) against the tmp budget, so a
+    // node whose budget was smaller than four such ceilings shed chunked peer
+    // uploads of a few bytes with a 503. The receive must be charged for the
+    // bytes that land.
+    #[tokio::test]
+    async fn chunked_artifact_replication_is_charged_for_the_bytes_it_stages() {
+        let context = test_context(|config| {
+            config.tmp_dir_max_bytes = 64 * 1024;
+        })
+        .await;
+        let payload = bytes::Bytes::from(vec![0xAB_u8; 2691]);
+        let body = Body::from_stream(futures_util::stream::iter([
+            Ok::<_, Infallible>(payload.slice(..1000)),
+            Ok(payload.slice(1000..)),
+        ]));
+        let request = Request::builder()
+            .method("PUT")
+            .uri(
+                "/_internal/replicate/artifact?producer=reapi&inline=false\
+                 &namespace_id=tuist%2Fkura&key=blob%2Fdeadbeef%2F2691\
+                 &content_type=application%2Foctet-stream&version_ms=1000",
+            )
+            .body(body)
+            .expect("failed to build request");
+        assert!(
+            request
+                .headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .is_none(),
+            "fixture must exercise the undeclared-length path"
+        );
+
+        let response = internal_router(context.state.clone())
+            .oneshot(request)
+            .await
+            .expect("request failed");
+        let status = response.status();
+        let text = response_text(response).await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{text}");
+
+        let stored = context
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Reapi, "tuist/kura", "blob/deadbeef/2691")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("replicated artifact should be persisted");
+        assert_eq!(stored.size, payload.len() as u64);
     }
 
     // Pins the exact inline replication ceiling so a future limit or comparison
@@ -7650,7 +7710,7 @@ mod tests {
         // on `router` it would stay green even if the middleware regressed to
         // answering 503.
         let context = test_context(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
             config.peers = vec![
                 "http://127.0.0.1:7101".into(),
                 "http://127.0.0.1:7102".into(),
@@ -7660,7 +7720,10 @@ mod tests {
         let app = public_router(context.state.clone());
 
         assert!(
-            context.state.store.outbox_depth() < context.state.config.outbox_max_depth,
+            !context
+                .state
+                .store
+                .outbox_saturated(&context.state.replication_targets()),
             "the pre-check must admit this write, or the test is not exercising the gap"
         );
 

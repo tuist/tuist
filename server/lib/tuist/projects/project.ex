@@ -50,6 +50,11 @@ defmodule Tuist.Projects.Project do
     field :auto_mark_flaky_threshold, :integer, default: 1
     field :flaky_cooldown_days, :integer, default: 14
 
+    # Object-storage key of the currently uploaded project logo, or nil when
+    # the project has none. The suffix (`.png` / `.jpg` / `.webp`) doubles as
+    # the content-type hint when serving.
+    field :logo_storage_key, :string
+
     belongs_to :account, Account
 
     has_many :previews, Preview
@@ -116,6 +121,12 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel])
     |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :selected])
+  end
+
+  # Kept separate from `update_changeset/2` so the storage key is never cast
+  # from user-controlled params; the context is the only writer of this field.
+  def logo_changeset(project, attrs) do
+    cast(project, attrs, [:logo_storage_key])
   end
 
   def xcode_project?(%__MODULE__{build_system: :xcode}), do: true

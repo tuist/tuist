@@ -5,6 +5,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Buildkite
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -391,6 +392,184 @@ defmodule TuistWeb.IntegrationsLiveTest do
       html = render_click(lv, "select-github-enterprise")
 
       refute html =~ "Server URL"
+    end
+  end
+
+  describe "Buildkite" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> true end)
+      :ok
+    end
+
+    defp connect_buildkite(lv, attrs) do
+      lv
+      |> form(
+        "#connect-buildkite-form",
+        Map.merge(%{"organization_slug" => "acme", "agent_token" => "bkct_secret"}, attrs)
+      )
+      |> render_submit()
+    end
+
+    test "connects a cluster from the modal and shows it on the card", %{conn: conn, account: account} do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      # Nothing connected: the card offers the modal and takes no more room.
+      refute html =~ ~s(id="buildkite-form")
+
+      html = connect_buildkite(lv, %{})
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.organization_slug == "acme"
+      assert installation.agent_token == "bkct_secret"
+      # Derived, never taken from the form: a customer-chosen key could
+      # collide with another account's and swap their reservations.
+      assert installation.stack_key == "tuist-#{account.id}"
+      assert html =~ ~s(value="acme")
+    end
+
+    test "masks the agent token so it is never typed in the clear", %{conn: conn, account: account} do
+      # Noora's `text_input` derives the HTML input type from `input_type`,
+      # not from `type`, so `type="password"` alone renders a plaintext
+      # field. Only the rendered attribute catches it.
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      token_input = html |> Floki.parse_document!() |> Floki.find("input#buildkite-agent-token")
+
+      assert [_] = token_input
+      assert Floki.attribute(token_input, "type") == ["password"]
+    end
+
+    test "reports a rejected token instead of storing it", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html = connect_buildkite(lv, %{"agent_token" => "bkua_wrong_kind_of_token"})
+
+      assert html =~ "cluster agent token"
+      assert is_nil(Buildkite.get_installation(account.id))
+    end
+
+    test "surfaces the last poll error so a broken connection is visible", %{conn: conn, account: account} do
+      {:ok, installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      Buildkite.record_poll_result(installation, {:error, :unauthorized})
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      assert html =~ "Buildkite rejected the agent token"
+    end
+
+    test "disconnects a cluster", %{conn: conn, account: account} do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      lv |> element("button[phx-click=disconnect-buildkite]") |> render_click()
+
+      assert is_nil(Buildkite.get_installation(account.id))
+    end
+
+    defp connected(account) do
+      {:ok, _installation} =
+        Buildkite.upsert_installation(account.id, %{
+          organization_slug: "acme",
+          stack_key: "tuist-#{account.id}",
+          agent_token: "bkct_secret"
+        })
+
+      :ok
+    end
+
+    test "saves a new organization from the card while a blank token keeps the current one", %{
+      conn: conn,
+      account: account
+    } do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme-mobile", "agent_token" => ""})
+        |> render_submit()
+
+      assert html =~ "Buildkite connection saved."
+      installation = Buildkite.get_installation(account.id)
+      assert installation.organization_slug == "acme-mobile"
+      assert installation.agent_token == "bkct_secret"
+    end
+
+    test "saves a new token from the card", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      lv
+      |> form("#buildkite-form", %{"organization_slug" => "acme", "agent_token" => "bkct_rotated"})
+      |> render_submit()
+
+      installation = Buildkite.get_installation(account.id)
+      assert installation.agent_token == "bkct_rotated"
+      assert installation.organization_slug == "acme"
+    end
+
+    test "keeps an invalid organization on screen with its error instead of saving it", %{
+      conn: conn,
+      account: account
+    } do
+      connected(account)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme corp", "agent_token" => ""})
+        |> render_submit()
+
+      assert html =~ ~s(value="acme corp")
+      assert html =~ "has invalid format"
+      assert Buildkite.get_installation(account.id).organization_slug == "acme"
+    end
+
+    test "enables Save changes only once something changed", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      save = fn html -> html |> Floki.parse_document!() |> Floki.find("#buildkite-form button[type=submit]") end
+
+      # Rendered valueless, which Floki reads back as an empty string.
+      assert Floki.attribute(save.(html), "disabled") == [""]
+
+      html =
+        lv
+        |> form("#buildkite-form", %{"organization_slug" => "acme", "agent_token" => "bkct_new"})
+        |> render_change()
+
+      assert Floki.attribute(save.(html), "disabled") == []
+    end
+
+    test "masks the token field on the card", %{conn: conn, account: account} do
+      connected(account)
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      token_input = html |> Floki.parse_document!() |> Floki.find("input#buildkite-token")
+
+      assert [_] = token_input
+      assert Floki.attribute(token_input, "type") == ["password"]
+    end
+
+    test "is hidden when runners are not enabled for the account", %{conn: conn, account: account} do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      refute html =~ "buildkite-card-section"
     end
   end
 end

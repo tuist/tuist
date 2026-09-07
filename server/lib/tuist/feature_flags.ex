@@ -41,6 +41,19 @@ defmodule Tuist.FeatureFlags do
     not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
   end
 
+  @doc """
+  Whether the Cloudflare Turnstile signup gate is active. The env-var
+  toggle (`TUIST_TURNSTILE_ENABLED`) still decides which environments
+  render the widget at all; the flag on top is a kill switch, not an
+  opt-in: enabling `turnstile_kill_switch` (via /ops/flags, no deploy,
+  no rolling restart) turns the gate off immediately across every
+  replica, everywhere, without touching Helm or the running deployment.
+  This is the ops surface the 2026-09-03 outage did not have.
+  """
+  def turnstile_enabled? do
+    Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

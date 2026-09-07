@@ -47,8 +47,16 @@ defmodule Tuist.Tests.TestModuleRunTest do
       assert changeset.changes.status == "failure"
     end
 
-    test "rejects invalid status string" do
+    test "accepts status 'skipped'" do
       attrs = Map.put(@valid_attrs, :status, "skipped")
+      changeset = TestModuleRun.create_changeset(%TestModuleRun{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.status == "skipped"
+    end
+
+    test "rejects invalid status string" do
+      attrs = Map.put(@valid_attrs, :status, "unknown")
       changeset = TestModuleRun.create_changeset(%TestModuleRun{}, attrs)
 
       refute changeset.valid?
