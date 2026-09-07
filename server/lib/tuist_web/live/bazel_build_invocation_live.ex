@@ -10,7 +10,7 @@ defmodule TuistWeb.BazelBuildInvocationLive do
       |> assign(:bazel_back_label, dgettext("dashboard_projects", "Builds"))
       |> assign(:bazel_back_path, "builds")
       |> assign(:bazel_detail_path, "builds/invocations")
-      |> assign(:bazel_details_title, dgettext("dashboard_projects", "Details"))
+      |> assign(:bazel_details_title, dgettext("dashboard_builds", "Build Details"))
 
     BazelInvocationLive.mount(params, session, socket)
   end

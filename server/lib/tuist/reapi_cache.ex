@@ -446,6 +446,149 @@ defmodule Tuist.ReapiCache do
     |> Map.get(invocation_id, empty_summary())
   end
 
+  def invocation_detail_metrics(project_id, invocation_id, options \\ []) do
+    metrics =
+      ClickHouseRepo.one(
+        from(event in invocation_cache_event_query(project_id, invocation_id, options),
+          select: %{
+            action_read_duration_ms:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'action_cache' AND ? != 'write', ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.duration_ms
+                  )
+                ),
+                0
+              ),
+            action_read_count:
+              coalesce(
+                sum(fragment("if(? = 'action_cache' AND ? != 'write', 1, 0)", event.operation, event.outcome)),
+                0
+              ),
+            action_write_duration_ms:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'action_cache' AND ? = 'write', ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.duration_ms
+                  )
+                ),
+                0
+              ),
+            action_write_count:
+              coalesce(
+                sum(fragment("if(? = 'action_cache' AND ? = 'write', 1, 0)", event.operation, event.outcome)),
+                0
+              ),
+            content_download_count:
+              coalesce(sum(fragment("if(? = 'cas' AND ? = 'hit', 1, 0)", event.operation, event.outcome)), 0),
+            content_upload_count:
+              coalesce(sum(fragment("if(? = 'cas' AND ? = 'write', 1, 0)", event.operation, event.outcome)), 0),
+            content_download_bytes:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'cas' AND ? = 'hit' AND ? > 0, ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.duration_ms,
+                    event.size
+                  )
+                ),
+                0
+              ),
+            content_download_duration_ms:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'cas' AND ? = 'hit' AND ? > 0 AND ? > 0, ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.size,
+                    event.duration_ms,
+                    event.duration_ms
+                  )
+                ),
+                0
+              ),
+            content_upload_bytes:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'cas' AND ? = 'write' AND ? > 0, ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.duration_ms,
+                    event.size
+                  )
+                ),
+                0
+              ),
+            content_upload_duration_ms:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'cas' AND ? = 'write' AND ? > 0 AND ? > 0, ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.size,
+                    event.duration_ms,
+                    event.duration_ms
+                  )
+                ),
+                0
+              )
+          }
+        )
+      ) || empty_invocation_detail_metric_aggregates()
+
+    %{
+      action_read_count: metrics.action_read_count,
+      action_write_count: metrics.action_write_count,
+      action_read_latency_ms: divide(metrics.action_read_duration_ms, metrics.action_read_count),
+      action_write_latency_ms: divide(metrics.action_write_duration_ms, metrics.action_write_count),
+      content_download_count: metrics.content_download_count,
+      content_upload_count: metrics.content_upload_count,
+      content_download_throughput_bytes_per_second:
+        bytes_per_second(metrics.content_download_bytes, metrics.content_download_duration_ms),
+      content_upload_throughput_bytes_per_second:
+        bytes_per_second(metrics.content_upload_bytes, metrics.content_upload_duration_ms)
+    }
+  end
+
+  def empty_invocation_detail_metrics do
+    %{
+      action_read_count: 0,
+      action_write_count: 0,
+      action_read_latency_ms: 0,
+      action_write_latency_ms: 0,
+      content_download_count: 0,
+      content_upload_count: 0,
+      content_download_throughput_bytes_per_second: 0,
+      content_upload_throughput_bytes_per_second: 0
+    }
+  end
+
+  defp empty_invocation_detail_metric_aggregates do
+    %{
+      action_read_duration_ms: 0,
+      action_read_count: 0,
+      action_write_duration_ms: 0,
+      action_write_count: 0,
+      content_download_count: 0,
+      content_upload_count: 0,
+      content_download_bytes: 0,
+      content_download_duration_ms: 0,
+      content_upload_bytes: 0,
+      content_upload_duration_ms: 0
+    }
+  end
+
   def invocation_summaries(project_id, invocation_ids, options \\ [])
 
   def invocation_summaries(_project_id, [], _options), do: %{}

@@ -8,13 +8,14 @@ defmodule TuistWeb.BazelInvocationLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Bazel
   alias Tuist.ReapiCache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
-  alias TuistWeb.CldrHelpers
+  alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -51,12 +52,10 @@ defmodule TuistWeb.BazelInvocationLive do
          |> assign(:log_output, "")
          |> assign(:logs_current_page, 1)
          |> assign(:logs_total_pages, 0)
-         |> assign(:available_filters, cache_filters())
+         |> assign(:available_filters, cache_filters("actions"))
          |> assign(:cache_events, [])
-         |> assign(:cache_timeline_events, [])
-         |> assign(:cache_timeline_limit, ReapiCache.invocation_timeline_event_limit())
-         |> assign(:cache_timeline_truncated, false)
-         |> assign(:cache_outcome_counts, %{"hit" => 0, "miss" => 0, "write" => 0})
+         |> assign(:cache_detail_metrics, ReapiCache.empty_invocation_detail_metrics())
+         |> assign(:selected_cache_view, "actions")
          |> assign(:cache_filter, "")
          |> assign(:active_cache_filters, [])
          |> assign(:cache_current_page, 1)
@@ -69,7 +68,7 @@ defmodule TuistWeb.BazelInvocationLive do
          |> assign(:bazel_detail_path, socket.assigns[:bazel_detail_path] || "invocations")
          |> assign(
            :bazel_details_title,
-           socket.assigns[:bazel_details_title] || dgettext("dashboard_projects", "Details")
+           socket.assigns[:bazel_details_title] || dgettext("dashboard_builds", "Build Details")
          )
          |> assign(:head_title, "#{title} · #{account.name}/#{project.name} · Tuist")
          |> assign(OpenGraph.og_image_assigns("overview"))}
@@ -101,13 +100,13 @@ defmodule TuistWeb.BazelInvocationLive do
         {[], %{current_page: 1, total_pages: 0}}
       end
 
-    {cache_events, cache_timeline_events, cache_timeline_limit, cache_timeline_truncated, cache_outcome_counts,
-     cache_meta, active_cache_filters, cache_sort_by, cache_sort_order} =
+    {cache_events, cache_detail_metrics, cache_meta, active_cache_filters, available_filters, cache_sort_by,
+     cache_sort_order, selected_cache_view} =
       if selected_tab == "cache" do
-        load_cache_events(project.id, invocation, params, socket.assigns.available_filters)
+        load_cache_events(project.id, invocation, params)
       else
-        {[], [], ReapiCache.invocation_timeline_event_limit(), false, %{"hit" => 0, "miss" => 0, "write" => 0},
-         %{current_page: 1, total_pages: 0}, [], "observed", "desc"}
+        {[], ReapiCache.empty_invocation_detail_metrics(), %{current_page: 1, total_pages: 0}, [],
+         cache_filters("actions"), "observed", "desc", "actions"}
       end
 
     {:noreply,
@@ -119,14 +118,13 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:logs_total_pages, logs_meta.total_pages)
      |> assign(:uri, URI.new!(uri))
      |> assign(:cache_events, cache_events)
-     |> assign(:cache_timeline_events, cache_timeline_events)
-     |> assign(:cache_timeline_limit, cache_timeline_limit)
-     |> assign(:cache_timeline_truncated, cache_timeline_truncated)
-     |> assign(:cache_outcome_counts, cache_outcome_counts)
+     |> assign(:cache_detail_metrics, cache_detail_metrics)
+     |> assign(:selected_cache_view, selected_cache_view)
      |> assign(:cache_filter, params["cache-filter"] || "")
      |> assign(:cache_current_page, cache_meta.current_page)
      |> assign(:cache_total_pages, cache_meta.total_pages)
      |> assign(:active_cache_filters, active_cache_filters)
+     |> assign(:available_filters, available_filters)
      |> assign(:cache_sort_by, cache_sort_by)
      |> assign(:cache_sort_order, cache_sort_order)}
   end
@@ -218,14 +216,14 @@ defmodule TuistWeb.BazelInvocationLive do
           selected={@selected_tab == "overview"}
         />
         <.tab_menu_horizontal_item
+          label={dgettext("dashboard_projects", "Bazel cache")}
+          patch={tab_path(assigns, "cache")}
+          selected={@selected_tab == "cache"}
+        />
+        <.tab_menu_horizontal_item
           label={dgettext("dashboard_projects", "Command")}
           patch={tab_path(assigns, "command")}
           selected={@selected_tab == "command"}
-        />
-        <.tab_menu_horizontal_item
-          label={dgettext("dashboard_projects", "Cache")}
-          patch={tab_path(assigns, "cache")}
-          selected={@selected_tab == "cache"}
         />
         <.tab_menu_horizontal_item
           label={dgettext("dashboard_projects", "Logs")}
@@ -234,13 +232,13 @@ defmodule TuistWeb.BazelInvocationLive do
         />
       </.tab_menu_horizontal>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">
-        <.card title={@bazel_details_title} icon="chart_arcs" data-part="invocation-details-card">
-          <.card_section data-part="invocation-details-section">
+        <.card title={@bazel_details_title} icon="chart_arcs" data-part="build-details">
+          <.card_section data-part="build-details-section">
             <div data-part="metadata-grid">
               <div data-part="metadata-row">
                 <div data-part="metadata">
                   <div data-part="title">
-                    {dgettext("dashboard_projects", "Result")}
+                    {dgettext("dashboard_builds", "Status")}
                   </div>
                   <.badge
                     label={invocation_result_label(@invocation)}
@@ -250,7 +248,13 @@ defmodule TuistWeb.BazelInvocationLive do
                   />
                 </div>
                 <div data-part="metadata">
-                  <div data-part="title">{dgettext("dashboard_projects", "Duration")}</div>
+                  <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
+                  <.run_ran_by_badge_cell run={@invocation} />
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">
+                    {dgettext("dashboard_builds", "Build duration")}
+                  </div>
                   <span data-part="label">
                     <.history />
                     {DateFormatter.format_duration_from_milliseconds(@invocation.duration_ms)}
@@ -258,20 +262,22 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">
-                    {dgettext("dashboard_projects", "Started")}
+                    {dgettext("dashboard_builds", "Built at")}
                   </div>
                   <span data-part="label">
-                    {DateFormatter.format_with_timezone(@invocation.started_at, nil)}
-                  </span>
-                </div>
-                <div data-part="metadata">
-                  <div data-part="title">{dgettext("dashboard_projects", "Finished")}</div>
-                  <span data-part="label">
-                    {DateFormatter.format_with_timezone(@invocation.finished_at, nil)}
+                    {DateFormatter.format_with_timezone(@invocation.finished_at, @user_timezone)}
                   </span>
                 </div>
               </div>
               <div data-part="metadata-row">
+                <div data-part="metadata">
+                  <div data-part="title">
+                    {dgettext("dashboard_projects", "Started")}
+                  </div>
+                  <span data-part="label">
+                    {DateFormatter.format_with_timezone(@invocation.started_at, @user_timezone)}
+                  </span>
+                </div>
                 <div data-part="metadata" data-field="targets">
                   <div data-part="title">{dgettext("dashboard_projects", "Targets")}</div>
                   <code data-part="command">{target_patterns_label(@invocation.target_patterns)}</code>
@@ -283,28 +289,6 @@ defmodule TuistWeb.BazelInvocationLive do
                 >
                   <div data-part="title">{dgettext("dashboard_projects", "Bazel version")}</div>
                   <code data-part="command">{@invocation.bazel_version}</code>
-                </div>
-                <div
-                  data-part="metadata"
-                  data-field="remote-services"
-                >
-                  <div data-part="title">{dgettext("dashboard_projects", "Remote services")}</div>
-                  <div data-part="badges">
-                    <.badge
-                      :if={remote_cache_used?(@invocation)}
-                      label={dgettext("dashboard_projects", "Remote cache")}
-                      color="success"
-                      style="light-fill"
-                      size="small"
-                    />
-                    <.badge
-                      :if={not remote_cache_used?(@invocation)}
-                      label={dgettext("dashboard_projects", "Local")}
-                      color="neutral"
-                      style="light-fill"
-                      size="small"
-                    />
-                  </div>
                 </div>
               </div>
               <div data-part="metadata-row">
@@ -334,9 +318,37 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
               </div>
             </div>
+            <div
+              :if={map_size(@invocation.custom_values || %{}) > 0}
+              data-part="custom-metadata-section"
+            >
+              <span data-part="custom-metadata-label">
+                {dgettext("dashboard_builds", "Custom metadata")}
+              </span>
+              <.table
+                id="custom-metadata-table"
+                rows={Map.to_list(@invocation.custom_values)}
+                row_key={fn {key, _value} -> key end}
+              >
+                <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+                  <.text_cell label={key} />
+                </:col>
+                <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+                  <a
+                    :if={url?(value)}
+                    href={value}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-part="custom-metadata-link"
+                  >
+                    {value}
+                  </a>
+                  <.text_cell :if={not url?(value)} label={value} />
+                </:col>
+              </.table>
+            </div>
           </.card_section>
         </.card>
-        <.build_metrics invocation={@invocation} />
         <.build_timeline :if={build_timeline_present?(@invocation)} invocation={@invocation} />
         <.critical_path
           :if={critical_path_present?(@invocation)}
@@ -352,10 +364,8 @@ defmodule TuistWeb.BazelInvocationLive do
         <.cache_tab
           cache={@invocation.cache}
           cache_events={@cache_events}
-          cache_timeline_events={@cache_timeline_events}
-          cache_timeline_limit={@cache_timeline_limit}
-          cache_timeline_truncated={@cache_timeline_truncated}
-          cache_outcome_counts={@cache_outcome_counts}
+          cache_detail_metrics={@cache_detail_metrics}
+          selected_cache_view={@selected_cache_view}
           cache_filter={@cache_filter}
           active_cache_filters={@active_cache_filters}
           available_filters={@available_filters}
@@ -383,45 +393,6 @@ defmodule TuistWeb.BazelInvocationLive do
         />
       </div>
     </div>
-    """
-  end
-
-  attr :invocation, :map, required: true
-
-  def build_metrics(assigns) do
-    ~H"""
-    <.card
-      :if={build_metrics_present?(@invocation)}
-      title={dgettext("dashboard_projects", "Metrics")}
-      icon="chart_bar_popular"
-    >
-      <.card_section data-part="build-metrics-section">
-        <.widget
-          id="bazel-processor-time"
-          title={dgettext("dashboard_projects", "Processor time")}
-          value={DateFormatter.format_duration_from_milliseconds(@invocation.cpu_time_ms)}
-          legend_color="primary"
-        />
-        <.widget
-          id="bazel-actions-executed"
-          title={dgettext("dashboard_projects", "Actions executed")}
-          value={CldrHelpers.format_number(@invocation.actions_executed)}
-          legend_color="secondary"
-        />
-        <.widget
-          id="bazel-actions-created"
-          title={dgettext("dashboard_projects", "Actions created")}
-          value={CldrHelpers.format_number(@invocation.actions_created)}
-          legend_color="tertiary"
-        />
-        <.widget
-          id="bazel-packages-loaded"
-          title={dgettext("dashboard_projects", "Packages loaded")}
-          value={CldrHelpers.format_number(@invocation.packages_loaded)}
-          legend_color="p50"
-        />
-      </.card_section>
-    </.card>
     """
   end
 
@@ -488,10 +459,8 @@ defmodule TuistWeb.BazelInvocationLive do
 
   attr :cache, :map, required: true
   attr :cache_events, :list, required: true
-  attr :cache_timeline_events, :list, required: true
-  attr :cache_timeline_limit, :integer, required: true
-  attr :cache_timeline_truncated, :boolean, required: true
-  attr :cache_outcome_counts, :map, required: true
+  attr :cache_detail_metrics, :map, required: true
+  attr :selected_cache_view, :string, required: true
   attr :cache_filter, :string, required: true
   attr :active_cache_filters, :list, required: true
   attr :available_filters, :list, required: true
@@ -509,54 +478,85 @@ defmodule TuistWeb.BazelInvocationLive do
 
   def cache_tab(assigns) do
     ~H"""
-    <.card title={dgettext("dashboard_projects", "Summary")} icon="database">
+    <.card
+      title={dgettext("dashboard_projects", "Cache Summary")}
+      icon="chart_arcs"
+      data-part="cache-summary-card"
+    >
       <.card_section data-part="cache-summary-section">
         <.widget
-          id={@widget_id_prefix <> "-requests"}
-          title={dgettext("dashboard_projects", "Requests")}
+          id={@widget_id_prefix <> "-action-hits"}
+          title={dgettext("dashboard_projects", "Action hits")}
           description={
-            dgettext("dashboard_projects", "Remote cache requests observed for this invocation.")
+            dgettext(
+              "dashboard_projects",
+              "Action cache lookups that found a result in the remote cache."
+            )
           }
-          value={cache_request_total(@cache_outcome_counts)}
+          value={@cache.hits}
         />
         <.widget
-          id={@widget_id_prefix <> "-hits"}
-          title={dgettext("dashboard_projects", "Hits")}
+          id={@widget_id_prefix <> "-action-misses"}
+          title={dgettext("dashboard_projects", "Action misses")}
           description={
-            dgettext("dashboard_projects", "The share of all remote cache requests that were hits.")
+            dgettext(
+              "dashboard_projects",
+              "Action cache lookups that did not find a result in the remote cache."
+            )
           }
-          legend_color="tertiary"
-          value={cache_outcome_percentage(@cache_outcome_counts, "hit")}
+          value={@cache.misses}
         />
         <.widget
-          id={@widget_id_prefix <> "-misses"}
-          title={dgettext("dashboard_projects", "Misses")}
+          id={@widget_id_prefix <> "-hit-rate"}
+          title={dgettext("dashboard_projects", "Hit rate")}
           description={
-            dgettext("dashboard_projects", "The share of all remote cache requests that were misses.")
+            dgettext(
+              "dashboard_projects",
+              "The percentage of action cache lookups that found a result in the remote cache."
+            )
           }
-          legend_color="flaky"
-          value={cache_outcome_percentage(@cache_outcome_counts, "miss")}
+          value={cache_hit_rate(@cache)}
+          empty={@cache.hits + @cache.misses == 0}
         />
         <.widget
-          id={@widget_id_prefix <> "-writes"}
-          title={dgettext("dashboard_projects", "Stored")}
+          id={@widget_id_prefix <> "-downloads"}
+          title={dgettext("dashboard_projects", "Cache downloads")}
           description={
-            dgettext("dashboard_projects", "The share of all remote cache requests that stored data.")
+            dgettext("dashboard_projects", "Total size of data downloaded from the remote cache.")
           }
-          legend_color="secondary"
-          value={cache_outcome_percentage(@cache_outcome_counts, "write")}
+          value={ByteFormatter.format_bytes(@cache.download_bytes)}
+        />
+        <.widget
+          id={@widget_id_prefix <> "-uploads"}
+          title={dgettext("dashboard_projects", "Cache uploads")}
+          description={
+            dgettext("dashboard_projects", "Total size of data uploaded to the remote cache.")
+          }
+          value={ByteFormatter.format_bytes(@cache.upload_bytes)}
         />
       </.card_section>
     </.card>
+    <.tab_menu_horizontal data-part="cache-views">
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_projects", "Cacheable Actions")}
+        selected={@selected_cache_view == "actions"}
+        patch={cache_view_patch(@path, @uri, "actions")}
+      />
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_projects", "Content Objects")}
+        selected={@selected_cache_view == "content-objects"}
+        patch={cache_view_patch(@path, @uri, "content-objects")}
+      />
+    </.tab_menu_horizontal>
     <.card
-      title={dgettext("dashboard_projects", "Requests")}
-      icon="server"
+      title={dgettext("dashboard_projects", "Bazel Cache")}
+      icon="database"
       data-part="cache-requests-card"
     >
-      <.card_section data-part="cache-requests-section">
+      <.card_section data-part="bazel-cache-card-section">
         <.empty_card_section
           :if={cache_requests_empty_state?(@cache_events, @cache_filter, @active_cache_filters)}
-          title={cache_requests_empty_state_title(@remote_cache_enabled)}
+          title={cache_requests_empty_state_title(@remote_cache_enabled, @selected_cache_view)}
           data-part="empty-cache-requests-card-section"
         >
           <:image>
@@ -578,38 +578,116 @@ defmodule TuistWeb.BazelInvocationLive do
           :if={not cache_requests_empty_state?(@cache_events, @cache_filter, @active_cache_filters)}
           data-part="cache-requests-content"
         >
-          <div :if={@cache_timeline_events != []} data-part="cache-requests-timeline">
-            <div data-part="cache-requests-timeline-header">
-              <span data-part="title">{dgettext("dashboard_projects", "Request activity")}</span>
-              <div
-                data-part="legend"
-                role="list"
-                aria-label={dgettext("dashboard_projects", "Cache request outcomes")}
-              >
-                <span data-outcome="hit" role="listitem">{dgettext("dashboard_projects", "Hit")}</span>
-                <span data-outcome="miss" role="listitem">{dgettext("dashboard_projects", "Miss")}</span>
-                <span data-outcome="write" role="listitem">{dgettext("dashboard_projects", "Stored")}</span>
-              </div>
+          <.card_section
+            :if={@selected_cache_view == "actions" and @cache.hits + @cache.misses > 0}
+            data-part="cache-breakdown-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">{dgettext("dashboard_projects", "Action cache lookups:")}</span>
+              <span data-part="value">{@cache.hits + @cache.misses}</span>
             </div>
             <.chart
-              id={@widget_id_prefix <> "-requests-timeline"}
+              id={@widget_id_prefix <> "-actions-breakdown"}
               type="bar"
-              series={cache_activity_series(@cache_timeline_events)}
-              labels={Enum.map(cache_activity_buckets(@cache_timeline_events), &elem(&1, 0))}
-              show_legend={false}
-              grid_lines
-              stacked
-              bar_width={12}
-              bar_radius={2}
-              extra_options={cache_activity_chart_options()}
+              series={cache_action_breakdown_series(@cache)}
+              extra_options={
+                cache_breakdown_chart_options(dgettext("dashboard_projects", "Action cache lookups"))
+              }
+              x_axis_min={0}
+              x_axis_max={@cache.hits + @cache.misses}
             />
-            <span :if={@cache_timeline_truncated} data-part="cache-requests-timeline-limit">
-              {dgettext(
-                "dashboard_projects",
-                "The chart shows the first %{count} requests. Summary values use all requests received for the invocation window.",
-                count: @cache_timeline_limit
-              )}
-            </span>
+          </.card_section>
+          <.card_section
+            :if={
+              @selected_cache_view == "content-objects" and
+                @cache_detail_metrics.content_download_count +
+                  @cache_detail_metrics.content_upload_count > 0
+            }
+            data-part="cache-breakdown-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">{dgettext("dashboard_projects", "Content objects:")}</span>
+              <span data-part="value">
+                {@cache_detail_metrics.content_download_count +
+                  @cache_detail_metrics.content_upload_count}
+              </span>
+            </div>
+            <.chart
+              id={@widget_id_prefix <> "-content-breakdown"}
+              type="bar"
+              series={cache_content_breakdown_series(@cache_detail_metrics)}
+              extra_options={
+                cache_breakdown_chart_options(dgettext("dashboard_projects", "Content objects"))
+              }
+              x_axis_min={0}
+              x_axis_max={
+                @cache_detail_metrics.content_download_count +
+                  @cache_detail_metrics.content_upload_count
+              }
+            />
+          </.card_section>
+          <div :if={@selected_cache_view == "actions"} data-part="latency-widgets">
+            <.widget
+              id={@widget_id_prefix <> "-read-latency"}
+              title={dgettext("dashboard_projects", "Avg. latency reading cache keys")}
+              description={
+                dgettext(
+                  "dashboard_projects",
+                  "Time to read action cache keys, including both remote hits and misses."
+                )
+              }
+              value={
+                DateFormatter.format_duration_from_milliseconds(
+                  @cache_detail_metrics.action_read_latency_ms
+                )
+              }
+              empty={@cache_detail_metrics.action_read_count == 0}
+              empty_label={dgettext("dashboard_projects", "No data")}
+            />
+            <.widget
+              id={@widget_id_prefix <> "-write-latency"}
+              title={dgettext("dashboard_projects", "Avg. latency writing cache keys")}
+              description={
+                dgettext("dashboard_projects", "Time to write action results to the remote cache.")
+              }
+              value={
+                DateFormatter.format_duration_from_milliseconds(
+                  @cache_detail_metrics.action_write_latency_ms
+                )
+              }
+              empty={@cache_detail_metrics.action_write_count == 0}
+              empty_label={dgettext("dashboard_projects", "No data")}
+            />
+          </div>
+          <div :if={@selected_cache_view == "content-objects"} data-part="throughput-widgets">
+            <.widget
+              id={@widget_id_prefix <> "-download-throughput"}
+              title={dgettext("dashboard_projects", "Download throughput")}
+              description={
+                dgettext("dashboard_projects", "Average throughput for downloaded content objects.")
+              }
+              value={
+                ThroughputFormatter.format_throughput(
+                  @cache_detail_metrics.content_download_throughput_bytes_per_second
+                )
+              }
+              empty={@cache_detail_metrics.content_download_throughput_bytes_per_second == 0}
+              empty_label={dgettext("dashboard_projects", "No data")}
+            />
+            <.widget
+              id={@widget_id_prefix <> "-upload-throughput"}
+              title={dgettext("dashboard_projects", "Upload throughput")}
+              description={
+                dgettext("dashboard_projects", "Average throughput for uploaded content objects.")
+              }
+              value={
+                ThroughputFormatter.format_throughput(
+                  @cache_detail_metrics.content_upload_throughput_bytes_per_second
+                )
+              }
+              empty={@cache_detail_metrics.content_upload_throughput_bytes_per_second == 0}
+              empty_label={dgettext("dashboard_projects", "No data")}
+            />
           </div>
           <div data-part="filters">
             <.form
@@ -641,6 +719,7 @@ defmodule TuistWeb.BazelInvocationLive do
           <.table id={@table_id} rows={@cache_events}>
             <:col
               :let={event}
+              :if={@selected_cache_view == "actions"}
               label={dgettext("dashboard_projects", "Action")}
               patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "action")}
               sort_order={@cache_sort_by == "action" && @cache_sort_order}
@@ -649,26 +728,37 @@ defmodule TuistWeb.BazelInvocationLive do
             </:col>
             <:col
               :let={event}
-              label={dgettext("dashboard_projects", "Cache")}
-              patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "store")}
-              sort_order={@cache_sort_by == "store" && @cache_sort_order}
+              :if={@selected_cache_view == "content-objects"}
+              label={dgettext("dashboard_projects", "Key")}
+              patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "digest")}
+              sort_order={@cache_sort_by == "digest" && @cache_sort_order}
             >
-              <.text_cell label={cache_store_label(event.operation)} />
+              <.text_cell label={short_cache_digest(event.action_digest)} title={event.action_digest} />
             </:col>
             <:col
               :let={event}
-              label={dgettext("dashboard_projects", "Outcome")}
+              label={cache_status_column_label(@selected_cache_view)}
               patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "outcome")}
               sort_order={@cache_sort_by == "outcome" && @cache_sort_order}
             >
               <.status_badge_cell
-                label={cache_outcome_label(event.outcome)}
+                label={cache_outcome_label(event, @selected_cache_view)}
                 status={cache_outcome_status(event.outcome)}
               />
             </:col>
             <:col
               :let={event}
-              label={dgettext("dashboard_projects", "Digest")}
+              :if={@selected_cache_view == "actions"}
+              label={dgettext("dashboard_projects", "Target")}
+              patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "target")}
+              sort_order={@cache_sort_by == "target" && @cache_sort_order}
+            >
+              <.text_cell label={cache_target_label(event.target_label)} />
+            </:col>
+            <:col
+              :let={event}
+              :if={@selected_cache_view == "actions"}
+              label={dgettext("dashboard_projects", "Cache key")}
               patch={cache_column_patch(@path, @uri, @cache_sort_by, @cache_sort_order, "digest")}
               sort_order={@cache_sort_by == "digest" && @cache_sort_order}
             >
@@ -677,6 +767,13 @@ defmodule TuistWeb.BazelInvocationLive do
                 sublabel={format_cache_size(event.size)}
                 title={event.action_digest}
               />
+            </:col>
+            <:col
+              :let={event}
+              :if={@selected_cache_view == "content-objects"}
+              label={dgettext("dashboard_projects", "Size")}
+            >
+              <.text_cell label={ByteFormatter.format_bytes(event.size)} />
             </:col>
             <:col
               :let={event}
@@ -889,42 +986,27 @@ defmodule TuistWeb.BazelInvocationLive do
     """
   end
 
-  def cache_filters do
+  def cache_filters(selected_cache_view) do
     [
-      %Filter.Filter{
-        id: "operation",
-        field: :operation,
-        display_name: dgettext("dashboard_projects", "Cache"),
-        type: :option,
-        options: ["action_cache", "cas"],
-        options_display_names: %{
-          "action_cache" => dgettext("dashboard_projects", "Action cache"),
-          "cas" => dgettext("dashboard_projects", "Content-addressable storage")
-        },
-        operator: :==,
-        value: nil
-      },
       %Filter.Filter{
         id: "outcome",
         field: :outcome,
-        display_name: dgettext("dashboard_projects", "Outcome"),
+        display_name: cache_status_column_label(selected_cache_view),
         type: :option,
         options: ["hit", "miss", "write"],
-        options_display_names: %{
-          "hit" => dgettext("dashboard_projects", "Hit"),
-          "miss" => dgettext("dashboard_projects", "Miss"),
-          "write" => dgettext("dashboard_projects", "Stored")
-        },
+        options_display_names: cache_filter_outcome_labels(selected_cache_view),
         operator: :==,
         value: nil
       }
     ]
   end
 
-  defp load_cache_events(project_id, invocation, params, available_filters) do
+  defp load_cache_events(project_id, invocation, params) do
     cache_sort_by = params["cache-sort-by"] || "observed"
     cache_sort_order = params["cache-sort-order"] || "desc"
     cache_query_options = Bazel.invocation_cache_query_options(invocation)
+    selected_cache_view = selected_cache_view(params)
+    available_filters = cache_filters(selected_cache_view)
 
     active_cache_filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -935,7 +1017,8 @@ defmodule TuistWeb.BazelInvocationLive do
         invocation.invocation_id,
         %{
           filters:
-            cache_text_flop_filters(params["cache-filter"]) ++
+            [cache_operation_flop_filter(selected_cache_view)] ++
+              cache_text_flop_filters(params["cache-filter"], selected_cache_view) ++
               Filter.Operations.convert_filters_to_flop(active_cache_filters),
           order_by: [cache_sort_field(cache_sort_by)],
           order_directions: [sort_direction(cache_sort_order)],
@@ -945,34 +1028,23 @@ defmodule TuistWeb.BazelInvocationLive do
         cache_query_options
       )
 
-    cache_timeline =
-      ReapiCache.invocation_cache_timeline(project_id, invocation.invocation_id, cache_query_options)
+    cache_detail_metrics =
+      ReapiCache.invocation_detail_metrics(project_id, invocation.invocation_id, cache_query_options)
 
-    cache_outcome_counts =
-      ReapiCache.invocation_cache_outcome_counts(project_id, invocation.invocation_id, cache_query_options)
-
-    {cache_events, cache_timeline.events, cache_timeline.limit, cache_timeline.truncated?, cache_outcome_counts,
-     cache_meta, active_cache_filters, cache_sort_by, cache_sort_order}
+    {cache_events, cache_detail_metrics, cache_meta, active_cache_filters, available_filters, cache_sort_by,
+     cache_sort_order, selected_cache_view}
   end
 
-  defp cache_text_flop_filters(nil), do: []
-  defp cache_text_flop_filters(""), do: []
-  defp cache_text_flop_filters(search), do: [%{field: :action_mnemonic, op: :=~, value: search}]
+  defp cache_operation_flop_filter("content-objects"), do: %{field: :operation, op: :==, value: "cas"}
+  defp cache_operation_flop_filter(_selected_cache_view), do: %{field: :operation, op: :==, value: "action_cache"}
+
+  defp cache_text_flop_filters(nil, _selected_cache_view), do: []
+  defp cache_text_flop_filters("", _selected_cache_view), do: []
+  defp cache_text_flop_filters(search, "content-objects"), do: [%{field: :action_digest, op: :=~, value: search}]
+  defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_mnemonic, op: :=~, value: search}]
 
   defp critical_path_present?(invocation),
     do: critical_path_actions(invocation) != [] or Map.get(invocation, :critical_path_duration_ms, 0) > 0
-
-  defp build_metrics_present?(invocation) do
-    Enum.any?(
-      [
-        invocation.cpu_time_ms,
-        invocation.actions_created,
-        invocation.actions_executed,
-        invocation.packages_loaded
-      ],
-      &(&1 > 0)
-    )
-  end
 
   defp build_timeline_present?(invocation), do: Map.get(invocation, :build_timeline_span_descriptions, []) != []
 
@@ -1133,104 +1205,168 @@ defmodule TuistWeb.BazelInvocationLive do
     Enum.empty?(cache_events) and cache_filter == "" and Enum.empty?(active_cache_filters)
   end
 
-  defp cache_requests_empty_state_title(true),
-    do: dgettext("dashboard_projects", "No cache requests were observed for this invocation.")
-
-  defp cache_requests_empty_state_title(false),
+  defp cache_requests_empty_state_title(false, _selected_cache_view),
     do: dgettext("dashboard_projects", "This invocation did not use a remote cache.")
 
-  defp cache_request_total(outcome_counts), do: outcome_counts |> Map.values() |> Enum.sum()
+  defp cache_requests_empty_state_title(true, "content-objects"),
+    do: dgettext("dashboard_projects", "No content object transfers were observed for this invocation.")
 
-  defp cache_outcome_percentage(outcome_counts, outcome) do
-    total = cache_request_total(outcome_counts)
-    percentage = if total == 0, do: 0.0, else: Map.get(outcome_counts, outcome, 0) / total * 100
-    "#{Float.round(percentage, 1)}%"
-  end
+  defp cache_requests_empty_state_title(true, _selected_cache_view),
+    do: dgettext("dashboard_projects", "No action cache requests were observed for this invocation.")
 
-  defp cache_event_action(%{operation: "cas"}), do: dgettext("dashboard_projects", "Content object")
+  defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
+  defp cache_hit_rate(cache), do: "#{cache.hit_rate}%"
+
   defp cache_event_action(%{action_mnemonic: ""}), do: dgettext("dashboard_projects", "Action cache lookup")
   defp cache_event_action(event), do: event.action_mnemonic
-  defp cache_store_label("cas"), do: dgettext("dashboard_projects", "Content-addressable storage")
-  defp cache_store_label(_), do: dgettext("dashboard_projects", "Action cache")
+  defp cache_target_label(""), do: dgettext("dashboard_projects", "Unknown")
+  defp cache_target_label(target_label), do: target_label
   defp short_cache_digest(""), do: dgettext("dashboard_projects", "No digest")
   defp short_cache_digest(digest), do: String.slice(digest, 0, 12) <> if(byte_size(digest) > 12, do: "…", else: "")
   defp format_cache_size(0), do: nil
   defp format_cache_size(size), do: ByteFormatter.format_bytes(size)
-  defp cache_outcome_label("hit"), do: dgettext("dashboard_projects", "Hit")
-  defp cache_outcome_label("miss"), do: dgettext("dashboard_projects", "Miss")
-  defp cache_outcome_label(_), do: dgettext("dashboard_projects", "Stored")
+  defp cache_outcome_label(%{outcome: "hit"}, "content-objects"), do: dgettext("dashboard_projects", "Download")
+  defp cache_outcome_label(%{outcome: "write"}, "content-objects"), do: dgettext("dashboard_projects", "Upload")
+  defp cache_outcome_label(%{outcome: "hit"}, _selected_cache_view), do: dgettext("dashboard_projects", "Remote")
+  defp cache_outcome_label(%{outcome: "miss"}, _selected_cache_view), do: dgettext("dashboard_projects", "Missed")
+  defp cache_outcome_label(_event, _selected_cache_view), do: dgettext("dashboard_projects", "Stored")
+  defp cache_status_column_label("actions"), do: dgettext("dashboard_projects", "Hit")
+  defp cache_status_column_label(_selected_cache_view), do: dgettext("dashboard_projects", "Status")
+
+  defp cache_filter_outcome_labels("actions") do
+    %{
+      "hit" => dgettext("dashboard_projects", "Remote"),
+      "miss" => dgettext("dashboard_projects", "Missed"),
+      "write" => dgettext("dashboard_projects", "Stored")
+    }
+  end
+
+  defp cache_filter_outcome_labels(_selected_cache_view) do
+    %{
+      "hit" => dgettext("dashboard_projects", "Download"),
+      "miss" => dgettext("dashboard_projects", "Missed"),
+      "write" => dgettext("dashboard_projects", "Upload")
+    }
+  end
+
   defp cache_outcome_status("hit"), do: "success"
   defp cache_outcome_status("miss"), do: "attention"
   defp cache_outcome_status(_), do: "success"
-  defp cache_activity_color("hit"), do: "var:noora-chart-tertiary"
-  defp cache_activity_color("miss"), do: "var:noora-chart-flaky"
-  defp cache_activity_color(_), do: "var:noora-chart-secondary"
 
-  defp cache_activity_series(events) do
-    buckets = cache_activity_buckets(events)
-
-    for outcome <- ["hit", "miss", "write"],
-        Enum.any?(events, &(&1.outcome == outcome)) do
+  defp cache_action_breakdown_series(cache) do
+    [
       %{
-        name: cache_outcome_label(outcome),
-        color: cache_activity_color(outcome),
-        barMinHeight: 3,
-        data: Enum.map(buckets, &cache_activity_bucket_latency(&1, outcome))
+        name: dgettext("dashboard_projects", "Remote"),
+        type: "bar",
+        stack: "total",
+        emphasis: %{focus: "series"},
+        data: [cache.hits],
+        color: "var:hits-chart-legend-remote",
+        itemStyle: %{borderRadius: cache_breakdown_border_radius(cache.hits, cache.misses, :first)}
+      },
+      %{
+        name: dgettext("dashboard_projects", "Missed"),
+        type: "bar",
+        stack: "total",
+        emphasis: %{focus: "series"},
+        data: [cache.misses],
+        color: "var:hits-chart-legend-missed",
+        itemStyle: %{borderRadius: cache_breakdown_border_radius(cache.hits, cache.misses, :second)}
       }
-    end
+    ]
   end
 
-  defp cache_activity_buckets(events) do
-    events
-    |> Enum.group_by(&cache_activity_bucket_timestamp/1)
-    |> Enum.sort_by(&elem(&1, 0))
+  defp cache_content_breakdown_series(metrics) do
+    [
+      %{
+        name: dgettext("dashboard_projects", "Download"),
+        type: "bar",
+        stack: "total",
+        emphasis: %{focus: "series"},
+        data: [metrics.content_download_count],
+        color: "var:hits-chart-legend-remote",
+        itemStyle: %{
+          borderRadius:
+            cache_breakdown_border_radius(metrics.content_download_count, metrics.content_upload_count, :first)
+        }
+      },
+      %{
+        name: dgettext("dashboard_projects", "Upload"),
+        type: "bar",
+        stack: "total",
+        emphasis: %{focus: "series"},
+        data: [metrics.content_upload_count],
+        color: "var:hits-chart-legend-local",
+        itemStyle: %{
+          borderRadius:
+            cache_breakdown_border_radius(metrics.content_download_count, metrics.content_upload_count, :second)
+        }
+      }
+    ]
   end
 
-  defp cache_activity_bucket_latency({_timestamp, events}, outcome) do
-    outcome_events = Enum.filter(events, &(&1.outcome == outcome))
-
-    if outcome_events == [] do
-      nil
-    else
-      Enum.sum_by(outcome_events, & &1.duration_ms)
-    end
-  end
-
-  defp cache_activity_chart_options do
+  defp cache_breakdown_chart_options(label) do
     %{
       animation: false,
-      grid: %{left: 0, right: 0, top: 4, bottom: 0, containLabel: true},
-      tooltip: %{trigger: "item", dateFormat: "minute", valueFormat: "fn:formatMilliseconds"},
-      xAxis: %{
-        type: "category",
-        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:toLocaleTime"},
-        axisLine: %{show: false},
-        axisTick: %{show: false},
-        splitLine: %{show: false}
+      tooltip: %{trigger: "axis", axisPointer: %{type: "none"}},
+      legend: %{
+        left: "-0.3%",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-primary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        icon:
+          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+        itemWidth: 8,
+        itemHeight: 4
       },
+      grid: %{width: "99%", left: "0%", height: "60%", top: "0%"},
+      xAxis: %{type: "value", axisLabel: %{show: false}, splitLine: %{show: false}},
       yAxis: %{
-        type: "value",
-        min: 0,
-        minInterval: 1,
-        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:formatMilliseconds"},
-        axisLine: %{show: false},
-        axisTick: %{show: false},
-        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}
+        type: "category",
+        data: [label],
+        axisLabel: %{show: false}
       }
     }
   end
 
-  defp cache_activity_timestamp(%DateTime{} = observed_at), do: DateTime.to_iso8601(observed_at)
-  defp cache_activity_timestamp(%NaiveDateTime{} = observed_at), do: NaiveDateTime.to_iso8601(observed_at) <> "Z"
-
-  defp cache_activity_bucket_timestamp(event) do
-    event
-    |> Map.fetch!(:observed_at)
-    |> cache_activity_timestamp()
-    |> String.slice(0, 19)
-    |> Kernel.<>("Z")
+  defp cache_breakdown_border_radius(first_count, second_count, :first) do
+    cond do
+      first_count == 0 -> [0, 0, 0, 0]
+      second_count == 0 -> [8, 8, 8, 8]
+      true -> [8, 0, 0, 8]
+    end
   end
 
+  defp cache_breakdown_border_radius(first_count, second_count, :second) do
+    cond do
+      second_count == 0 -> [0, 0, 0, 0]
+      first_count == 0 -> [8, 8, 8, 8]
+      true -> [0, 8, 8, 0]
+    end
+  end
+
+  defp selected_cache_view(%{"cache-view" => "content-objects"}), do: "content-objects"
+  defp selected_cache_view(_params), do: "actions"
+
+  defp cache_view_patch(path, uri, selected_cache_view) do
+    uri.query
+    |> URI.decode_query()
+    |> Map.put("cache-view", selected_cache_view)
+    |> Map.put("page", "1")
+    |> Map.delete("cache-filter")
+    |> Map.put("cache-sort-by", "observed")
+    |> Map.put("cache-sort-order", "desc")
+    |> URI.encode_query()
+    |> then(&"#{path}?#{&1}")
+  end
+
+  defp cache_sort_field("target"), do: :target_label
   defp cache_sort_field("outcome"), do: :outcome
   defp cache_sort_field("action"), do: :action_mnemonic
   defp cache_sort_field("store"), do: :operation
@@ -1253,7 +1389,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_page_patch(path, uri, page), do: "#{path}?#{Query.put(uri.query, "page", to_string(page))}"
   defp logs_page_patch(path, uri, page), do: "#{path}?#{Query.put(uri.query, "logs-page", to_string(page))}"
 
-  defp invocation_result_label(%{status: "success"}), do: dgettext("dashboard_projects", "Succeeded")
+  defp invocation_result_label(%{status: "success"}), do: dgettext("dashboard_builds", "Passed")
 
   defp invocation_result_label(%{command: "build", exit_code: 1}),
     do: dgettext("dashboard_projects", "Build failed (exit code 1)")
@@ -1327,4 +1463,13 @@ defmodule TuistWeb.BazelInvocationLive do
   defp download_path(assigns) do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/invocations/#{assigns.invocation.invocation_id}/logs/download"
   end
+
+  defp url?(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) -> true
+      _ -> false
+    end
+  end
+
+  defp url?(_), do: false
 end

@@ -8,7 +8,6 @@ defmodule TuistWeb.BazelCacheLive do
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
 
-  alias Noora.Filter
   alias Tuist.Bazel
   alias Tuist.ReapiCache
   alias Tuist.Utilities.ByteFormatter
@@ -18,14 +17,11 @@ defmodule TuistWeb.BazelCacheLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @page_size 20
-
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard", "Cache")} · #{account.name}/#{project.name} · Tuist")
-     |> assign(OpenGraph.og_image_assigns("overview"))
-     |> assign(:available_filters, define_filters())}
+     |> assign(OpenGraph.og_image_assigns("overview"))}
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
@@ -34,29 +30,7 @@ defmodule TuistWeb.BazelCacheLive do
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
-    sort_by = params["cache-sort-by"] || "received"
-    sort_order = params["cache-sort-order"] || "desc"
-    active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
-
-    filters =
-      [%{field: :project_id, op: :==, value: project.id}] ++
-        Filter.Operations.convert_filters_to_flop(active_filters)
-
-    {cache_events, meta} =
-      ReapiCache.list_cache_events(
-        project.id,
-        %{
-          filters: filters,
-          order_by: [sort_field(sort_by)],
-          order_directions: [sort_direction(sort_order)],
-          page: parse_page(params["page"]),
-          page_size: @page_size
-        },
-        period_opts(analytics_period)
-      )
-
-    has_any_cache_observations =
-      Enum.any?(cache_events) || ReapiCache.observations_present?(project.id)
+    has_any_cache_observations = ReapiCache.observations_present?(project.id)
 
     {:noreply,
      socket
@@ -70,13 +44,7 @@ defmodule TuistWeb.BazelCacheLive do
      |> assign(:selected_transfer_type, params["transfer-type"] || "combined")
      |> assign(:selected_latency_type, params["latency-type"] || "combined")
      |> assign(:selected_throughput_type, params["throughput-type"] || "combined")
-     |> assign(:cache_events, cache_events)
      |> assign(:has_any_cache_observations, has_any_cache_observations)
-     |> assign(:current_page, meta.current_page)
-     |> assign(:total_pages, meta.total_pages)
-     |> assign(:cache_sort_by, sort_by)
-     |> assign(:cache_sort_order, sort_order)
-     |> assign(:active_filters, active_filters)
      |> assign_async([:cache_summary, :cache_analytics], fn ->
        {:ok,
         %{
@@ -141,32 +109,6 @@ defmodule TuistWeb.BazelCacheLive do
        socket,
        to: "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bazel-cache?#{query_params}"
      )}
-  end
-
-  def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params =
-      filter_id
-      |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.put("page", "1")
-
-    socket
-    |> push_patch(to: cache_path(socket, updated_params))
-    |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-    |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})
-    |> then(&{:noreply, &1})
-  end
-
-  def handle_event("update_filter", params, socket) do
-    updated_params =
-      params
-      |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.put("page", "1")
-
-    socket
-    |> push_patch(to: cache_path(socket, updated_params))
-    |> push_event("close-dropdown", %{id: "all", all: true})
-    |> push_event("close-popover", %{id: "all", all: true})
-    |> then(&{:noreply, &1})
   end
 
   def render(assigns) do
@@ -460,7 +402,7 @@ defmodule TuistWeb.BazelCacheLive do
       </.card>
 
       <.card
-        title={dgettext("dashboard_projects", "Invocations using cache")}
+        title={dgettext("dashboard_projects", "Recent invocations")}
         icon="dashboard"
         data-part="bazel-cache-invocations-card"
       >
@@ -580,110 +522,6 @@ defmodule TuistWeb.BazelCacheLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
-
-      <.card
-        title={dgettext("dashboard_projects", "Remote cache activity")}
-        icon="server"
-        data-part="bazel-cache-activity-card"
-      >
-        <.card_section data-part="bazel-cache-events-section">
-          <div data-part="filters">
-            <.filter_dropdown
-              id="bazel-cache-filter-dropdown"
-              label={dgettext("dashboard_projects", "Filter")}
-              available_filters={@available_filters}
-              active_filters={@active_filters}
-            />
-          </div>
-          <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-            <.active_filter :for={filter <- @active_filters} filter={filter} />
-          </div>
-          <.table :if={Enum.any?(@cache_events)} id="bazel-cache-events-table" rows={@cache_events}>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Target")}
-              patch={column_patch_sort(assigns, "target")}
-              sort_order={@cache_sort_by == "target" && @cache_sort_order}
-            >
-              <.text_cell label={event.target_label} />
-            </:col>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Outcome")}
-              patch={column_patch_sort(assigns, "outcome")}
-              sort_order={@cache_sort_by == "outcome" && @cache_sort_order}
-            >
-              <.status_badge_cell
-                label={outcome_label(event.outcome)}
-                status={outcome_status(event.outcome)}
-              />
-            </:col>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Action")}
-              patch={column_patch_sort(assigns, "action")}
-              sort_order={@cache_sort_by == "action" && @cache_sort_order}
-            >
-              <.text_cell label={event.action_mnemonic} />
-            </:col>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Transfer")}
-              patch={column_patch_sort(assigns, "transfer")}
-              sort_order={@cache_sort_by == "transfer" && @cache_sort_order}
-            >
-              <.text_cell label={ByteFormatter.format_bytes(event.size)} />
-            </:col>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Latency")}
-              patch={column_patch_sort(assigns, "latency")}
-              sort_order={@cache_sort_by == "latency" && @cache_sort_order}
-            >
-              <.text_cell
-                label={DateFormatter.format_duration_from_milliseconds(event.duration_ms)}
-                icon="history"
-              />
-            </:col>
-            <:col
-              :let={event}
-              label={dgettext("dashboard_projects", "Received")}
-              patch={column_patch_sort(assigns, "received")}
-              sort_order={@cache_sort_by == "received" && @cache_sort_order}
-            >
-              <.text_cell sublabel={DateFormatter.from_now(event.inserted_at)} />
-            </:col>
-          </.table>
-          <.pagination_group
-            :if={@total_pages > 1}
-            current_page={@current_page}
-            number_of_pages={@total_pages}
-            page_patch={fn page -> "?#{Query.put(@uri.query, "page", to_string(page))}" end}
-          />
-          <.empty_card_section
-            :if={Enum.empty?(@cache_events)}
-            title={cache_events_empty_state_title(@active_filters, @has_any_cache_observations)}
-            get_started_href={
-              if Enum.empty?(@active_filters), do: cache_get_started_href(@has_any_cache_observations)
-            }
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_table_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={~p"/images/empty_table_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        </.card_section>
       </.card>
     </div>
     """
@@ -838,13 +676,6 @@ defmodule TuistWeb.BazelCacheLive do
     }
   end
 
-  defp outcome_label("hit"), do: dgettext("dashboard_projects", "Hit")
-  defp outcome_label("miss"), do: dgettext("dashboard_projects", "Miss")
-  defp outcome_label(_), do: dgettext("dashboard_projects", "Stored")
-  defp outcome_status("hit"), do: "success"
-  defp outcome_status("miss"), do: "attention"
-  defp outcome_status(_), do: "success"
-
   defp replace_split_query_param(socket, key, value) do
     query = Query.put(socket.assigns.uri.query, key, value)
 
@@ -887,12 +718,6 @@ defmodule TuistWeb.BazelCacheLive do
 
   defp selected_hit_rate_type(type) when type in ["avg", "p99", "p90", "p50"], do: type
   defp selected_hit_rate_type(_type), do: "avg"
-
-  defp cache_events_empty_state_title([_ | _], _has_any_cache_observations),
-    do: dgettext("dashboard_projects", "No cache observations match the current filters.")
-
-  defp cache_events_empty_state_title([], has_any_cache_observations),
-    do: cache_observations_empty_state_title(has_any_cache_observations)
 
   defp cache_observations_empty_state_title(true),
     do: dgettext("dashboard_projects", "No cache observations in the selected period")
@@ -969,71 +794,5 @@ defmodule TuistWeb.BazelCacheLive do
       </div>
     </.dropdown_item>
     """
-  end
-
-  defp sort_field("outcome"), do: :outcome
-  defp sort_field("action"), do: :action_mnemonic
-  defp sort_field("target"), do: :target_label
-  defp sort_field("transfer"), do: :size
-  defp sort_field("latency"), do: :duration_ms
-  defp sort_field(_), do: :inserted_at
-
-  defp column_patch_sort(%{uri: uri, cache_sort_by: sort_by, cache_sort_order: sort_order}, column_value) do
-    next_order = if sort_by == column_value and sort_order == "desc", do: "asc", else: "desc"
-
-    uri.query
-    |> URI.decode_query()
-    |> Map.put("cache-sort-by", column_value)
-    |> Map.put("cache-sort-order", next_order)
-    |> Map.put("page", "1")
-    |> URI.encode_query()
-    |> then(&"?#{&1}")
-  end
-
-  defp cache_path(socket, params) do
-    "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bazel-cache?#{URI.encode_query(params)}"
-  end
-
-  defp define_filters do
-    [
-      %Filter.Filter{
-        id: "outcome",
-        field: :outcome,
-        display_name: dgettext("dashboard_projects", "Outcome"),
-        type: :option,
-        options: ["hit", "miss", "write"],
-        options_display_names: %{
-          "hit" => dgettext("dashboard_projects", "Hit"),
-          "miss" => dgettext("dashboard_projects", "Miss"),
-          "write" => dgettext("dashboard_projects", "Stored")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
-        id: "action",
-        field: :action_mnemonic,
-        display_name: dgettext("dashboard_projects", "Action"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "target",
-        field: :target_label,
-        display_name: dgettext("dashboard_projects", "Target"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "invocation",
-        field: :invocation_id,
-        display_name: dgettext("dashboard_projects", "Invocation"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      }
-    ]
   end
 end

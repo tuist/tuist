@@ -42,7 +42,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Cache")}
+        label={dgettext("dashboard", "Bazel cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
         selected={

@@ -4,7 +4,16 @@ defmodule Tuist.ReapiCache.CacheEvent do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :operation, :outcome, :invocation_id, :action_mnemonic, :target_label, :inserted_at],
+    filterable: [
+      :project_id,
+      :operation,
+      :outcome,
+      :invocation_id,
+      :action_digest,
+      :action_mnemonic,
+      :target_label,
+      :inserted_at
+    ],
     sortable: [
       :observed_at,
       :inserted_at,

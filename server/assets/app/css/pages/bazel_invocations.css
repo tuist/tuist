@@ -105,16 +105,6 @@
     }
   }
 
-  & > [data-part="bazel-cache-activity-card"] {
-    & > [data-part="bazel-cache-events-section"] {
-      gap: var(--noora-spacing-8);
-
-      & .noora-pagination-group {
-        margin-top: var(--noora-spacing-7);
-      }
-    }
-  }
-
   & [data-part="empty-bazel-invocations-card-section"] {
     & > [data-part="title"] {
       padding-top: var(--noora-spacing-5);
