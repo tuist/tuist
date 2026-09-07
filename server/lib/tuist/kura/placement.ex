@@ -96,7 +96,16 @@ defmodule Tuist.Kura.Placement do
         min_runs_per_day: 10,
         min_active_days: 5
       },
-      expand: %{window_days: 14, min_runs_per_day: 50, min_active_days: 7},
+      # Pro's floor, not a higher one. The ladder is ordered by how many
+      # instances a plan funds — Air 2, Pro 3, Enterprise 5 — so the plan that
+      # funds the most regions cannot be the one that demands the most traffic
+      # to open one; at 50 it was stricter than Pro while being entitled to two
+      # more instances. What the floor has to be is an absolute rate a real
+      # second site clears and a handful of stragglers does not, and 25 a day
+      # is that rate whatever the plan. Measured against the fleet on
+      # 2026-09-07: it opens a region for the accounts whose second site runs
+      # 30-40 builds a day, and still refuses the 5-runs-a-day tails.
+      expand: %{window_days: 14, min_runs_per_day: 25, min_active_days: 7},
       retire: %{window_days: 90, max_runs_per_day: 10},
       relocation_window_days: 90,
       max_relocations_per_window: 1

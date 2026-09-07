@@ -823,7 +823,11 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
       assert {:ok, %{plan: :air}} = AccountPolicies.resolve(account)
 
-      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      # `refute_received` rather than `refute_receive`: the handler is global,
+      # so its 100ms wait is a window for any async test file that refuses a
+      # resolution to deliver into this mailbox. `resolve/1` emits
+      # synchronously, so an event from this call is already here.
+      refute_received {_event_name, ^event_ref, _measurements, _metadata}
     end
   end
 end
