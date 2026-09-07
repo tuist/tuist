@@ -18,7 +18,8 @@ defmodule Tuist.Kura.PlacementTest do
       assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "majority_of_runs_moved"
       assert evidence["share"] >= 0.6
-      assert evidence["active_days"] == 30
+      # The account built on all 30 days; the rung reads the last 14 of them.
+      assert evidence["active_days"] == 14
     end
 
     test "leaves an account alone below the majority" do
