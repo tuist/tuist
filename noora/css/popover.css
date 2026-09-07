@@ -9,7 +9,6 @@
   }
 
   & [data-part="content"] {
-    z-index: var(--noora-z-index-10);
     box-shadow: var(--noora-border-light-default);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);

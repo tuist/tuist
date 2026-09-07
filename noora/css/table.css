@@ -454,12 +454,7 @@
       label,
       [role="button"],
       [tabindex]
-    ):not(
-      [data-part="row-link"],
-      [data-part="row-link-overlay"],
-      [data-part="positioner"],
-      [data-part="content"]
-    ) {
+    ):not([data-part="row-link"], [data-part="row-link-overlay"]) {
     position: relative;
     z-index: 1;
   }
