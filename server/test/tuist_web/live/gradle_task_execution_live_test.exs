@@ -45,7 +45,8 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
 
     assert html =~ "Execution details"
     assert length(Floki.find(Floki.parse_fragment!(html), "#gradle-task-execution .noora-card")) == 1
-    assert has_element?(detail, "#execution-diagnostics:not([open])")
+    refute has_element?(detail, "details")
+    assert length(Floki.find(Floki.parse_fragment!(html), "[data-part=metadata-grid]")) == 1
     assert has_element?(detail, "[data-part=metadata]", "main")
     assert has_element?(detail, "[data-part=metadata]", "d73a6294ef18")
     refute html =~ "d73a6294ef18476e86391c98e5a52da986cc1b20"
@@ -54,9 +55,11 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
     assert has_element?(detail, "[data-part=metadata]", "CI")
     assert has_element?(detail, "[data-part=metadata]", "1.2s")
     assert has_element?(detail, "[data-part=metadata]", ":included")
-    assert has_element?(detail, "[data-part=execution-reasons]", "Input changed")
+    refute html =~ "Input changed"
+    assert has_element?(detail, "[data-part=metadata]", "Lookup duration")
+    assert has_element?(detail, "[data-part=metadata]", "Incremental")
     assert has_element?(detail, "[data-part=back-button][href='#{build_path}']")
-    assert has_element?(detail, "[data-part=dependencies-link]")
+    refute has_element?(detail, "[data-part=dependencies-link]")
 
     link =
       detail
@@ -118,7 +121,8 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
 
       if execution.task_path == ":clean" do
         assert html =~ "Not cacheable"
-        assert html =~ "Caching has been disabled for the task"
+        refute html =~ "Caching has been disabled for the task"
+        assert has_element?(detail, "[data-part=metadata]", "Root build")
         assert has_element?(detail, "[data-part=title] .noora-badge[data-color=destructive]", "Failed")
       else
         assert html =~ "Unknown cacheability"

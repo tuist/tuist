@@ -20,4 +20,4 @@ This area owns LiveView pages and components for the web UI.
 
 - `GradleTaskExecutionLive` renders `/builds/build-runs/:build_run_id/tasks/:task_id`. Scope lookups to both the selected project and parent build. Build Tasks, cacheable tasks, and task-overview execution rows navigate here. The page links back to its build and to the task overview with root project, build path, task path, and type preserved. Use shared `Helpers.GradleTask` outcome labels and colors.
 
-- Task execution details use one compact summary card (duration, runner, timestamp, cacheability, branch, shortened commit); put build identity, cache timings, execution reasons and dependency navigation in a collapsed diagnostics disclosure. Reuse VCS branch/commit links.
+- Task execution details use one compact summary card (duration, runner, timestamp, cacheability, branch, shortened commit); show build identity, incremental status and available cache timings as further metadata rows. Display the root build path (`:`) as “Root build”. Omit raw execution reasons, caching-disabled explanations and dependency navigation. Reuse VCS branch/commit links.

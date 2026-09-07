@@ -8,7 +8,6 @@ defmodule TuistWeb.GradleTaskExecutionLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Gradle
-  alias Tuist.Gradle.ExecutionGraph
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
@@ -41,8 +40,6 @@ defmodule TuistWeb.GradleTaskExecutionLive do
 
     "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/tasks/#{URI.encode(assigns.task.task_path, &URI.char_unreserved?/1)}?#{query}"
   end
-
-  defp dependencies_query(task), do: %{tab: "dependencies", node: ExecutionGraph.task_id(task.build_path, task.task_path)}
 
   defp cacheability(%{cacheability: "disabled"}), do: dgettext("dashboard_gradle", "Not cacheable")
   defp cacheability(%{cacheability: "cacheable"}), do: dgettext("dashboard_gradle", "Cacheable")
