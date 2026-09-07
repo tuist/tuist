@@ -75,6 +75,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       {:error, :object_not_found} when attempt <= @not_visible_snoozes ->
         {:snooze, @not_visible_snooze_seconds}
 
+      {:error, {:parser_crashed, status, output} = reason} ->
+        Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
+        report_parser_crash(build_id, project_id, storage_key, status, output)
+        mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
+        {:discard, reason}
+
       {:error, reason} ->
         if attempt >= max_attempts do
           Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
@@ -138,6 +144,23 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
     {:ok, _build} = Builds.create_build(attrs)
     :ok
+  end
+
+  # Oban emits `[:oban, :job, :stop]` for an explicit discard and
+  # `[:oban, :job, :exception]` only for a failure, so discarding drops the
+  # report that retrying to exhaustion used to produce. `output` carries the
+  # Swift backtrace, which is what says where the parser trapped.
+  defp report_parser_crash(build_id, project_id, storage_key, status, output) do
+    Sentry.capture_message("The xcactivitylog parser crashed",
+      level: :error,
+      extra: %{
+        build_id: build_id,
+        project_id: project_id,
+        storage_key: storage_key,
+        exit_status: status,
+        parser_output: output
+      }
+    )
   end
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do

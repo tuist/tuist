@@ -196,6 +196,60 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
+    # A Swift trap is deterministic on the same archive, so the remaining
+    # attempts would only repeat the download and the parse to reach the same
+    # discard.
+    test "discards a parser crash on the first attempt instead of retrying", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(BuildProcessor, :process_build, fn _path, _ ->
+        {:error, {:parser_crashed, 132, "Program crashed: Illegal instruction"}}
+      end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: build.id}}
+      end)
+
+      stub(Sentry, :capture_message, fn _, _ -> {:ok, "id"} end)
+
+      assert {:discard, {:parser_crashed, 132, _}} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
+    end
+
+    # Oban emits `[:oban, :job, :stop]` for an explicit discard, not
+    # `[:oban, :job, :exception]`, so discarding drops the report that
+    # retrying to exhaustion used to produce.
+    test "reports a parser crash with the output that names the trap", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(BuildProcessor, :process_build, fn _path, _ ->
+        {:error, {:parser_crashed, 132, "0 XCActivityLogParser.ActivityParser.parse + 9"}}
+      end)
+
+      stub(Builds, :create_build, fn _ -> {:ok, %{id: build.id}} end)
+
+      expect(Sentry, :capture_message, fn message, options ->
+        assert message =~ "parser crashed"
+        assert options[:extra].exit_status == 132
+        assert options[:extra].parser_output =~ "ActivityParser.parse"
+        assert options[:extra].storage_key == @storage_key
+        assert options[:extra].build_id == build.id
+        {:ok, "id"}
+      end)
+
+      assert {:discard, _} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
+    end
+
     test "snoozes while the uploaded archive is not visible yet", %{
       account: account,
       project: project,

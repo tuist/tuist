@@ -5,12 +5,19 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
   alias Tuist.Processor.XCActivityLogParser
 
   @executable_path Path.join([:code.priv_dir(:tuist), "native", "xcactivitylog-parser"])
+  @backtracer_path Path.join([:code.priv_dir(:tuist), "native", "swift-backtrace"])
 
   defp install_parser(script) do
     File.mkdir_p!(Path.dirname(@executable_path))
     File.write!(@executable_path, "#!/bin/sh\n" <> script)
     File.chmod!(@executable_path, 0o755)
     on_exit(fn -> File.rm(@executable_path) end)
+  end
+
+  defp install_backtracer do
+    File.mkdir_p!(Path.dirname(@backtracer_path))
+    File.write!(@backtracer_path, "")
+    on_exit(fn -> File.rm(@backtracer_path) end)
   end
 
   defp parse do
@@ -42,6 +49,28 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
     install_parser(~S|kill -s ILL $$|)
 
     assert {:error, {:parser_crashed, 132, _output}} = parse()
+  end
+
+  # An optimized Swift trap prints nothing on its own, so without the backtracer
+  # a crash arrives as `{:parser_crashed, 132, ""}` and there is no way to tell
+  # which conversion fired.
+  test "points the Swift backtracer at the copy shipped beside the parser" do
+    install_backtracer()
+    install_parser(~S|printf '{"backtrace":"%s"}' "$SWIFT_BACKTRACE" > "$4"|)
+
+    assert {:ok, %{"backtrace" => backtrace}} = parse()
+    assert backtrace =~ "enable=yes"
+    assert backtrace =~ "swift-backtrace=#{@backtracer_path}"
+  end
+
+  # macOS builds ship no backtracer: naming a path that does not exist makes the
+  # Swift runtime print a "unable to locate swift-backtrace" line over whatever
+  # the parser reported.
+  test "leaves SWIFT_BACKTRACE unset when no backtracer ships with the parser" do
+    File.rm(@backtracer_path)
+    install_parser(~S|printf '{"backtrace":"%s"}' "$SWIFT_BACKTRACE" > "$4"|)
+
+    assert {:ok, %{"backtrace" => ""}} = parse()
   end
 
   test "leaves no output file behind" do
