@@ -2958,7 +2958,7 @@ func (r *KuraInstanceReconciler) wedgedPinnedNode(
 	if !since.After(pv.CreationTimestamp.Time) {
 		return "", nil
 	}
-	return r.schedulableHostname(ctx, pv)
+	return r.schedulableHostname(ctx, pv, pod.Spec.Tolerations)
 }
 
 // podUnschedulableSince reports when the scheduler first refused to place a
@@ -2991,17 +2991,26 @@ func podUnschedulableSince(pod *corev1.Pod) (time.Time, bool) {
 }
 
 // schedulableHostname returns the node a PV's required affinity pins it to when
-// that node is present, Ready and not cordoned, and "" otherwise.
+// that node would accept this replica if it had room, and "" otherwise.
 //
 // Every rejected case belongs to another path, and rebuilding over it would
 // discard a volume that path still has a use for. A PV with no hostname
 // affinity is not pinned to begin with. A pin to a node that no longer exists
 // is staleDataStorageReason's, which recreates the whole StatefulSet rather
 // than one ordinal, and the two must stay distinct. A pin to a node that is
-// NotReady, cordoned or draining is a box being worked on: the volume is
-// intact, the replica comes back with the box, and node evacuation decides
-// when it should not.
-func (r *KuraInstanceReconciler) schedulableHostname(ctx context.Context, pv *corev1.PersistentVolume) (string, error) {
+// NotReady, cordoned, draining or carrying a taint this replica does not
+// tolerate is a box being worked on: the volume is intact, the replica comes
+// back with the box, and node evacuation decides when it should not.
+//
+// The taints have to be matched against the pod's tolerations rather than
+// merely counted. Every Kura box carries a dedicated-pool NoSchedule taint that
+// every Kura pod tolerates, so treating any NoSchedule taint as disqualifying
+// would switch this trigger off across the whole fleet.
+func (r *KuraInstanceReconciler) schedulableHostname(
+	ctx context.Context,
+	pv *corev1.PersistentVolume,
+	tolerations []corev1.Toleration,
+) (string, error) {
 	hostnames := pvRequiredHostnames(pv)
 	if len(hostnames) == 0 {
 		return "", nil
@@ -3015,6 +3024,9 @@ func (r *KuraInstanceReconciler) schedulableHostname(ctx context.Context, pv *co
 			return "", err
 		}
 		if node.DeletionTimestamp != nil || node.Spec.Unschedulable || !nodeReady(node) {
+			return "", nil
+		}
+		if untoleratedTaint(node, tolerations) != "" {
 			return "", nil
 		}
 	}
@@ -3212,6 +3224,30 @@ func (r *KuraInstanceReconciler) pvMissingPinnedNode(ctx context.Context, pvName
 		}
 	}
 	return "", nil
+}
+
+// untoleratedTaint returns the key of the first taint on the node that would
+// keep a pod with these tolerations off it, or "" when none would. Only
+// NoSchedule and NoExecute bear on placement; PreferNoSchedule is a preference
+// the scheduler is free to ignore, so a pod is not stuck behind one.
+func untoleratedTaint(node *corev1.Node, tolerations []corev1.Toleration) string {
+	for i := range node.Spec.Taints {
+		taint := &node.Spec.Taints[i]
+		if taint.Effect != corev1.TaintEffectNoSchedule && taint.Effect != corev1.TaintEffectNoExecute {
+			continue
+		}
+		tolerated := false
+		for j := range tolerations {
+			if tolerations[j].ToleratesTaint(taint) {
+				tolerated = true
+				break
+			}
+		}
+		if !tolerated {
+			return taint.Key
+		}
+	}
+	return ""
 }
 
 func pvcStorageClassName(pvc *corev1.PersistentVolumeClaim) string {

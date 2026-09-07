@@ -2141,6 +2141,13 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 		storage      = "40Gi"
 		filledNode   = "us-east-box-1"
 	)
+	poolTaint := corev1.Taint{Key: "tuist.dev/kura-cache", Value: "true", Effect: corev1.TaintEffectNoSchedule}
+	poolToleration := corev1.Toleration{
+		Key:      "tuist.dev/kura-cache",
+		Operator: corev1.TolerationOpEqual,
+		Value:    "true",
+		Effect:   corev1.TaintEffectNoSchedule,
+	}
 	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
 
 	instance := &kurav1alpha1.KuraInstance{
@@ -2211,6 +2218,7 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 				Labels:            selectorLabels(instance),
 				CreationTimestamp: metav1.NewTime(now.Add(-pendingFor)),
 			},
+			Spec: corev1.PodSpec{Tolerations: []corev1.Toleration{poolToleration}},
 			Status: corev1.PodStatus{
 				Phase: corev1.PodPending,
 				Conditions: []corev1.PodCondition{{
@@ -2227,7 +2235,10 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 	servingPod := func(ordinal int) *corev1.Pod {
 		return &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{Name: podName(ordinal), Namespace: namespace, Labels: selectorLabels(instance)},
-			Spec:       corev1.PodSpec{NodeName: filledNode},
+			Spec: corev1.PodSpec{
+				NodeName:    filledNode,
+				Tolerations: []corev1.Toleration{poolToleration},
+			},
 			Status: corev1.PodStatus{
 				Phase: corev1.PodRunning,
 				Conditions: []corev1.PodCondition{
@@ -2261,7 +2272,12 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 		}
 		return &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{Name: name},
-			Spec:       corev1.NodeSpec{Unschedulable: cordoned},
+			Spec: corev1.NodeSpec{
+				Unschedulable: cordoned,
+				// Every Kura box carries the dedicated-pool taint, and every Kura
+				// pod tolerates it.
+				Taints: []corev1.Taint{poolTaint},
+			},
 			Status: corev1.NodeStatus{
 				Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status}},
 			},
@@ -2386,6 +2402,46 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 			pinnedTo: filledNode,
 			node:     node(filledNode, true, false),
 			sibling:  unreadyPod(0),
+		},
+		{
+			// PreferNoSchedule is a preference the scheduler may ignore, so a pod
+			// is never stuck behind one and it must not mask a real wedge.
+			name:     "rebuilds despite a PreferNoSchedule taint it does not tolerate",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node: func() *corev1.Node {
+				n := node(filledNode, true, false)
+				n.Spec.Taints = append(n.Spec.Taints, corev1.Taint{
+					Key:    "tuist.dev/soft-steer",
+					Value:  "true",
+					Effect: corev1.TaintEffectPreferNoSchedule,
+				})
+				return n
+			}(),
+			sibling: servingPod(0),
+			rebuilt: true,
+		},
+		{
+			// A taint the pod does not tolerate is a box being worked on just as
+			// much as a cordon is, and it is temporary in the same way: the
+			// replica returns to its warm volume when the taint is lifted.
+			// Rebuilding would spend the cache to escape a condition that was
+			// going to clear on its own.
+			name:     "leaves a pin to a node with an untolerated taint alone",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node: func() *corev1.Node {
+				n := node(filledNode, true, false)
+				n.Spec.Taints = append(n.Spec.Taints, corev1.Taint{
+					Key:    "tuist.dev/maintenance",
+					Value:  "true",
+					Effect: corev1.TaintEffectNoSchedule,
+				})
+				return n
+			}(),
+			sibling: servingPod(0),
 		},
 		{
 			// A cordoned box is being drained or replaced. The volume is intact
