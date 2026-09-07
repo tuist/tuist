@@ -38,5 +38,5 @@ defmodule Tuist.IngestRepo do
   end
 
   defdelegate with_retry(fun), to: ClickHouseRetry
-  defdelegate with_retry(fun, retries_left), to: ClickHouseRetry
+  defdelegate with_retry(fun, opts), to: ClickHouseRetry
 end
