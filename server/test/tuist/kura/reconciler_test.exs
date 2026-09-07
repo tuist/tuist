@@ -225,6 +225,72 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
   end
 
+  test "republishes an active server whose cache endpoint mirror is missing" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # `account_cache_endpoints`, not `kura_servers`, is what the CLI resolves,
+    # and the image and URL checks both read this server as steady state.
+    [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
+    Accounts.delete_account_cache_endpoint(endpoint)
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+  end
+
+  test "leaves a converged published server alone instead of re-activating it every tick" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+
+    # Reading the mirror must not cost a healthy server a DB write and a
+    # broadcast to every open settings LiveView each tick.
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+  end
+
+  # A rollout abort or supersede cancels the open deployments it owns, which
+  # can leave a replicating server with none. The rollout fast path drives open
+  # deployments alone, so the projection is the only thing that reaches it.
+  test "projects a replicating server whose deployment was closed under it" do
+    {account, server, deployment} = create_server()
+
+    server
+    |> Ecto.Changeset.change(%{status: :replicating})
+    |> Repo.update!()
+
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_cancelled(deployment, "superseded by a newer rollout")
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+  end
+
   test "refreshes a converged node-port server instead of re-activating it every tick" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)

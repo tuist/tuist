@@ -39,6 +39,14 @@ defmodule Tuist.Kura.Reconciler do
   public reachability, so the projection deliberately keeps the live
   probe as the readiness authority.
 
+  Publication is convergence state. A public server is in sync when it
+  is active on its desired image, carries the URL its region renders,
+  and that URL is mirrored into `account_cache_endpoints` — the table
+  the CLI resolves. A server missing from the mirror routes its account
+  to the legacy cache lane while its own instance sits idle, and does so
+  silently: the account still builds, so nothing errors and nothing
+  retries.
+
   User actions only mutate Postgres intent. If a BEAM dies mid-action,
   this loop observes the same rows on the next tick and converges again.
   """
@@ -458,7 +466,12 @@ defmodule Tuist.Kura.Reconciler do
   defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
   defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
-  @present_intent_statuses [:provisioning, :active, :failed]
+  # Every live status, `:replicating` included: its workload is up on the
+  # desired image and catching up from its mesh peers behind the backfill
+  # gate. This pass is the only thing that reaches such a server once its open
+  # deployment is closed, because the rollout fast path drives open deployments
+  # alone and a rollout mints one only for a server that is off the target tag.
+  @present_intent_statuses [:provisioning, :replicating, :active, :failed]
   @open_deployment_statuses [:pending, :running]
 
   # Projects observed cluster state onto present-intent servers the
@@ -614,6 +627,12 @@ defmodule Tuist.Kura.Reconciler do
 
   defp converged?(%Server{}, _desired), do: false
 
+  # The two derived things `converged?` does not track: the URL the region
+  # renders, and whether that URL is published to the CLI.
+  defp endpoint_in_sync?(%Server{} = server) do
+    url_in_sync?(server) and cache_endpoint_in_sync?(server)
+  end
+
   # The URL the region template renders can change without the image changing
   # (e.g. an environment-scoped public-host rename). `kura_servers.url` and the
   # `account_cache_endpoints` mirror are derived from it, but `converged?` only
@@ -630,7 +649,7 @@ defmodule Tuist.Kura.Reconciler do
   # tick and route a converged node through `do_converge/2` (DB write +
   # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
   # tracking the moving endpoint, so report node-port regions as in sync here.
-  defp endpoint_in_sync?(%Server{} = server) do
+  defp url_in_sync?(%Server{} = server) do
     if node_port_region?(server) do
       true
     else
@@ -639,6 +658,25 @@ defmodule Tuist.Kura.Reconciler do
         rendered when is_binary(rendered) -> false
         _ -> true
       end
+    end
+  end
+
+  # `account_cache_endpoints` is what the CLI resolves, so a public server is
+  # converged only once its URL is mirrored there. Reading the mirror rather
+  # than trusting the activation that wrote it means any path that drops the
+  # row — a drain unpublishing, a torn-down peer that shared the URL — heals on
+  # the next tick, and a healthy server costs one indexed existence check.
+  # Private regions never mirror their URL (the CLI cannot reach an in-cluster
+  # endpoint), so they are in sync by definition, the rule `activate_server/2`
+  # applies too.
+  defp cache_endpoint_in_sync?(%Server{} = server) do
+    private_region?(server) or Kura.cache_endpoint_published?(server)
+  end
+
+  defp private_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.private?(region)
+      _ -> false
     end
   end
 

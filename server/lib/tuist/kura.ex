@@ -2090,6 +2090,50 @@ defmodule Tuist.Kura do
     {:ok, server}
   end
 
+  @doc """
+  Whether the server's URL is mirrored into `account_cache_endpoints`, the
+  table the CLI resolves.
+
+  The mirror, not `kura_servers`, is what routes an account: an instance
+  missing from it is one the CLI cannot see, so the account keeps building
+  against the legacy cache lane with nothing to error on. The reconciler
+  converges on this, so it is read rather than assumed.
+  """
+  def cache_endpoint_published?(%Server{url: nil}), do: false
+
+  def cache_endpoint_published?(%Server{account_id: account_id, url: url}) do
+    AccountCacheEndpoint
+    |> where([e], e.account_id == ^account_id and e.technology == :kura and e.url == ^url)
+    |> Repo.exists?()
+  end
+
+  @doc """
+  Counts, per region, the active servers in `region_ids` whose URL is not
+  mirrored into `account_cache_endpoints`.
+
+  Steady state is zero for every region, and not approximately: activation
+  writes the server's `url` and its mirror row in one transaction, so an
+  active server is published from the instant it is active. Any non-zero
+  count is an account paying for an instance it is not being routed to.
+  """
+  def unpublished_cache_endpoint_counts(region_ids) do
+    published =
+      from(e in AccountCacheEndpoint,
+        where:
+          e.technology == :kura and e.account_id == parent_as(:server).account_id and
+            e.url == parent_as(:server).url
+      )
+
+    Server
+    |> from(as: :server)
+    |> where([s], s.status == :active and s.region in ^region_ids)
+    |> where([s], not exists(subquery(published)))
+    |> group_by([s], s.region)
+    |> select([s], {s.region, count(s.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
   defp ensure_cache_endpoint(_account, nil), do: :ok
 
   defp ensure_cache_endpoint(account, url) do

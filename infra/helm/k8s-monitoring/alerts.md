@@ -3240,6 +3240,64 @@ stronger statement than the region-level pressure fraction
 (`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
 on which is authoritative.
 
+### Kura instance provisioned but not published to the CLI
+
+```promql
+sum(tuist_kura_lifecycle_unpublished_endpoints_count{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`, so the alert value is how many instances are unroutable
+- Pending period: 15 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
+- Summary: `{{ $values.A.Value }} Kura instance(s) are running but not
+  published to the CLI`
+- Description: `An account's cache endpoint lives in account_cache_endpoints,
+  not in kura_servers, and that mirror is what the CLI resolves. An active
+  instance missing from it is an account still being routed to the legacy
+  cache lane while the instance it is paying for sits idle. Read the
+  reconciler log for "could not converge server" and check the instance's
+  KuraInstance status; the reconciler republishes on its next tick once
+  activation can complete, so a count that does not clear within a few
+  minutes means activation itself is failing.`
+
+**Summed rather than read per region.** The gauge carries a `region` label and
+the underlying series is per region, but Adaptive Metrics has already
+aggregated `region` away from the other `tuist_kura_*` gauges (see the two
+limits above **Critical alerts**), and this rule must survive that: what it
+asserts is that nothing is unpublished anywhere, which the fleet-wide sum
+answers on its own. Use the labelled series in Explore to find which region
+when it fires, and keep the sum in the rule.
+
+**Why zero is the right threshold.** Publication is not eventual.
+`Kura.activate_server/2` writes `kura_servers.url` and the
+`account_cache_endpoints` row in one transaction, so an instance is published
+from the instant it is active — there is no legitimate window in which an
+active instance is unroutable, not even a short one. The 15-minute pending
+period is not a grace period for provisioning; it is there so a reconciler
+tick that is mid-republish, or a single failed activation the next tick
+retries, does not page.
+
+**Why warning rather than critical.** An unpublished account still builds. It
+builds against the legacy cache lane, so it gets worse hit rates and pays for
+an instance it is not using, but nothing fails and no build breaks. The damage
+is measured in days of wasted capacity, not in an outage.
+
+**No Data means alerting, deliberately.** The gauge is emitted once a minute
+per region for every region in the catalog, including regions with nothing
+unpublished, so an absent series means the poller stopped, not that the fleet
+is clean. Treating that as Normal would restore the exact blindness this rule
+exists to remove.
+
+**What it would have caught.** The 2026-09-07 backlog: 22 endpoint rows
+published in one five-minute burst, with publication lags of 51.5 h, 52.3 h,
+65.9 h and a maximum of about 52 days against an instance provisioned in
+mid-July. Every one of those accounts had a running, `Ready` instance the
+whole time and resolved `https://cache-*.tuist.dev` instead. Nothing errored,
+no queue grew, and no existing rule moved — which is why it was found by
+reading the table rather than by an alert.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another

@@ -1618,6 +1618,57 @@ defmodule Tuist.KuraTest do
     server
   end
 
+  describe "cache endpoint publication" do
+    test "reports an active server as published only while its mirror row exists" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      server = activate_public_server!(account, "local-controller")
+
+      assert Kura.cache_endpoint_published?(server)
+      assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{}
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
+      Accounts.delete_account_cache_endpoint(endpoint)
+
+      refute Kura.cache_endpoint_published?(server)
+      assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{"local-controller" => 1}
+    end
+
+    test "does not read a mirror row for another URL on the same account as published" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      server = activate_public_server!(account, "local-controller")
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
+      Accounts.delete_account_cache_endpoint(endpoint)
+
+      # A second region's row is a different URL on the same account, so
+      # matching per account rather than per URL would read it as published.
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://acme-eu-central-1.kura.tuist.dev",
+          technology: :kura
+        })
+
+      refute Kura.cache_endpoint_published?(server)
+      assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{"local-controller" => 1}
+    end
+
+    test "counts only active servers in the regions asked for" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      server = activate_public_server!(account, "local-controller")
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
+      Accounts.delete_account_cache_endpoint(endpoint)
+
+      assert Kura.unpublished_cache_endpoint_counts([]) == %{}
+
+      # A server that is not active has not been declared serving, so it has
+      # nothing to publish.
+      {:ok, _} = Kura.fail_server(server)
+
+      assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{}
+    end
+  end
+
   describe "order_endpoints_by_origin/3" do
     test "puts the region nearest the caller first for a multi-region account" do
       account = placed_account()

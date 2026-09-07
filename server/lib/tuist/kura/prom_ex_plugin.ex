@@ -7,7 +7,7 @@ defmodule Tuist.Kura.PromExPlugin do
   reclaimed bytes, archive cancellations, refused provisions, and the accounts
   refused a service region before they reach any transition at all.
 
-  Two polled gauges cover what a transition cannot see:
+  Three polled gauges cover what a transition cannot see:
 
     * per-region occupancy — the forecast enforced warm quota against what is
       installed. This is the number that decides whether another machine is
@@ -16,8 +16,14 @@ defmodule Tuist.Kura.PromExPlugin do
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
       inactivity windows are trading against.
+    * unpublished endpoints — active instances the CLI cannot resolve, because
+      their URL is not mirrored into `account_cache_endpoints`. Every other
+      Kura signal reads healthy while this is non-zero: the instance is up and
+      answering, it is simply not being routed to, and the account keeps
+      building against the legacy lane. There is no transition to hang it off
+      and no error to count, so it is polled.
 
-  Both are tagged by region only. Account never appears as a tag.
+  All three are tagged by region only. Account never appears as a tag.
   """
 
   use PromEx.Plugin
@@ -26,6 +32,7 @@ defmodule Tuist.Kura.PromExPlugin do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
@@ -197,6 +204,24 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:region]
           )
         ]
+      ),
+      Polling.build(
+        :tuist_kura_endpoint_publication_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_unpublished_endpoints_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:unpublished_endpoints, :count],
+            event_name: [:tuist, :kura, :lifecycle, :endpoint_publication],
+            measurement: :unpublished,
+            description:
+              "Active instances whose URL is not mirrored into account_cache_endpoints, so the CLI " <>
+                "resolves the legacy cache lane instead of the instance the account is paying for. " <>
+                "Activation writes the instance's URL and its mirror row in one transaction, so " <>
+                "steady state is exactly zero rather than approximately zero.",
+            tags: [:region]
+          )
+        ]
       )
     ]
   end
@@ -216,6 +241,23 @@ defmodule Tuist.Kura.PromExPlugin do
           allocatable_gib: occupancy.allocatable_gib || 0,
           instances: occupancy.instances
         },
+        %{region: region_id}
+      )
+    end)
+  end
+
+  @doc false
+  def execute_unpublished_endpoints_telemetry_event do
+    region_ids = Enum.map(lifecycle_regions(), & &1.id)
+    counts = Kura.unpublished_cache_endpoint_counts(region_ids)
+
+    # Emitted for every region, not only the ones with a count, so a region
+    # that stops publishing is a series moving off zero rather than a series
+    # appearing. An alert on the latter has to decide what No Data means.
+    Enum.each(region_ids, fn region_id ->
+      :telemetry.execute(
+        [:tuist, :kura, :lifecycle, :endpoint_publication],
+        %{unpublished: Map.get(counts, region_id, 0)},
         %{region: region_id}
       )
     end)

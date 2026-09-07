@@ -3,6 +3,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
@@ -163,6 +164,43 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert_received {[:tuist, :kura, :lifecycle, :hit_rate_recovery], ^ref,
                        %{returned_hit_rate: +0.0, steady_hit_rate: +0.0}, _metadata}
     end
+  end
+
+  describe "execute_unpublished_endpoints_telemetry_event/0" do
+    test "counts active instances the CLI cannot resolve" do
+      published = account()
+      unpublished = account()
+
+      publish(instance(published), "https://published-us-east-1.kura.tuist.dev")
+
+      # An active instance with no mirror row is an account routed to the
+      # legacy cache lane while every other Kura signal reads healthy.
+      Repo.update!(Ecto.Changeset.change(instance(unpublished), url: "https://unpublished-us-east-1.kura.tuist.dev"))
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :endpoint_publication]])
+
+      PromExPlugin.execute_unpublished_endpoints_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :endpoint_publication], ^ref, %{unpublished: 1}, %{region: @region}}
+    end
+
+    test "reports zero for a region with nothing unpublished rather than dropping the series" do
+      publish(instance(account()), "https://published-us-east-1.kura.tuist.dev")
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :endpoint_publication]])
+
+      PromExPlugin.execute_unpublished_endpoints_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :endpoint_publication], ^ref, %{unpublished: 0}, %{region: @region}}
+    end
+  end
+
+  defp publish(%Server{} = server, url) do
+    server = Repo.update!(Ecto.Changeset.change(server, url: url))
+
+    {:ok, _} = Accounts.create_account_cache_endpoint(%Account{id: server.account_id}, %{url: url, technology: :kura})
+
+    server
   end
 
   # Capacity reads the region's nodes and pods, so sizing a region in a test
