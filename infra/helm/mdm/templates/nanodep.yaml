@@ -110,6 +110,9 @@ spec:
             - pgsql
             - -storage-dsn
             - $(STORAGE_DSN)
+            # depsyncer takes the DEP names to sync as trailing positional
+            # arguments and exits non-zero without at least one.
+            - {{ required "nanodep.depName is required" .Values.nanodep.depName | quote }}
           env:
             {{- include "mdm.storageDSNEnv" . | nindent 12 }}
           resources:

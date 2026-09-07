@@ -55,6 +55,10 @@ nanomdm:
 
 nanodep:
   replicaCount: 1
+  # The DEP name is the key every nanodep API path and token ceremony is
+  # scoped by (/v1/tokenpki/<name>, /v1/assigner/<name>, the syncer's
+  # positional argument). One ABM organization, one name.
+  depName: tuist
   syncer:
     enabled: true
   resources:
