@@ -246,9 +246,10 @@ impl RuntimeState {
         &self,
         metrics: &Metrics,
         transport: &str,
+        route: &str,
         duration: Duration,
     ) {
-        metrics.observe_public_request_latency(transport, duration);
+        metrics.observe_public_request_latency(transport, route, duration);
 
         if !should_update_public_request_latency_ewma() {
             return;
@@ -578,7 +579,12 @@ mod tests {
 
         assert_eq!(runtime.public_latency_pressure_divisor(100), 1);
 
-        runtime.record_public_request_latency(&metrics, "http", Duration::from_millis(250));
+        runtime.record_public_request_latency(
+            &metrics,
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(250),
+        );
 
         assert_eq!(
             runtime.public_request_latency_ewma(),

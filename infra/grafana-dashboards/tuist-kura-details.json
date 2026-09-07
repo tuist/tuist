@@ -11097,7 +11097,7 @@
               "transformations": []
             }
           },
-          "description": "Time to first response byte for public cache requests by transport, used to gauge responsiveness and plan sharding\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport",
+          "description": "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport, route",
           "id": 21,
           "links": [],
           "title": "public_request_latency_seconds (p50 / p95 / p99)",

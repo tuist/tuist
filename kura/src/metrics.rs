@@ -94,8 +94,7 @@ pub struct MetricsInner {
     inflight: Arc<InflightMetrics>,
     hot_read: Arc<HotReadMetrics>,
     hot_write: Arc<HotWriteMetrics>,
-    public_latency_http: Histogram,
-    public_latency_grpc: Histogram,
+    reapi_latency: ReapiLatencyMetrics,
     grpc_write_admission: Arc<GrpcWriteAdmissionMetrics>,
     public_request_latency_ewma_ms: Gauge,
     segment_handles_cached: Gauge,
@@ -279,12 +278,14 @@ struct HotReadMetrics {
     bytestream_elastic_admissions: Counter,
     bytestream_wait_duration: Histogram,
     bytestream_waiters: Gauge,
+    bytestream_public_latency: Histogram,
 }
 
 struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
     reapi_write_size_bytes: Histogram,
+    bytestream_public_latency: Histogram,
 }
 
 struct AuthHotMetrics {
@@ -377,6 +378,56 @@ impl AuthHotMetrics {
             ("access", "miss") => Some(&self.access_miss),
             _ => None,
         }
+    }
+}
+
+#[derive(Default)]
+struct ReapiLatencyMetrics {
+    query_write_status: OnceLock<Histogram>,
+    get_capabilities: OnceLock<Histogram>,
+    get_action_result: OnceLock<Histogram>,
+    update_action_result: OnceLock<Histogram>,
+    find_missing_blobs: OnceLock<Histogram>,
+    batch_update_blobs: OnceLock<Histogram>,
+    batch_read_blobs: OnceLock<Histogram>,
+    get_tree: OnceLock<Histogram>,
+}
+
+impl ReapiLatencyMetrics {
+    fn histogram<'a>(
+        &'a self,
+        family: &Family<PublicRequestLatencyLabels, Histogram>,
+        route: &str,
+    ) -> Option<&'a Histogram> {
+        let slot = match route {
+            "/google.bytestream.ByteStream/QueryWriteStatus" => &self.query_write_status,
+            "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities" => {
+                &self.get_capabilities
+            }
+            "/build.bazel.remote.execution.v2.ActionCache/GetActionResult" => {
+                &self.get_action_result
+            }
+            "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult" => {
+                &self.update_action_result
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs" => {
+                &self.find_missing_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs" => {
+                &self.batch_update_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs" => {
+                &self.batch_read_blobs
+            }
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree" => &self.get_tree,
+            _ => return None,
+        };
+        Some(slot.get_or_init(|| {
+            family.get_or_create_owned(&PublicRequestLatencyLabels {
+                transport: "grpc".to_owned(),
+                route: route.to_owned(),
+            })
+        }))
     }
 }
 
@@ -730,14 +781,6 @@ impl Metrics {
         let http_labels = ResponseStreamProtocolLabels {
             protocol: "http".to_owned(),
         };
-        let public_latency_http =
-            public_request_latency.get_or_create_owned(&PublicRequestLatencyLabels {
-                transport: "http".to_owned(),
-            });
-        let public_latency_grpc =
-            public_request_latency.get_or_create_owned(&PublicRequestLatencyLabels {
-                transport: "grpc".to_owned(),
-            });
         let hot_read = Arc::new(HotReadMetrics {
             reapi_ok_reads: artifact_reads.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_read_bytes: artifact_read_bytes.get_or_create_owned(&reapi_ok_labels),
@@ -783,6 +826,12 @@ impl Metrics {
             bytestream_wait_duration: response_stream_wait_duration
                 .get_or_create_owned(&bytestream_labels),
             bytestream_waiters: response_stream_waiters.get_or_create_owned(&bytestream_labels),
+            bytestream_public_latency: public_request_latency.get_or_create_owned(
+                &PublicRequestLatencyLabels {
+                    transport: "grpc".to_owned(),
+                    route: "/google.bytestream.ByteStream/Read".to_owned(),
+                },
+            ),
         });
         let hot_write = Arc::new(HotWriteMetrics {
             reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
@@ -790,6 +839,12 @@ impl Metrics {
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
+                },
+            ),
+            bytestream_public_latency: public_request_latency.get_or_create_owned(
+                &PublicRequestLatencyLabels {
+                    transport: "grpc".to_owned(),
+                    route: "/google.bytestream.ByteStream/Write".to_owned(),
                 },
             ),
         });
@@ -858,7 +913,7 @@ impl Metrics {
         );
         registry.register(
             "kura_public_request_latency_seconds",
-            "Time to first response byte for public cache requests by transport, used to gauge responsiveness and plan sharding",
+            "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding",
             public_request_latency.clone(),
         );
         registry.register(
@@ -1716,8 +1771,7 @@ impl Metrics {
                 inflight,
                 hot_read,
                 hot_write,
-                public_latency_http,
-                public_latency_grpc,
+                reapi_latency: ReapiLatencyMetrics::default(),
                 grpc_write_admission,
                 public_request_latency_ewma_ms,
                 segment_handles_cached,
@@ -2031,18 +2085,35 @@ impl Metrics {
         }
     }
 
-    pub fn observe_public_request_latency(&self, transport: &str, duration: Duration) {
-        let seconds = duration.as_secs_f64();
-        match transport {
-            "grpc" => self.public_latency_grpc.observe(seconds),
-            "http" => self.public_latency_http.observe(seconds),
-            other => self
-                .public_request_latency
-                .get_or_create(&PublicRequestLatencyLabels {
-                    transport: other.to_owned(),
-                })
-                .observe(seconds),
+    pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
+        if transport == "grpc" {
+            let histogram = match route {
+                "/google.bytestream.ByteStream/Read" => {
+                    Some(&self.hot_read.bytestream_public_latency)
+                }
+                "/google.bytestream.ByteStream/Write" => {
+                    Some(&self.hot_write.bytestream_public_latency)
+                }
+                _ => None,
+            };
+            if let Some(histogram) = histogram {
+                histogram.observe(duration.as_secs_f64());
+                return;
+            }
+            if let Some(histogram) = self
+                .reapi_latency
+                .histogram(&self.public_request_latency, route)
+            {
+                histogram.observe(duration.as_secs_f64());
+                return;
+            }
         }
+        self.public_request_latency
+            .get_or_create(&PublicRequestLatencyLabels {
+                transport: transport.to_owned(),
+                route: route.to_owned(),
+            })
+            .observe(duration.as_secs_f64());
     }
 
     pub fn record_segment_refresh(
@@ -3120,6 +3191,7 @@ struct HttpExceptionLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct PublicRequestLatencyLabels {
     transport: String,
+    route: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -3925,43 +3997,62 @@ mod tests {
     }
 
     #[test]
-    fn public_request_latency_collapses_routes_onto_the_transport_series() {
+    fn bytestream_write_latency_uses_the_registered_metric_series() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        metrics.observe_public_request_latency("grpc", Duration::from_millis(3));
-        metrics.observe_public_request_latency("grpc", Duration::from_millis(3));
-        metrics.observe_public_request_latency("http", Duration::from_millis(3));
+        metrics.observe_public_request_latency(
+            "grpc",
+            "/google.bytestream.ByteStream/Write",
+            Duration::from_millis(3),
+        );
 
         let rendered = metrics.render();
         assert!(rendered.lines().any(|line| {
             line.starts_with("kura_public_request_latency_seconds_count")
                 && line.contains("transport=\"grpc\"")
-                && line.ends_with(" 2")
+                && line.contains("route=\"/google.bytestream.ByteStream/Write\"")
+                && line.ends_with(" 1")
         }));
+    }
+
+    #[test]
+    fn metadata_latency_uses_the_registered_metric_series() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.observe_public_request_latency(
+            "grpc",
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+            Duration::from_millis(3),
+        );
+
+        let rendered = metrics.render();
         assert!(rendered.lines().any(|line| {
             line.starts_with("kura_public_request_latency_seconds_count")
-                && line.contains("transport=\"http\"")
+                && line.contains("transport=\"grpc\"")
+                && line.contains("route=\"/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs\"")
                 && line.ends_with(" 1")
         }));
     }
 
     #[test]
     #[ignore = "performance benchmark run manually"]
-    fn public_request_latency_direct_handle_benchmark() {
+    fn metadata_latency_direct_handle_benchmark() {
         const ITERATIONS: usize = 500_000;
         const SAMPLES: usize = 8;
+        const ROUTE: &str =
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs";
 
         let measure = |direct_handle: bool| {
             let metrics = Metrics::new("benchmark".into(), "benchmark".into());
-            metrics.observe_public_request_latency("grpc", Duration::ZERO);
+            metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
             let started_at = std::time::Instant::now();
             for _ in 0..ITERATIONS {
                 if direct_handle {
-                    metrics.observe_public_request_latency("grpc", Duration::ZERO);
+                    metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
                 } else {
                     metrics
                         .public_request_latency
                         .get_or_create(&PublicRequestLatencyLabels {
                             transport: "grpc".to_owned(),
+                            route: ROUTE.to_owned(),
                         })
                         .observe(0.0);
                 }
@@ -3991,15 +4082,76 @@ mod tests {
         let median = speedups.len() / 2;
 
         println!(
-            "METRIC public_request_latency_baseline_per_second={:.3}",
+            "METRIC reapi_metadata_latency_baseline_per_second={:.3}",
             baseline_rates[median]
         );
         println!(
-            "METRIC public_request_latency_candidate_per_second={:.3}",
+            "METRIC reapi_metadata_latency_candidate_per_second={:.3}",
             candidate_rates[median]
         );
         println!(
-            "METRIC public_request_latency_speedup_ratio={:.6}",
+            "METRIC reapi_metadata_latency_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn bytestream_write_latency_direct_handle_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const ROUTE: &str = "/google.bytestream.ByteStream/Write";
+
+        let measure = |direct_handle: bool| {
+            let metrics = Metrics::new("benchmark".into(), "benchmark".into());
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                if direct_handle {
+                    metrics.observe_public_request_latency("grpc", ROUTE, Duration::ZERO);
+                } else {
+                    metrics
+                        .public_request_latency
+                        .get_or_create(&PublicRequestLatencyLabels {
+                            transport: "grpc".to_owned(),
+                            route: ROUTE.to_owned(),
+                        })
+                        .observe(0.0);
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC bytestream_write_latency_metrics_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC bytestream_write_latency_metrics_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC bytestream_write_latency_metrics_speedup_ratio={:.6}",
             speedups[median]
         );
     }
@@ -4048,7 +4200,11 @@ mod tests {
         metrics.update_http_inflight(2);
         metrics.update_public_http_inflight(1);
         metrics.update_public_request_latency_ewma(Duration::from_millis(42));
-        metrics.observe_public_request_latency("http", Duration::from_millis(12));
+        metrics.observe_public_request_latency(
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(12),
+        );
         metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
@@ -4140,12 +4296,6 @@ mod tests {
                 .lines()
                 .filter(|line| line.starts_with("kura_replication_request_duration_seconds"))
                 .all(|line| !line.contains("target="))
-        );
-        assert!(
-            rendered
-                .lines()
-                .filter(|line| line.starts_with("kura_public_request_latency_seconds"))
-                .all(|line| !line.contains("route="))
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
