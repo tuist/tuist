@@ -1,6 +1,6 @@
 # Flux on the management cluster
 
-Flux reconciles the workload `Cluster` resources from git onto the
+Flux reconciles management-cluster desired state from git onto the
 self-hosted CAPI + caph **management cluster** (single-node Talos). This is
 **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): continuous
 GitOps reconciliation, so drift is corrected on an interval instead of only
@@ -13,11 +13,11 @@ mechanism; a degraded control plane pages via Grafana Cloud.
 
 ## What Flux owns (and deliberately does not)
 
-| Owned by Flux (`infra/k8s/clusters/workloads/`) | Kept on `mgmt-cluster-apply.yml` |
+| Owned by Flux | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
 | tenants `hive-production`, `once-production`, `atlas-production` | `cluster-preview.yaml` (replicas mutated out-of-band by the preview workflows; Flux would fight them every interval) and `cluster-pentest.yaml` (isolated security-assessment cluster) |
-| | the mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
+| Cloudflare operator Helm release and `tuist.dev` rate-limit configuration | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
 scoped to a single `workloads/<cluster>/` subdir. Key invariants:
@@ -27,6 +27,29 @@ scoped to a single `workloads/<cluster>/` subdir. Key invariants:
   controller, Flux halts and reports instead of stomping it.
 - **`healthCheckExprs`** gate each Kustomization on the `Cluster`'s v1beta2
   `Available` rollup (a sync gate, not health alerting).
+
+`cloudflare-operator.yaml` follows the same child-Kustomization pattern,
+but points at a local Helm release and waits for it to become ready. Its
+managed values pin the operator image by digest. `cloudflare-config.yaml`
+depends on that release and applies the Cloudflare resources under
+`infra/flux/cloudflare-config/`, preventing Flux from applying a custom
+resource before its definition exists.
+
+The adopted rate-limit resource starts in `read_only`. That mode deliberately
+reports `Ready=False`, so the configuration Kustomization does not wait on
+resource health. Before changing it to `active`, inspect the proposed change:
+
+```bash
+kubectl get cloudflareratelimit public-pages-anti-bombardment \
+  -o jsonpath='{.status.message}{"\n"}{.status.proposedChanges}{"\n"}'
+```
+
+Only an empty `status.proposedChanges` and an `in sync (adopted)` message are
+safe to activate. The `cloudflare-operator/token` field in the
+`tuist-k8s-mgmt` 1Password vault should be read-only for this adoption pass;
+replace it with a zone-scoped token carrying `Zone WAF:Edit`, where WAF means
+[Web Application Firewall](https://www.cloudflare.com/learning/ddos/glossary/web-application-firewall-waf/),
+only when the resource is switched to `active`.
 
 ## Install (one-time, break-glass)
 
@@ -88,7 +111,7 @@ kubectl kustomize flux-system \
   | kubectl apply -f -
 ```
 
-Verify — expect seven Kustomizations Ready and the provider set:
+Verify — expect nine Kustomizations Ready and the provider set:
 
 ```bash
 kubectl -n flux-system get kustomizations
@@ -206,10 +229,29 @@ node count — it changes which controller owns it.
 
 ## Health of Flux itself
 
-A down reconciler stops correcting drift, so Flux's controllers are scraped
-and heartbeat-alerted via Pillar 2 (`infra/helm/k8s-monitoring/values-management.yaml`
-+ `infra/helm/k8s-monitoring/alerts.md`). Grafana Cloud evaluates the alerts
-outside this single-node cluster.
+A down reconciler stops correcting drift without breaking anything visible, so
+Flux is watched from Grafana Cloud, which evaluates outside this single-node
+cluster. Two rules are live (`infra/helm/k8s-monitoring/alerts.md`):
+
+- **`Flux - reconciliation has stalled fleet-wide`** on
+  `gotk_reconcile_duration_seconds_count`. A fleet total, so suspending one
+  Kustomization does not page.
+- **`Flux - telemetry missing from the management cluster`**, the paired
+  `absent_over_time` rule. The stall rule compares a counter, so if the
+  controllers vanish the series goes too and that comparison returns No Data,
+  which is Normal here; this rule is what catches Flux not running at all.
+
+Both read metrics collected by pod-annotation autodiscovery, not an explicit
+scrape config.
+
+Neither detects a reconcile that runs and **fails**: the duration histogram
+counts failed reconciles too, and Flux 2.9.5 does not export
+`gotk_reconcile_condition`. That gap is closed by a kube-state-metrics
+custom-resource-state config for Kustomizations in `values-management.yaml`,
+using the same mechanism as the CAPI custom-resource metrics. The rule that
+consumes it is written up in `alerts.md` and is deliberately **not created until
+the series is confirmed flowing**, because a rule whose query matches nothing
+reads as passing.
 
 ## Removing a cluster (explicit destroy flow)
 

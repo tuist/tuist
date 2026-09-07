@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Getting started",
+  "title": "GitHub Actions",
   "titleTemplate": ":title · Runners · Features · Guides · Tuist",
   "description": "Run your first GitHub Actions job on Tuist Runners: connect GitHub, point runs-on at a Tuist profile, and watch it in the dashboard."
 }
 ---
-# Getting started {#getting-started}
+# GitHub Actions {#github-actions}
 
 > [!IMPORTANT]
 > **Invite-only**

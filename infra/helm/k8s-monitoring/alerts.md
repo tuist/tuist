@@ -462,6 +462,99 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Reconciliation-check telemetry absent entirely (Pushgateway reset or never scraped)`
 
+### Flux reconciliation stalled
+
+**Provisioned** in the `Infrastructure` folder as
+`Flux - reconciliation has stalled fleet-wide` (critical), paired with
+`Flux - telemetry missing from the management cluster`.
+
+Flux reconciles the workload `Cluster` resources from git
+(`infra/flux/mgmt/README.md`). A stalled reconciler breaks nothing at the
+moment it stalls; it stops correcting drift, so the fleet diverges from the
+repository silently and the next real change never lands.
+
+```promql
+sum(increase(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[1h]))
+```
+
+- Pending period: 10 minutes, firing below 1
+- Summary: `Flux has not completed any reconciliation in the last hour`
+
+Normal is roughly 120 per hour across the seven Kustomizations and the
+GitRepository.
+
+**Fleet total on purpose.** Suspending a single Kustomization is a normal
+operation, so a per-Kustomization version of this rule would page every time
+someone suspends one to fix git. This fires only when *all* reconciliation has
+stopped.
+
+**It cannot see a reconcile that runs and fails**, because the duration
+histogram counts failed reconciles too. That is the separate rule below.
+
+### Flux telemetry missing
+
+```promql
+absent_over_time(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[30m])
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux controller telemetry has stopped arriving from the management cluster`
+
+The stall rule compares a counter against a threshold, so if the controllers
+disappear the series goes with them, the comparison returns No Data, and No Data
+is Normal here. That leaves the most severe case invisible to it. This rule
+covers it.
+
+Note these metrics are collected by pod-annotation autodiscovery rather than an
+explicit scrape config, so a change to those annotations stops collection
+silently. This rule is what makes that loud.
+
+### Flux Kustomization not Ready
+
+**Not yet provisioned. Do not create it until the metric below exists** - a rule
+whose query matches nothing sits in No Data, renders as Normal, and is
+indistinguishable from a passing rule, which is the failure this whole section
+exists to avoid.
+
+Flux 2.9.5 exports `gotk_reconcile_duration_seconds_*` and `gotk_event_*` but
+**not** `gotk_reconcile_condition`, so nothing off the controllers says whether a
+reconcile *succeeded*. A Kustomization that fetches and then fails to apply on
+every interval is indistinguishable from a healthy one in the metrics above.
+
+The series comes from kube-state-metrics custom-resource-state, the same
+mechanism already producing `kube_customresource_kubeadmcontrolplane_*`,
+configured in `values-management.yaml`. Once it is flowing:
+
+```promql
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_status_condition{
+    cluster="tuist-management", type="Ready"
+  }
+)
+== 0
+unless
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_spec_suspend{cluster="tuist-management"}
+) == 1
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux Kustomization {{ $labels.kustomization }} has not applied cleanly`
+
+The `unless` clause excludes deliberately suspended Kustomizations, which keep
+whatever Ready condition they last had.
+
+Two things to check before creating the rule, both of which have silently killed
+a rule in this document before:
+
+- Confirm the query returns a series. Add `kube_customresource_kustomization_.*`
+  to `metricsTuning.includeMetrics` is already done, but that list is an
+  **allowlist**: anything not matched is dropped before it leaves the cluster.
+- Check the labels survived adaptive metrics. A brand-new metric has no query
+  usage, which is exactly what the recommender aggregates away, and this rule is
+  useless without `kustomization`. Query the bare metric: the error names every
+  aggregated label.
+
 ### Cluster API admission webhook failing (fleet-wide write freeze)
 
 The management cluster serves the CAPI/CAPH admission webhooks with a
@@ -4243,13 +4336,77 @@ measurement context is prefixed `context_` (`context_rating`,
 | **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **100** | **30m** |
 | LCP p90 in the Core Web Vitals poor band | 0.90 | 6h | > 4.0s | 100 | 30m |
 | LCP p95 sustained slow tail | 0.95 | 24h | > 5.0s | 300 | 30m |
-| LCP p99 pathological tail | 0.99 | 24h | > 10.0s | 300 | 30m |
+| LCP p99 pathological tail | 0.99 | 24h | > 10.0s and ≥ 10 affected sessions | 300 | 30m |
 
-Each pairs the percentile with a sample-count query and fires only when both the
-threshold is crossed and enough samples exist, so a handful of overnight
-visitors cannot manufacture a percentile. At 32 samples an hour a 6h window
-holds roughly 190 and a 24h window roughly 770; p95 and p99 need the wider one
-because a stable estimate takes about ten times `1/(1-q)` samples.
+Each pairs the percentile with a sample-count query and requires more than the
+listed minimum samples. That prevents evaluating a percentile over very little
+traffic, but does not stop a few outliers from determining p99. At the baseline
+rate of 32 samples an hour a 6h window holds roughly 190 and a 24h window roughly
+770; the wider window helps, but does not guarantee a stable tail estimate.
+
+**p99 also requires at least ten affected sessions.** Rule
+`efx5a3mn2fwg0c` keeps A (p99 in seconds), B (total LCP samples), and the 30-minute
+pending period. D counts distinct non-empty `session_id` values with at least
+one LCP above 10,000 milliseconds in the same 24 hours. Multiple slow page loads
+or reloads within one session count once; a session is not a unique person.
+Its C math expression is `$A > 10.0 && $B > 300 && $D >= 10`.
+
+Use this instant Loki query for D:
+
+```logql
+count by (app_environment) (
+  sum by (app_environment, session_id) (
+    count_over_time(
+      {service_name="tuist-web"}
+        | logfmt
+        | kind="measurement"
+        | type="web-vitals"
+        | app_environment="prod"
+        | lcp!=""
+        | session_id!=""
+        | lcp > 10000
+        | __error__="" [24h]
+    )
+  )
+) or on (app_environment) (
+  0 * sum by (app_environment) (
+    count_over_time(
+      {service_name="tuist-web"}
+        | logfmt
+        | kind="measurement"
+        | type="web-vitals"
+        | app_environment="prod"
+        | lcp!="" [24h]
+    )
+  )
+)
+```
+
+The fallback preserves the `app_environment` label and returns zero when LCP
+telemetry exists but no sessions qualify. It leaves missing telemetry absent;
+the separate browser-vitals telemetry rule covers that case. Missing session
+IDs do not establish distinct affected sessions and are excluded from D.
+
+**Why ten, and validation on 2026-09-06.** The investigated window ending
+2026-09-05 21:46 UTC had p99 13.58s, 477 samples, and only six affected sessions
+on different pages. A 14-day lookback returned LCP data only from September 4.
+At 55 hourly evaluation points from September 4 09:00 UTC through September 6
+15:00 UTC, the old A/B condition crossed its thresholds 19 times; adding D
+suppressed all 19. D ranged from zero to eight. These are sampled condition
+results, not a replay of the 30-minute pending state. The zero-session fallback
+was also verified against live Loki. This short history does not establish a
+statistical cutoff or show sensitivity to a known widespread regression: ten
+is an interruption policy that should be reassessed with more history. It
+delays detection of low-volume regressions; the lower-percentile rules remain
+independent.
+
+For per-page investigation, group the inner sum by
+`(app_environment, page_url, session_id)` and the outer count by
+`(app_environment, page_url)`. Three affected sessions on the same page is a
+candidate complementary signal, not an enabled rule. The six-hour backtest
+snapshots found at most one affected session per page. Before enabling it,
+validate it with more history and normalize URLs so query strings do not split
+one page into multiple groups.
 
 **p75 is the only one of these that measures a standard.** Core Web Vitals
 assesses LCP at the 75th percentile — at or below 2.5s is good, above 4.0s is
@@ -4284,8 +4441,20 @@ quantile_over_time(0.75,
 ```
 
 Swap `resource_load_duration` for `time_to_first_byte`, `resource_load_delay` or
-`element_render_delay`. A large `resource_load_duration` is image weight; a large
-`time_to_first_byte` is the origin.
+`element_render_delay`. A large `resource_load_duration` can mean a heavy image
+or a slow transfer. A large `time_to_first_byte` includes delays before the
+request reaches the origin, including connection establishment. Correlate the
+session and `context_navigation_entry_id` with the `faro.performance.navigation`
+event's `event_data_faroNavigationId`, then inspect `event_data_requestTime`,
+`event_data_dnsLookupTime`, `event_data_tcpHandshakeTime` and
+`event_data_tlsNegotiationTime` before attributing it to the server. The
+September 5 blog outlier spent 35.51s establishing the connection and only 0.57s
+loading its LCP image.
+
+Run `mise run marketing:image-budget` when investigating image weight, but note
+that it only checks `server/priv/static/marketing/images`. Dashboard assets,
+including the signup images under `server/priv/static/app/images`, are outside
+that budget.
 
 These rules are warnings and carry no `affected_service` label. A slow marketing
 page is not a customer-visible outage and must not open a status-page incident.

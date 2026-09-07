@@ -4,6 +4,8 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouse.Parity
+  alias Tuist.ClickHouse.SchemaClone
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -68,6 +70,237 @@ defmodule Tuist.Release do
           reconcile_ops_clickhouse(repo)
         end)
     end
+
+    reconcile_bare_metal_clickhouse_schema()
+  end
+
+  # Brings the in-cluster ClickHouse's schema back in line with the source, for
+  # as long as one is configured (spec #73).
+  #
+  # Without this the two drift from the moment the schema was cloned:
+  # migrations run against `Tuist.IngestRepo`, which is ClickHouse Cloud, and
+  # nothing applies them to the other server. During the dual write that shows
+  # up as mirrored writes failing and being dropped; at the moment the
+  # in-cluster server becomes primary it stops being tolerable, because those
+  # writes are no longer the mirrored kind and the ingest path breaks.
+  #
+  # Reconciled from the source's DDL rather than by replaying the migrations
+  # onto it. A replay redirects where the statements go without changing what
+  # they say, and the ingest migrations create plain `MergeTree` tables, which
+  # this destination rejects outright with `Code: 56 ... Only tables with a
+  # Replicated engine are allowed in a Replicated database`. The clone already
+  # handles that by rewriting the engine family, so it does this too.
+  #
+  # Best-effort on purpose. Cloud is the system of record for the whole
+  # migration, and a deploy must not fail because the server being reconciled
+  # is unreachable. A failure leaves drift, which the parity check reports,
+  # rather than a blocked release.
+  defp reconcile_bare_metal_clickhouse_schema do
+    if Environment.clickhouse_bare_metal_url() do
+      SchemaClone.reconcile()
+    end
+  rescue
+    error ->
+      Logger.error("Could not reconcile the in-cluster ClickHouse schema: #{Exception.message(error)}")
+      :ok
+  catch
+    :exit, reason ->
+      Logger.error("Could not reconcile the in-cluster ClickHouse schema: #{inspect(reason)}")
+      :ok
+  end
+
+  @doc """
+  Clones the ClickHouse schema from the system of record onto the in-cluster
+  ClickHouse named by `TUIST_CLICKHOUSE_BARE_METAL_URL`.
+
+  A no-op when that variable is unset, which is every environment not
+  currently migrating. Idempotent, so the deploy hook that calls it can run on
+  every release: an already-cloned schema produces a report of zero changes.
+
+  See `Tuist.ClickHouse.SchemaClone` for why the schema is cloned from the
+  source rather than produced by replaying the ingest migrations.
+  """
+  def clone_clickhouse_schema do
+    load_app()
+    do_clone_clickhouse_schema()
+  end
+
+  defp do_clone_clickhouse_schema do
+    case SchemaClone.run() do
+      {:ok, report} ->
+        failed = report.tables.failed ++ report.views.failed
+
+        if failed == [] do
+          Logger.info("ClickHouse schema clone succeeded: #{inspect(report)}")
+          :ok
+        else
+          # Loudly, and by failing the deploy, because a partially cloned
+          # schema that reported success would surface much later as the
+          # backfill failing on a missing table.
+          raise "ClickHouse schema clone failed for: #{inspect(failed)}"
+        end
+
+      {:error, :no_target_configured} ->
+        Logger.info("TUIST_CLICKHOUSE_BARE_METAL_URL is unset; skipping the ClickHouse schema clone")
+        :ok
+
+      {:error, {:target_unreachable, reason}} ->
+        # Expected on the deploy that first introduces the ClickHouse
+        # StatefulSet: this task runs as a pre-upgrade hook, so the workload
+        # does not exist yet. Not a deploy failure, and the next deploy
+        # clones. A target that stays unreachable shows up as a schema that
+        # never gets cloned, which the backfill refuses to run against.
+        Logger.warning("In-cluster ClickHouse is not reachable yet; skipping the schema clone (#{reason})")
+        :ok
+
+      {:error, reason} ->
+        raise "ClickHouse schema clone failed: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Copies existing ClickHouse rows onto the in-cluster server.
+
+  Run explicitly rather than from a deploy hook: it moves the whole dataset,
+  it is resumable, and it should be started and watched deliberately rather
+  than blocking a release. Safe to re-run; completed chunks are skipped.
+  """
+  def backfill_clickhouse do
+    load_app()
+
+    case Tuist.ClickHouse.Backfill.run() do
+      {:ok, report} ->
+        Logger.info("ClickHouse backfill finished: #{inspect(report)}")
+        :ok
+
+      {:error, reason} ->
+        raise "ClickHouse backfill could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Compares the two ClickHouse servers and raises unless every table agrees.
+
+  This is the gate for the backfill and, once dual writes are on, for the
+  ongoing parity between the two.
+  """
+  def check_clickhouse_parity do
+    load_app()
+
+    case Parity.compare() do
+      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas included")
+        :ok
+
+      # Gated separately from the row comparison, and deliberately fatal. Until
+      # the in-cluster server is primary a missing column costs a dropped
+      # mirror write; from that moment it breaks the ingest path, so this is
+      # the condition to clear before a cutover rather than after one.
+      {:ok, %{differing: []} = report} ->
+        raise "ClickHouse schema drift: #{inspect(Map.take(report.schema, [:missing_on_destination, :differing_columns]))}"
+
+      {:ok, report} ->
+        raise "ClickHouse parity failed: #{inspect(report.differing)}"
+
+      {:error, reason} ->
+        raise "ClickHouse parity could not run: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Compares the two ClickHouse servers over the read path rather than the
+  ingest path, and raises unless every table agrees.
+
+  Separate from `check_clickhouse_parity/0` because the two paths are not the
+  same connection: the read one is `readonly` and carries the per-query and
+  per-user memory ceilings the dashboards depend on. Those have only ever been
+  exercised against ClickHouse Cloud, and a setting the in-cluster server
+  refuses would break reads at the moment the flag is flipped rather than
+  before it.
+  """
+  def check_clickhouse_reads do
+    load_app()
+
+    opts = [source_repo: Tuist.ClickHouseRepo, target_repo: Tuist.ShadowClickHouseRepo]
+
+    # Inside the flag store, because the read path asks on every query whether
+    # reads have moved, and the flag's cache is an ETS table owned by a process
+    # `bin/tuist eval` does not start. Without it every read through
+    # `Tuist.ClickHouseRepo` fails with "the table identifier does not refer to
+    # an existing ETS table", which is what the first run of this task did.
+    with_flag_store(fn ->
+      # Comparing the two servers only means anything while reads are still
+      # served by the system of record. With the flag already on, the "source"
+      # side of this comparison routes to the destination and the check passes
+      # by comparing it with itself.
+      if Tuist.ClickHouse.ReadRoute.enabled?() do
+        raise "ClickHouse reads are already served by the in-cluster server; this check only means something before that"
+      end
+
+      case Parity.compare(opts) do
+        {:ok, %{differing: []} = report} ->
+          Logger.info("ClickHouse reads agree across #{report.compared} table(s) on both servers")
+          :ok
+
+        {:ok, report} ->
+          raise "ClickHouse read parity failed: #{inspect(report.differing)}"
+
+        {:error, reason} ->
+          raise "ClickHouse read parity could not run: #{inspect(reason)}"
+      end
+    end)
+  end
+
+  @doc """
+  Serves the application's ClickHouse reads from the in-cluster server.
+
+  The flag is the switch, so this is only here to set it from a deploy in an
+  environment where nobody can reach `/ops/flags`. Turning it back off is one
+  click there, or `disable_clickhouse_bare_metal_reads/0`.
+  """
+  def enable_clickhouse_bare_metal_reads, do: set_clickhouse_bare_metal_reads(true)
+
+  @doc """
+  Sends the application's ClickHouse reads back to the system of record.
+  """
+  def disable_clickhouse_bare_metal_reads, do: set_clickhouse_bare_metal_reads(false)
+
+  defp set_clickhouse_bare_metal_reads(enabled?) do
+    load_app()
+
+    with_flag_store(fn ->
+      {:ok, _} =
+        if enabled? do
+          FunWithFlags.enable(:clickhouse_bare_metal_reads)
+        else
+          FunWithFlags.disable(:clickhouse_bare_metal_reads)
+        end
+
+      Logger.info("ClickHouse bare-metal reads #{(enabled? && "enabled") || "disabled"}")
+      :ok
+    end)
+  end
+
+  # `bin/tuist eval` loads the application without starting it, so the flag
+  # store's repository, the process that owns its cache, and the one that tells
+  # the running pods to drop their copy of it all have to be started here.
+  # Without the last of those a write lands but nothing notices it for the
+  # length of the cache TTL.
+  defp with_flag_store(fun) do
+    {:ok, result, _apps} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        # `:phoenix_pubsub` first, and as an application rather than a child.
+        # Its adapter registers itself with a process the application itself
+        # owns, so supervising `Phoenix.PubSub` without it fails with "no
+        # process ... possibly because its application isn't started".
+        {:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
+        {:ok, _} = Supervisor.start_link([{Phoenix.PubSub, name: Tuist.PubSub}], strategy: :one_for_one)
+        {:ok, _} = Application.ensure_all_started(:fun_with_flags)
+
+        fun.()
+      end)
+
+    result
   end
 
   # A migration that brings the VM down instead of raising (an exit signal from a

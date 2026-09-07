@@ -58,12 +58,21 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
+  The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
 - `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 
 ### `flux/` — GitOps reconciliation on the mgmt cluster
 Flux (`infra/flux/mgmt/`) is **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): it continuously reconciles the workload `Cluster` CRs under `k8s/clusters/workloads/` onto the mgmt cluster, so drift is corrected on an interval instead of only on merge and routine changes need no break-glass. Health alerting is the independent **Pillar 2** (`helm/k8s-monitoring/values-management.yaml` + `alerts.md`), Grafana Cloud, evaluated outside the single-node cluster with a heartbeat. Per-cluster `Kustomization`s never prune `Cluster` objects and use `force: false`; the immutable ClusterClass/bare-metal templates and preview stay on `mgmt-cluster-apply.yml`. See `infra/flux/mgmt/README.md` for bootstrap, the never-prune destroy flow, and the break-glass recovery path.
+
+Flux also installs management-cluster controllers whose desired state
+belongs in this repository. The Cloudflare operator release lives under
+`flux/cloudflare-operator/` and is reached through the
+`flux/mgmt/cloudflare-operator.yaml` Kustomization. Cloudflare resources
+live under `flux/cloudflare-config/`; their separate dependent
+Kustomization ensures the operator and its custom resource definitions
+are ready first.
 
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.

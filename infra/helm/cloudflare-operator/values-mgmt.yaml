@@ -3,6 +3,8 @@
 # configuration is global, not per-env.
 
 image:
-  # Set at deploy time by the release workflow (defaults to the
-  # chart's appVersion).
-  tag: ""
+  # Built from fff611d7d7d9, the commit that added crawler protection.
+  # Keep the human-readable tag and immutable multi-platform digest
+  # together so reviewers can trace both the source and deployed bytes.
+  tag: sha-fff611d7d7d9
+  digest: sha256:51298683de6c24666b4e2b1a6d788782a40cdfc9f2075a8cd1bbd4e1e5302b55
