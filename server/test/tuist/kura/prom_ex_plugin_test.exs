@@ -166,6 +166,33 @@ defmodule Tuist.Kura.PromExPluginTest do
     end
   end
 
+  describe "execute_unroutable_instances_telemetry_event/0" do
+    test "counts instances that exist but cannot be resolved" do
+      instance(account())
+
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :failed, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1}, %{region: @region}}
+    end
+
+    test "reports zero for a healthy region rather than dropping the series" do
+      instance(account())
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 0}, %{region: @region}}
+    end
+  end
+
   # Capacity reads the region's nodes and pods, so sizing a region in a test
   # means answering both lists.
   defp stub_region_nodes(nodes_by_region, opts \\ []) do
