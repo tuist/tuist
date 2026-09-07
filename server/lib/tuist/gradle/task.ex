@@ -7,7 +7,7 @@ defmodule Tuist.Gradle.Task do
 
   @derive {
     Flop.Schema,
-    filterable: [:gradle_build_id, :cacheable, :task_path, :outcome, :build_path, :project_path, :task_type],
+    filterable: [:gradle_build_id, :cacheable, :task_path, :outcome],
     sortable: [:task_path, :outcome, :duration_ms, :started_at, :cache_artifact_size],
     default_order: %{
       order_by: [:started_at],
@@ -21,10 +21,7 @@ defmodule Tuist.Gradle.Task do
     field :gradle_build_id, Ch, type: "UUID"
     field :task_path, Ch, type: "String"
     field :build_path, Ch, type: "String"
-    field :project_path, Ch, type: "String"
     field :cacheability, Ch, type: "LowCardinality(String)"
-    field :caching_disabled_reason, Ch, type: "String"
-    field :execution_reasons, {:array, Ch}, type: "String", default: []
     field :incremental, Ch, type: "Nullable(Bool)"
     field :remote_cache_lookup_outcome, Ch, type: "LowCardinality(String)"
     field :remote_cache_lookup_duration_ms, Ch, type: "Nullable(UInt64)"

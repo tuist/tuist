@@ -101,10 +101,8 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
             cacheable: false,
             execution: %{
               build_path: ":",
-              project_path: ":",
               task_type: "Delete",
-              cacheability: "disabled",
-              caching_disabled_reason: "Caching has been disabled for the task"
+              cacheability: "disabled"
             }
           },
           %{task_path: ":legacy", outcome: "skipped", duration_ms: 0, cacheable: false}
@@ -205,10 +203,8 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
       started_at: DateTime.utc_now(),
       execution: %{
         build_path: build_path,
-        project_path: ":app",
         task_type: "org.gradle.api.tasks.compile.JavaCompile",
         cacheability: "cacheable",
-        execution_reasons: ["Input changed"],
         incremental: true,
         remote_cache_lookup_outcome: "miss",
         remote_cache_lookup_duration_ms: 0,

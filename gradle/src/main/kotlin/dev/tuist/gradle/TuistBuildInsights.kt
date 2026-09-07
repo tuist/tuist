@@ -123,8 +123,7 @@ data class BuildReportRequest(
     @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
     @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
-    @SerializedName("telemetry_version") val telemetryVersion: Int = 1,
-    @SerializedName("build_options") val buildOptions: Map<String, String> = emptyMap()
+    @SerializedName("telemetry_version") val telemetryVersion: Int = 1
 )
 
 data class BuildReportResponse(val id: String)
@@ -151,7 +150,6 @@ abstract class TuistBuildInsightsService :
         val gitRemoteUrlOrigin: Property<String>
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
-        val buildOptions: MapProperty<String, String>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -337,7 +335,6 @@ abstract class TuistBuildInsightsService :
             configurationCache = configurationCacheReport(),
             configurationOperations = configurationOperations.toList(),
             artifactTransforms = artifactTransforms.toList(),
-            buildOptions = parameters.buildOptions.getOrElse(emptyMap())
         )
 
         val response = httpClient.execute { config ->
@@ -414,8 +411,7 @@ internal fun buildReport(
     machineMetrics: List<MachineMetricSample>? = null,
     configurationCache: ConfigurationCacheReport? = null,
     configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
-    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
-    buildOptions: Map<String, String> = emptyMap()
+    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
 ): BuildReportRequest {
     val status = when {
         buildFailed -> "failure"
@@ -454,8 +450,7 @@ internal fun buildReport(
         machineMetrics = machineMetrics,
         configurationCache = configurationCache,
         configurationOperations = configurationOperations,
-        artifactTransforms = artifactTransforms,
-        buildOptions = buildOptions
+        artifactTransforms = artifactTransforms
     )
 }
 
@@ -488,13 +483,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
-            parameters.buildOptions.set(mapOf(
-                "build_cache_enabled" to project.gradle.startParameter.isBuildCacheEnabled.toString(),
-                "parallel" to project.gradle.startParameter.isParallelProjectExecutionEnabled.toString(),
-                "max_workers" to project.gradle.startParameter.maxWorkerCount.toString(),
-                "os" to System.getProperty("os.name"),
-                "architecture" to System.getProperty("os.arch")
-            ))
         }
 
         // A provider can have only one subscription. An operation-only service also

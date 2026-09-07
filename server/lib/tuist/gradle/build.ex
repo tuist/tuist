@@ -33,7 +33,6 @@ defmodule Tuist.Gradle.Build do
     field :account_id, Ch, type: "Int64"
     belongs_to :built_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     field :telemetry_version, Ch, type: "UInt16"
-    field :build_options, Ch, type: "Map(String, String)", default: %{}
     field :tasks_cache_hit_count, Ch, type: "UInt32"
     field :duration_ms, Ch, type: "UInt64"
     field :gradle_version, Ch, type: "String"

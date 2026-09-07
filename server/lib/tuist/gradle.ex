@@ -73,7 +73,6 @@ defmodule Tuist.Gradle do
       project_id: attrs.project_id,
       account_id: attrs.account_id,
       telemetry_version: value_or(attrs, :telemetry_version, 0),
-      build_options: value_or(attrs, :build_options, %{}),
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
       gradle_version: value_or(attrs, :gradle_version, ""),
@@ -160,10 +159,7 @@ defmodule Tuist.Gradle do
 
         %{
           build_path: build_path,
-          project_path: Map.get(execution, :project_path) || task_project_path(task.task_path),
           cacheability: value_or(execution, :cacheability, "unknown"),
-          caching_disabled_reason: value_or(execution, :caching_disabled_reason, ""),
-          execution_reasons: value_or(execution, :execution_reasons, []),
           incremental: Map.get(execution, :incremental),
           remote_cache_lookup_outcome: Map.get(execution, :remote_cache_lookup_outcome) || "unknown",
           remote_cache_lookup_duration_ms: Map.get(execution, :remote_cache_lookup_duration_ms),
@@ -194,24 +190,14 @@ defmodule Tuist.Gradle do
   def task_execution_data(task) do
     Map.take(task, [
       :build_path,
-      :project_path,
       :task_type,
       :cacheability,
-      :caching_disabled_reason,
-      :execution_reasons,
       :incremental,
       :remote_cache_lookup_outcome,
       :remote_cache_lookup_duration_ms,
       :remote_cache_download_duration_ms,
       :remote_cache_upload_duration_ms
     ])
-  end
-
-  def task_project_path(path) do
-    case path |> String.split(":") |> Enum.drop(-1) |> Enum.join(":") do
-      "" -> ":"
-      project_path -> project_path
-    end
   end
 
   defp create_configuration_operations(build_id, project_id, operations, now) do

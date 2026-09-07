@@ -25,10 +25,8 @@ defmodule TuistWeb.API.GradleControllerTest do
     test "execution telemetry survives ingestion and both read APIs", %{conn: conn, user: user, project: project} do
       execution = %{
         build_path: ":included",
-        project_path: ":core",
         task_type: "JavaCompile",
         cacheability: "cacheable",
-        execution_reasons: ["Input changed"],
         incremental: true,
         remote_cache_lookup_outcome: "miss",
         remote_cache_lookup_duration_ms: 20,
@@ -39,7 +37,6 @@ defmodule TuistWeb.API.GradleControllerTest do
         duration_ms: 400,
         status: "success",
         telemetry_version: 1,
-        build_options: %{"max_workers" => "4"},
         tasks: [
           %{
             task_path: ":core:compile",
@@ -65,7 +62,6 @@ defmodule TuistWeb.API.GradleControllerTest do
       Buffer.flush()
       Tuist.Gradle.Task.Buffer.flush()
       response = conn |> get(path <> "/" <> id) |> json_response(200)
-      assert response["build_options"] == %{"max_workers" => "4"}
       assert hd(response["tasks"])["execution"]["incremental"] == true
 
       tasks =

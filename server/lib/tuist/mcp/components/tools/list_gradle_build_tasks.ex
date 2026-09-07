@@ -76,7 +76,6 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
 
   alias Tuist.Gradle
   alias Tuist.MCP.Formatter
-  alias Tuist.MCP.GradleSchemas
   alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool

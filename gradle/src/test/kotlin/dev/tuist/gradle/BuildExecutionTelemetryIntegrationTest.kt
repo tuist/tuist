@@ -99,7 +99,6 @@ class BuildExecutionTelemetryIntegrationTest {
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("executed", compile["outcome"].asString)
             assertEquals("miss", compile.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
-            assertEquals(":app", compile.getAsJsonObject("execution")["project_path"].asString)
             assertTrue(compile["remote_cache_stored"].asBoolean)
             val disabled = cold.getAsJsonArray("tasks").map { it.asJsonObject }
                 .first { it["task_path"].asString == ":core:compileJava" }

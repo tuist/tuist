@@ -60378,14 +60378,8 @@ public enum Operations {
                                 }
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
                                 public var cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/caching_disabled_reason`.
-                                public var caching_disabled_reason: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/execution_reasons`.
-                                public var execution_reasons: [Swift.String]?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/incremental`.
                                 public var incremental: Swift.Bool?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/project_path`.
-                                public var project_path: Swift.String
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
                                 public var remote_cache_download_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_duration_ms`.
@@ -60409,10 +60403,7 @@ public enum Operations {
                                 /// - Parameters:
                                 ///   - build_path:
                                 ///   - cacheability:
-                                ///   - caching_disabled_reason:
-                                ///   - execution_reasons:
                                 ///   - incremental:
-                                ///   - project_path:
                                 ///   - remote_cache_download_duration_ms:
                                 ///   - remote_cache_lookup_duration_ms:
                                 ///   - remote_cache_lookup_outcome:
@@ -60421,10 +60412,7 @@ public enum Operations {
                                 public init(
                                     build_path: Swift.String,
                                     cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
-                                    caching_disabled_reason: Swift.String? = nil,
-                                    execution_reasons: [Swift.String]? = nil,
                                     incremental: Swift.Bool? = nil,
-                                    project_path: Swift.String,
                                     remote_cache_download_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
@@ -60433,10 +60421,7 @@ public enum Operations {
                                 ) {
                                     self.build_path = build_path
                                     self.cacheability = cacheability
-                                    self.caching_disabled_reason = caching_disabled_reason
-                                    self.execution_reasons = execution_reasons
                                     self.incremental = incremental
-                                    self.project_path = project_path
                                     self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                     self.remote_cache_lookup_duration_ms = remote_cache_lookup_duration_ms
                                     self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
@@ -60446,10 +60431,7 @@ public enum Operations {
                                 public enum CodingKeys: String, CodingKey {
                                     case build_path
                                     case cacheability
-                                    case caching_disabled_reason
-                                    case execution_reasons
                                     case incremental
-                                    case project_path
                                     case remote_cache_download_duration_ms
                                     case remote_cache_lookup_duration_ms
                                     case remote_cache_lookup_outcome
@@ -66208,26 +66190,6 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/build_options`.
-                        public struct build_optionsPayload: Codable, Hashable, Sendable {
-                            /// A container of undocumented properties.
-                            public var additionalProperties: [String: Swift.String]
-                            /// Creates a new `build_optionsPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - additionalProperties: A container of undocumented properties.
-                            public init(additionalProperties: [String: Swift.String] = .init()) {
-                                self.additionalProperties = additionalProperties
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                            }
-                            public func encode(to encoder: any Encoder) throws {
-                                try encoder.encodeAdditionalProperties(additionalProperties)
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/build_options`.
-                        public var build_options: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.build_optionsPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
@@ -66337,14 +66299,8 @@ public enum Operations {
                                 }
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
                                 public var cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/caching_disabled_reason`.
-                                public var caching_disabled_reason: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/execution_reasons`.
-                                public var execution_reasons: [Swift.String]?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/incremental`.
                                 public var incremental: Swift.Bool?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/project_path`.
-                                public var project_path: Swift.String
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
                                 public var remote_cache_download_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_duration_ms`.
@@ -66368,10 +66324,7 @@ public enum Operations {
                                 /// - Parameters:
                                 ///   - build_path:
                                 ///   - cacheability:
-                                ///   - caching_disabled_reason:
-                                ///   - execution_reasons:
                                 ///   - incremental:
-                                ///   - project_path:
                                 ///   - remote_cache_download_duration_ms:
                                 ///   - remote_cache_lookup_duration_ms:
                                 ///   - remote_cache_lookup_outcome:
@@ -66380,10 +66333,7 @@ public enum Operations {
                                 public init(
                                     build_path: Swift.String,
                                     cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
-                                    caching_disabled_reason: Swift.String? = nil,
-                                    execution_reasons: [Swift.String]? = nil,
                                     incremental: Swift.Bool? = nil,
-                                    project_path: Swift.String,
                                     remote_cache_download_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
@@ -66392,10 +66342,7 @@ public enum Operations {
                                 ) {
                                     self.build_path = build_path
                                     self.cacheability = cacheability
-                                    self.caching_disabled_reason = caching_disabled_reason
-                                    self.execution_reasons = execution_reasons
                                     self.incremental = incremental
-                                    self.project_path = project_path
                                     self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                     self.remote_cache_lookup_duration_ms = remote_cache_lookup_duration_ms
                                     self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
@@ -66405,10 +66352,7 @@ public enum Operations {
                                 public enum CodingKeys: String, CodingKey {
                                     case build_path
                                     case cacheability
-                                    case caching_disabled_reason
-                                    case execution_reasons
                                     case incremental
-                                    case project_path
                                     case remote_cache_download_duration_ms
                                     case remote_cache_lookup_duration_ms
                                     case remote_cache_lookup_outcome
@@ -66509,7 +66453,6 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - artifact_transforms:
-                        ///   - build_options:
                         ///   - cache_hit_rate:
                         ///   - cacheable_tasks_count:
                         ///   - configuration_cache_entry_size:
@@ -66542,7 +66485,6 @@ public enum Operations {
                         ///   - telemetry_version:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
-                            build_options: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.build_optionsPayload? = nil,
                             cache_hit_rate: Swift.Double? = nil,
                             cacheable_tasks_count: Swift.Int? = nil,
                             configuration_cache_entry_size: Swift.Int? = nil,
@@ -66575,7 +66517,6 @@ public enum Operations {
                             telemetry_version: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
-                            self.build_options = build_options
                             self.cache_hit_rate = cache_hit_rate
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.configuration_cache_entry_size = configuration_cache_entry_size
@@ -66609,7 +66550,6 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
-                            case build_options
                             case cache_hit_rate
                             case cacheable_tasks_count
                             case configuration_cache_entry_size
@@ -71474,26 +71414,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/artifact_transforms`.
                     public var artifact_transforms: Operations.createGradleBuild.Input.Body.jsonPayload.artifact_transformsPayload?
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/build_options`.
-                    public struct build_optionsPayload: Codable, Hashable, Sendable {
-                        /// A container of undocumented properties.
-                        public var additionalProperties: [String: Swift.String]
-                        /// Creates a new `build_optionsPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - additionalProperties: A container of undocumented properties.
-                        public init(additionalProperties: [String: Swift.String] = .init()) {
-                            self.additionalProperties = additionalProperties
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                        }
-                        public func encode(to encoder: any Encoder) throws {
-                            try encoder.encodeAdditionalProperties(additionalProperties)
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/build_options`.
-                    public var build_options: Operations.createGradleBuild.Input.Body.jsonPayload.build_optionsPayload?
                     /// Configuration cache status and invalidation diagnostics.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_cache`.
@@ -71812,14 +71732,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/cacheability`.
                             public var cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/caching_disabled_reason`.
-                            public var caching_disabled_reason: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/execution_reasons`.
-                            public var execution_reasons: [Swift.String]?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/incremental`.
                             public var incremental: Swift.Bool?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/project_path`.
-                            public var project_path: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_download_duration_ms`.
                             public var remote_cache_download_duration_ms: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_duration_ms`.
@@ -71843,10 +71757,7 @@ public enum Operations {
                             /// - Parameters:
                             ///   - build_path:
                             ///   - cacheability:
-                            ///   - caching_disabled_reason:
-                            ///   - execution_reasons:
                             ///   - incremental:
-                            ///   - project_path:
                             ///   - remote_cache_download_duration_ms:
                             ///   - remote_cache_lookup_duration_ms:
                             ///   - remote_cache_lookup_outcome:
@@ -71855,10 +71766,7 @@ public enum Operations {
                             public init(
                                 build_path: Swift.String,
                                 cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
-                                caching_disabled_reason: Swift.String? = nil,
-                                execution_reasons: [Swift.String]? = nil,
                                 incremental: Swift.Bool? = nil,
-                                project_path: Swift.String,
                                 remote_cache_download_duration_ms: Swift.Int? = nil,
                                 remote_cache_lookup_duration_ms: Swift.Int? = nil,
                                 remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
@@ -71867,10 +71775,7 @@ public enum Operations {
                             ) {
                                 self.build_path = build_path
                                 self.cacheability = cacheability
-                                self.caching_disabled_reason = caching_disabled_reason
-                                self.execution_reasons = execution_reasons
                                 self.incremental = incremental
-                                self.project_path = project_path
                                 self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                 self.remote_cache_lookup_duration_ms = remote_cache_lookup_duration_ms
                                 self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
@@ -71880,10 +71785,7 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case build_path
                                 case cacheability
-                                case caching_disabled_reason
-                                case execution_reasons
                                 case incremental
-                                case project_path
                                 case remote_cache_download_duration_ms
                                 case remote_cache_lookup_duration_ms
                                 case remote_cache_lookup_outcome
@@ -71993,7 +71895,6 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - artifact_transforms: Artifact transforms executed while resolving dependencies.
-                    ///   - build_options:
                     ///   - configuration_cache: Configuration cache status and invalidation diagnostics.
                     ///   - configuration_operations: Settings, build, and project configuration operations.
                     ///   - custom_metadata: Custom metadata for the build.
@@ -72014,7 +71915,6 @@ public enum Operations {
                     ///   - telemetry_version:
                     public init(
                         artifact_transforms: Operations.createGradleBuild.Input.Body.jsonPayload.artifact_transformsPayload? = nil,
-                        build_options: Operations.createGradleBuild.Input.Body.jsonPayload.build_optionsPayload? = nil,
                         configuration_cache: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_cachePayload? = nil,
                         configuration_operations: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_operationsPayload? = nil,
                         custom_metadata: Operations.createGradleBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -72035,7 +71935,6 @@ public enum Operations {
                         telemetry_version: Swift.Int? = nil
                     ) {
                         self.artifact_transforms = artifact_transforms
-                        self.build_options = build_options
                         self.configuration_cache = configuration_cache
                         self.configuration_operations = configuration_operations
                         self.custom_metadata = custom_metadata
@@ -72057,7 +71956,6 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case artifact_transforms
-                        case build_options
                         case configuration_cache
                         case configuration_operations
                         case custom_metadata

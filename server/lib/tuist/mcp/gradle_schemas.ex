@@ -4,11 +4,8 @@ defmodule Tuist.MCP.GradleSchemas do
   def execution do
     object(%{
       "build_path" => string(),
-      "project_path" => string(),
       "task_type" => string(),
       "cacheability" => string(),
-      "caching_disabled_reason" => string(),
-      "execution_reasons" => strings(),
       "incremental" => %{"type" => ["boolean", "null"]},
       "remote_cache_lookup_outcome" => string(),
       "remote_cache_lookup_duration_ms" => duration(),
@@ -26,6 +23,5 @@ defmodule Tuist.MCP.GradleSchemas do
     }
 
   defp string, do: %{"type" => "string"}
-  defp strings, do: %{"type" => "array", "items" => string()}
   defp duration, do: %{"type" => ["integer", "null"]}
 end

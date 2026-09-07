@@ -1,4 +1,4 @@
-defmodule Tuist.Gradle.Bottlenecks do
+defmodule Tuist.Gradle.TaskAnalytics do
   @moduledoc """
   Task rankings across comparable Gradle builds. Cumulative task
   duration is work observed across executions, not elapsed build time saved.
@@ -58,7 +58,6 @@ defmodule Tuist.Gradle.Bottlenecks do
       hit_rate: nil,
       cacheability: :unknown,
       misses: 0,
-      cumulative_duration_ms: 0,
       avg_duration_ms: nil,
       p50_duration_ms: nil,
       p90_duration_ms: nil,
@@ -92,7 +91,6 @@ defmodule Tuist.Gradle.Bottlenecks do
         ),
       non_cacheable_observations:
         fragment("countIf(? = 'disabled' OR (? = 0 AND NOT ?))", t.cacheability, b.telemetry_version, t.cacheable),
-      cumulative_duration_ms: fragment("sumIf(?, ? = 'executed')", t.duration_ms, t.outcome),
       avg_duration_ms: fragment("avgIf(?, ? = 'executed')", t.duration_ms, t.outcome),
       p50_duration_ms: fragment("quantileIf(0.5)(?, ? = 'executed')", t.duration_ms, t.outcome),
       p90_duration_ms: fragment("quantileIf(0.9)(?, ? = 'executed')", t.duration_ms, t.outcome),
@@ -142,11 +140,10 @@ defmodule Tuist.Gradle.Bottlenecks do
 
     query =
       from [t, b] in query,
-        group_by: [b.root_project_name, t.build_path, t.project_path, t.task_path, t.task_type],
+        group_by: [b.root_project_name, t.build_path, t.task_path, t.task_type],
         select: %{
           root_project_name: b.root_project_name,
           build_path: t.build_path,
-          project_path: t.project_path,
           name: t.task_path,
           task_type: t.task_type
         }
@@ -196,9 +193,8 @@ defmodule Tuist.Gradle.Bottlenecks do
           query,
           [_t, b],
           fragment(
-            "positionCaseInsensitiveUTF8(concat(?, ' ', arrayStringConcat(?, ' '), ' ', ?, ' ', ?), ?) > 0",
+            "positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0",
             b.root_project_name,
-            b.requested_tasks,
             b.git_branch,
             b.git_commit_sha,
             ^search
@@ -226,9 +222,7 @@ defmodule Tuist.Gradle.Bottlenecks do
         id: t.id,
         build_id: b.id,
         build: struct(b, [:id, :root_project_name, :custom_tags, :account_id, :is_ci]),
-        requested_tasks: b.requested_tasks,
         git_branch: b.git_branch,
-        is_ci: b.is_ci,
         outcome: t.outcome,
         duration_ms: t.duration_ms,
         ran_at: fragment("coalesce(?, ?)", t.started_at, b.inserted_at)
@@ -253,9 +247,6 @@ defmodule Tuist.Gradle.Bottlenecks do
     |> filter(opts, :is_ci)
     |> filter(opts, :git_branch)
     |> filter(opts, :root_project_name)
-    |> filter(opts, :gradle_version)
-    |> filter(opts, :java_version)
-    |> requested_task(Keyword.get(opts, :requested_task))
     |> cohort_filters(Keyword.get(opts, :filters, []))
   end
 
@@ -273,7 +264,6 @@ defmodule Tuist.Gradle.Bottlenecks do
           :custom_tags,
           :account_id,
           :is_ci,
-          :requested_tasks,
           :git_branch,
           :git_commit_sha
         ])
@@ -296,22 +286,13 @@ defmodule Tuist.Gradle.Bottlenecks do
           cacheable: t.cacheable,
           cacheability: t.cacheability,
           remote_cache_miss: t.remote_cache_miss,
-          started_at: t.started_at,
-          project_path:
-            fragment(
-              "if(? = '', if(position(reverse(?), ':') = length(?), ':', replaceRegexpOne(?, ':[^:]*$', '')), ?)",
-              t.project_path,
-              t.task_path,
-              t.task_path,
-              t.task_path,
-              t.project_path
-            )
+          started_at: t.started_at
         }
       )
 
     query = from(t in subquery(tasks), join: b in subquery(builds), on: b.id == t.gradle_build_id)
 
-    Enum.reduce([:project_path, :task_type, :build_path, :task_path], query, fn key, query ->
+    Enum.reduce([:task_type, :build_path, :task_path], query, fn key, query ->
       case Keyword.get(opts, key) do
         value when is_binary(value) -> where(query, [t], field(t, ^key) == ^value)
         _ -> query
@@ -331,16 +312,7 @@ defmodule Tuist.Gradle.Bottlenecks do
     end
   end
 
-  defp cohort_filter(%{field: :requested_tasks, op: op, value: value}, query) when is_binary(value) do
-    case op do
-      :=~ -> where(query, [b], fragment("has(?, ?)", b.requested_tasks, ^value))
-      :not_ilike -> where(query, [b], not fragment("has(?, ?)", b.requested_tasks, ^value))
-      _ -> query
-    end
-  end
-
-  defp cohort_filter(%{field: field, op: op, value: value}, query)
-       when field in [:git_branch, :gradle_version, :java_version] and is_binary(value) do
+  defp cohort_filter(%{field: field, op: op, value: value}, query) when field == :git_branch and is_binary(value) do
     case op do
       :== -> where(query, [b], field(b, ^field) == ^value)
       :=~ -> where(query, [b], fragment("positionCaseInsensitiveUTF8(?, ?) > 0", field(b, ^field), ^value))
@@ -364,9 +336,6 @@ defmodule Tuist.Gradle.Bottlenecks do
     end
   end
 
-  defp requested_task(query, task) when not is_binary(task) or task == "", do: query
-  defp requested_task(query, task), do: where(query, [b], fragment("has(?, ?)", b.requested_tasks, ^task))
-
   defp normalize(row) do
     lookups = row.remote_hits + row.misses
     cacheability = cacheability(row)
@@ -382,6 +351,7 @@ defmodule Tuist.Gradle.Bottlenecks do
     |> Map.put(:id, JSON.encode!([row.root_project_name, row.build_path, row.name, Map.get(row, :task_type)]))
     |> Map.put(:cacheability, cacheability)
     |> Map.put(:hit_rate, hit_rate)
+    |> Map.drop([:observations, :cacheable_observations, :non_cacheable_observations, :remote_hits])
     |> normalize_percentiles()
   end
 

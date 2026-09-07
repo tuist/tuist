@@ -1,7 +1,7 @@
-defmodule Tuist.Gradle.BottlenecksTest do
+defmodule Tuist.Gradle.TaskAnalyticsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Gradle.Bottlenecks
+  alias Tuist.Gradle.TaskAnalytics
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -21,7 +21,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [task(":app:compileJava", "executed", 300, false)])
     build(project, account, [task(":app:compileJava", "up_to_date", 5, false)])
 
-    %{rows: [row]} = Bottlenecks.list(project.id)
+    %{rows: [row]} = TaskAnalytics.list(project.id)
     assert row.executions == 2
     assert row.misses == 1
     assert row.hit_rate == 50.0
@@ -41,9 +41,9 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [task(":app:compileJava", "executed", 900, true)], is_ci: false, git_branch: "feature")
     other = ProjectsFixtures.project_fixture()
     build(other, account, [task(":app:compileJava", "executed", 9000, true)])
-    opts = [is_ci: true, git_branch: "main", requested_task: ":app:jar"]
-    assert %{rows: [%{cumulative_duration_ms: 100}]} = Bottlenecks.list(project.id, opts)
-    assert %{rows: [%{duration_ms: 100}]} = Bottlenecks.task_executions(project.id, ":app:compileJava", opts)
+    opts = [is_ci: true, git_branch: "main"]
+    assert %{rows: [%{cumulative_duration_ms: 100}]} = TaskAnalytics.list(project.id, opts)
+    assert %{rows: [%{duration_ms: 100}]} = TaskAnalytics.task_executions(project.id, ":app:compileJava", opts)
   end
 
   test "a cacheable task without remote lookups has a zero hit rate and no execution percentiles", %{
@@ -51,7 +51,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     account: account
   } do
     build(project, account, [task(":app:compileJava", "local_hit", 10, false)])
-    %{rows: [row]} = Bottlenecks.list(project.id)
+    %{rows: [row]} = TaskAnalytics.list(project.id)
     assert row.hit_rate == 0.0
     assert row.p50_duration_ms == nil
     assert row.p90_duration_ms == nil
@@ -89,7 +89,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     other = ProjectsFixtures.project_fixture()
     build(other, account, [task(":app:compileJava", "executed", 9999, true)], inserted_at: at.(0))
 
-    analytics = Bottlenecks.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
+    analytics = TaskAnalytics.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
 
     assert analytics.total == %{
              tasks: 2,
@@ -99,7 +99,6 @@ defmodule Tuist.Gradle.BottlenecksTest do
              hit_rate: 50.0,
              cacheability: :cacheable,
              misses: 1,
-             cumulative_duration_ms: 400,
              avg_duration_ms: 200,
              p50_duration_ms: 200,
              p90_duration_ms: 280,
@@ -114,7 +113,6 @@ defmodule Tuist.Gradle.BottlenecksTest do
              hit_rate: 0.0,
              cacheability: :cacheable,
              misses: 1,
-             cumulative_duration_ms: 200,
              avg_duration_ms: 200,
              p50_duration_ms: 200,
              p90_duration_ms: 200,
@@ -124,10 +122,9 @@ defmodule Tuist.Gradle.BottlenecksTest do
     assert Enum.map(analytics.points, & &1.hit_rate) == [0.0, nil, 100.0, nil]
     assert Enum.map(analytics.points, & &1.hits) == [0, 0, 1, 0]
     assert Enum.map(analytics.points, & &1.tasks) == [1, 0, 2, 0]
-    assert Enum.map(analytics.points, & &1.cumulative_duration_ms) == [100, 0, 300, 0]
 
     detail =
-      Bottlenecks.analytics(project.id,
+      TaskAnalytics.analytics(project.id,
         start_datetime: start_at,
         end_datetime: end_at,
         root_project_name: "app",
@@ -138,7 +135,6 @@ defmodule Tuist.Gradle.BottlenecksTest do
 
     assert detail.total.tasks == 1
     assert detail.total.builds == 2
-    assert detail.total.cumulative_duration_ms == 100
   end
 
   test "dropdown operators apply consistently to totals, charts, task executions", %{
@@ -165,33 +161,29 @@ defmodule Tuist.Gradle.BottlenecksTest do
     opts = [
       filters: [
         %{field: :git_branch, op: :=~, value: "MAIN"},
-        %{field: :requested_tasks, op: :not_ilike, value: ":app:test"},
-        %{field: :is_ci, op: :!=, value: :local},
-        %{field: :gradle_version, op: :==, value: "9.2.1"},
-        %{field: :java_version, op: :not_ilike, value: "17"}
+        %{field: :is_ci, op: :!=, value: :local}
       ]
     ]
 
-    assert %{rows: [%{cumulative_duration_ms: 100}]} = Bottlenecks.list(project.id, opts)
-    assert %{rows: [%{build_id: ^matching}]} = Bottlenecks.task_executions(project.id, ":app:compileJava", opts)
-    analytics = Bottlenecks.analytics(project.id, opts)
-    assert analytics.total.cumulative_duration_ms == 100
-    assert Enum.sum(Enum.map(analytics.points, & &1.cumulative_duration_ms)) == 100
+    assert %{rows: [%{cumulative_duration_ms: 100}]} = TaskAnalytics.list(project.id, opts)
+    assert %{rows: [%{build_id: ^matching}]} = TaskAnalytics.task_executions(project.id, ":app:compileJava", opts)
+    analytics = TaskAnalytics.analytics(project.id, opts)
+    assert analytics.total.executions == 1
+    assert analytics.total.avg_duration_ms == 100
 
-    empty = Bottlenecks.analytics(project.id, filters: [%{field: :git_branch, op: :==, value: "missing"}])
+    empty = TaskAnalytics.analytics(project.id, filters: [%{field: :git_branch, op: :==, value: "missing"}])
     assert empty.total.builds == 0
-    assert Enum.all?(empty.points, &(&1.cumulative_duration_ms == 0))
+    assert Enum.all?(empty.points, &(&1.executions == 0))
   end
 
   test "short periods use hourly buckets and retain observed zero execution time", %{project: project, account: account} do
     end_at = DateTime.new!(Date.utc_today(), ~T[00:00:00])
     start_at = DateTime.add(end_at, -2, :hour)
     build(project, account, [task(":app:compileJava", "remote_hit", 50, false)], inserted_at: DateTime.to_naive(start_at))
-    analytics = Bottlenecks.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
+    analytics = TaskAnalytics.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
     assert analytics.period == :hour
     assert Enum.map(analytics.points, & &1.tasks) == [1, 0, 0]
     assert analytics.total.builds == 1
-    assert analytics.total.cumulative_duration_ms == 0
     assert analytics.total.avg_duration_ms == nil
     assert analytics.total.p90_duration_ms == nil
     assert analytics.previous.p90_duration_ms == nil
@@ -211,7 +203,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
       )
     end
 
-    analytics = Bottlenecks.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
+    analytics = TaskAnalytics.analytics(project.id, start_datetime: start_at, end_datetime: end_at)
     assert [cached, executed, empty] = analytics.points
 
     for point <- [cached, empty] do
@@ -222,7 +214,6 @@ defmodule Tuist.Gradle.BottlenecksTest do
     end
 
     assert executed.avg_duration_ms == 300
-    assert executed.cumulative_duration_ms == 900
     assert executed.p50_duration_ms == 300
     assert executed.p90_duration_ms == 460
     assert executed.p99_duration_ms == 496
@@ -245,7 +236,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [mixed_cacheable], telemetry_version: 1)
     build(project, account, [%{task_path: ":app:legacy", outcome: "executed", duration_ms: 100, cacheable: false}])
 
-    rows = Map.new(Bottlenecks.list(project.id).rows, &{&1.name, &1})
+    rows = Map.new(TaskAnalytics.list(project.id).rows, &{&1.name, &1})
     assert rows[":app:disabled"].hit_rate == nil
     assert rows[":app:unknown"].hit_rate == nil
     assert rows[":app:disabled"].cacheability == :not_cacheable
@@ -273,8 +264,8 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [task(":app:compile", "executed", 999, false)], root_project_name: "other")
 
     opts = [root_project_name: "android", execution_sort: "duration", execution_order: "asc"]
-    first = Bottlenecks.task_executions(project.id, ":app:compile", opts)
-    second = Bottlenecks.task_executions(project.id, ":app:compile", Keyword.put(opts, :execution_page, 2))
+    first = TaskAnalytics.task_executions(project.id, ":app:compile", opts)
+    second = TaskAnalytics.task_executions(project.id, ":app:compile", Keyword.put(opts, :execution_page, 2))
     assert first.total_pages == 2
     assert Enum.map(first.rows, & &1.duration_ms) == Enum.to_list(1..25)
     assert Enum.map(second.rows, & &1.duration_ms) == [26, 27, 500]
@@ -282,16 +273,16 @@ defmodule Tuist.Gradle.BottlenecksTest do
     assert length(Enum.uniq_by(first.rows ++ second.rows, & &1.id)) == 28
 
     matching =
-      Bottlenecks.task_executions(
+      TaskAnalytics.task_executions(
         project.id,
         ":app:compile",
-        Keyword.merge(opts, execution_search: ":APP:TEST", execution_page: 9)
+        Keyword.merge(opts, execution_search: "FEATURE", execution_page: 9)
       )
 
     assert matching.page == 1
     assert [%{duration_ms: 500, git_branch: "feature"}] = matching.rows
 
-    empty = Bottlenecks.task_executions(project.id, ":app:compile", Keyword.put(opts, :execution_search, "missing"))
+    empty = TaskAnalytics.task_executions(project.id, ":app:compile", Keyword.put(opts, :execution_search, "missing"))
     assert empty.rows == []
     assert empty.total_pages == 1
   end
@@ -306,7 +297,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
       outcome: outcome,
       duration_ms: duration,
       remote_cache_miss: miss,
-      execution: %{build_path: ":", project_path: ":app", task_type: "JavaCompile", cacheability: "cacheable"}
+      execution: %{build_path: ":", task_type: "JavaCompile", cacheability: "cacheable"}
     }
   end
 end

@@ -14,11 +14,8 @@ import java.time.Instant
 
 data class TaskExecutionTelemetry(
     @SerializedName("build_path") val buildPath: String,
-    @SerializedName("project_path") val projectPath: String,
     @SerializedName("task_type") val taskType: String,
     val cacheability: String,
-    @SerializedName("caching_disabled_reason") val cachingDisabledReason: String?,
-    @SerializedName("execution_reasons") val executionReasons: List<String>,
     val incremental: Boolean,
     @SerializedName("remote_cache_lookup_outcome") val remoteCacheLookupOutcome: String,
     @SerializedName("remote_cache_lookup_duration_ms") val remoteCacheLookupDurationMs: Long?,
@@ -114,9 +111,8 @@ internal class BuildExecutionTelemetry {
                 taskPath = details.taskPath, outcome = outcome, cacheable = cacheability == "cacheable",
                 durationMs = duration, cacheKey = work.key, cacheArtifactSize = work.size,
                 startedAt = startedAt, remoteCacheMiss = work.lookup == "miss", remoteCacheStored = work.stored,
-                execution = TaskExecutionTelemetry(details.buildPath, projectPath(details.taskPath),
+                execution = TaskExecutionTelemetry(details.buildPath,
                     details.taskClass.name.removeSuffix("_Decorated"), cacheability,
-                    result.cachingDisabledReasonMessage, result.upToDateMessages.orEmpty().take(100),
                     result.isIncremental, work.lookup, work.lookupMs, work.downloadMs, work.uploadMs)
             ))
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
@@ -127,9 +123,5 @@ internal class BuildExecutionTelemetry {
         if (result is CalculateTaskGraphBuildOperationType.Result) {
             requestedTasks.addAll(result.requestedTaskPaths)
         }
-    }
-
-    companion object {
-        fun projectPath(taskPath: String): String = taskPath.substringBeforeLast(':').ifEmpty { ":" }
     }
 }

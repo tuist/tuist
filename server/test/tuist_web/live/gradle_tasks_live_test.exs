@@ -1,4 +1,4 @@
-defmodule TuistWeb.GradleBottlenecksLiveTest do
+defmodule TuistWeb.GradleTasksLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
@@ -21,10 +21,10 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
           {"select_widget", %{"widget" => "executions"}, %{"analytics-selected-widget" => "executions"}},
           {"select_widget", %{"widget" => "hit_rate"}, %{"analytics-selected-widget" => "hit_rate"}},
           {"select_duration_metric", %{"type" => "avg_duration_ms"},
-           %{"analytics-duration-metric" => "avg_duration_ms", "analytics-selected-widget" => "cumulative_duration_ms"}}
+           %{"analytics-duration-metric" => "avg_duration_ms", "analytics-selected-widget" => "task_duration"}}
         ] do
       socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, params: params, uri: URI.parse(path)}}
-      {:noreply, socket} = TuistWeb.GradleBottlenecksLive.handle_event(event, payload, socket)
+      {:noreply, socket} = TuistWeb.GradleTasksLive.handle_event(event, payload, socket)
 
       assert {:live, :patch, %{kind: :replace, to: destination}} = socket.redirected
       assert URI.parse(destination).path == path
@@ -53,7 +53,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     assert has_element?(view, "#gradle-bottlenecks-table tbody tr", ":module30:compile")
     refute has_element?(view, "#gradle-bottlenecks-table tbody tr", ":local:compile")
 
-    render_patch(view, path <> "?environment=ci&sort=executions&order=asc")
+    render_patch(view, path <> "?analytics-environment=ci&sort=executions&order=asc")
     render_async(view, 3000)
 
     assert view
@@ -67,7 +67,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     html = view |> element("#gradle-bottlenecks-table") |> render()
     assert html =~ "module"
 
-    render_patch(view, path <> "?git_branch=missing-branch")
+    render_patch(view, path <> "?filter_git_branch_op=%3D%3D&filter_git_branch_val=missing-branch")
     assert render_async(view, 3000) =~ "No builds in this period"
   end
 
@@ -284,7 +284,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
       live(
         conn,
         path <>
-          "?git_branch=main&requested_task=%3Amissing&filter_requested_tasks_op=%3D%3D&filter_requested_tasks_val=%3Amissing"
+          "?filter_git_branch_op=%3D%3D&filter_git_branch_val=main&requested_task=%3Amissing&filter_requested_tasks_op=%3D%3D&filter_requested_tasks_val=%3Amissing"
       )
 
     render_async(view, 3000)
@@ -294,7 +294,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     refute has_element?(view, "#bottleneck-filters-form")
     assert has_element?(view, "#bottleneck-tasks [data-part=value]", "1")
     assert has_element?(view, "[phx-value-widget=executions][data-selected]")
-    view |> element("[phx-value-widget=cumulative_duration_ms]") |> render_click()
+    view |> element("[phx-value-widget=task_duration]") |> render_click()
     render_async(view, 3000)
     percentiles = chart(view)["series"]
     assert Enum.map(percentiles, & &1["name"]) == ["Avg.", "p99", "p90", "p50"]
@@ -360,7 +360,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     {:ok, view, _} = live(conn, path <> "?" <> query)
     render_async(view, 3000)
     assert has_element?(view, "#git_branch.noora-filter", "main")
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms [data-part=value]", "1.0s")
+    assert has_element?(view, "#bottleneck-task_duration [data-part=value]", "1.0s")
     assert has_element?(view, "[phx-value-widget=hit_rate][data-selected]")
 
     back =
@@ -391,10 +391,13 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     end
 
     path = "/#{organization.account.name}/#{project.name}/builds/tasks/%3Aapp%3Acompile"
-    {:ok, view, _} = live(conn, path <> "?filter_is_ci_op=%3D%3D&filter_is_ci_val=ci&git_branch=main")
+
+    {:ok, view, _} =
+      live(conn, path <> "?analytics-environment=ci&filter_git_branch_op=%3D%3D&filter_git_branch_val=main")
+
     render_async(view, 3000)
     assert has_element?(view, "#bottlenecks-environment-dropdown-label-portal", "CI")
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms [data-part=value]", "1.0s")
+    assert has_element?(view, "#bottleneck-task_duration [data-part=value]", "1.0s")
     assert has_element?(view, "#git_branch.noora-filter", "main")
     refute has_element?(view, "[data-part=table-toolbar] #bottlenecks-detail-filter-dropdown")
     refute has_element?(view, "[data-part=heading] #bottlenecks-detail-filter-dropdown")
@@ -413,7 +416,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     render_patch(view, href)
     render_async(view, 3000)
     assert has_element?(view, "#bottlenecks-environment-dropdown-label-portal", "Local")
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms [data-part=value]", "3.0s")
+    assert has_element?(view, "#bottleneck-task_duration [data-part=value]", "3.0s")
     assert length(Floki.find(Floki.parse_fragment!(render(view)), "#gradle-bottleneck-history tbody tr")) == 1
 
     back = view |> render() |> Floki.parse_fragment!() |> Floki.attribute("[data-part=back-button]", "href") |> hd()
@@ -421,7 +424,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     {:ok, list, _} = live(conn, back)
     html = render_async(list, 3000)
     assert has_element?(list, "#bottlenecks-environment-dropdown-label-portal", "Local")
-    assert has_element?(list, "#bottleneck-cumulative_duration_ms [data-part=value]", "3.0s")
+    assert has_element?(list, "#bottleneck-task_duration [data-part=value]", "3.0s")
     refute html =~ "Gradle version"
     refute html =~ "Java version"
   end
@@ -452,8 +455,8 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
 
     {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/tasks?#{query}")
     render_async(view, 3000)
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms", "+100.0%")
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms", "since last period")
+    assert has_element?(view, "#bottleneck-task_duration", "+100.0%")
+    assert has_element?(view, "#bottleneck-task_duration", "since last period")
     assert has_element?(view, "#bottleneck-tasks [data-part=value]", "1")
   end
 
@@ -486,7 +489,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     render_async(view, 3000)
     assert has_element?(view, "#bottleneck-hit_rate [data-part=trend] .noora-badge", "-100.0 pp")
     assert has_element?(view, "#bottleneck-hit_rate [data-part=trend]", "since last period")
-    refute has_element?(view, "#bottleneck-cumulative_duration_ms [data-part=trend] .noora-badge")
+    refute has_element?(view, "#bottleneck-task_duration [data-part=trend] .noora-badge")
   end
 
   test "duration widget defaults to p90, switches metrics and connects only recorded samples", context do
@@ -517,14 +520,14 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     path = "/#{organization.account.name}/#{project.name}/builds/tasks"
     {:ok, view, _} = live(conn, path <> "?" <> query <> "&analytics-duration-metric=cumulative_duration_ms")
     render_async(view, 3000)
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms", "p90 task duration")
-    assert has_element?(view, "#bottleneck-cumulative_duration_ms > [data-part=value]", "740ms")
+    assert has_element?(view, "#bottleneck-task_duration", "p90 task duration")
+    assert has_element?(view, "#bottleneck-task_duration > [data-part=value]", "740ms")
 
-    view |> element("[phx-value-widget=cumulative_duration_ms]") |> render_click()
+    view |> element("[phx-value-widget=task_duration]") |> render_click()
     render_async(view, 3000)
     percentiles = chart(view)["series"]
     assert Enum.map(percentiles, & &1["name"]) == ["Avg.", "p99", "p90", "p50"]
-    refute has_element?(view, "#bottleneck-cumulative_duration_ms", "Cumulative task time")
+    refute has_element?(view, "#bottleneck-task_duration", "Cumulative task time")
     assert has_element?(view, "#gradle-bottlenecks-table th", "Cumulative time")
     assert Enum.map(Enum.at(percentiles, 2)["data"], &List.last/1) == [460, nil, 900, nil, 0]
     assert Enum.map(hd(percentiles)["data"], &List.last/1) == [300, nil, 900, nil, 0]
@@ -537,8 +540,8 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
           {"p90_duration_ms", "p90 task duration", "740ms"}
         ] do
       render_click(view, "select_duration_metric", %{"type" => metric})
-      assert has_element?(view, "#bottleneck-cumulative_duration_ms", title)
-      assert has_element?(view, "#bottleneck-cumulative_duration_ms > [data-part=value]", value)
+      assert has_element?(view, "#bottleneck-task_duration", title)
+      assert has_element?(view, "#bottleneck-task_duration > [data-part=value]", value)
       assert has_element?(view, "#git_branch.noora-filter", "main")
       assert has_element?(view, "#bottleneck-hit_rate")
       assert has_element?(view, "input[name=q][value=compile0]")
@@ -699,11 +702,9 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
       remote_cache_miss: true,
       execution: %{
         build_path: ":",
-        project_path: Tuist.Gradle.task_project_path(path),
         task_type: "Compile",
         cacheability: "cacheable",
-        remote_cache_lookup_outcome: "miss",
-        execution_reasons: ["Input has changed"]
+        remote_cache_lookup_outcome: "miss"
       }
     }
   end

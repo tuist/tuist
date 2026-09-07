@@ -1,4 +1,4 @@
-defmodule TuistWeb.GradleBottlenecksLive do
+defmodule TuistWeb.GradleTasksLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
@@ -10,7 +10,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
-  alias Tuist.Gradle.Bottlenecks
+  alias Tuist.Gradle.TaskAnalytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.ModulesLive
@@ -18,17 +18,13 @@ defmodule TuistWeb.GradleBottlenecksLive do
   @sort_fields ~w(cumulative_duration_ms misses executions p50_duration_ms p90_duration_ms p99_duration_ms hit_rate)
 
   @duration_metrics ~w(avg_duration_ms p90_duration_ms p50_duration_ms p99_duration_ms)
-  @widgets ~w(tasks executions hit_rate cumulative_duration_ms)
+  @widgets ~w(tasks executions hit_rate task_duration)
   @date_params ~w(analytics-date-range analytics-start-date analytics-end-date)
 
   def mount(_params, _session, socket), do: {:ok, assign(socket, :available_filters, define_filters())}
 
   def handle_params(params, uri, socket) do
-    params =
-      params
-      |> Map.filter(fn {_key, value} -> is_binary(value) end)
-      |> normalize_environment()
-      |> normalize_filters(socket.assigns.available_filters)
+    params = Map.filter(params, fn {_key, value} -> is_binary(value) end)
 
     name = params["name"]
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
@@ -56,7 +52,10 @@ defmodule TuistWeb.GradleBottlenecksLive do
       |> assign(:params, params)
       |> assign(:uri, %{URI.parse(uri) | query: URI.encode_query(query_params(params))})
       |> assign(:active_filters, active_filters)
-      |> assign(:analytics_environment, params["analytics-environment"] || "any")
+      |> assign(
+        :analytics_environment,
+        if(params["analytics-environment"] in ~w(ci local), do: params["analytics-environment"], else: "any")
+      )
       |> assign(:date_params, Map.take(params, @date_params))
       |> assign(:analytics_selected_widget, selected_widget)
       |> assign(:analytics_duration_metric, duration_selection(params))
@@ -98,6 +97,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
 
   defp widget_selection(params) do
     case params["analytics-selected-widget"] do
+      "cumulative_duration_ms" -> "task_duration"
       "tasks" when is_map_key(params, "name") -> "executions"
       metric when metric in ~w(hits misses) -> "hit_rate"
       widget when widget in @widgets -> widget
@@ -166,48 +166,12 @@ defmodule TuistWeb.GradleBottlenecksLive do
   defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
   defp environment_label(_), do: dgettext("dashboard_gradle", "Any")
 
-  defp normalize_environment(params) do
-    environment = params["analytics-environment"] || params["environment"] || params["filter_is_ci_val"]
-
-    environment =
-      case {params["analytics-environment"], params["filter_is_ci_op"], environment} do
-        {nil, "!=", "ci"} -> "local"
-        {nil, "!=", "local"} -> "ci"
-        {_, _, value} -> value
-      end
-
-    params =
-      Map.drop(params, ~w(environment filter_is_ci_op filter_is_ci_val gradle_version java_version
-        filter_gradle_version_op filter_gradle_version_val filter_java_version_op filter_java_version_val))
-
-    if environment in ~w(any ci local),
-      do: Map.put(params, "analytics-environment", environment),
-      else: Map.delete(params, "analytics-environment")
-  end
-
-  defp normalize_filters(params, available_filters) do
-    params = Map.drop(params, ~w(requested_task filter_requested_tasks_op filter_requested_tasks_val))
-
-    Enum.reduce(available_filters, params, fn filter, params ->
-      {value, params} = Map.pop(params, filter.id)
-
-      if value not in [nil, "", "any"] and not Map.has_key?(params, "filter_#{filter.id}_op") do
-        operator = if filter.type == :list, do: :=~, else: :==
-        Map.merge(params, Filter.Operations.encode_filters_to_query([%{filter | value: value, operator: operator}]))
-      else
-        params
-      end
-    end)
-  end
-
   defp load_analytics(project_id, name, opts) do
-    result = Bottlenecks.list(project_id, opts)
-
-    rows = result.rows
+    result = if name, do: %{rows: [], truncated: false}, else: TaskAnalytics.list(project_id, opts)
 
     history =
       if name do
-        Bottlenecks.task_executions(project_id, name, opts)
+        TaskAnalytics.task_executions(project_id, name, opts)
       else
         %{rows: [], page: 1, total_pages: 1}
       end
@@ -215,8 +179,8 @@ defmodule TuistWeb.GradleBottlenecksLive do
     {:ok,
      %{
        analytics: %{
-         rows: rows,
-         metrics: Bottlenecks.analytics(project_id, opts),
+         rows: result.rows,
+         metrics: TaskAnalytics.analytics(project_id, opts),
          history: history,
          truncated: result.truncated
        }
@@ -262,7 +226,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
        to:
          patch(socket.assigns, %{
            "analytics-duration-metric" => metric,
-           "analytics-selected-widget" => "cumulative_duration_ms"
+           "analytics-selected-widget" => "task_duration"
          }),
        replace: true
      )
@@ -324,7 +288,11 @@ defmodule TuistWeb.GradleBottlenecksLive do
     Map.put(page, :rows, Enum.map(page.rows, &Map.put(&1, :name, &1.name_for_display)))
   end
 
-  defp query_params(params), do: Map.drop(params, ~w(account_handle project_handle name analytics-cache-metric))
+  defp query_params(params) do
+    Map.take(params, @date_params ++ ~w(analytics-environment analytics-duration-metric analytics-selected-widget
+      sort order q after before execution-search execution-sort execution-order execution-page
+      root_project_name build_path task_type filter_git_branch_op filter_git_branch_val))
+  end
 
   defp cohort_params(params) do
     Map.filter(params, fn {key, _} ->
@@ -415,7 +383,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
     duration_options()
     |> Enum.find(&(Atom.to_string(&1.field) == selection))
     |> Map.merge(%{
-      id: "cumulative_duration_ms",
+      id: "task_duration",
       description:
         if(selection == "avg_duration_ms",
           do: dgettext("dashboard_gradle", "Average task duration across executions in the selected period."),
@@ -425,7 +393,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
   end
 
   defp metric_value(%{id: "hit_rate"}, value), do: percent(value)
-  defp metric_value(%{id: "cumulative_duration_ms"}, value), do: duration(value)
+  defp metric_value(%{id: "task_duration"}, value), do: duration(value)
   defp metric_value(_metric, value), do: format_number(value)
 
   defp metric_trend(%{id: "hit_rate"}, total, previous) when is_number(total) and is_number(previous),
@@ -455,10 +423,10 @@ defmodule TuistWeb.GradleBottlenecksLive do
   defp metric_trend_label(_metric, _total, _previous), do: nil
 
   defp metric_trend_type(%{id: "hit_rate"}), do: :regular
-  defp metric_trend_type(%{id: "cumulative_duration_ms"}), do: :inverse
+  defp metric_trend_type(%{id: "task_duration"}), do: :inverse
   defp metric_trend_type(_), do: :neutral
 
-  defp chart_series(%{id: "cumulative_duration_ms"}, points) do
+  defp chart_series(%{id: "task_duration"}, points) do
     Enum.map(
       [
         {:avg_duration_ms, dgettext("dashboard", "Avg."), "secondary"},
@@ -491,13 +459,13 @@ defmodule TuistWeb.GradleBottlenecksLive do
   defp chart_options(metric, analytics) do
     formatter =
       case metric.id do
-        "cumulative_duration_ms" -> "fn:formatMilliseconds"
+        "task_duration" -> "fn:formatMilliseconds"
         "hit_rate" -> "{value}%"
         _ -> "{value}"
       end
 
     dates = Enum.map(analytics.points, & &1.date)
-    show_legend = metric.id == "cumulative_duration_ms"
+    show_legend = metric.id == "task_duration"
 
     %{
       grid: %{left: "0.4%", right: "3%", bottom: if(show_legend, do: "18%", else: "5%"), top: "5%", containLabel: true},
@@ -515,7 +483,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
         max: if(metric.id == "hit_rate", do: 100),
         interval: if(metric.id == "hit_rate", do: 25),
         splitNumber: 4,
-        minInterval: if(metric.id == "cumulative_duration_ms", do: 0, else: 1),
+        minInterval: if(metric.id == "task_duration", do: 0, else: 1),
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
         axisLabel: %{color: "var:noora-surface-label-secondary", formatter: formatter}
       },

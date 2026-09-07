@@ -136,7 +136,7 @@
             )
           }
         >
-          <:select :if={metric.id == "cumulative_duration_ms"}>
+          <:select :if={metric.id == "task_duration"}>
             <.dropdown_item
               :for={option <- duration_options()}
               value={option.field}

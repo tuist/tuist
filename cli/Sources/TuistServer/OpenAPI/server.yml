@@ -22526,30 +22526,9 @@ paths:
                               type: string
                               x-struct:
                               x-validate:
-                            caching_disabled_reason:
-                              maxLength: 4096
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                            execution_reasons:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 100
-                              type: array
-                              x-struct:
-                              x-validate:
                             incremental:
                               nullable: true
                               type: boolean
-                              x-struct:
-                              x-validate:
-                            project_path:
-                              maxLength: 1024
-                              type: string
                               x-struct:
                               x-validate:
                             remote_cache_download_duration_ms:
@@ -22590,7 +22569,6 @@ paths:
                               x-validate:
                           required:
                             - build_path
-                            - project_path
                             - task_type
                             - cacheability
                           type: object
@@ -24359,16 +24337,6 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
-                  build_options:
-                    additionalProperties:
-                      maxLength: 1024
-                      type: string
-                      x-struct:
-                      x-validate:
-                    maxProperties: 20
-                    type: object
-                    x-struct:
-                    x-validate:
                   cache_hit_rate:
                     nullable: true
                     type: number
@@ -24531,30 +24499,9 @@ paths:
                               type: string
                               x-struct:
                               x-validate:
-                            caching_disabled_reason:
-                              maxLength: 4096
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                            execution_reasons:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 100
-                              type: array
-                              x-struct:
-                              x-validate:
                             incremental:
                               nullable: true
                               type: boolean
-                              x-struct:
-                              x-validate:
-                            project_path:
-                              maxLength: 1024
-                              type: string
                               x-struct:
                               x-validate:
                             remote_cache_download_duration_ms:
@@ -24595,7 +24542,6 @@ paths:
                               x-validate:
                           required:
                             - build_path
-                            - project_path
                             - task_type
                             - cacheability
                           type: object
@@ -26380,16 +26326,6 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                build_options:
-                  additionalProperties:
-                    maxLength: 1024
-                    type: string
-                    x-struct:
-                    x-validate:
-                  maxProperties: 20
-                  type: object
-                  x-struct:
-                  x-validate:
                 configuration_cache:
                   description: Configuration cache status and invalidation diagnostics.
                   nullable: true
@@ -26671,30 +26607,9 @@ paths:
                             type: string
                             x-struct:
                             x-validate:
-                          caching_disabled_reason:
-                            maxLength: 4096
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                          execution_reasons:
-                            items:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            maxItems: 100
-                            type: array
-                            x-struct:
-                            x-validate:
                           incremental:
                             nullable: true
                             type: boolean
-                            x-struct:
-                            x-validate:
-                          project_path:
-                            maxLength: 1024
-                            type: string
                             x-struct:
                             x-validate:
                           remote_cache_download_duration_ms:
@@ -26735,7 +26650,6 @@ paths:
                             x-validate:
                         required:
                           - build_path
-                          - project_path
                           - task_type
                           - cacheability
                         type: object

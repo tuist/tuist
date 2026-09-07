@@ -49,7 +49,7 @@ msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:123
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:127
-#: lib/tuist_web/live/gradle_bottlenecks_live.ex:464
+#: lib/tuist_web/live/gradle_tasks_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
