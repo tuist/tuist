@@ -21253,6 +21253,190 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-212": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_memory_elastic_transient_capacity_bytes{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Ceiling headroom above the floor-derived transient budget, lent to remote-execution write decoding while memory pressure is normal.\n\nThis is what the floor clamp discards: the pod's memory request sizes the transient pool, and everything between that and the ceiling was previously unreachable by anonymous admission. Zero on an instance with no published floor, because there the budget is already the whole headroom.\n\nPrometheus name: `kura_memory_elastic_transient_capacity_bytes`",
+          "id": 212,
+          "links": [],
+          "title": "memory_elastic_transient_capacity_bytes",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-213": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_memory_elastic_transient_reserved_bytes{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Borrowed ceiling headroom currently held by remote-execution write decoding.\n\nRead it against memory_elastic_transient_capacity_bytes. Brief excursions are the pool doing its job: a burst outgrew the pod's floor and was served from headroom instead of answering RESOURCE_EXHAUSTED. A pod that rests here rather than touching it in bursts has a floor genuinely too small for its workload, and the lever there is the account's memory profile, not this pool. It empties on its own above normal pressure, so a flat zero through a pressure episode is expected rather than a stalled borrow.\n\nPrometheus name: `kura_memory_elastic_transient_reserved_bytes`",
+          "id": 213,
+          "links": [],
+          "title": "memory_elastic_transient_reserved_bytes",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -22567,12 +22751,38 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-83"
+                          "name": "panel-212"
                         },
                         "height": 7,
                         "width": 8,
                         "x": 0,
                         "y": 28
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-213"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 28
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-83"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 35
                       }
                     },
                     {
@@ -22585,7 +22795,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 28
+                        "y": 35
                       }
                     },
                     {
@@ -22598,7 +22808,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 28
+                        "y": 35
                       }
                     },
                     {
@@ -22611,7 +22821,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22624,7 +22834,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22637,7 +22847,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22650,7 +22860,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 42
+                        "y": 49
                       }
                     },
                     {
@@ -22663,7 +22873,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 42
+                        "y": 49
                       }
                     }
                   ]

@@ -163,6 +163,7 @@ defmodule TuistWeb.Router do
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -1324,8 +1325,6 @@ defmodule TuistWeb.Router do
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)

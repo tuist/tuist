@@ -213,6 +213,33 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end
 
+    test "keeps every CPU ceiling clear of its plan's measured peak" do
+      # A CFS quota is not work-conserving: once a period's budget is spent the
+      # container stalls for the rest of it, on an idle box as much as a busy
+      # one. Each ceiling therefore sits several times over its plan's peak, and
+      # the peaks below are 15-second averages, so real parallelism runs higher.
+      for {plan, peak_milli} <- [enterprise: 631, pro: 53, air: 2] do
+        ceiling = Regions.cpu_ceiling_milli(plan)
+        assert ceiling > peak_milli * 5, "#{plan} caps at #{ceiling}m over a #{peak_milli}m peak"
+      end
+
+      # It bounds a runaway, so it also has to stay well inside the smallest
+      # managed box rather than being generous enough to mean nothing.
+      smallest_box_milli = 11_000
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        assert Regions.cpu_ceiling_milli(plan) < smallest_box_milli / 2
+      end
+
+      ceilings = Enum.map([:enterprise, :pro, :air], &Regions.cpu_ceiling_milli/1)
+      assert ceilings == Enum.sort(ceilings, :desc)
+      assert Enum.uniq(ceilings) == ceilings
+
+      # An unknown plan lands on the smallest, which is the safe side of a
+      # shared box.
+      assert Regions.cpu_ceiling_milli(:open_source) == Regions.cpu_ceiling_milli(:air)
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 

@@ -465,8 +465,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if container.EnvFrom[0].SecretRef.Optional == nil || !*container.EnvFrom[0].SecretRef.Optional {
 		t.Fatal("expected shared secret envFrom to be optional so a missing Secret does not crash the pod")
 	}
-	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
-		t.Fatalf("expected default CPU request, got %q", got)
+	if got := container.Resources.Requests.Cpu().String(); got != "100m" {
+		t.Fatalf("expected cold-start CPU request, got %q", got)
 	}
 	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
 		t.Fatalf("expected default memory request, got %q", got)
@@ -3472,6 +3472,104 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		}
 		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
 			t.Fatal("healthy StatefulSet must not be deleted")
+		}
+	})
+
+	t.Run("leaves a rebuild's terminating PVC alone", func(t *testing.T) {
+		// The regression. Deleting a data PVC is the ordinary first step of the
+		// resize path's one-replica-at-a-time replacement, and reading that as
+		// evidence of a prior recreate let this path escalate a rolling rebuild
+		// into a full teardown within the same second -- taking the StatefulSet
+		// and the sibling's claim with it, and never deleting the pod that then
+		// held that claim open forever.
+		terminating := boundPVC("scw-local-nvme", "pv-1")
+		terminating.DeletionTimestamp = ptr(metav1.NewTime(time.Now().Add(-time.Minute)))
+		terminating.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), newSTS(), terminating, pvPinnedTo("pv-1", "live-node"), node("live-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason != "" {
+			t.Fatalf("a rebuild's own terminating PVC is not stale storage, got reason %q", reason)
+		}
+
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a rolling rebuild must not be escalated into a teardown")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("the StatefulSet a rebuild is replacing volumes under must survive")
+		}
+	})
+
+	t.Run("keeps waiting while its own teardown terminates", func(t *testing.T) {
+		// The property the DeletionTimestamp check was there for: once this path
+		// has deleted the StatefulSet, a PVC still terminating is cleanup it is
+		// waiting on, and the recreated StatefulSet must not adopt it.
+		terminating := boundPVC("scw-local-nvme", "pv-1")
+		terminating.DeletionTimestamp = ptr(metav1.NewTime(time.Now().Add(-time.Minute)))
+		terminating.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), terminating, pvPinnedTo("pv-1", "live-node"), node("live-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason == "" {
+			t.Fatal("a PVC terminating with no StatefulSet standing is cleanup this path must wait on")
+		}
+	})
+
+	t.Run("reads a substantive reason through termination", func(t *testing.T) {
+		// Gating on the StatefulSet is only for the ambiguous signal. A wrong
+		// storage class is readable until the object is gone, so it keeps
+		// returning a reason without needing the gate.
+		terminating := boundPVC("scw-bssd", "pv-old")
+		terminating.DeletionTimestamp = ptr(metav1.NewTime(time.Now().Add(-time.Minute)))
+		terminating.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newInstance(), newSTS(), terminating).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason == "" {
+			t.Fatal("storage-class drift stays a reason while the PVC terminates")
+		}
+	})
+
+	t.Run("deletes the pod that holds a stale PVC open", func(t *testing.T) {
+		// The pvc-protection finalizer keeps a claim alive for as long as a pod
+		// mounts it. A pod this StatefulSet no longer owns -- the Orphan
+		// re-template strips exactly that -- is not collected by the foreground
+		// delete above, so this path has to take it directly or wait forever on
+		// a claim that can never finish terminating.
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}
+		c := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old"), pod).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for storage-class drift")
+		}
+		if exists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}) {
+			t.Fatal("expected the pod holding the stale PVC to be deleted")
 		}
 	})
 
