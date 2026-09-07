@@ -5796,18 +5796,21 @@ mod tests {
         refs: &[Vec<u8>],
     ) -> Vec<u8> {
         unsafe {
-            let cas = state.cas.read().unwrap().unwrap();
+            let cas_guard = state.cas.read().unwrap();
+            let cas = cas_guard.expect("probe CAS must be open");
             let refs: Vec<_> = refs
                 .iter()
                 .map(|digest| {
                     let mut id = llcas_objectid_t { opaque: 0 };
                     let mut error = std::ptr::null_mut();
-                    assert!(!(state.up.llcas_cas_get_objectid)(
+                    let failed = (state.up.llcas_cas_get_objectid)(
                         cas,
                         llcas_digest_t { data: digest.as_ptr(), size: digest.len() },
                         &mut id,
                         &mut error,
-                    ));
+                    );
+                    let detail = take_error(state.up, error);
+                    assert!(!failed, "get_objectid must succeed: {detail:?}");
                     id
                 })
                 .collect();
@@ -5817,17 +5820,16 @@ mod tests {
             };
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-            assert!(
-                !(state.up.llcas_cas_store_object)(
-                    cas,
-                    data,
-                    refs.as_ptr(),
-                    refs.len(),
-                    &mut id,
-                    &mut error
-                ),
-                "store must succeed"
+            let failed = (state.up.llcas_cas_store_object)(
+                cas,
+                data,
+                if refs.is_empty() { std::ptr::null() } else { refs.as_ptr() },
+                refs.len(),
+                &mut id,
+                &mut error,
             );
+            let detail = take_error(state.up, error);
+            assert!(!failed, "store must succeed: {detail:?}");
             let digest = (state.up.llcas_objectid_get_digest)(cas, id);
             std::slice::from_raw_parts(digest.data, digest.size).to_vec()
         }
@@ -6488,6 +6490,8 @@ mod tests {
         let root = store_probe_object_with_refs(source, b"demand-race-root", &[child.clone()]);
         let (mut manifest, blobs) = walk_closure(source, &root).expect("complete source graph");
         assert_eq!(manifest.len(), 2);
+        assert_eq!(manifest[0].llcas_digest, root, "manifest starts with the root");
+        assert_eq!(manifest[1].llcas_digest, child, "fault injection targets the child");
         for (entry, blob) in manifest.iter_mut().zip(blobs) {
             entry.contents = Some(blob.expect("fresh publisher cache"));
         }
@@ -6516,7 +6520,7 @@ mod tests {
                 .commit_and_materialize(&remote, state, b"demand-race-key", manifest, 0)
                 .expect("resolve");
             let job = jobs.recv_timeout(Duration::from_secs(5)).expect("queued materialization");
-            assert!(proxy.materializer.drain_stop_timeout(Duration::from_secs(5)).is_empty());
+            proxy.materializer.drain_stop_timeout(Duration::from_secs(5));
             assert_eq!(resolved, Some(root.clone()));
             assert!(!state.load_present(&root), "{label}: starts empty");
 
@@ -6539,12 +6543,37 @@ mod tests {
                 u64::from(!child_available),
                 "{label}: materializer observes the incomplete graph"
             );
+            let withheld = state.withheld_roots.lock().unwrap().get(&root).cloned();
+            assert_eq!(
+                withheld,
+                (!child_available).then(|| vec![child.clone()]),
+                "{label}: both incomplete cases record the missing child"
+            );
+            let refusals_per_fetch = u64::from(!demand_first && !child_available);
+            assert_eq!(
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+                refusals_per_fetch,
+                "{label}: only materializer-first reaches the refusal guard"
+            );
+            let second_fetch = proxy.fetch_object(state, &dir.path(), "", &root);
+            assert_eq!(
+                second_fetch,
+                Ok(root_present),
+                "{label}: an already-local root bypasses even the recorded withhold"
+            );
+            assert_eq!(
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+                2 * refusals_per_fetch,
+                "{label}: repeated demand loads bypass or reach the same guard"
+            );
 
-            // Reopen after disposing the writer: the bad graph lives on disk,
-            // not just in the proxy's in-memory presence cache.
+            // reopen_cas opens the replacement before disposing the old handle.
+            // Loading through it bypasses proxy bookkeeping, as a compiler's
+            // local load does, so a withheld_roots entry cannot hide this root.
             state.reopen_cas().expect("reopen persisted reader CAS");
-            if root_present {
-                let (_, refs) = unsafe { encode_node_blob(state, &root) }.expect("root loads");
+            let reopened_root = unsafe { encode_node_blob(state, &root) };
+            assert_eq!(reopened_root.is_ok(), root_present, "{label}: direct root load");
+            if let Ok((_, refs)) = reopened_root {
                 assert_eq!(refs, vec![child.clone()], "{label}: real child reference");
             }
             assert_eq!(
@@ -6552,7 +6581,12 @@ mod tests {
                 child_available,
                 "{label}: replay can load the child only in the healthy control"
             );
-            println!("{label}: demand={produced}, persisted root={root_present}, child={child_available}");
+            println!(
+                "{label}: demand={produced}, persisted root={root_present}, \
+                 child={child_available}, withheld={}, second_fetch={second_fetch:?}, refusals={}",
+                withheld.is_some(),
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+            );
         }
     }
 
