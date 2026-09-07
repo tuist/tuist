@@ -6,6 +6,7 @@ This directory contains the core business logic and domain modules for the serve
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
+- Xcode build timeline events are ingested alongside build details, retain only current-invocation leaf intervals for 90 days, and are read with retry deduplication and a 50,000-event display limit. Bounded step logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries

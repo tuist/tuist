@@ -54,6 +54,18 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       "files" => [],
       "cacheable_tasks" => [],
       "cas_outputs" => [],
+      "timeline_events" => [
+        %{
+          "event_id" => 1,
+          "title" => "Compile App.swift",
+          "start_ms" => 100.0,
+          "duration_ms" => 200.0,
+          "target" => "App",
+          "project" => "Workspace",
+          "category" => "swiftCompilation",
+          "status" => "success"
+        }
+      ],
       "machine_metrics" => []
     }
   end
@@ -105,6 +117,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.project_id == project.id
         assert attrs.duration == 1200
         assert attrs.status == "success"
+        assert [%{event_id: 1, title: "Compile App.swift", start_ms: 100.0, duration_ms: 200.0}] = attrs.timeline_events
         assert attrs.machine_metrics == []
         {:ok, %{id: build.id}}
       end)

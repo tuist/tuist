@@ -4,6 +4,7 @@ This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
 - Provide reusable UI components (navigation, auth components, forms).
+- `BuildTimeline` uses Noora cards, search, and empty states around the Xcode build timeline hook, with translated controls and accessible step details in a resizable right-hand inspector shown only when a step is selected, including its recorded log loaded on demand.
 - Keep rendering logic here; avoid domain logic.
 
 ## Boundaries

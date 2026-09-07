@@ -4,14 +4,17 @@ defmodule TuistWeb.BuildRunLive do
   use Noora
 
   import Phoenix.Component
+  import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.MachineMetricsCharts
+  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
@@ -71,6 +74,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:timeline, AsyncResult.loading())
       |> assign(:machine_metrics, run.machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
@@ -236,7 +240,7 @@ defmodule TuistWeb.BuildRunLive do
         |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
         |> Tuist.ClickHouseRepo.preload([:issues])
 
-      {:noreply, socket |> assign(:run, run) |> assign_build_data(run)}
+      {:noreply, socket |> assign(:run, run) |> assign_build_data(run) |> assign_timeline(socket.assigns.selected_tab)}
     else
       {:noreply, socket}
     end
@@ -319,6 +323,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign_binary_cache(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
       |> assign(:selected_cache_tab, selected_cache_tab)
+      |> assign_timeline(selected_tab)
 
     {
       :noreply,
@@ -326,7 +331,22 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  defp assign_timeline(socket, "timeline") do
+    run_id = socket.assigns.run.id
+    assign_async(socket, :timeline, fn -> {:ok, %{timeline: Builds.build_timeline(run_id)}} end)
+  end
+
+  defp assign_timeline(socket, _tab), do: socket
+
   @impl true
+  def handle_event("load-timeline-log", %{"event_id" => event_id}, socket)
+      when is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991 do
+    log = Builds.build_timeline_log(socket.assigns.run.id, event_id)
+    {:reply, %{log: log}, socket}
+  end
+
+  def handle_event("load-timeline-log", _params, socket), do: {:reply, %{log: nil}, socket}
+
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
     {:ok, refreshed_run} = Builds.get_build(run.id, project_id: run.project_id)
 
@@ -339,7 +359,8 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> assign(:run, refreshed_run)
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
-     |> assign_build_data(refreshed_run)}
+     |> assign_build_data(refreshed_run)
+     |> assign_timeline(socket.assigns.selected_tab)}
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)

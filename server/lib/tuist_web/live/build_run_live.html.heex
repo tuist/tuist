@@ -178,6 +178,11 @@
         patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       />
       <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "Timeline")}
+        selected={@selected_tab == "timeline"}
+        patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+      />
+      <.tab_menu_horizontal_item
         :if={@has_binary_cache_data}
         label={dgettext("dashboard_builds", "Module Cache")}
         selected={@selected_tab == "module-cache"}
@@ -206,6 +211,38 @@
         patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
       />
     </.tab_menu_horizontal>
+    <section :if={@selected_tab == "timeline" and @run.status != "processing"}>
+      <.async_result :let={timeline} assign={@timeline}>
+        <:loading>
+          <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
+            <.card_section
+              data-part="timeline-skeleton"
+              aria-busy="true"
+              aria-label={dgettext("dashboard_builds", "Loading timeline…")}
+            >
+              <div aria-hidden="true" class="flex flex-col gap-4">
+                <.skeleton_box width="100%" height="36px" border_radius="8px" />
+                <.skeleton_box width="40%" height="16px" border_radius="4px" />
+                <.skeleton_chart height="532px" />
+              </div>
+            </.card_section>
+          </.card>
+        </:loading>
+        <:failed>
+          <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
+            <.card_section>
+              <.table_empty_state title={
+                dgettext(
+                  "dashboard_builds",
+                  "The timeline could not be loaded. Please try again."
+                )
+              } />
+            </.card_section>
+          </.card>
+        </:failed>
+        <.build_timeline timeline={timeline} duration={@run.duration} />
+      </.async_result>
+    </section>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Build Details")}

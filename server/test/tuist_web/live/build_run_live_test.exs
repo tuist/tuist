@@ -21,6 +21,63 @@ defmodule TuistWeb.BuildRunLiveTest do
     %{conn: conn, user: user}
   end
 
+  test "loads timeline intervals when opening the timeline tab", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    event = %{
+      event_id: 1,
+      title: "Compile <App>.swift",
+      log: "EmitSwiftModule normal arm64\ncd /workspace",
+      log_truncated: false,
+      target: "App",
+      project: "Workspace",
+      category: "swiftCompilation",
+      start_ms: 100.0,
+      duration_ms: 250.0,
+      status: "success"
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, timeline_events: [event])
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+    refute has_element?(lv, "#build-timeline")
+    lv |> element("a", "Timeline") |> render_click()
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[phx-hook=BuildTimeline]")
+    assert has_element?(lv, ".noora-card", "Build Timeline")
+    assert has_element?(lv, ".noora-text-input [data-control=search]")
+    refute has_element?(lv, "#timeline-category")
+    refute has_element?(lv, "#timeline-status")
+    refute has_element?(lv, "[data-control=zoom-in]")
+    refute has_element?(lv, "[data-control=pan]")
+    [encoded] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-events")
+    assert [%{"title" => "Compile <App>.swift", "start_ms" => 100.0}] = JSON.decode!(encoded)
+    refute encoded =~ "cd /workspace"
+    socket = %Phoenix.LiveView.Socket{assigns: %{run: build}}
+
+    assert {:reply, %{log: %{log: "EmitSwiftModule normal arm64\ncd /workspace", log_truncated: false}}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event(
+               "load-timeline-log",
+               %{"event_id" => 1, "build_run_id" => Ecto.UUID.generate()},
+               socket
+             )
+
+    assert {:reply, %{log: nil}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline-log", %{"event_id" => -1}, socket)
+  end
+
+  test "shows an explicit empty timeline for older builds", %{conn: conn, organization: organization, project: project} do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+
+    render_async(lv)
+    assert has_element?(lv, ".noora-table-empty-state", "No timeline available")
+    refute has_element?(lv, "#build-timeline")
+  end
+
   test "shows details of a build run", %{
     conn: conn,
     organization: organization,

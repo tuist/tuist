@@ -7,6 +7,7 @@
 @import "./pages/bundles.css";
 @import "./pages/builds.css";
 @import "./pages/build_run.css";
+@import "./pages/build_timeline.css";
 @import "./pages/build_runs.css";
 @import "./pages/cache.css";
 @import "./pages/cache_runs.css";

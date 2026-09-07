@@ -7,6 +7,58 @@ defmodule Tuist.BuildsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  describe "build_timeline/1" do
+    test "stores relative timings, isolates builds, and deduplicates processing retries" do
+      event = %{
+        event_id: 1,
+        title: "Compile App.swift",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 100.25,
+        duration_ms: 200.5,
+        status: "success"
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(timeline_events: [event, event])
+      {:ok, other} = RunsFixtures.build_fixture(timeline_events: [%{event | title: "Other.swift"}])
+
+      assert %{events: [stored], truncated: false} = Builds.build_timeline(build.id)
+      assert stored.title == "Compile App.swift"
+      assert_in_delta stored.start_ms, 100.25, 0.001
+      assert_in_delta stored.duration_ms, 200.5, 0.001
+      assert %{events: [%{title: "Other.swift"}]} = Builds.build_timeline(other.id)
+    end
+
+    test "fetches logs separately and scopes them to their build" do
+      event = %{
+        event_id: 3,
+        title: "Compile",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 0.0,
+        duration_ms: 10.0,
+        status: "success",
+        log: "EmitSwiftModule normal arm64\n<script>output</script>",
+        log_truncated: true
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(timeline_events: [event])
+      {:ok, other} = RunsFixtures.build_fixture(timeline_events: [%{event | log: "Other command"}])
+      assert Builds.build_timeline_log(build.id, 3) == %{log: event.log, log_truncated: true}
+      assert Builds.build_timeline_log(other.id, 3).log == "Other command"
+      assert Builds.build_timeline_log(build.id, 4) == nil
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      refute Map.has_key?(stored, :log)
+    end
+
+    test "old builds have no manufactured timeline" do
+      {:ok, build} = RunsFixtures.build_fixture()
+      assert Builds.build_timeline(build.id) == %{events: [], truncated: false}
+    end
+  end
+
   describe "create_build/1" do
     test "creates a build" do
       # Given

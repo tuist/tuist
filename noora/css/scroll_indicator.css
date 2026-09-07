@@ -1,0 +1,45 @@
+.noora-scroll-indicator > [data-part="thumb"],
+.noora-table [data-part="overlay-scrollbar"] > [data-part="overlay-thumb"] {
+  border-radius: var(--noora-radius-4);
+  background-color: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
+  touch-action: none;
+}
+
+.noora-scroll-indicator {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+
+  &[hidden] {
+    display: none;
+  }
+
+  & > [data-part="thumb"] {
+    position: absolute;
+  }
+
+  &[data-orientation="horizontal"] {
+    right: var(--noora-spacing-4);
+    bottom: 6px;
+    left: var(--noora-spacing-4);
+    height: 8px;
+    & > [data-part="thumb"] {
+      top: 0;
+      height: 100%;
+    }
+  }
+
+  &[data-orientation="vertical"] {
+    top: var(--noora-spacing-4);
+    right: 4px;
+    bottom: var(--noora-spacing-4);
+    width: 8px;
+    & > [data-part="thumb"] {
+      left: 0;
+      width: 100%;
+    }
+  }
+}
