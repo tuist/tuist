@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
@@ -57,6 +58,7 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
+        buildkite_job = Buildkite.get_job(job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -70,10 +72,11 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:buildkite_job, buildkite_job)
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job)
+         |> assign_runner_insights(selected_account, job, buildkite_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -213,6 +216,19 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def github_job_url(_), do: nil
+
+  @doc """
+  The Buildkite build a job belongs to, or `nil` for a GitHub job.
+
+  Buildkite's own job-level anchor is not part of any documented URL
+  contract, so this stops at the build, which is stable.
+  """
+  def buildkite_build_url(%{organization_slug: org, pipeline_slug: pipeline, build_number: number})
+      when is_binary(org) and org != "" and is_binary(pipeline) and pipeline != "" and is_integer(number) and number > 0 do
+    "https://buildkite.com/#{org}/#{pipeline}/builds/#{number}"
+  end
+
+  def buildkite_build_url(_), do: nil
 
   @doc """
   Builds the deep link to a single workflow_job. Mirrors GitHub's
@@ -478,8 +494,8 @@ defmodule TuistWeb.RunnerJobLive do
     }
   end
 
-  defp assign_runner_insights(socket, selected_account, job) do
-    case Jobs.projects_for_runner_job(selected_account, job) do
+  defp assign_runner_insights(socket, selected_account, job, buildkite_job) do
+    case Jobs.projects_for_runner_job(selected_account, job, buildkite_job) do
       {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
@@ -491,8 +507,8 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
       {:ok, projects} ->
-        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
-        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id, buildkite_job)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id, buildkite_job)
 
         build_command_events = Jobs.command_events_for_runs(build_runs, :build)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)

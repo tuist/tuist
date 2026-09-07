@@ -4,6 +4,11 @@ defmodule Tuist.Docs.RedirectsTest do
   alias Tuist.Docs.Redirects
 
   describe "resolve/2" do
+    test "redirects the runners getting-started page to the GitHub Actions guide" do
+      assert Redirects.resolve("/en/docs/guides/features/runners/getting-started") ==
+               {:ok, "/en/docs/guides/features/runners/github-actions"}
+    end
+
     test "redirects renamed insights pages" do
       assert Redirects.resolve("/en/docs/guides/features/insights") ==
                {:ok, "/en/docs/guides/features/build-insights"}

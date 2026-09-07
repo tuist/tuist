@@ -24,6 +24,9 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :selective_testing_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
     field :xcode_project_id, Ch, type: "UUID"
     field :command_event_id, Ch, type: "UUID"
+    # Denormalized from the command event so the xcode_targets_by_project
+    # materialized view can key each row by project.
+    field :project_id, Ch, type: "Int64"
     field :product, Ch, type: "LowCardinality(String)", default: ""
     field :bundle_id, Ch, type: "String", default: ""
     field :product_name, Ch, type: "String", default: ""
@@ -66,7 +69,7 @@ defmodule Tuist.Xcode.XcodeTarget do
     timestamps(updated_at: false)
   end
 
-  def changeset(command_event_id, xcode_project_id, xcode_target, inserted_at \\ nil) do
+  def changeset(command_event_id, project_id, xcode_project_id, xcode_target, inserted_at \\ nil) do
     binary_cache_metadata = xcode_target["binary_cache_metadata"]
     selective_testing_metadata = xcode_target["selective_testing_metadata"]
 
@@ -107,6 +110,7 @@ defmodule Tuist.Xcode.XcodeTarget do
       additional_strings: subhashes["additional_strings"],
       external_hash: subhashes["external"],
       dependencies: xcode_target["dependencies"] || [],
+      project_id: project_id,
       inserted_at: inserted_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
   end

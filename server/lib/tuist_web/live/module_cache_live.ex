@@ -6,6 +6,7 @@ defmodule TuistWeb.ModuleCacheLive do
   import Ecto.Query
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton

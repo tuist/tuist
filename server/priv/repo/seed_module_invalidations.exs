@@ -72,6 +72,7 @@ invalidation_rows =
           binary_build_duration: Enum.random(5_000..40_000),
           xcode_project_id: xcode_project_id,
           command_event_id: event_id,
+          project_id: tuist_project.id,
           inserted_at: NaiveDateTime.truncate(ran_at, :second),
           bundle_id: "com.tuist.demo.#{String.downcase(name)}",
           product_name: name,

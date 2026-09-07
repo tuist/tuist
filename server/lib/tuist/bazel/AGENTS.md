@@ -28,7 +28,12 @@ does not expose a second Build Event Service listener.
 ## Data handling
 
 - `bazel_invocations` stores completed commands received from Kura.
-- `bazel_invocation_logs` stores sanitized, ordered log chunks in ClickHouse.
+- `bazel_invocations` also stores bounded build metrics, retained action spans,
+  and critical-path summaries. Kura keeps no more than 32 action spans or 32
+  critical-path actions for one in-flight invocation.
+- `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
+  Build Event Protocol progress output and conventional test logs in
+  ClickHouse.
 - `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
   durably stage bounded raw test results in PostgreSQL until processing
   succeeds; an indexed, batched daily job removes any records older than 90
