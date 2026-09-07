@@ -45,26 +45,26 @@ defmodule TuistWeb.GradleTasksLiveTest do
     path = "/#{organization.account.name}/#{project.name}/builds/tasks"
     {:ok, view, _} = live(conn, path)
     render_async(view, 3000)
-    assert has_element?(view, "#gradle-bottlenecks-table")
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr", ":local:compile")
+    assert has_element?(view, "#gradle-tasks-table")
+    assert has_element?(view, "#gradle-tasks-table tbody tr", ":local:compile")
 
     view |> element("form[phx-change=search]") |> render_change(%{"q" => "module30"})
     render_async(view, 3000)
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr", ":module30:compile")
-    refute has_element?(view, "#gradle-bottlenecks-table tbody tr", ":local:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody tr", ":module30:compile")
+    refute has_element?(view, "#gradle-tasks-table tbody tr", ":local:compile")
 
     render_patch(view, path <> "?analytics-environment=ci&sort=executions&order=asc")
     render_async(view, 3000)
 
     assert view
-           |> element("#gradle-bottlenecks-table tbody")
+           |> element("#gradle-tasks-table tbody")
            |> render()
            |> Floki.parse_fragment!()
            |> Floki.find("tr")
            |> length() == 25
 
     refute render(view) =~ ":local:compile"
-    html = view |> element("#gradle-bottlenecks-table") |> render()
+    html = view |> element("#gradle-tasks-table") |> render()
     assert html =~ "module"
 
     render_patch(view, path <> "?filter_git_branch_op=%3D%3D&filter_git_branch_val=missing-branch")
@@ -88,16 +88,16 @@ defmodule TuistWeb.GradleTasksLiveTest do
     assert has_element?(view, "#bottlenecks-sort-by-label-portal", "Cumulative time")
     refute html =~ "observed</span>"
     refute html =~ "Latest dependency chain"
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", ":slow:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", ":slow:compile")
 
     render_patch(view, sort_href(view, "executions"))
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", ":frequent:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", ":frequent:compile")
     assert has_element?(view, "#bottlenecks-sort-by-label-portal", "Executions")
     assert has_element?(view, "#git_branch.noora-filter", "main")
-    refute has_element?(view, "#gradle-bottlenecks-table tbody", ":excluded:compile")
+    refute has_element?(view, "#gradle-tasks-table tbody", ":excluded:compile")
 
     render_patch(view, sort_href(view, "executions"))
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", ":slow:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", ":slow:compile")
 
     view |> element("#filter-git_branch-value-popover form") |> render_submit(%{"value" => "missing"})
     assert render_async(view, 3000) =~ "No builds in this period"
@@ -320,8 +320,8 @@ defmodule TuistWeb.GradleTasksLiveTest do
     view |> element("#filter-git_branch-value-popover form") |> render_submit(%{"value" => "main"})
     assert_push_event(view, "close-popover", %{all: true})
     render_async(view, 3000)
-    assert has_element?(view, "#gradle-bottlenecks-table tbody", ":app:compile")
-    refute has_element?(view, "#gradle-bottlenecks-table tbody", ":other:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody", ":app:compile")
+    refute has_element?(view, "#gradle-tasks-table tbody", ":other:compile")
     assert has_element?(view, "#bottleneck-tasks [data-part=value]", "1")
 
     render_click(view, "update_filter", %{
@@ -331,8 +331,8 @@ defmodule TuistWeb.GradleTasksLiveTest do
     })
 
     render_async(view, 3000)
-    assert has_element?(view, "#gradle-bottlenecks-table tbody", ":other:compile")
-    refute has_element?(view, "#gradle-bottlenecks-table tbody", ":app:compile")
+    assert has_element?(view, "#gradle-tasks-table tbody", ":other:compile")
+    refute has_element?(view, "#gradle-tasks-table tbody", ":app:compile")
   end
 
   test "detail links retain filters and chart selection without including sibling task metrics", context do
@@ -528,7 +528,7 @@ defmodule TuistWeb.GradleTasksLiveTest do
     percentiles = chart(view)["series"]
     assert Enum.map(percentiles, & &1["name"]) == ["Avg.", "p99", "p90", "p50"]
     refute has_element?(view, "#bottleneck-task_duration", "Cumulative task time")
-    assert has_element?(view, "#gradle-bottlenecks-table th", "Cumulative time")
+    assert has_element?(view, "#gradle-tasks-table th", "Cumulative time")
     assert Enum.map(Enum.at(percentiles, 2)["data"], &List.last/1) == [460, nil, 900, nil, 0]
     assert Enum.map(hd(percentiles)["data"], &List.last/1) == [300, nil, 900, nil, 0]
     assert Enum.all?(chart(view)["series"], &(&1["connectNulls"] == true and &1["symbol"] == "circle"))
@@ -549,7 +549,7 @@ defmodule TuistWeb.GradleTasksLiveTest do
     end
 
     href =
-      view |> render() |> Floki.parse_fragment!() |> Floki.attribute("#gradle-bottlenecks-table tbody a", "href") |> hd()
+      view |> render() |> Floki.parse_fragment!() |> Floki.attribute("#gradle-tasks-table tbody a", "href") |> hd()
 
     assert URI.decode_query(URI.parse(href).query)["analytics-duration-metric"] == "p90_duration_ms"
     {:ok, detail, _} = live(conn, href)
@@ -643,24 +643,24 @@ defmodule TuistWeb.GradleTasksLiveTest do
     path = "/#{organization.account.name}/#{project.name}/builds/tasks"
     {:ok, view, _} = live(conn, path)
     render_async(view, 3000)
-    assert has_element?(view, "#gradle-bottlenecks-table td:first-child [data-type=text_and_description]", ":slow")
-    assert has_element?(view, "#gradle-bottlenecks-table .noora-badge", "Not cacheable")
-    assert has_element?(view, "#gradle-bottlenecks-table .noora-badge", "Unknown cacheability")
-    assert has_element?(view, "#gradle-bottlenecks-table td:nth-child(4) [data-type=text]", "0%")
-    refute has_element?(view, "#gradle-bottlenecks-table .noora-badge", "Cacheable")
-    refute has_element?(view, "#gradle-bottlenecks-table th", "Dependent modules")
-    refute has_element?(view, "#gradle-bottlenecks-table th", "Longest chain")
+    assert has_element?(view, "#gradle-tasks-table td:first-child [data-type=text_and_description]", ":slow")
+    assert has_element?(view, "#gradle-tasks-table .noora-badge", "Not cacheable")
+    assert has_element?(view, "#gradle-tasks-table .noora-badge", "Unknown cacheability")
+    assert has_element?(view, "#gradle-tasks-table td:nth-child(4) [data-type=text]", "0%")
+    refute has_element?(view, "#gradle-tasks-table .noora-badge", "Cacheable")
+    refute has_element?(view, "#gradle-tasks-table th", "Dependent modules")
+    refute has_element?(view, "#gradle-tasks-table th", "Longest chain")
 
     for percentile <- ~w(p50 p90 p99) do
-      assert has_element?(view, "#gradle-bottlenecks-table th", percentile)
+      assert has_element?(view, "#gradle-tasks-table th", percentile)
       render_patch(view, sort_href(view, "#{percentile}_duration_ms"))
-      assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", ":slow")
-      assert has_element?(view, "#gradle-bottlenecks-table tbody tr:last-child", ":local")
+      assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", ":slow")
+      assert has_element?(view, "#gradle-tasks-table tbody tr:last-child", ":local")
     end
 
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", "200ms")
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", "280ms")
-    assert has_element?(view, "#gradle-bottlenecks-table tbody tr:first-child", "298ms")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", "200ms")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", "280ms")
+    assert has_element?(view, "#gradle-tasks-table tbody tr:first-child", "298ms")
   end
 
   defp sort_href(view, field) do

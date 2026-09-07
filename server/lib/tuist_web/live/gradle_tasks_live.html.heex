@@ -1,4 +1,4 @@
-<div id="gradle-bottlenecks">
+<div id="gradle-tasks">
   <.button
     :if={@name}
     label={dgettext("dashboard_gradle", "Tasks")}
@@ -277,7 +277,7 @@
         </div>
         <div :if={page.rows != []} data-part="tasks-table">
           <.table
-            id="gradle-bottlenecks-table"
+            id="gradle-tasks-table"
             rows={page.rows}
             row_navigate={fn row -> entity_path(assigns, row) end}
           >
