@@ -1121,6 +1121,99 @@ struct ViewRefresh {
 /// the only thing that reclaims the entry into the trunk view.
 type RefreshKey = (String, Vec<u8>, Option<String>, Option<String>);
 
+/// Shares blob bytes between concurrent materializers and manifest repairs.
+/// Entries live only for the network request, not as another persistent cache.
+#[derive(Default)]
+struct SharedBlobReads {
+    pending: Mutex<HashMap<(usize, String), Arc<SharedBlobRead>>>,
+}
+
+#[derive(Default)]
+struct SharedBlobRead {
+    result: Mutex<Option<Result<Option<Vec<u8>>, String>>>,
+    ready: Condvar,
+}
+
+struct SharedBlobReadOwner<'a> {
+    reads: &'a SharedBlobReads,
+    remote: usize,
+    owned: Vec<(reapi::Digest, Arc<SharedBlobRead>)>,
+}
+
+impl Drop for SharedBlobReadOwner<'_> {
+    fn drop(&mut self) {
+        let mut pending = self.reads.pending.lock().unwrap();
+        for (digest, read) in &self.owned {
+            let mut result = read.result.lock().unwrap();
+            if result.is_none() {
+                *result = Some(Err("blob fetch interrupted".into()));
+            }
+            read.ready.notify_all();
+            pending.remove(&(self.remote, digest.hash.clone()));
+        }
+    }
+}
+
+impl SharedBlobReads {
+    fn read(
+        &self,
+        remote: usize,
+        digests: &[reapi::Digest],
+        fetch: impl FnOnce(&[reapi::Digest]) -> Result<HashMap<String, Vec<u8>>, String>,
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        let mut owner = SharedBlobReadOwner {
+            reads: self,
+            remote,
+            owned: Vec::new(),
+        };
+        let mut wanted = Vec::with_capacity(digests.len());
+        {
+            let mut pending = self.pending.lock().unwrap();
+            for digest in digests {
+                let read = pending
+                    .entry((remote, digest.hash.clone()))
+                    .or_insert_with(|| {
+                        let read = Arc::new(SharedBlobRead::default());
+                        owner.owned.push((digest.clone(), read.clone()));
+                        read
+                    })
+                    .clone();
+                wanted.push((digest.hash.clone(), read));
+            }
+        }
+        if !owner.owned.is_empty() {
+            let owned: Vec<_> = owner
+                .owned
+                .iter()
+                .map(|(digest, _)| digest.clone())
+                .collect();
+            let fetched = fetch(&owned);
+            for (digest, read) in &owner.owned {
+                *read.result.lock().unwrap() = Some(match &fetched {
+                    Ok(blobs) => Ok(blobs.get(&digest.hash).cloned()),
+                    Err(message) => Err(message.clone()),
+                });
+                read.ready.notify_all();
+            }
+        }
+        // Complete our own reads before waiting on other batches: overlapping
+        // batches can each own nodes the other needs. Drop also wakes followers
+        // on unwinding, so a caught worker panic cannot strand compiler workers.
+        drop(owner);
+        let mut blobs = HashMap::new();
+        for (hash, read) in wanted {
+            let mut result = read.result.lock().unwrap();
+            while result.is_none() {
+                result = read.ready.wait(result).unwrap();
+            }
+            if let Some(bytes) = result.as_ref().unwrap().as_ref().map_err(Clone::clone)? {
+                blobs.insert(hash, bytes.clone());
+            }
+        }
+        Ok(blobs)
+    }
+}
+
 /// Result of a coalesced demand fetch, taken by exactly one waiter.
 enum DemandResult {
     Present(Vec<u8>),
@@ -1363,6 +1456,7 @@ pub struct Proxy {
     // snapshot regardless and their loads self-heal per object.
     prematerializer: Prefetcher,
     materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
+    blob_reads: SharedBlobReads,
     job_counter: AtomicU64,
     // instance -> action-cache snapshot lifecycle. Kicked off in the
     // background on an instance's first resolve; while it is in flight (or
@@ -1431,6 +1525,7 @@ impl Proxy {
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
+            blob_reads: SharedBlobReads::default(),
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             busy_logged_at: Mutex::new(None),
@@ -2016,7 +2111,7 @@ impl Proxy {
             let contents = if digests.is_empty() {
                 HashMap::new()
             } else {
-                remote.batch_read_after_action_result(&digests)?
+                self.read_materialization_blobs(remote, &digests)?
             };
             let fetch_elapsed = phase.elapsed();
             state
@@ -2299,6 +2394,19 @@ impl Proxy {
         }
     }
 
+    fn read_materialization_blobs(
+        &self,
+        remote: &Remote,
+        digests: &[reapi::Digest],
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        // The Remote stays alive for every caller and identifies both endpoint
+        // and instance. Requests to different remotes must never share results.
+        self.blob_reads
+            .read(remote as *const Remote as usize, digests, |owned| {
+                remote.batch_read_after_action_result(owned)
+            })
+    }
+
     /// The demand-fetch coalescer for an instance, created on first use.
     fn coalescer_for(&self, instance: &str) -> Arc<DemandCoalescer> {
         let mut coalescers = self.demand_coalescers.lock().unwrap();
@@ -2346,7 +2454,7 @@ impl Proxy {
         };
         let remote = self.remote_for(&instance);
         let digests: Vec<reapi::Digest> = wanted.iter().map(|(_, blob)| blob.clone()).collect();
-        let Ok(contents) = remote.batch_read(&digests) else {
+        let Ok(contents) = self.read_materialization_blobs(&remote, &digests) else {
             return;
         };
         let mut pending = state.pending_objects.lock().unwrap();
@@ -5318,6 +5426,162 @@ mod tests {
         assert!(Snapshot::decode(&bomb).is_none());
     }
 
+    fn wait_for_shared_reader(reads: &SharedBlobReads, remote: usize, hash: &str) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let joined = reads
+                .pending
+                .lock()
+                .unwrap()
+                .get(&(remote, hash.to_string()))
+                .is_some_and(|read| Arc::strong_count(read) >= 4);
+            if joined {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "follower did not join the in-flight read"
+            );
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn overlapping_materialization_reads_share_bytes_but_not_remote_instances() {
+        let reads = Arc::new(SharedBlobReads::default());
+        let a = reapi::blob_digest(b"a");
+        let b = reapi::blob_digest(b"b");
+        let c = reapi::blob_digest(b"c");
+        let (started, owner_started) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let owner = {
+            let reads = reads.clone();
+            let a = a.clone();
+            let b = b.clone();
+            std::thread::spawn(move || {
+                reads.read(1, &[a.clone(), b.clone()], |wanted| {
+                    assert_eq!(wanted.len(), 2);
+                    started.send(()).unwrap();
+                    released.recv().unwrap();
+                    Ok(HashMap::from([
+                        (a.hash, b"a".to_vec()),
+                        (b.hash, b"b".to_vec()),
+                    ]))
+                })
+            })
+        };
+        owner_started.recv_timeout(Duration::from_secs(5)).unwrap();
+        let follower = {
+            let reads = reads.clone();
+            let b = b.clone();
+            let c = c.clone();
+            std::thread::spawn(move || {
+                reads.read(1, &[b, c.clone()], |wanted| {
+                    assert_eq!(wanted.len(), 1);
+                    assert_eq!(
+                        wanted[0].hash, c.hash,
+                        "only the unclaimed blob goes on the wire"
+                    );
+                    Ok(HashMap::from([(c.hash, b"c".to_vec())]))
+                })
+            })
+        };
+        wait_for_shared_reader(&reads, 1, &b.hash);
+        let other_remote = reads
+            .read(2, &[b.clone()], |wanted| {
+                assert_eq!(wanted.len(), 1);
+                Ok(HashMap::from([(
+                    b.hash.clone(),
+                    b"separate remote".to_vec(),
+                )]))
+            })
+            .unwrap();
+        assert_eq!(other_remote[&b.hash], b"separate remote");
+        release.send(()).unwrap();
+        assert_eq!(owner.join().unwrap().unwrap()[&a.hash], b"a");
+        let result = follower.join().unwrap().unwrap();
+        assert_eq!(result[&b.hash], b"b");
+        assert_eq!(result[&c.hash], b"c");
+        assert!(reads.pending.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn failed_or_panicking_shared_reads_wake_followers_and_allow_retry() {
+        for panic in [false, true] {
+            let reads = Arc::new(SharedBlobReads::default());
+            let digest = reapi::blob_digest(b"retry");
+            let (started, owner_started) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let owner = {
+                let reads = reads.clone();
+                let digest = digest.clone();
+                std::thread::spawn(move || {
+                    std::panic::catch_unwind(|| {
+                        reads.read(1, &[digest], |_| {
+                            started.send(()).unwrap();
+                            released.recv().unwrap();
+                            if panic {
+                                panic!("injected fetch panic");
+                            }
+                            Err("injected transport error".into())
+                        })
+                    })
+                })
+            };
+            owner_started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (finished, result) = std::sync::mpsc::channel();
+            let follower = {
+                let reads = reads.clone();
+                let digest = digest.clone();
+                std::thread::spawn(move || {
+                    finished
+                        .send(reads.read(1, &[digest], |_| panic!("must join owner")))
+                        .unwrap()
+                })
+            };
+            wait_for_shared_reader(&reads, 1, &digest.hash);
+            release.send(()).unwrap();
+            assert!(result
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap()
+                .is_err());
+            follower.join().unwrap();
+            let owner_result = owner.join().unwrap();
+            if panic {
+                assert!(owner_result.is_err());
+            } else {
+                assert!(owner_result.unwrap().is_err());
+            }
+            assert!(reads.pending.lock().unwrap().is_empty());
+            let retried = reads
+                .read(1, &[digest.clone()], |_| {
+                    Ok(HashMap::from([(digest.hash.clone(), b"retry".to_vec())]))
+                })
+                .unwrap();
+            assert_eq!(retried[&digest.hash], b"retry");
+        }
+    }
+
+    #[test]
+    fn missing_shared_blobs_remain_missing_and_are_not_cached() {
+        let reads = SharedBlobReads::default();
+        let digest = reapi::blob_digest(b"later");
+        assert!(reads
+            .read(1, &[digest.clone()], |_| Ok(HashMap::new()))
+            .unwrap()
+            .is_empty());
+        assert!(reads.pending.lock().unwrap().is_empty());
+        assert_eq!(
+            reads
+                .read(1, &[digest.clone()], |_| Ok(HashMap::from([(
+                    digest.hash.clone(),
+                    b"later".to_vec()
+                )])))
+                .unwrap()[&digest.hash],
+            b"later"
+        );
+    }
+
     #[test]
     fn demand_coalescer_routes_concurrent_fetches_correctly() {
         use std::sync::atomic::AtomicUsize;
@@ -7239,4 +7503,6 @@ mod tests {
             "and the probe behind it must now read the live store"
         );
     }
+    include!("proxy_cold_replay_benchmark.rs");
+
 }
