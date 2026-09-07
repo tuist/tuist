@@ -44,11 +44,11 @@
   & [data-part="widgets"] {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-4);
 
     &[data-detail] {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    gap: var(--noora-spacing-4);
   }
 
   & [data-part="active-filters"] {
