@@ -72,7 +72,6 @@ defmodule Tuist.Gradle do
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
-      telemetry_version: value_or(attrs, :telemetry_version, 0),
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
       gradle_version: value_or(attrs, :gradle_version, ""),
@@ -159,7 +158,7 @@ defmodule Tuist.Gradle do
 
         %{
           build_path: build_path,
-          cacheability: value_or(execution, :cacheability, "unknown"),
+          cacheability: value_or(execution, :cacheability, ""),
           incremental: Map.get(execution, :incremental),
           remote_cache_lookup_outcome: Map.get(execution, :remote_cache_lookup_outcome) || "unknown",
           remote_cache_download_duration_ms: Map.get(execution, :remote_cache_download_duration_ms),

@@ -599,7 +599,6 @@ defmodule TuistWeb.GradleTasksLiveTest do
       GradleFixtures.build_fixture(
         project_id: project.id,
         root_project_name: "android",
-        telemetry_version: 1,
         tasks: [execution]
       )
 
@@ -634,7 +633,7 @@ defmodule TuistWeb.GradleTasksLiveTest do
 
     unknown = disabled |> put_in([:execution, :cacheability], "unknown") |> Map.put(:task_path, ":unknown")
     local = %{task(":local", 1) | outcome: "local_hit", remote_cache_miss: false}
-    GradleFixtures.build_fixture(project_id: project.id, telemetry_version: 1, tasks: [disabled, unknown, local])
+    GradleFixtures.build_fixture(project_id: project.id, tasks: [disabled, unknown, local])
 
     for duration <- [100, 300] do
       GradleFixtures.build_fixture(project_id: project.id, tasks: [task(":slow", duration)])

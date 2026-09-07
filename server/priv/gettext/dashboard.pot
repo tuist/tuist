@@ -49,7 +49,7 @@ msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:123
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:127
-#: lib/tuist_web/live/gradle_tasks_live.ex:432
+#: lib/tuist_web/live/gradle_tasks_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
@@ -2681,4 +2681,9 @@ msgstr ""
 #: lib/tuist_web/components/error_card_section.ex:39
 #, elixir-autogen, elixir-format
 msgid "We couldn't load the data. Reload the page and try again."
+msgstr ""
+
+#: lib/tuist_web/components/trend_badge.ex:32
+#, elixir-autogen, elixir-format
+msgid "No change"
 msgstr ""

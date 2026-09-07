@@ -66435,8 +66435,6 @@ public enum Operations {
                         public var tasks_skipped_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
                         public var tasks_up_to_date_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/telemetry_version`.
-                        public var telemetry_version: Swift.Int?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -66470,7 +66468,6 @@ public enum Operations {
                         ///   - tasks_remote_hit_count:
                         ///   - tasks_skipped_count:
                         ///   - tasks_up_to_date_count:
-                        ///   - telemetry_version:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
                             cache_hit_rate: Swift.Double? = nil,
@@ -66501,8 +66498,7 @@ public enum Operations {
                             tasks_no_source_count: Swift.Int? = nil,
                             tasks_remote_hit_count: Swift.Int? = nil,
                             tasks_skipped_count: Swift.Int? = nil,
-                            tasks_up_to_date_count: Swift.Int? = nil,
-                            telemetry_version: Swift.Int? = nil
+                            tasks_up_to_date_count: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
                             self.cache_hit_rate = cache_hit_rate
@@ -66534,7 +66530,6 @@ public enum Operations {
                             self.tasks_remote_hit_count = tasks_remote_hit_count
                             self.tasks_skipped_count = tasks_skipped_count
                             self.tasks_up_to_date_count = tasks_up_to_date_count
-                            self.telemetry_version = telemetry_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
@@ -66567,7 +66562,6 @@ public enum Operations {
                             case tasks_remote_hit_count
                             case tasks_skipped_count
                             case tasks_up_to_date_count
-                            case telemetry_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -71871,8 +71865,6 @@ public enum Operations {
                     public typealias tasksPayload = [Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload]
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasks`.
                     public var tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/telemetry_version`.
-                    public var telemetry_version: Swift.Int?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -71894,7 +71886,6 @@ public enum Operations {
                     ///   - root_project_name: Root project name.
                     ///   - status: Build status.
                     ///   - tasks:
-                    ///   - telemetry_version:
                     public init(
                         artifact_transforms: Operations.createGradleBuild.Input.Body.jsonPayload.artifact_transformsPayload? = nil,
                         configuration_cache: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_cachePayload? = nil,
@@ -71913,8 +71904,7 @@ public enum Operations {
                         requested_tasks: [Swift.String]? = nil,
                         root_project_name: Swift.String? = nil,
                         status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
-                        tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload,
-                        telemetry_version: Swift.Int? = nil
+                        tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
                     ) {
                         self.artifact_transforms = artifact_transforms
                         self.configuration_cache = configuration_cache
@@ -71934,7 +71924,6 @@ public enum Operations {
                         self.root_project_name = root_project_name
                         self.status = status
                         self.tasks = tasks
-                        self.telemetry_version = telemetry_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case artifact_transforms
@@ -71955,7 +71944,6 @@ public enum Operations {
                         case root_project_name
                         case status
                         case tasks
-                        case telemetry_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/content/application\/json`.

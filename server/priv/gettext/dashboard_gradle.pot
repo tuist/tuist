@@ -502,7 +502,7 @@ msgid "Hit Rate"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:857
-#: lib/tuist_web/live/gradle_tasks_live.ex:517
+#: lib/tuist_web/live/gradle_tasks_live.ex:514
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
@@ -1107,7 +1107,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:353
 #: lib/tuist_web/live/gradle_cache_live.html.heex:420
-#: lib/tuist_web/live/gradle_tasks_live.ex:435
+#: lib/tuist_web/live/gradle_tasks_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr ""
@@ -1124,7 +1124,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:339
 #: lib/tuist_web/live/gradle_cache_live.html.heex:407
-#: lib/tuist_web/live/gradle_tasks_live.ex:434
+#: lib/tuist_web/live/gradle_tasks_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr ""
@@ -1141,7 +1141,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:325
 #: lib/tuist_web/live/gradle_cache_live.html.heex:394
-#: lib/tuist_web/live/gradle_tasks_live.ex:433
+#: lib/tuist_web/live/gradle_tasks_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr ""
@@ -1210,14 +1210,14 @@ msgstr ""
 msgid "Analytics could not be loaded"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_tasks_live.ex:514
+#: lib/tuist_web/live/gradle_tasks_live.ex:511
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Cumulative time"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:353
-#: lib/tuist_web/live/gradle_tasks_live.ex:515
+#: lib/tuist_web/live/gradle_tasks_live.ex:512
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Executions"
@@ -1274,33 +1274,33 @@ msgid "No data in this period"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:45
-#: lib/tuist_web/live/gradle_tasks_live.ex:524
+#: lib/tuist_web/live/gradle_tasks_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Not cacheable"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:57
-#: lib/tuist_web/live/gradle_tasks_live.ex:525
+#: lib/tuist_web/live/gradle_tasks_live.ex:522
 #, elixir-autogen, elixir-format
 msgid "Unknown cacheability"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_tasks_live.ex:518
+#: lib/tuist_web/live/gradle_tasks_live.ex:515
 #, elixir-autogen, elixir-format
 msgid "p50 duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_tasks_live.ex:519
+#: lib/tuist_web/live/gradle_tasks_live.ex:516
 #, elixir-autogen, elixir-format
 msgid "p90 duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_tasks_live.ex:520
+#: lib/tuist_web/live/gradle_tasks_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "p99 duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_tasks_live.ex:516
+#: lib/tuist_web/live/gradle_tasks_live.ex:513
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "Misses"
@@ -1349,12 +1349,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr ""
-
-#: lib/tuist_web/live/gradle_tasks_live.ex:412
-#: lib/tuist_web/live/gradle_tasks_live.ex:417
-#, elixir-autogen, elixir-format
-msgid "No change"
 msgstr ""
 
 #: lib/tuist_web/helpers/gradle_task.ex:17

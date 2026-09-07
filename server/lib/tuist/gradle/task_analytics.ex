@@ -82,15 +82,15 @@ defmodule Tuist.Gradle.TaskAnalytics do
       observations: count(),
       cacheable_observations:
         fragment(
-          "countIf((? = 0 AND ?) OR ? = 'cacheable' OR ? IN ('remote_hit', 'local_hit', 'cache_hit') OR ?)",
-          b.telemetry_version,
+          "countIf((? = '' AND ?) OR ? = 'cacheable' OR ? IN ('remote_hit', 'local_hit', 'cache_hit') OR ?)",
+          t.cacheability,
           t.cacheable,
           t.cacheability,
           t.outcome,
           t.remote_cache_miss
         ),
       non_cacheable_observations:
-        fragment("countIf(? = 'disabled' OR (? = 0 AND NOT ?))", t.cacheability, b.telemetry_version, t.cacheable),
+        fragment("countIf(? = 'disabled' OR (? = '' AND NOT ?))", t.cacheability, t.cacheability, t.cacheable),
       avg_duration_ms: fragment("avgIf(?, ? = 'executed')", t.duration_ms, t.outcome),
       p50_duration_ms: fragment("quantileIf(0.5)(?, ? = 'executed')", t.duration_ms, t.outcome),
       p90_duration_ms: fragment("quantileIf(0.9)(?, ? = 'executed')", t.duration_ms, t.outcome),
@@ -157,15 +157,15 @@ defmodule Tuist.Gradle.TaskAnalytics do
         observations: count(),
         cacheable_observations:
           fragment(
-            "countIf((? = 0 AND ?) OR ? = 'cacheable' OR ? IN ('remote_hit', 'local_hit', 'cache_hit') OR ?)",
-            b.telemetry_version,
+            "countIf((? = '' AND ?) OR ? = 'cacheable' OR ? IN ('remote_hit', 'local_hit', 'cache_hit') OR ?)",
+            t.cacheability,
             t.cacheable,
             t.cacheability,
             t.outcome,
             t.remote_cache_miss
           ),
         non_cacheable_observations:
-          fragment("countIf(? = 'disabled' OR (? = 0 AND NOT ?))", t.cacheability, b.telemetry_version, t.cacheable),
+          fragment("countIf(? = 'disabled' OR (? = '' AND NOT ?))", t.cacheability, t.cacheability, t.cacheable),
         cumulative_duration_ms: fragment("sumIf(?, ? = 'executed')", t.duration_ms, t.outcome),
         p50_duration_ms: fragment("quantileIf(0.5)(?, ? = 'executed')", t.duration_ms, t.outcome),
         p90_duration_ms: fragment("quantileIf(0.9)(?, ? = 'executed')", t.duration_ms, t.outcome),
@@ -260,7 +260,6 @@ defmodule Tuist.Gradle.TaskAnalytics do
           :id,
           :root_project_name,
           :inserted_at,
-          :telemetry_version,
           :custom_tags,
           :account_id,
           :is_ci,

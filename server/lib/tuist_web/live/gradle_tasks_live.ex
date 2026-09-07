@@ -409,14 +409,11 @@ defmodule TuistWeb.GradleTasksLive do
     difference = Float.round((total - previous) * 1.0, 1)
 
     if difference == 0,
-      do: dgettext("dashboard_gradle", "No change"),
+      do: nil,
       else: dgettext("dashboard_gradle", "%{change} pp", change: "#{if difference > 0, do: "+"}#{difference}")
   end
 
-  defp metric_trend_label(_metric, total, previous) when total == 0 and previous == 0,
-    do: dgettext("dashboard_gradle", "No change")
-
-  defp metric_trend_label(metric, total, previous) when is_number(total) and previous == 0 do
+  defp metric_trend_label(metric, total, previous) when is_number(total) and total != 0 and previous == 0 do
     if total > 0, do: "+#{metric_value(metric, total)}", else: metric_value(metric, total)
   end
 

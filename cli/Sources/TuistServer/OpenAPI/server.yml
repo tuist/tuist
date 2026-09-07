@@ -24599,10 +24599,6 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  telemetry_version:
-                    type: integer
-                    x-struct:
-                    x-validate:
                 type: object
                 x-struct:
                 x-validate:
@@ -26685,12 +26681,6 @@ paths:
                     x-struct:
                     x-validate:
                   type: array
-                  x-struct:
-                  x-validate:
-                telemetry_version:
-                  maximum: 65535
-                  minimum: 0
-                  type: integer
                   x-struct:
                   x-validate:
               required:

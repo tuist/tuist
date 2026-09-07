@@ -42,7 +42,6 @@ defmodule TuistWeb.API.GradleController do
          type: :object,
          properties: %{
            id: %Schema{type: :string, nullable: true, description: "Client-provided build ID (UUID)."},
-           telemetry_version: %Schema{type: :integer, minimum: 0, maximum: 65_535},
            duration_ms: %Schema{type: :integer, minimum: 0, description: "Build duration in milliseconds."},
            status: %Schema{type: :string, enum: ["success", "failure", "cancelled"], description: "Build status."},
            gradle_version: %Schema{type: :string, nullable: true, description: "Gradle version."},
@@ -258,7 +257,6 @@ defmodule TuistWeb.API.GradleController do
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
       account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
-      telemetry_version: body[:telemetry_version] || 0,
       duration_ms: body.duration_ms,
       status: body.status,
       gradle_version: body[:gradle_version],
@@ -521,7 +519,6 @@ defmodule TuistWeb.API.GradleController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid},
-             telemetry_version: %Schema{type: :integer},
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
              gradle_version: %Schema{type: :string, nullable: true},
@@ -598,7 +595,6 @@ defmodule TuistWeb.API.GradleController do
 
           json(conn, %{
             id: build.id,
-            telemetry_version: build.telemetry_version,
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,

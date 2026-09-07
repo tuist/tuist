@@ -4,6 +4,7 @@ defmodule TuistWeb.Components.TrendBadge do
   """
   use Phoenix.Component
   use Noora
+  use Gettext, backend: TuistWeb.Gettext
 
   attr :trend_value, :integer, required: true
   attr :label, :string, default: nil, doc: "Optional formatted trend value, replacing the percentage label."
@@ -13,7 +14,7 @@ defmodule TuistWeb.Components.TrendBadge do
     values: [:regular, :inverse, :neutral]
 
   def trend_badge(assigns) do
-    rounded = Float.round(assigns.trend_value, 1)
+    rounded = Float.round(assigns.trend_value / 1, 1)
 
     formatted_value =
       if abs(rounded) < 0.1 and rounded != 0.0 do
@@ -27,9 +28,11 @@ defmodule TuistWeb.Components.TrendBadge do
       size="large"
       label={
         @label ||
-          if @trend_value > 0,
-            do: "+#{formatted_value}%",
-            else: "#{formatted_value}%"
+          cond do
+            @trend_value == 0 -> dgettext("dashboard", "No change")
+            @trend_value > 0 -> "+#{formatted_value}%"
+            true -> "#{formatted_value}%"
+          end
       }
       color={
         cond do

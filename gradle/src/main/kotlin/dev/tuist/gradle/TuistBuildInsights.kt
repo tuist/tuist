@@ -123,7 +123,6 @@ data class BuildReportRequest(
     @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
     @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
-    @SerializedName("telemetry_version") val telemetryVersion: Int = 1
 )
 
 data class BuildReportResponse(val id: String)

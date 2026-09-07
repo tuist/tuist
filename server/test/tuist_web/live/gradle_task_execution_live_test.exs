@@ -23,7 +23,6 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
         project_id: project.id,
         root_project_name: "Composite project",
         is_ci: true,
-        telemetry_version: 1,
         git_branch: "main",
         git_commit_sha: "d73a6294ef18476e86391c98e5a52da986cc1b20",
         tasks: [task(":included"), task(":")]

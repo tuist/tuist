@@ -147,15 +147,13 @@ defmodule Tuist.Gradle.TaskAnalyticsTest do
         requested_tasks: [":app:jar"],
         is_ci: true,
         gradle_version: "9.2.1",
-        java_version: "21.0.2",
-        telemetry_version: 1
+        java_version: "21.0.2"
       )
 
     build(project, account, [task(":app:compileJava", "executed", 900, true)],
       git_branch: "feature",
       requested_tasks: [":app:test"],
-      is_ci: false,
-      telemetry_version: 1
+      is_ci: false
     )
 
     opts = [
@@ -232,8 +230,8 @@ defmodule Tuist.Gradle.TaskAnalyticsTest do
     unknown = put_in(task(":app:unknown", "executed", 100, false), [:execution, :cacheability], "unknown")
     mixed_disabled = %{disabled | task_path: ":app:mixed"}
     mixed_cacheable = task(":app:mixed", "local_hit", 5, false)
-    build(project, account, [disabled, unknown, mixed_disabled], telemetry_version: 1)
-    build(project, account, [mixed_cacheable], telemetry_version: 1)
+    build(project, account, [disabled, unknown, mixed_disabled])
+    build(project, account, [mixed_cacheable])
     build(project, account, [%{task_path: ":app:legacy", outcome: "executed", duration_ms: 100, cacheable: false}])
 
     rows = Map.new(TaskAnalytics.list(project.id).rows, &{&1.name, &1})

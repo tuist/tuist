@@ -40,7 +40,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
           "required" => ["tags", "values"],
           "additionalProperties" => false
         },
-        "telemetry_version" => %{"type" => "integer"},
         "tasks_cache_hit_count" => %{"type" => "integer"},
         "tasks_local_hit_count" => %{"type" => "integer"},
         "tasks_remote_hit_count" => %{"type" => "integer"},
@@ -66,7 +65,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "root_project_name",
         "requested_tasks",
         "custom_metadata",
-        "telemetry_version",
         "tasks_cache_hit_count",
         "tasks_local_hit_count",
         "tasks_remote_hit_count",
@@ -105,7 +103,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       {:ok,
        %{
          id: build.id,
-         telemetry_version: build.telemetry_version,
          tasks_cache_hit_count: build.tasks_cache_hit_count,
          duration_ms: build.duration_ms,
          status: to_string(build.status),

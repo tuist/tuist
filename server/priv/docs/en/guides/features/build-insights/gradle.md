@@ -89,6 +89,6 @@ A task's detail page shows analytics and a **Task executions** table with Projec
 | p50 / p90 / p99 duration | Durations below which 50%, 90% and 99% of executed tasks fall. |
 | Cumulative task time | Sum of executed task durations across matching builds. Parallel work overlaps, so this is not elapsed build time or time that splitting a module will necessarily save. |
 
-Execution collection uses Gradle's internal operation APIs and is compatible with configuration-cache reuse. Reports identify the telemetry version. Cache hits with an unobserved origin are reported as `cache_hit` rather than attributed to the local or remote cache.
+Execution collection uses Gradle's internal operation APIs and is compatible with configuration-cache reuse. Cache hits with an unobserved origin are reported as `cache_hit` rather than attributed to the local or remote cache.
 
 Download and upload throughput use transferred bytes divided by the summed durations of the corresponding successful remote load/store operations. Only transfers with both a recorded size and a positive duration contribute. Historical reports without these timings show No data; task duration is not used as transfer time.

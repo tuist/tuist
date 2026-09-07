@@ -35,7 +35,6 @@ defmodule TuistWeb.API.GradleControllerTest do
       body = %{
         duration_ms: 400,
         status: "success",
-        telemetry_version: 1,
         tasks: [
           %{
             task_path: ":core:compile",
