@@ -2944,6 +2944,109 @@ as seven separate series over a week. Always reduce with `max by (pod)` (or
 `by (cluster, pod)`) first. The same applies when counting how long a pod
 spent above a threshold.
 
+### Kura instance below its replica count
+
+Catches a per-account Kura StatefulSet serving on fewer ready replicas than it
+declares, whatever took the replica away: unschedulable, crash-looping, stuck
+terminating, or a rollout that never finished. Every managed instance runs
+`replicas: 2` so a deploy always has somewhere to hand traffic to, and the
+standby is also what a rebuilt replica refills its ring from over the peer mesh
+(`instancePodAffinity` in the kura-controller). An instance down to one replica
+still answers, which is why nothing that watches request rates or error rates
+sees anything: it is not an outage, it is the absence of the thing that keeps
+the next deploy from being one.
+
+**Not created in Grafana yet.** Merging this section provisions nothing (see
+the note under [Routing to Grafana IRM](#routing-to-grafana-irm) — the rules in
+this document are hand-created), so until someone builds it in the console the
+gap below is still open.
+
+```promql
+kube_statefulset_replicas{namespace="kura"}
+-
+kube_statefulset_status_replicas_ready{namespace="kura"}
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- Folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`, alongside
+  the other Kura rules
+- No `affected_service` label: an instance on one replica is degraded, not
+  customer-visible. It becomes customer-visible at the next deploy, which is
+  the reason to clear it within the day rather than to page on it.
+- Summary: `Kura instance {{ $labels.statefulset }} has been short of ready
+  replicas for 30 minutes ({{ $values.A.Value | printf "%.0f" }} missing)`
+
+**Deliberately a subtraction rather than `ready < replicas`.** A comparison
+operator filters, so a healthy fleet returns no series at all and the rule sits
+in no-data forever, where a rule that has gone blind looks exactly like a rule
+with nothing to report. Left as a plain subtraction every instance evaluates to
+an explicit `0` while it is healthy, and no-data means the telemetry stopped.
+Same reasoning, and the same shape, as **Control-plane replicas below desired
+state**.
+
+**Do not add a `cluster` selector.** Kura runs in `tuist-production`,
+`tuist-staging` and `tuist-canary` and the `kura` namespace exists nowhere else,
+so `namespace="kura"` already scopes it. Adding `cluster=` buys nothing and
+risks the failure that **Control-plane replicas below desired state** hit: if
+Adaptive Metrics aggregates the label away, an equality matcher on it matches
+zero series and the rule is silently dead under `no_data_state: OK`. Without the
+matcher, an aggregated `cluster` costs an empty interpolation in the summary
+instead of the whole rule.
+
+**Confirm the series before saving, and count them.** The metrics are scraped:
+the production Alloy config's kube-state-metrics allow-list keeps
+`kube_statefulset.*` (verified 2026-09-07 against
+`k8s-monitoring-alloy-metrics` in `observability`; `values.yaml` reaches it
+through `useDefaultAllowList: true`). What cannot be checked from the cluster is
+what Adaptive Metrics does to them on the Grafana Cloud side, and that is what
+decides whether this rule works. Run the expression in Explore and expect one
+series per Kura StatefulSet, all at `0`: 52 in production, 15 in staging and 4
+in canary on 2026-09-07, none of them short. Materially fewer series, or a
+`statefulset` label reading `<aggregated>`, means the per-object identity is
+gone and the rule can only ever report a fleet-wide count of missing replicas —
+usable, but rewrite the summary rather than leaving it interpolating nothing.
+
+**Single-replica instances are handled by the expression, not by an exception.**
+The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
+`1 - 1` is `0` like any other healthy instance. A scaled-to-zero or
+being-deleted StatefulSet is `0 - 0`.
+
+**Thirty minutes, for the same reason as *Pod cannot be scheduled*.** It clears
+a rolling deploy, a node drain, and the kura-controller's own volume rebuild,
+which takes a replica down deliberately and gets it back Ready in about two
+minutes. It is short enough that a wedge surfaces the same morning.
+
+**What this exists for.** On 2026-09-07 a `kura-<account>-us-east-1-1` replica
+was found to have sat `Pending` for roughly two days while `-0` served, so a
+live instance ran single-replica against the `replicas: 2` invariant and nothing
+said so. Its PVC was bound to a `scw-local-nvme` volume pinned to the older of
+the region's two boxes, which had 3146 MiB of `tuist.dev/memory-ceiling-mib`
+free against the 4096 the pod requests; the other box had 14410 MiB and was
+unreachable for that volume, and a box added to the region afterwards did not
+help because the pin predated it. None of the 22 Kura rules that predate this
+one covered it: **Kura cache telemetry missing** is fleet-wide
+`absent_over_time`, **Kura cache pod restart
+loop** cannot fire because a `Pending` pod never restarts, and the region rules
+describe the region rather than the tenant. The kura-controller now rebuilds
+that volume on its own, so this rule's subject is the shortfall the self-heal
+does not clear: no capacity anywhere in the region, a sibling that is also down
+(the rebuild is gated on it, deliberately, so an instance can never lose both
+copies), a crash loop, or a wedge the trigger does not recognise.
+
+**A rule that should have caught it already exists in this document.** *Pod
+cannot be scheduled* matches any unschedulable production pod outside
+`tuist-runners` for 30 minutes, which is exactly what that replica was. Its
+entry carries no *Already created* / *Live* / *Provisioned* line, unlike every
+other rule here that has been built, so it appears never to have been created in
+Grafana — the same half-deployment as
+[#12836](https://github.com/tuist/tuist/pull/12836). Check it while creating
+this one; the two are worth having together, since that rule catches an
+unplaceable pod in any namespace and this one catches a tenant below its replica
+count for reasons that never involve the scheduler.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another

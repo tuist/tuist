@@ -1943,7 +1943,7 @@ func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 	}
 }
 
-func TestReconcileDataStorageResize(t *testing.T) {
+func TestReconcileDataVolumeRebuildsAGrownClaim(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
@@ -2024,7 +2024,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance("40Gi"), time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2052,7 +2052,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance("40Gi"), time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2075,7 +2075,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance("40Gi"), time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2093,7 +2093,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("20Gi"))
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance("20Gi"), time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2111,12 +2111,407 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance("40Gi"), time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
 		if inProgress {
 			t.Fatal("expected the resize to be finished")
+		}
+	})
+}
+
+// A node-local data volume pins its replica to the box it was carved on. When
+// that box fills, the replica cannot start there and cannot go anywhere else,
+// so it sits Pending behind a claim that is perfectly healthy -- which is why
+// nothing in the resize path saw it. These cases fix which shapes are that
+// wedge and which are some other path's business.
+func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		instanceName = "kura-acme-us-east-1"
+		namespace    = "kura"
+		storage      = "40Gi"
+		filledNode   = "us-east-box-1"
+	)
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2)), StorageSize: storage},
+	}
+	// Templated at the declared claim, so nothing here is a resize.
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+		Spec: appsv1.StatefulSetSpec{
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: "data"},
+				Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+				}},
+			}},
+		},
+	}
+	pvName := func(ordinal int) string { return fmt.Sprintf("pvc-data-%s-%d", instanceName, ordinal) }
+	claimName := func(ordinal int) string { return fmt.Sprintf("data-%s-%d", instanceName, ordinal) }
+	podName := func(ordinal int) string { return fmt.Sprintf("%s-%d", instanceName, ordinal) }
+
+	boundClaim := func(ordinal int) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: claimName(ordinal), Namespace: namespace, Labels: selectorLabels(instance)},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				VolumeName: pvName(ordinal),
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+				},
+			},
+			Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+		}
+	}
+	// What the StatefulSet recreates after a rebuild: WaitForFirstConsumer holds
+	// it unbound until a pod is scheduled onto it.
+	pendingClaim := func(ordinal int) *corev1.PersistentVolumeClaim {
+		pvc := boundClaim(ordinal)
+		pvc.Spec.VolumeName = ""
+		pvc.Status.Phase = corev1.ClaimPending
+		return pvc
+	}
+	localPV := func(ordinal int, hostname string) *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: pvName(ordinal)},
+			Spec: corev1.PersistentVolumeSpec{
+				PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimDelete,
+				NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key:      corev1.LabelHostname,
+						Operator: corev1.NodeSelectorOpIn,
+						Values:   []string{hostname},
+					}}}},
+				}},
+			},
+		}
+	}
+	unschedulablePod := func(ordinal int, pendingFor time.Duration) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              podName(ordinal),
+				Namespace:         namespace,
+				Labels:            selectorLabels(instance),
+				CreationTimestamp: metav1.NewTime(now.Add(-pendingFor)),
+			},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+				Conditions: []corev1.PodCondition{{
+					Type:               corev1.PodScheduled,
+					Status:             corev1.ConditionFalse,
+					Reason:             corev1.PodReasonUnschedulable,
+					LastTransitionTime: metav1.NewTime(now.Add(-pendingFor)),
+					Message: "0/37 nodes are available: 1 Insufficient tuist.dev/memory-ceiling-mib, " +
+						"1 node(s) didn't match PersistentVolume's node affinity.",
+				}},
+			},
+		}
+	}
+	servingPod := func(ordinal int) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: podName(ordinal), Namespace: namespace, Labels: selectorLabels(instance)},
+			Spec:       corev1.PodSpec{NodeName: filledNode},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodRunning,
+				Conditions: []corev1.PodCondition{
+					{Type: corev1.PodScheduled, Status: corev1.ConditionTrue, LastTransitionTime: metav1.NewTime(now.Add(-48 * time.Hour))},
+					{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				},
+			},
+		}
+	}
+	unreadyPod := func(ordinal int) *corev1.Pod {
+		pod := servingPod(ordinal)
+		for i := range pod.Status.Conditions {
+			if pod.Status.Conditions[i].Type == corev1.PodReady {
+				pod.Status.Conditions[i].Status = corev1.ConditionFalse
+			}
+		}
+		return pod
+	}
+	// Placed long ago and still not up: on the box its volume pins it to, so the
+	// pin is not what is in its way.
+	imagePullPod := func(ordinal int) *corev1.Pod {
+		pod := servingPod(ordinal)
+		pod.Status.Phase = corev1.PodPending
+		pod.Status.Conditions = pod.Status.Conditions[:1]
+		return pod
+	}
+	node := func(name string, ready bool, cordoned bool) *corev1.Node {
+		status := corev1.ConditionFalse
+		if ready {
+			status = corev1.ConditionTrue
+		}
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec:       corev1.NodeSpec{Unschedulable: cordoned},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status}},
+			},
+		}
+	}
+	exists := func(t *testing.T, c client.Client, name string, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
+	}
+
+	cases := []struct {
+		name     string
+		claim    *corev1.PersistentVolumeClaim
+		pod      *corev1.Pod
+		pinnedTo string
+		node     *corev1.Node
+		sibling  *corev1.Pod
+		rebuilt  bool
+	}{
+		{
+			name:     "rebuilds a replica the scheduler has refused on a healthy pinned box",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+			rebuilt:  true,
+		},
+		{
+			// The self-limiting half: an unbound claim is what the StatefulSet
+			// has just recreated, and rebuilding it again would loop.
+			name:     "leaves an unbound claim alone",
+			claim:    pendingClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// The binder writes spec.volumeName before status flips to Bound. A
+			// claim caught in that window is on its way to a pod, not away from
+			// one.
+			name: "leaves a claim that is still binding alone",
+			claim: func() *corev1.PersistentVolumeClaim {
+				pvc := boundClaim(1)
+				pvc.Status.Phase = corev1.ClaimPending
+				return pvc
+			}(),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			name:     "leaves a replica pending on something other than the scheduler alone",
+			claim:    boundClaim(1),
+			pod:      imagePullPod(1),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// The scheduler failing to run is not the scheduler reaching a
+			// verdict, and only a verdict says the pin is what is in the way.
+			name:  "leaves a replica the scheduler has not ruled on alone",
+			claim: boundClaim(1),
+			pod: func() *corev1.Pod {
+				pod := unschedulablePod(1, 48*time.Hour)
+				pod.Status.Conditions[0].Reason = "SchedulerError"
+				return pod
+			}(),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// Already on its way out, and the replacement gets its own grace.
+			name:  "leaves a terminating replica alone",
+			claim: boundClaim(1),
+			pod: func() *corev1.Pod {
+				pod := unschedulablePod(1, 48*time.Hour)
+				pod.Finalizers = []string{"kura.tuist.dev/test-hold"}
+				pod.DeletionTimestamp = ptr(metav1.NewTime(now.Add(-time.Minute)))
+				return pod
+			}(),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			name:     "leaves a running replica alone",
+			claim:    boundClaim(1),
+			pod:      servingPod(1),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// A rolling deploy, a drain and a region briefly at capacity all look
+			// like this for a few minutes.
+			name:     "leaves a replica pending under the grace threshold alone",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 5*time.Minute),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// The volume is one of the account's two copies, and the sibling is
+			// what the rebuilt pod refills from.
+			name:     "leaves a wedged replica alone while its sibling is down",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, false),
+			sibling:  unreadyPod(0),
+		},
+		{
+			// A cordoned box is being drained or replaced. The volume is intact
+			// and node evacuation owns what happens to the replica on it.
+			name:     "leaves a pin to a cordoned node alone",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, true, true),
+			sibling:  servingPod(0),
+		},
+		{
+			name:     "leaves a pin to a NotReady node alone",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: filledNode,
+			node:     node(filledNode, false, false),
+			sibling:  servingPod(0),
+		},
+		{
+			// A reprovisioned bare-metal box. staleDataStorageReason recreates
+			// the whole StatefulSet for that one, and the two must not both act.
+			name:     "leaves a pin to an absent node to the stale path",
+			claim:    boundClaim(1),
+			pod:      unschedulablePod(1, 48*time.Hour),
+			pinnedTo: "us-east-box-reprovisioned",
+			sibling:  servingPod(0),
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			objects := []client.Object{
+				instance, sts, boundClaim(0), localPV(0, filledNode),
+				testCase.claim, testCase.pod, testCase.sibling, localPV(1, testCase.pinnedTo),
+			}
+			if testCase.node != nil {
+				objects = append(objects, testCase.node)
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+			inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inProgress != testCase.rebuilt {
+				t.Fatalf("expected in-flight %t, got %t", testCase.rebuilt, inProgress)
+			}
+
+			claimGone := !exists(t, c, claimName(1), &corev1.PersistentVolumeClaim{})
+			podGone := !exists(t, c, podName(1), &corev1.Pod{})
+			if claimGone != testCase.rebuilt || podGone != testCase.rebuilt {
+				t.Fatalf("expected rebuild %t, got claim deleted %t and pod deleted %t",
+					testCase.rebuilt, claimGone, podGone)
+			}
+			// Whatever happened to the wedged ordinal, the one that is serving the
+			// account is never touched.
+			if !exists(t, c, claimName(0), &corev1.PersistentVolumeClaim{}) || !exists(t, c, podName(0), &corev1.Pod{}) {
+				t.Fatal("the serving replica must be left alone")
+			}
+		})
+	}
+
+	// A wedged pin cannot be reported as in-flight when it is not being acted
+	// on: the caller skips the rest of the reconcile -- status, Services, DNS --
+	// while it is, and an instance running on one replica is exactly when those
+	// need to keep running.
+	t.Run("does not stall the reconcile on a wedge it is not acting on", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance, sts, boundClaim(0), localPV(0, filledNode), node(filledNode, true, false),
+			boundClaim(1), localPV(1, filledNode), unschedulablePod(1, 48*time.Hour), unreadyPod(0),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataVolumeRebuilds(context.Background(), instance, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a wedge left alone is not a rebuild in flight")
+		}
+	})
+
+	// The trigger needs a Bound claim and a Pending pod at once. The rebuild
+	// removes both, and WaitForFirstConsumer keeps the recreated claim unbound
+	// until a pod is scheduled onto it, so it cannot fire again for the same
+	// wedge. That is the whole of the loop protection: there is no backoff state.
+	t.Run("is self-limiting once the StatefulSet has recreated the claim", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance, sts, boundClaim(0), localPV(0, filledNode), node(filledNode, true, false),
+			boundClaim(1), localPV(1, filledNode), unschedulablePod(1, 48*time.Hour), servingPod(0),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		ctx := context.Background()
+
+		if _, err := r.reconcileDataVolumeRebuilds(ctx, instance, now); err != nil {
+			t.Fatal(err)
+		}
+		if exists(t, c, claimName(1), &corev1.PersistentVolumeClaim{}) {
+			t.Fatal("expected the wedged claim to be rebuilt")
+		}
+
+		// The pass before the StatefulSet has caught up: nothing to act on.
+		inProgress, err := r.reconcileDataVolumeRebuilds(ctx, instance, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("expected the rebuild to be finished once the claim is gone")
+		}
+
+		// The StatefulSet recreates both, and the pod is still Pending because
+		// the region is still full -- but unpinned now, so it lands the moment
+		// any box in it has room.
+		recreatedPod := unschedulablePod(1, 0)
+		for _, object := range []client.Object{pendingClaim(1), recreatedPod} {
+			if err := c.Create(ctx, object); err != nil {
+				t.Fatal(err)
+			}
+		}
+		later := now.Add(24 * time.Hour)
+		inProgress, err = r.reconcileDataVolumeRebuilds(ctx, instance, later)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("an unbound claim has no pin to rebuild away")
+		}
+		if !exists(t, c, claimName(1), &corev1.PersistentVolumeClaim{}) || !exists(t, c, podName(1), &corev1.Pod{}) {
+			t.Fatal("expected the recreated claim and pod to be left alone")
 		}
 	})
 }

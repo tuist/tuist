@@ -88,6 +88,15 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
+	// wedgedPinGrace is how long a replica must have been refused by the
+	// scheduler before its pinned data volume is treated as the thing in its
+	// way. It is a quiet-period, not a measurement: rolling deploys, node
+	// drains, image pulls and a region briefly at capacity all place a pod
+	// within it, and none of them should cost a volume. Nothing in Kura is
+	// worse for waiting a quarter of an hour, and the state this exists for
+	// lasted two days.
+	wedgedPinGrace = 15 * time.Minute
+
 	sharedSecretsName                           = "kura-shared-secrets"
 	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
@@ -396,12 +405,13 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	// A grown claim reaches the same immutability, but from a healthy instance
-	// that is still serving, so it does not get the same treatment: re-template
-	// the StatefulSet without disturbing what it runs, then replace the volumes
-	// one replica at a time behind the standby. Requeue between replicas so each
-	// rebuilt pod is serving again before the next is taken.
-	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
+	// A grown claim and a replica wedged on a volume pinned to a box that has
+	// since filled reach the same immutability, but neither is a reason to drop
+	// the instance: re-template the StatefulSet without disturbing what it runs,
+	// then replace the volumes one replica at a time behind the standby. Requeue
+	// between replicas so each rebuilt pod is serving again before the next is
+	// taken.
+	if inProgress, err := r.reconcileDataVolumeRebuilds(ctx, instance, time.Now()); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -2689,9 +2699,17 @@ func podKuraImage(pod *corev1.Pod) string {
 	return ""
 }
 
-// reconcileDataStorageResize grows an instance's data volumes to the claim it
-// declares, one replica at a time, so the account keeps serving throughout. It
-// reports true while a resize is in flight.
+// reconcileDataVolumeRebuilds replaces an instance's data volumes one replica
+// at a time, so the account keeps serving throughout. It reports true while a
+// rebuild is in flight.
+//
+// Two states need one: a claim the CR has grown, and a replica wedged on a
+// volume pinned to a box that has since filled (see wedgedPinnedNode). They
+// arrive from opposite directions -- the first from an instance that is serving
+// fine, the second from a replica that has been Pending for hours -- and take
+// the same route, because the route is not about the reason. It is about a
+// volume that cannot be changed in place, on an instance that must not drop
+// below its replica count to get there.
 //
 // Neither half of a StatefulSet's storage can be changed in place: the fleet's
 // storage class is allowVolumeExpansion: false, so patching a bound claim is
@@ -2711,9 +2729,9 @@ func podKuraImage(pod *corev1.Pod) string {
 // A single-replica instance has no sibling to serve or to refill from, so there
 // it is an interruption. Nothing short of the warm handoff avoids that.
 //
-// Only grows. A volume larger than the declared claim already holds the ring it
-// is told to budget and evicts down into it, so it is left alone.
-func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+// A claim only grows. A volume larger than the declared claim already holds the
+// ring it is told to budget and evicts down into it, so it is left alone.
+func (r *KuraInstanceReconciler) reconcileDataVolumeRebuilds(ctx context.Context, instance *kurav1alpha1.KuraInstance, now time.Time) (bool, error) {
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
 		return false, nil
@@ -2763,26 +2781,51 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 			return true, nil
 		}
 		bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-		if !ok || bound.Cmp(desired) >= 0 {
+		grown := ok && bound.Cmp(desired) < 0
+
+		wedgedOn, err := r.wedgedPinnedNode(ctx, instance, ordinal, pvc, now)
+		if err != nil {
+			return false, err
+		}
+		if !grown && wedgedOn == "" {
 			continue
 		}
 
 		// Never take this one down while another is already down. Waiting here is
 		// what keeps the rebuild rolling rather than wholesale, and it is also
 		// what makes a rebuilt pod's backfill worth anything: it has a serving
-		// sibling to read from.
+		// sibling to read from. That gate is why a wedged replica is left wedged
+		// rather than rebuilt when its sibling is down: the pod being replaced is
+		// not serving anyone, but the volume being discarded is one of the two
+		// copies, and the other one has to be there to refill from.
 		serving, err := r.siblingsServing(ctx, instance, ordinal)
 		if err != nil {
 			return false, err
 		}
 		if !serving {
-			return true, nil
+			// A grown claim parks the loop here so the ordinals stay in order and
+			// the rebuild resumes as soon as the sibling is back. A wedged pin has
+			// nothing in flight to park on, and reporting one would stall the rest
+			// of the reconcile -- status, services, DNS -- on an instance that is
+			// already degraded, which is exactly when they matter. Leave it for a
+			// later pass.
+			if grown {
+				return true, nil
+			}
+			continue
 		}
 
-		log.FromContext(ctx).Info(
-			"rebuilding one Kura data volume for a grown claim",
-			"pvc", pvcName, "from", bound.String(), "to", desired.String(),
-		)
+		if grown {
+			log.FromContext(ctx).Info(
+				"rebuilding one Kura data volume for a grown claim",
+				"pvc", pvcName, "from", bound.String(), "to", desired.String(),
+			)
+		} else {
+			log.FromContext(ctx).Info(
+				"rebuilding one Kura data volume wedged on its pinned node",
+				"pvc", pvcName, "node", wedgedOn,
+			)
+		}
 		if err := r.reclaimDataVolume(ctx, pvc); err != nil {
 			return false, err
 		}
@@ -2819,6 +2862,128 @@ func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *
 		}
 	}
 	return ready >= replicas(instance)-1, nil
+}
+
+// wedgedPinnedNode reports the node a replica's data volume pins it to when
+// that pin is what is keeping the replica from running, and "" otherwise.
+//
+// A node-local volume outlives every scheduling decision taken around it. The
+// claim binds once, on whichever box had room that day, and its PV carries a
+// kubernetes.io/hostname affinity from then on. When that box later fills, the
+// replica cannot start on it and cannot go anywhere else, so it sits Pending
+// while its sibling serves the account alone -- against the two replicas that
+// exist so a deploy has somewhere to hand traffic to. Adding a box to the
+// region does not release it, because the pin predates the box. Production
+// carried exactly that for two days before anyone deleted the claim by hand,
+// after which the volume reprovisioned on the box with room and the pod
+// refilled from its sibling in about two minutes.
+//
+// What is read here is the scheduler's verdict, never a recomputation of it. A
+// pod the scheduler has refused for a quarter of an hour, holding a bound
+// volume on a node that is present, Ready and schedulable, is a pod whose pin
+// is what is in its way; there is nothing else left for it to be waiting on.
+// Comparing the node's allocatable against the pod's requests would say the
+// same thing in a second implementation of scheduling that is free to drift
+// out of agreement with the first one.
+//
+// The Bound claim is also what makes the rebuild self-limiting. The fleet's
+// storage classes bind WaitForFirstConsumer, so the claim the StatefulSet
+// recreates is unbound until a pod is scheduled onto it -- and once one is,
+// the pod is no longer Pending. The trigger cannot fire twice for the same
+// wedge, with no backoff state to keep.
+func (r *KuraInstanceReconciler) wedgedPinnedNode(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	ordinal int32,
+	pvc *corev1.PersistentVolumeClaim,
+	now time.Time,
+) (string, error) {
+	if pvc.Status.Phase != corev1.ClaimBound || pvc.Spec.VolumeName == "" {
+		return "", nil
+	}
+	pod := &corev1.Pod{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      fmt.Sprintf("%s-%d", instance.Name, ordinal),
+		Namespace: instance.Namespace,
+	}, pod)
+	if apierrors.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	since, refused := podUnschedulableSince(pod)
+	if !refused || now.Sub(since) < wedgedPinGrace {
+		return "", nil
+	}
+	return r.pvSchedulableHostname(ctx, pvc.Spec.VolumeName)
+}
+
+// podUnschedulableSince reports when the scheduler first refused to place a
+// pod, and false when the pod is not waiting on the scheduler at all.
+//
+// Pending on its own is too broad to act on: a pod that has been assigned a
+// node and is pulling an image is Pending too, and it is already sitting on the
+// box its volume pins it to, so the volume is not what is holding it up. The
+// PodScheduled condition is what separates the two, the same way
+// podUnschedulableForCPU reads it. A pod on its way out is nobody's evidence.
+func podUnschedulableSince(pod *corev1.Pod) (time.Time, bool) {
+	if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodPending {
+		return time.Time{}, false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type != corev1.PodScheduled ||
+			condition.Status != corev1.ConditionFalse ||
+			condition.Reason != corev1.PodReasonUnschedulable {
+			continue
+		}
+		// The scheduler rewrites the message on every failed attempt but leaves
+		// the transition time at the first one, so this is when the pod stopped
+		// being placeable rather than when it was last looked at.
+		if !condition.LastTransitionTime.IsZero() {
+			return condition.LastTransitionTime.Time, true
+		}
+		return pod.CreationTimestamp.Time, true
+	}
+	return time.Time{}, false
+}
+
+// pvSchedulableHostname returns the node a PV's required affinity pins it to
+// when that node is present, Ready and not cordoned, and "" otherwise.
+//
+// Every rejected case belongs to another path, and rebuilding over it would
+// discard a volume that path still has a use for. A PV with no hostname
+// affinity is not pinned to begin with. A pin to a node that no longer exists
+// is staleDataStorageReason's, which recreates the whole StatefulSet rather
+// than one ordinal, and the two must stay distinct. A pin to a node that is
+// NotReady, cordoned or draining is a box being worked on: the volume is
+// intact, the replica comes back with the box, and node evacuation decides
+// when it should not.
+func (r *KuraInstanceReconciler) pvSchedulableHostname(ctx context.Context, pvName string) (string, error) {
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	hostnames := pvRequiredHostnames(pv)
+	if len(hostnames) == 0 {
+		return "", nil
+	}
+	for _, hostname := range hostnames {
+		node := &corev1.Node{}
+		if err := r.Get(ctx, types.NamespacedName{Name: hostname}, node); err != nil {
+			if apierrors.IsNotFound(err) {
+				return "", nil
+			}
+			return "", err
+		}
+		if node.DeletionTimestamp != nil || node.Spec.Unschedulable || !nodeReady(node) {
+			return "", nil
+		}
+	}
+	return hostnames[0], nil
 }
 
 // templateStorage is the claim size the StatefulSet's data volumeClaimTemplate
@@ -2952,11 +3117,13 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 // keeps returning a reason so the caller waits for deletion to finish before the
 // StatefulSet is recreated.
 //
-// A changed claim is deliberately not in that list. It is reached the same way
-// -- neither the bound claim nor the volumeClaimTemplate can be changed in
-// place -- but it does not need the instance taken down to get there, and
-// `reconcileDataStorageResize` replaces the volumes one replica at a time
-// instead.
+// A changed claim is deliberately not in that list, and neither is a pin to a
+// node that still exists but has filled. Both are reached the same way --
+// neither the bound claim nor the volumeClaimTemplate can be changed in place
+// -- but neither needs the instance taken down to get there, and
+// `reconcileDataVolumeRebuilds` replaces the volumes one replica at a time
+// instead. The line between the two node cases is whether the node is still
+// there: gone is this function's, full is the rebuild's.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
