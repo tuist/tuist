@@ -847,7 +847,7 @@ ovhFleet:
 ovhFleets:
   us-east:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
