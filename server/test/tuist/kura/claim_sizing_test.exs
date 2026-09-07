@@ -27,6 +27,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
     )
   end
 
+  # The budget is the ring a 16Gi claim funds once upload staging, a spare
+  # segment and the index are reserved, matching the default context's claim.
   defp churn_days(count, end_day, attrs \\ []) do
     for offset <- (count - 1)..0//-1 do
       rollup(
@@ -36,7 +38,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
             eviction_count: 40,
             evicted_bytes: 10 * @gibibyte,
             median_shed_age_seconds: 12 * 3_600,
-            median_ring_span_seconds: div(3 * @day_seconds, 2)
+            median_ring_span_seconds: div(3 * @day_seconds, 2),
+            last_ring_budget_bytes: 13 * @gibibyte
           ],
           attrs
         )
@@ -141,7 +144,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "severe shedding acts on two days instead of serving out the long window" do
       # 30 minutes against a 3-day floor: the ring is churning artifacts it
       # just stored, and every further day of confirmation is a day the
-      # account rebuilds what it already built. Turnover here is 1.25 rings a
+      # account rebuilds what it already built. Turnover here is 0.8 rings a
       # day, short of the single-day rung.
       context = context(rollups: severe_churn(2, @today))
 
@@ -156,17 +159,18 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # where eight-hour shedding would have to prove two. Because a ring
       # turns over about once per span it holds, that is also roughly an
       # hour of real time rather than two.
-      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 18 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 14 * @gibibyte))
 
       assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["window_days"] == 1
+      assert evidence["ring_budget_bytes"] == 13 * @gibibyte
       assert evidence["ring_turnover"] == 1.1
       assert evidence["qualifying_threshold_seconds"] == 3_600
     end
 
     test "catastrophic shedding still needs a whole ring lost" do
       # Half a ring under an hour old is a burst, not a verdict.
-      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 8 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 6 * @gibibyte))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
@@ -174,20 +178,74 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "an hour-old ring does not get the relaxed volume once it is merely severe" do
       # Ninety minutes clears the catastrophic rung, so the account falls to
       # the eight-hour rung and owes the full two rings again.
-      rollups = 1 |> churn_at(@today, 90 * 60, 2 * 3_600) |> Enum.map(&Map.put(&1, :evicted_bytes, 18 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 90 * 60, 2 * 3_600) |> Enum.map(&Map.put(&1, :evicted_bytes, 14 * @gibibyte))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
 
     test "a single severe day acts when the account cycled its whole ring twice over" do
-      # Volume replaces elapsed time on the shortest rung: 40Gi evicted
-      # against a 16Gi claim is two and a half rings lost in a day, while the
+      # Volume replaces elapsed time on the shortest rung: 33Gi evicted
+      # against a 13Gi ring is two and a half rings lost in a day, while the
       # content going out is younger than a working day.
-      rollups = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 40 * @gibibyte))
+      rollups = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
 
       assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["window_days"] == 1
       assert evidence["ring_turnover"] == 2.5
+    end
+
+    test "turnover is measured against the ring the nodes ran, not the claim funding it" do
+      # A claim also funds upload staging, a spare segment and the index, so
+      # an 8Gi claim runs a 5Gi ring. 11Gi shed in a day is 2.2 rings of what
+      # the account actually cycled and only 1.4 of the claim, so measuring
+      # the claim would hold the eight-hour rung shut while the ring turned
+      # over twice.
+      rollups =
+        1
+        |> churn_at(@today, 6 * 3_600, 12 * 3_600)
+        |> Enum.map(&Map.merge(&1, %{evicted_bytes: 11 * @gibibyte, last_ring_budget_bytes: 5 * @gibibyte}))
+
+      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
+
+      assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 1
+      assert evidence["ring_budget_bytes"] == 5 * @gibibyte
+      assert evidence["ring_turnover"] == 2.2
+    end
+
+    test "a window with no measured ring withholds the rungs that gate on turnover" do
+      # Nothing reported a ring budget, so there is no honest denominator and
+      # the volume rungs stay shut rather than falling back to the claim. The
+      # reading waits for the two-day rung, which buys its confirmation with
+      # elapsed time instead.
+      rollups =
+        2
+        |> churn_at(@today, 20 * 60, 30 * 60)
+        |> Enum.map(&Map.merge(&1, %{evicted_bytes: 40 * @gibibyte, last_ring_budget_bytes: nil}))
+
+      assert ClaimSizing.evaluate(context(rollups: Enum.take(rollups, -1))) == :none
+
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert evidence["window_days"] == 2
+      assert evidence["ring_budget_bytes"] == nil
+      assert evidence["ring_turnover"] == nil
+    end
+
+    test "a window whose days disagree is measured against the smallest ring it ran" do
+      # Days normally agree, because a window never spans a resize. When they
+      # do not, every byte in the sum went out against a ring at least this
+      # small, so the smaller of the two is the denominator.
+      [older, newer] = churn_at(2, @today, 20 * 60, 30 * 60)
+
+      rollups = [
+        Map.put(older, :last_ring_budget_bytes, 5 * @gibibyte),
+        Map.put(newer, :last_ring_budget_bytes, 13 * @gibibyte)
+      ]
+
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert evidence["window_days"] == 2
+      assert evidence["ring_budget_bytes"] == 5 * @gibibyte
+      assert evidence["ring_turnover"] == 4.0
     end
 
     test "a single severe day without the volume waits for a second day" do
