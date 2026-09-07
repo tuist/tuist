@@ -1204,6 +1204,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
+                    .external(name: "Command"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
