@@ -8,6 +8,8 @@ defmodule Tuist.Kura.PodMetrics do
   `provisioner_node_ref` rather than from the requested name.
   """
 
+  import Ecto.Query
+
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
@@ -46,7 +48,12 @@ defmodule Tuist.Kura.PodMetrics do
   end
 
   defp fetch_server(ref) do
-    case Repo.get_by(Server, provisioner_node_ref: ref) do
+    # `provisioner_node_ref` is unique only among servers that are not
+    # destroyed: teardown keeps the row and its ref, and recreating the same
+    # account and region derives the same ref again.
+    query = from(s in Server, where: s.provisioner_node_ref == ^ref and s.status != :destroyed)
+
+    case Repo.one(query) do
       nil -> {:error, :not_found}
       %Server{} = server -> {:ok, server}
     end

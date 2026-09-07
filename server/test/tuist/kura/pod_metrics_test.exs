@@ -65,6 +65,30 @@ defmodule Tuist.Kura.PodMetricsTest do
     assert {:error, :not_found} = PodMetrics.fetch("kura-acme-us-east-1")
   end
 
+  test "reads the live server when a destroyed one kept the same ref", %{server: server} do
+    {:ok, destroyed} =
+      server
+      |> Server.status_changeset(%{status: :destroying})
+      |> Repo.update()
+
+    {:ok, _} = destroyed |> Server.status_changeset(%{status: :destroyed}) |> Repo.update()
+
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, _recreated} =
+      %Server{}
+      |> Server.create_changeset(%{
+        account_id: Accounts.get_account_from_user(user).id,
+        region: "us-east",
+        provisioner_node_ref: "kura-acme-us-east-1"
+      })
+      |> Repo.insert()
+
+    expect(Req, :get, fn _url, _opts -> {:ok, %Req.Response{status: 200, body: "ok\n"}} end)
+
+    assert {:ok, "ok\n"} = PodMetrics.fetch("kura-acme-us-east-1-0")
+  end
+
   test "reports an unreachable pod" do
     expect(Req, :get, fn _url, _opts -> {:error, %Mint.TransportError{reason: :timeout}} end)
 
