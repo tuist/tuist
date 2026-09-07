@@ -63,6 +63,7 @@ config :esbuild,
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
