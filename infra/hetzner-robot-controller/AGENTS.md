@@ -218,6 +218,35 @@ Coverage:
 Tests use controller-runtime's `fake.Client` and an in-memory
 `robot.FakeClient` — no live Robot API or k8s cluster required.
 
+## Releasing
+
+`.github/workflows/hetzner-robot-controller-release.yml` cuts the
+tag and publishes the image on push to `main`, and the mgmt
+cluster runs whatever tag `infra/k8s/mgmt/hetzner-robot-controller.yaml`
+pins. Renovate raises the pin once a release exists.
+
+A change here only ships if its commit is **scoped to this
+component**. `cliff.toml` matches
+`<type>(...hetzner-robot-controller...)` and its last parser skips
+every other scoped commit, so a change landing under `fix(infra)`
+or `feat(server)` is invisible to `mise run release:check`: no tag
+is cut, and `if: needs.check.outputs.should-release == 'true'`
+skips the release job.
+
+Nothing reports that. CI is green, `main` carries the change, and
+the cluster keeps running the old image until someone compares the
+pin against the code. It happened to the WWN four-disk fix, which
+merged under `feat(server)` in
+[#12814](https://github.com/tuist/tuist/pull/12814) and left the
+mgmt cluster on `0.1.0` with a filler that still installed a
+four-disk box across two of its disks.
+
+So scope commits touching this directory
+`<type>(hetzner-robot-controller)`. If one lands under the wrong
+scope, the recovery is another commit here carrying the right one;
+`workflow_dispatch` does not help, because the release job is
+gated on the same check.
+
 ## Future work
 
 - **Webhook on the CR for the deletion gate** (admission rejection
