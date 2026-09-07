@@ -24,12 +24,6 @@
       "cache-eu-central-canary"
     ];
 
-    vultrMachines = [
-      "cache-sa-west"
-      "cache-au-east"
-      "cache-us-central"
-    ];
-
     sharedModules = [
       disko.nixosModules.disko
       opnix.nixosModules.default
@@ -61,8 +55,7 @@
       };
   in {
     nixosConfigurations =
-      nixpkgs.lib.genAttrs hetznerMachines (mkNixosConfig ./disk-config-hetzner.nix)
-      // nixpkgs.lib.genAttrs vultrMachines (mkNixosConfig ./disk-config-vultr.nix);
+      nixpkgs.lib.genAttrs hetznerMachines (mkNixosConfig ./disk-config-hetzner.nix);
 
     colmena =
       {
@@ -70,7 +63,6 @@
           nixpkgs = import nixpkgs {system = "x86_64-linux";};
         };
       }
-      // nixpkgs.lib.genAttrs hetznerMachines (mkColmenaNode ./disk-config-hetzner.nix)
-      // nixpkgs.lib.genAttrs vultrMachines (mkColmenaNode ./disk-config-vultr.nix);
+      // nixpkgs.lib.genAttrs hetznerMachines (mkColmenaNode ./disk-config-hetzner.nix);
   };
 }
