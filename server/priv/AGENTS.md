@@ -13,6 +13,9 @@ This directory contains database migrations and other private assets.
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
+- Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
+  block-size, and query-memory settings, including catch-up passes. Copying
+  one partition at a time alone does not bound their peak memory usage.
 - Add marketing changelog entries only for customer-facing product changes that are ready to announce.
 - Do not add product changelog entries for ops-only, admin-only, internal rollout, infrastructure-only, or otherwise unannounced functionality.
 
