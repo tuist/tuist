@@ -63,9 +63,9 @@ public struct ListBundlesService: ListBundlesServicing {
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
-                    page_size: pageSize,
                     page: page,
-                    git_branch: gitBranch
+                    git_branch: gitBranch,
+                    page_size: pageSize
                 )
             )
         )
