@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use bazel_remote_apis::build::bazel::remote::execution::v2::{
     self as reapi, action_cache_client::ActionCacheClient, batch_update_blobs_request,
+    capabilities_client::CapabilitiesClient,
     content_addressable_storage_client::ContentAddressableStorageClient,
 };
 use sha2::{Digest as _, Sha256};
@@ -340,6 +341,9 @@ pub struct Remote {
     config: RemoteConfig,
     tokens: Arc<TokenProvider>,
     channel: OnceLock<Result<Channel, String>>,
+    chunking: std::sync::Mutex<Option<(Instant, bool)>>,
+    chunking_disabled_until_ms: AtomicU64,
+    uploaded_blob_bytes: AtomicU64,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
     // Epoch-ms until which `batch_read` skips its per-blob retries because the
@@ -542,6 +546,9 @@ impl Remote {
             config,
             tokens,
             channel: OnceLock::new(),
+            chunking: std::sync::Mutex::new(None),
+            chunking_disabled_until_ms: AtomicU64::new(0),
+            uploaded_blob_bytes: AtomicU64::new(0),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
             pressure_backoff_until_ms: AtomicU64::new(0),
@@ -569,6 +576,15 @@ impl Remote {
 
     pub fn shed_writes(&self) -> u64 {
         self.shed_writes.load(Ordering::Relaxed)
+    }
+
+    /// Blob payload bytes handed to the transport, including retry attempts.
+    pub fn uploaded_blob_bytes(&self) -> u64 {
+        self.uploaded_blob_bytes.load(Ordering::Relaxed)
+    }
+
+    pub fn uses_chunked_compression(&self, size: usize) -> bool {
+        size >= 2 * 1024 * 1024 && self.supports_chunking()
     }
 
     /// The `authorization: Bearer <token>` header, or `None` when the endpoint
@@ -813,12 +829,10 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
-        let result = batch_read_retrying(
-            &self.pressure_backoff_until_ms,
-            blobs,
-            false,
-            |pending| self.batch_read_once(pending),
-        );
+        let result =
+            batch_read_retrying(&self.pressure_backoff_until_ms, blobs, false, |pending| {
+                self.batch_read_once(pending)
+            });
         self.get_stats.record(started.elapsed());
         result
     }
@@ -832,12 +846,9 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
-        let result = batch_read_retrying(
-            &self.pressure_backoff_until_ms,
-            blobs,
-            true,
-            |pending| self.batch_read_once(pending),
-        );
+        let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, true, |pending| {
+            self.batch_read_once(pending)
+        });
         self.get_stats.record(started.elapsed());
         result
     }
@@ -923,6 +934,147 @@ impl Remote {
 
     /// Uploads blobs in size-bounded batches.
     pub fn batch_update(&self, items: Vec<(reapi::Digest, Vec<u8>)>) -> Result<(), String> {
+        let mut whole = Vec::new();
+        for (digest, data) in items {
+            if data.len() >= 2 * 1024 * 1024
+                && self.supports_chunking()
+                && self.upload_chunked(&digest, &data)?
+            {
+                continue;
+            }
+            whole.push((digest, data));
+        }
+        self.batch_update_whole(whole, false)
+    }
+
+    // Only enable the algorithm/parameters this implementation understands. A
+    // failed handshake is an optional optimization failure, so old endpoints
+    // continue to use the original transport. Each Remote is endpoint-scoped.
+    fn supports_chunking(&self) -> bool {
+        if now_ms() < self.chunking_disabled_until_ms.load(Ordering::Relaxed) {
+            return false;
+        }
+        let mut cached = self.chunking.lock().unwrap();
+        if let Some((checked, supported)) = *cached {
+            if checked.elapsed() < Duration::from_secs(300) {
+                return supported;
+            }
+        }
+        let supported = (|| {
+            let Ok(channel) = self.channel() else {
+                return false;
+            };
+            let mut client = CapabilitiesClient::new(channel);
+            let mut request = self.authed(reapi::GetCapabilitiesRequest {
+                instance_name: self.config.instance.clone(),
+            });
+            request.set_timeout(Duration::from_secs(5));
+            let Ok(Ok(response)) = runtime().block_on(async {
+                tokio::time::timeout(Duration::from_secs(5), client.get_capabilities(request)).await
+            }) else {
+                return false;
+            };
+            let Some(capabilities) = response.into_inner().cache_capabilities else {
+                return false;
+            };
+            capabilities.splice_blob_support
+                && capabilities.split_blob_support
+                && capabilities.fast_cdc_2020_params.is_some_and(|params| {
+                    params.avg_chunk_size_bytes == 512 * 1024 && params.seed == 0
+                })
+        })();
+        *cached = Some((Instant::now(), supported));
+        supported
+    }
+
+    fn upload_chunked(&self, digest: &reapi::Digest, data: &[u8]) -> Result<bool, String> {
+        if blob_digest(data) != *digest {
+            return Err("chunked upload digest does not match its bytes".into());
+        }
+        let chunks: Vec<_> = fastcdc::v2020::FastCDC::with_level(
+            data,
+            128 * 1024,
+            512 * 1024,
+            2 * 1024 * 1024,
+            fastcdc::v2020::Normalization::Level2,
+        )
+        .map(|chunk| {
+            let bytes = &data[chunk.offset..chunk.offset + chunk.length];
+            (blob_digest(bytes), bytes)
+        })
+        .collect();
+        if chunks.len() < 2 || chunks.len() > 16_384 {
+            return Ok(false);
+        }
+        let missing =
+            self.find_missing(chunks.iter().map(|(digest, _)| digest.clone()).collect())?;
+        let requested: std::collections::HashSet<_> = chunks
+            .iter()
+            .map(|(digest, _)| (digest.hash.as_str(), digest.size_bytes))
+            .collect();
+        if missing
+            .iter()
+            .any(|digest| !requested.contains(&(digest.hash.as_str(), digest.size_bytes)))
+        {
+            return Err("chunk presence response contained an unrequested digest".into());
+        }
+        let mut missing: std::collections::HashSet<_> = missing
+            .into_iter()
+            .map(|digest| (digest.hash, digest.size_bytes))
+            .collect();
+        self.batch_update_whole(
+            chunks
+                .iter()
+                .filter_map(|(digest, bytes)| {
+                    missing
+                        .remove(&(digest.hash.clone(), digest.size_bytes))
+                        .then(|| (digest.clone(), bytes.to_vec()))
+                })
+                .collect(),
+            true,
+        )?;
+        let mut client = self.cas_client()?;
+        let request = reapi::SpliceBlobRequest {
+            instance_name: self.config.instance.clone(),
+            blob_digest: Some(digest.clone()),
+            chunk_digests: chunks.into_iter().map(|(digest, _)| digest).collect(),
+            chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+            ..Default::default()
+        };
+        match retry_write(&self.write_pressure_backoff_until_ms, || {
+            runtime().block_on(client.splice_blob(self.authed(request.clone())))
+        }) {
+            Ok(response) => {
+                if response.into_inner().blob_digest.as_ref() == Some(digest) {
+                    Ok(true)
+                } else {
+                    Err("splice response did not confirm the uploaded digest".into())
+                }
+            }
+            Err(status) if status.code() == tonic::Code::Unimplemented => {
+                self.chunking_disabled_until_ms
+                    .store(now_ms() + 300_000, Ordering::Relaxed);
+                Ok(false)
+            }
+            // Eviction between presence checking and publication is a cache
+            // miss, not a failed build. The whole upload is independently valid.
+            Err(status)
+                if matches!(
+                    status.code(),
+                    tonic::Code::NotFound | tonic::Code::FailedPrecondition
+                ) =>
+            {
+                Ok(false)
+            }
+            Err(status) => Err(format!("splice_blob: {status}")),
+        }
+    }
+
+    fn batch_update_whole(
+        &self,
+        items: Vec<(reapi::Digest, Vec<u8>)>,
+        validate_responses: bool,
+    ) -> Result<(), String> {
         let started = Instant::now();
         let result = (|| {
             let mut client = self.cas_client()?;
@@ -951,11 +1103,33 @@ impl Remote {
                     requests: chunk,
                     ..Default::default()
                 };
+                let mut expected: std::collections::HashSet<_> = request
+                    .requests
+                    .iter()
+                    .filter_map(|entry| entry.digest.as_ref())
+                    .map(|digest| (digest.hash.clone(), digest.size_bytes))
+                    .collect();
                 let response = retry_write(&self.write_pressure_backoff_until_ms, || {
+                    self.uploaded_blob_bytes
+                        .fetch_add(size as u64, Ordering::Relaxed);
                     runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
+                    if validate_responses {
+                        let digest = entry
+                            .digest
+                            .ok_or("batch_update response omitted a digest")?;
+                        if !expected.remove(&(digest.hash, digest.size_bytes)) {
+                            return Err(
+                                "batch_update response repeated or returned an unrequested digest"
+                                    .into(),
+                            );
+                        }
+                        if entry.status.is_none() {
+                            return Err("batch_update response omitted a status".into());
+                        }
+                    }
                     if let Some(status) = entry.status {
                         if status.code != 0 {
                             // A shed can arrive either way, and only the RPC-level
@@ -974,6 +1148,9 @@ impl Remote {
                             return Err(format!("batch_update blob rejected: {}", status.message));
                         }
                     }
+                }
+                if validate_responses && !expected.is_empty() {
+                    return Err("batch_update response omitted requested blobs".into());
                 }
             }
             Ok(())
@@ -1100,6 +1277,28 @@ pub fn decode_frame(frame: &[u8]) -> Option<Node> {
 
 pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
     zstd::stream::encode_all(frame, 1).unwrap_or_default()
+}
+
+/// Independent compression histories preserve content-defined boundaries after
+/// edits. The concatenated frames decode to the original bytes with the existing
+/// decoder, including in clients released before chunked transfers existed.
+pub fn compress_frame_in_chunks(frame: &[u8]) -> Vec<u8> {
+    let mut result = Vec::new();
+    for chunk in fastcdc::v2020::FastCDC::with_level(
+        frame,
+        128 * 1024,
+        512 * 1024,
+        2 * 1024 * 1024,
+        fastcdc::v2020::Normalization::Level2,
+    ) {
+        let Ok(compressed) =
+            zstd::stream::encode_all(&frame[chunk.offset..chunk.offset + chunk.length], 1)
+        else {
+            return Vec::new();
+        };
+        result.extend(compressed);
+    }
+    result
 }
 
 pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {

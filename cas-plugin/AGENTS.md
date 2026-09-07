@@ -89,6 +89,8 @@ Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_
 
 ## Development
 
+Large publications negotiate the existing chunk capabilities before using missing-chunk uploads and splice. Independent Zstandard frames retain the original decoded node format. The publication memo pins the encoding choice with the digest so capability changes cannot change an already-described blob. See `tests/chunking_negotiation.rs`, `tests/content_defined_chunking.rs`, and `../kura/docs/client-chunking.md` for compatibility checks and benchmarks.
+
 A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:
 
 ```sh

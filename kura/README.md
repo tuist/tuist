@@ -37,6 +37,8 @@ Actively supported:
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
 - `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
 
+Module and Gradle clients can negotiate additive `/api/cache/chunks/*` upload routes. Completion still publishes an ordinary artifact for existing readers and replication peers. See [client chunking](docs/client-chunking.md) for compression boundaries, rollout, storage costs, and reproducible benchmarks.
+
 Compatibility surfaces:
 
 - `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`

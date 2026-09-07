@@ -16,3 +16,4 @@ This module handles CLI integration with the cache service and cache features.
 - Explicit cache warm target selection scopes transitive cache candidates from non-test roots only.
 - Caller-owned cache-warm scratch directories reject foreign build misses because their scripts control output locations.
 - Cache version bumps invalidate incompatible artifacts.
+- Module upload chunking is optional and capability-negotiated. Keep old multipart fallback and archive bytes unchanged. Skip monolithic compressed archives; validate chunk digests and bound scanning and response memory. Cross-language boundary vectors and local-server checks live in `ContentDefinedChunkingTests`.

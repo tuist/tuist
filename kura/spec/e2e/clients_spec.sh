@@ -47,6 +47,13 @@ Describe 'actively supported protocol interoperability'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
+  It 'reads chunked module and Gradle uploads through legacy routes across regions'
+    When run python3 "${PROJECT_ROOT}/test/e2e/chunked_upload_probe.py" "$KURA_US_URL" "$KURA_EU_URL"
+    The status should be success
+    The output should include 'module: negotiated upload'
+    The output should include 'gradle: negotiated upload'
+  End
+
   It 'reuses Bazel remote cache entries across regions'
     marker="bazel-$(new_marker)"
     instance_name="bazel/${marker}"

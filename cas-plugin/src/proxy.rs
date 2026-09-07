@@ -522,7 +522,8 @@ pub struct PathState {
     // Sharded: this set is checked once per manifest entry (~1.9M times per
     // warm build) from every connection thread.
     known_local: [Mutex<HashSet<Vec<u8>>>; 32],
-    publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
+    // Pin the representation with the digest across capability changes.
+    publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>, bool)>>,
     // Millis since Proxy.epoch of the last request that touched this path, for
     // idle reclamation. Bumped once per resolve/publish (per action key, not per
     // node), so the maintenance loop can free caches of projects nobody builds.
@@ -2356,7 +2357,9 @@ impl Proxy {
                     Some(PendingFetch { blob, contents }) => {
                         Some((blob.clone(), contents.is_some()))
                     }
-                    None => publish.get(child).map(|(blob, _refs)| (blob.clone(), false)),
+                    None => publish
+                        .get(child)
+                        .map(|(blob, _refs, _chunked)| (blob.clone(), false)),
                 },
             )
         };
@@ -2550,7 +2553,7 @@ impl Proxy {
                 .lock()
                 .unwrap()
                 .get(digest)
-                .map(|(blob, _refs)| PendingFetch {
+                .map(|(blob, _refs, _chunked)| PendingFetch {
                     blob: blob.clone(),
                     contents: None,
                 })
@@ -2899,7 +2902,7 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let (entries, blobs) = walk_closure(state, &record.value_digest)?;
+        let (entries, blobs) = walk_closure(state, &record.value_digest, remote)?;
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -2910,13 +2913,15 @@ impl Proxy {
         // (llcas_digest, uncompressed size, compressed size, node data) per
         // uploaded node, recorded once the batch transfer time is known.
         let mut upload_meta: Vec<(Vec<u8>, i64, i64, Vec<u8>)> = Vec::new();
-        for (entry, blob) in entries.iter().zip(blobs) {
+        for (entry, (blob, chunked)) in entries.iter().zip(blobs) {
             if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
                 continue;
             }
             let bytes = match blob {
                 Some(bytes) => bytes,
-                None => encode_node_blob_accounted(state, &entry.llcas_digest)?.0,
+                None => {
+                    encode_node_blob_accounted(state, &entry.llcas_digest, remote, Some(chunked))?.0
+                }
             };
             if self.analytics.is_some() {
                 let (size, data) = reapi::decompress_frame(&bytes)
@@ -4449,7 +4454,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
 /// proportion: 100x a number this size is still small against one RPC, and a
 /// publication makes four. A walk cost is not a candidate explanation for a
 /// `write_duration` regression measured in hundreds of milliseconds.
-/// `encode_node_blob` with the local-cost accounting attached. Every llcas read
+/// Node loading and compression with local-cost accounting. Every llcas read
 /// a publication makes goes through here, because a publication makes them from
 /// TWO places and the counters are worth nothing if they only see one: the walk
 /// below reads each node it has not memoized, and the upload leg reads again for
@@ -4461,31 +4466,49 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
 fn encode_node_blob_accounted(
     state: &'static PathState,
     digest: &[u8],
-) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    remote: &Remote,
+    chunked: Option<bool>,
+) -> Result<(Vec<u8>, Vec<Vec<u8>>, bool), String> {
     let started = Instant::now();
-    let loaded = unsafe { encode_node_blob(state, digest) };
+    let loaded = unsafe { read_node_frame(state, digest) };
     state
         .us_publish_local
         .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
     state
         .stats_publish_nodes_loaded
         .fetch_add(1, Ordering::Relaxed);
-    loaded
+    let (frame, ref_digests) = loaded?;
+    // Negotiation is network work, and must not inflate the local-store timer.
+    let chunked = chunked.unwrap_or_else(|| remote.uses_chunked_compression(frame.len()));
+    let started = Instant::now();
+    let blob = if chunked {
+        reapi::compress_frame_in_chunks(&frame)
+    } else {
+        reapi::compress_frame(&frame)
+    };
+    state
+        .us_publish_local
+        .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+    if blob.is_empty() {
+        return Err("failed to compress node".into());
+    }
+    Ok((blob, ref_digests, chunked))
 }
 
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
-) -> Result<(Vec<ManifestEntry>, Vec<Option<Vec<u8>>>), String> {
+    remote: &Remote,
+) -> Result<(Vec<ManifestEntry>, Vec<(Option<Vec<u8>>, bool)>), String> {
     let mut entries: Vec<ManifestEntry> = Vec::new();
-    let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut blobs: Vec<(Option<Vec<u8>>, bool)> = Vec::new();
     let mut visited = HashSet::new();
     let mut pending = VecDeque::from([root.to_vec()]);
     while let Some(digest) = pending.pop_front() {
         if !visited.insert(digest.clone()) {
             continue;
         }
-        if let Some((blob_digest, children)) =
+        if let Some((blob_digest, children, chunked)) =
             state.publish_cache.lock().unwrap().get(&digest).cloned()
         {
             entries.push(ManifestEntry {
@@ -4493,36 +4516,37 @@ fn walk_closure(
                 blob: blob_digest,
                 contents: None,
             });
-            blobs.push(None);
+            blobs.push((None, chunked));
             pending.extend(children);
             continue;
         }
-        let (blob, children) = encode_node_blob_accounted(state, &digest)?;
+        let (blob, children, chunked) = encode_node_blob_accounted(state, &digest, remote, None)?;
         let blob_digest = reapi::blob_digest(&blob);
-        state
-            .publish_cache
-            .lock()
-            .unwrap()
-            .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+        state.publish_cache.lock().unwrap().insert(
+            digest.clone(),
+            (blob_digest.clone(), children.clone(), chunked),
+        );
         entries.push(ManifestEntry {
             llcas_digest: digest,
             blob: blob_digest,
             contents: None,
         });
-        blobs.push(Some(blob));
+        blobs.push((Some(blob), chunked));
         pending.extend(children);
     }
     Ok((entries, blobs))
 }
 
-unsafe fn encode_node_blob(
+unsafe fn read_node_frame(
     state: &PathState,
     digest: &[u8],
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
     // Held for the whole decode: the loaded object and every id/digest borrowed
     // out of it below belong to this handle, so a wipe must not dispose it here.
     let cas_guard = state.cas.read().unwrap();
-    let Some(cas) = *cas_guard else { return Err("cas store is out of service".into()) };
+    let Some(cas) = *cas_guard else {
+        return Err("cas store is out of service".into());
+    };
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
@@ -4554,8 +4578,8 @@ unsafe fn encode_node_blob(
         let digest = (state.up.llcas_objectid_get_digest)(cas, child);
         ref_digests.push(std::slice::from_raw_parts(digest.data, digest.size).to_vec());
     }
-    let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
-    Ok((blob, ref_digests))
+    let frame = reapi::encode_frame(&ref_digests, node_data);
+    Ok((frame, ref_digests))
 }
 
 #[cfg(test)]

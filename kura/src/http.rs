@@ -67,6 +67,9 @@ use crate::{
     },
 };
 
+#[path = "http_chunking.rs"]
+mod chunking;
+
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
 const FILE_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
 const INLINE_RESPONSE_LIVE_BUFFER_COUNT: usize = 2;
@@ -89,6 +92,10 @@ const ROUTE_API_CACHE_MODULE_PART: &str = "/api/cache/module/part";
 const ROUTE_API_CACHE_MODULE_COMPLETE: &str = "/api/cache/module/complete";
 const ROUTE_API_CACHE_CLEAN: &str = "/api/cache/clean";
 const ROUTE_API_CACHE_GRADLE: &str = "/api/cache/gradle/{cache_key}";
+const ROUTE_CHUNK_CAPABILITIES: &str = "/api/cache/chunks/capabilities";
+const ROUTE_CHUNK_MISSING: &str = "/api/cache/chunks/missing";
+const ROUTE_CHUNK_UPLOAD: &str = "/api/cache/chunks/upload";
+const ROUTE_CHUNK_COMPLETE: &str = "/api/cache/chunks/complete";
 const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
 const ROUTE_INTERNAL_BACKFILL_ENTRIES: &str = "/_internal/backfill/entries";
 const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
@@ -99,7 +106,11 @@ const ROUTE_INTERNAL_REPLICATE_ARTIFACTS: &str = "/_internal/replicate/artifacts
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 20] = [
+    ROUTE_CHUNK_CAPABILITIES,
+    ROUTE_CHUNK_MISSING,
+    ROUTE_CHUNK_UPLOAD,
+    ROUTE_CHUNK_COMPLETE,
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -279,6 +290,10 @@ fn public_routes() -> Router<SharedState> {
         )
         .route(ROUTE_API_CACHE_CLEAN, delete(clean_namespace))
         .route(ROUTE_API_CACHE_GRADLE, get(get_gradle).put(put_gradle))
+        .route(ROUTE_CHUNK_CAPABILITIES, get(chunking::capabilities))
+        .route(ROUTE_CHUNK_MISSING, post(chunking::missing))
+        .route(ROUTE_CHUNK_UPLOAD, put(chunking::upload))
+        .route(ROUTE_CHUNK_COMPLETE, post(chunking::complete))
 }
 
 fn internal_routes() -> Router<SharedState> {
@@ -1481,6 +1496,16 @@ async fn http_request_metadata(
     let mut namespace_id = query.namespace_id().map(ToOwned::to_owned);
 
     match route {
+        ROUTE_CHUNK_CAPABILITIES => HttpRequestMetadata {
+            operation: "capabilities.read".into(),
+            tenant_id,
+            namespace_id,
+        },
+        ROUTE_CHUNK_MISSING | ROUTE_CHUNK_UPLOAD | ROUTE_CHUNK_COMPLETE => HttpRequestMetadata {
+            operation: "artifact.write".into(),
+            tenant_id,
+            namespace_id,
+        },
         ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
             operation: "artifact.read".into(),
             tenant_id,

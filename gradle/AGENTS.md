@@ -8,6 +8,7 @@ Settings plugin written in Kotlin. `TuistBuildInsights` uploads build reports; `
 - Exclude machine counter reads from configuration input tracking and restore tracking in a finally block. Linux `/proc` counters are telemetry, not configuration inputs, and change between builds.
 - Cacheability is task capability, not global build-cache availability. Fall back to `@CacheableTask` for disabled-cache or skipped lookups, while honoring observed task-specific disabled reasons.
 - Run tests with `./gradlew test --no-build-cache --no-watch-fs`. When validating source changed outside Gradle's file watcher, force compilation with `--rerun-tasks`.
+- Chunked uploads require the server's exact supported capability; old or mixed-version servers keep whole uploads. Independent gzip members must remain readable by the built-in Gradle cache reader. `ChunkedGradleBuildTest` covers real builds, configuration reuse, and legacy reader compatibility against a local Kura.
 
 Related: `server/lib/tuist/gradle/AGENTS.md`.
 
