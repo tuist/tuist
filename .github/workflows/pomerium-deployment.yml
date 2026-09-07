@@ -42,6 +42,7 @@ permissions:
   packages: write
 
 env:
+  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/kube-impersonator
   DEPLOY_SHA: ${{ github.sha }}
@@ -134,6 +135,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2

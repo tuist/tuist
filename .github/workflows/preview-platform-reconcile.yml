@@ -50,6 +50,7 @@ permissions:
   packages: read
 
 env:
+  MISE_VERSION: "2026.5.15"
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 concurrency:
@@ -77,6 +78,7 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "helm kubectl jq"
           cache: "false"
       - name: Load kubeconfig

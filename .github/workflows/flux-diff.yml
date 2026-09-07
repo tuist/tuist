@@ -45,6 +45,9 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  MISE_VERSION: "2026.5.15"
+
 jobs:
   diff:
     name: flux diff
@@ -62,6 +65,7 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "--locked kubectl"
           cache: "false"
       - uses: fluxcd/flux2/action@v2.9.5
