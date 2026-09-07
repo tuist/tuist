@@ -58,8 +58,8 @@
       "kind" : "remoteSourceControl",
       "location" : "git@github.com:abbiio/iosdk",
       "state" : {
-        "revision" : "1724a03642c99d48c0f72eb52a73dd219599e018",
-        "version" : "2.20.4"
+        "revision" : "00fa1f6a3b609daf692e15a079379ae5aad88763",
+        "version" : "2.20.9"
       }
     },
     {
