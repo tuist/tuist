@@ -368,6 +368,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => claim,
@@ -447,12 +448,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         do: nil,
         else: EgressLimits.region_floor_mbps(region, MapSet.member?(allowed_features, :guaranteed_egress_floor))
 
-    memory = if memory_governed?, do: Regions.memory_profile(AccountPolicies.sizing_plan(account))
+    # Resolved together, and only when governed: both are per-tier sizing of the
+    # same box, a region that sizes every instance alike wants neither, and an
+    # ungoverned region must not reach for a plan at all.
+    {memory, cpu_ceiling_milli} =
+      if memory_governed? do
+        plan = AccountPolicies.sizing_plan(account)
+        {Regions.memory_profile(plan), Regions.cpu_ceiling_milli(plan)}
+      else
+        {nil, nil}
+      end
 
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
-      memory: memory
+      memory: memory,
+      cpu_ceiling_milli: cpu_ceiling_milli
     }
   end
 
@@ -483,6 +494,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
+      cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
       egress_revision_suffix(egress)
@@ -542,6 +554,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
     if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile
   end
+
+  # Keyed on the granted ceiling, not on whether one was granted: the reconciler
+  # converges on the revision, so retuning a plan's number has to move it or the
+  # instances on that plan keep a manifest that no longer describes them. An
+  # ungoverned region renders no ceiling and takes no suffix, so its instances
+  # do not roll for a field they never gain.
+  defp cpu_revision_suffix(%{cpu_ceiling_milli: milli}) when is_integer(milli), do: "+cpu#{milli}"
+  defp cpu_revision_suffix(_), do: ""
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
   # peer changes the desired revision and the reconciler re-applies the manifest.

@@ -81,29 +81,6 @@ class TuistBuildInsightsTest {
     }
 
     @Test
-    fun `TaskCacheMetadata defaults are correct`() {
-        val metadata = TaskCacheMetadata()
-        assertNull(metadata.cacheKey)
-        assertNull(metadata.artifactSize)
-        assertEquals(CacheHitType.MISS, metadata.cacheHitType)
-        assertFalse(metadata.remoteCacheMiss)
-        assertNull(metadata.remoteCacheStored)
-    }
-
-    @Test
-    fun `TaskCacheMetadata copy preserves and overrides fields`() {
-        val metadata = TaskCacheMetadata(cacheKey = "abc123", artifactSize = 4096, cacheHitType = CacheHitType.REMOTE)
-        assertEquals("abc123", metadata.cacheKey)
-        assertEquals(4096L, metadata.artifactSize)
-        assertEquals(CacheHitType.REMOTE, metadata.cacheHitType)
-
-        val updated = metadata.copy(cacheHitType = CacheHitType.LOCAL, artifactSize = 8192)
-        assertEquals("abc123", updated.cacheKey)
-        assertEquals(8192L, updated.artifactSize)
-        assertEquals(CacheHitType.LOCAL, updated.cacheHitType)
-    }
-
-    @Test
     fun `BuildReportRequest serializes with snake_case field names`() {
         val report = BuildReportRequest(
             id = "test-build-id",

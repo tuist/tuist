@@ -128,7 +128,21 @@ defmodule Tuist.Runners.Jobs do
     |> Map.new()
   end
 
-  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+  def projects_for_runner_job(account, job, buildkite_job \\ nil)
+
+  # Buildkite never tells us the repository: its scheduled-jobs payload
+  # carries the pipeline, build and step and nothing else, and
+  # `repository` on the job row therefore holds a pipeline slug. The
+  # account's projects are the candidates instead, and `ci_project_handle`
+  # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %{organization_slug: _} = _buildkite_job) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}, nil) when is_binary(repository) do
     projects =
       repository
       |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
@@ -140,34 +154,44 @@ defmodule Tuist.Runners.Jobs do
     end
   end
 
-  def projects_for_runner_job(_, _), do: {:error, :not_found}
+  def projects_for_runner_job(_, _, _), do: {:error, :not_found}
 
-  def list_runner_build_runs(projects, workflow_run_id) do
+  def list_runner_build_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     BuildRun
     |> where([build], build.project_id in ^project_ids)
-    |> where([build], build.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([build], build.ci_run_id == ^workflow_run_id)
     |> order_by([build], desc: build.inserted_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
   end
 
-  def list_runner_test_runs(projects, workflow_run_id) do
+  def list_runner_test_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     TestRun
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
-    |> where([test], test.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([test], test.ci_run_id == ^workflow_run_id)
     |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  # A Buildkite build number is unique only within its pipeline, so the
+  # pipeline handle is part of the match; without it two pipelines in the
+  # same account would cross-link at the same build number.
+  defp ci_scope(query, nil), do: where(query, [run], run.ci_provider == "github")
+
+  defp ci_scope(query, %{organization_slug: org, pipeline_slug: pipeline}) do
+    handle = "#{org}/#{pipeline}"
+    where(query, [run], run.ci_provider == "buildkite" and run.ci_project_handle == ^handle)
   end
 
   def command_events_for_runs([], _kind), do: []

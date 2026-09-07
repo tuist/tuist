@@ -163,6 +163,7 @@ defmodule TuistWeb.Router do
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -854,6 +855,8 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/jobs/logs", RunnerJobReportsController, :logs
+    post "/runners/jobs/finish", RunnerJobReportsController, :finish
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1253,6 +1256,8 @@ defmodule TuistWeb.Router do
       live "/module-cache/modules/:module", ModuleCacheModuleLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
+      live "/builds/tasks", GradleTasksLive, :tasks
+      live "/builds/tasks/:name", GradleTasksLive, :task
       live "/connect", ConnectLive
       live "/invocations", BazelInvocationsLive
       live "/", OverviewLive
@@ -1261,6 +1266,7 @@ defmodule TuistWeb.Router do
       live "/bundles/:bundle_id", BundleLive
       live "/builds", BuildsLive
       live "/builds/build-runs", BuildRunsLive
+      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
@@ -1299,8 +1305,6 @@ defmodule TuistWeb.Router do
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)

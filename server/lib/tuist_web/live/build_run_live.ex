@@ -11,6 +11,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
+  import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter

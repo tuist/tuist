@@ -202,7 +202,7 @@ defmodule Tuist.Kura.PlacementProposals do
     context = %{
       plan: plan,
       rollups: Map.get(inputs.rollups, account.id, []),
-      permitted: AccountPolicies.placeable_regions(account, plan),
+      permitted: AccountPolicies.placeable_regions(account),
       primary: primary_from(placer_rows, live),
       # A primary with no placement row behind it was never decided: it came
       # from the resolution chain, which is a guess. Applying anything records

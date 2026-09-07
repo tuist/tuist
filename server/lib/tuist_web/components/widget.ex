@@ -106,6 +106,11 @@ defmodule TuistWeb.Widget do
     doc: "The trend value of the widget."
   )
 
+  attr(:trend_value_label, :string,
+    default: nil,
+    doc: "Optional formatted trend value for an absolute change instead of a percentage."
+  )
+
   attr(:trend_label, :string, required: false, doc: "The trend label of the widget.")
 
   attr(:trend_type, :atom,
@@ -209,7 +214,11 @@ defmodule TuistWeb.Widget do
       <% else %>
         <span data-part="value">{@value}</span>
         <div :if={@trend_value} data-part="trend">
-          <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
+          <.trend_badge
+            trend_value={@trend_value}
+            trend_type={@trend_type}
+            label={@trend_value_label}
+          />
           <span data-part="label">{@trend_label}</span>
         </div>
       <% end %>

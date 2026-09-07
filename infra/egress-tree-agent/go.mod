@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/egress-tree-agent
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/cilium/ebpf v0.17.3
@@ -42,7 +42,7 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/oauth2 v0.23.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

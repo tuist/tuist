@@ -7,6 +7,7 @@ defmodule TuistWeb.ModulesLiveTest do
   import Phoenix.LiveViewTest
   import TuistWeb.CldrHelpers
 
+  alias Tuist.Builds.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.ModulesLive
@@ -335,6 +336,30 @@ defmodule TuistWeb.ModulesLiveTest do
     |> Floki.parse_document!()
     |> Floki.find("#all-modules-table tbody tr")
     |> length()
+  end
+
+  test "shows an error in place of the table when the module query fails", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Analytics, :module_invalidation_breakdown, fn _opts ->
+      raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+    end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
+
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "[data-part=\"modules-table-section\"] [data-error]")
+    refute has_element?(lv, ~s([data-part="modules-table-section"] [data-part="skeleton"]))
+    refute has_element?(lv, "#all-modules-table")
+
+    # The miss reasons chart is derived from the same breakdown, so the
+    # analytics card fails with the table.
+    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+    assert has_element?(lv, "[data-part=\"analytics-error\"]")
   end
 
   describe "page_of/3" do

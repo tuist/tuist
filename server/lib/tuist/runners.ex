@@ -89,6 +89,7 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
@@ -126,7 +127,7 @@ defmodule Tuist.Runners do
   # falling back to best-effort.
   @owner_label_stamp_attempts 3
   @owner_label_stamp_retry_backoff_ms 100
-  @github_runner_name_max_length 64
+  @runner_name_max_length 64
 
   # The runners-controller stamps `tuist.dev/drain-eligible=true` on the
   # stale Pods it has selected to retire in the current roll wave, up to
@@ -612,10 +613,12 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Claims the next eligible queued workflow_job for the SA's fleet
-  and mints a JIT for the workflow_job's account.
+  Claims the next eligible queued job for the SA's fleet and mints the
+  credential its provider needs to run it: a GitHub JIT config, or a
+  Buildkite job acquisition token.
 
-  Returns `{:ok, %{jit, account, runner_name}}` on success.
+  Returns `{:ok, %{credential, account, runner_name}}` on success, where
+  `credential` carries a `:kind` of `:github` or `:buildkite`.
 
   Error cases the web layer translates to HTTP responses:
     * `{:error, :no_work_yet}` — queue empty or we lost a claim
@@ -827,8 +830,9 @@ defmodule Tuist.Runners do
     {:error, reason}
   end
 
-  defp handle_serve_claim({:error, {:github_mint_failed, exclusion_scope}}, context)
-       when exclusion_scope in [:account, :repository, :workflow_job] do
+  defp handle_serve_claim({:error, {mint_failure, exclusion_scope}}, context)
+       when mint_failure in [:github_mint_failed, :buildkite_mint_failed] and
+              exclusion_scope in [:account, :repository, :workflow_job] do
     retry_claim_and_serve(context, exclusion_scope)
   end
 
@@ -1053,10 +1057,9 @@ defmodule Tuist.Runners do
         with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
-             github_org = github_org_login(candidate, account),
              :ok <- stamp_owner_label(namespace, pod_name, account),
-             {:ok, jit, runner_name} <-
-               mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels),
+             {:ok, credential, runner_name} <-
+               mint_credential(account, candidate, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
@@ -1066,6 +1069,7 @@ defmodule Tuist.Runners do
           # cache isn't account-portable and the guest can't publish), and the
           # host is told to skip materialize/promote via the untrusted label.
           trusted = job_trusted?(candidate, account)
+          buildkite? = provider(candidate) == "buildkite"
 
           # Stamp the account label (the host's cache-materialize trigger) only
           # now that dispatch has fully committed — stamping it before the commit
@@ -1094,10 +1098,21 @@ defmodule Tuist.Runners do
             pod_name: pod_name,
             node_name: node_name,
             runner_name: runner_name,
+            executed_workflow_job_id: if(buildkite?, do: candidate.workflow_job_id),
             repository: Map.get(candidate, :repository, ""),
             workflow_name: Map.get(candidate, :workflow_name, ""),
             started_at: claim.claimed_at
           })
+
+          # On GitHub this binding arrives later, on the `in_progress`
+          # webhook, because the JIT config is label-bound and GitHub picks
+          # the job. A Buildkite acquisition token names one job UUID, so
+          # the binding is already certain and the claim can carry it now.
+          # Machine metrics resolve through it, and without it a Buildkite
+          # job would chart nothing.
+          if buildkite? do
+            Claims.record_execution(runner_name, candidate.workflow_job_id, candidate.account_id)
+          end
 
           Logger.info("runners: dispatched",
             account: account.name,
@@ -1109,7 +1124,7 @@ defmodule Tuist.Runners do
 
           {:ok,
            %{
-             jit: jit,
+             credential: credential,
              account: account,
              runner_name: runner_name,
              workflow_job_id: candidate.workflow_job_id,
@@ -1236,6 +1251,13 @@ defmodule Tuist.Runners do
   # master. Runs in the committed-dispatch path, so an error here only costs
   # warmth, never correctness.
   defp job_trusted?(candidate, account) do
+    case provider(candidate) do
+      "buildkite" -> Buildkite.job_trusted?(account.id, candidate.workflow_job_id)
+      _github -> github_job_trusted?(candidate, account)
+    end
+  end
+
+  defp github_job_trusted?(candidate, account) do
     with run_id when is_integer(run_id) <- Map.get(candidate, :workflow_run_id),
          repository when is_binary(repository) and repository != "" <- Map.get(candidate, :repository),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
@@ -1303,7 +1325,58 @@ defmodule Tuist.Runners do
 
   defp github_org_login(_candidate, account), do: account.name
 
-  defp mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels) do
+  defp provider(candidate), do: Map.get(candidate, :provider) || "github"
+
+  # The one place the two CI providers genuinely diverge. Both hand the Pod
+  # a short-lived credential that lets it take exactly one unit of work;
+  # what differs is how tightly that credential is bound. GitHub mints a
+  # JIT config against a label set and then chooses the job itself, so the
+  # runner may end up running something other than the candidate we
+  # claimed. Buildkite mints a token against one job UUID, so it cannot.
+  defp mint_credential(account, candidate, sa_name, dispatch_label, runner_labels) do
+    case provider(candidate) do
+      "buildkite" ->
+        mint_buildkite_acquisition(account, candidate, sa_name)
+
+      _github ->
+        mint_github_jit(
+          account,
+          github_org_login(candidate, account),
+          candidate,
+          sa_name,
+          dispatch_label,
+          runner_labels
+        )
+    end
+  end
+
+  defp mint_buildkite_acquisition(account, candidate, sa_name) do
+    runner_name = runner_name(sa_name)
+
+    case Buildkite.mint_acquisition(account.id, candidate.workflow_job_id) do
+      {:ok, acquisition} ->
+        {:ok, Map.put(acquisition, :kind, :buildkite), runner_name}
+
+      {:error, reason} ->
+        Logger.error("runners: buildkite acquisition mint failed",
+          account: account.name,
+          runner: runner_name,
+          reason: inspect(reason),
+          workflow_job_id: candidate.workflow_job_id
+        )
+
+        {:error, {:buildkite_mint_failed, mint_failure_scope(reason)}}
+    end
+  end
+
+  # `:account` sends the claim loop on to a different account's queue, the
+  # right move when the installation itself is broken and every job behind
+  # it would fail the same way. A per-job failure only skips that job.
+  defp mint_failure_scope(:not_found), do: :account
+  defp mint_failure_scope(:unauthorized), do: :account
+  defp mint_failure_scope(_reason), do: :workflow_job
+
+  defp mint_github_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels) do
     # GitHub's `create JIT config` API caps `name` at 64 characters.
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
@@ -1314,7 +1387,7 @@ defmodule Tuist.Runners do
     # creates the JIT config; if the HTTP response or a later local
     # state write fails before the Pod receives that JIT, retrying
     # the same name loops forever on 409 "Already exists".
-    runner_name = github_runner_name(sa_name)
+    runner_name = runner_name(sa_name)
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -1355,7 +1428,7 @@ defmodule Tuist.Runners do
              work_folder: work_folder,
              repository_full_handle: Map.get(candidate, :repository)
            }) do
-      {:ok, jit, runner_name}
+      {:ok, %{kind: :github, jit: jit}, runner_name}
     else
       {:error, :not_found} ->
         Logger.warning("runners: no GitHub App installation for account",
@@ -1402,9 +1475,9 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp github_runner_name(sa_name) do
+  defp runner_name(sa_name) do
     suffix = "-" <> (4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower))
-    prefix = String.slice(sa_name, 0, @github_runner_name_max_length - byte_size(suffix))
+    prefix = String.slice(sa_name, 0, @runner_name_max_length - byte_size(suffix))
 
     prefix <> suffix
   end

@@ -2925,7 +2925,173 @@ postgresql:
         field: password
 
 clickhouse:
+  # embedded | external | managed
+  #
+  # `embedded` is one unreplicated pod for self-hosters and previews.
+  # `external` points at a URL somebody else operates (ClickHouse Cloud today).
+  # `managed` is the in-cluster shape Tuist operates itself: replicated tables
+  # on the tainted `stateful-worker` bare-metal pool with a Keeper quorum. See
+  # `templates/clickhouse-managed.yaml`.
   mode: embedded
+  # In-cluster ClickHouse operated by Tuist.
+  #
+  # Deliberately gated on its own `enabled` rather than on `mode`, because the
+  # migration needs both at once: during the dual-run the application still
+  # reads and writes ClickHouse Cloud (`mode: external`) while this workload
+  # runs alongside it, taking backfilled history and shadow writes. Flipping
+  # `mode` is the last step, not the first.
+  managed:
+    enabled: false
+    replicas: 1
+    # Not `default`: the schema is cloned into a database created with
+    # `ENGINE = Replicated`, and `default` already exists as an ordinary
+    # Atomic database on a fresh server.
+    database: tuist
+    # Mirror every ClickHouse write onto the in-cluster server as well as the
+    # system of record. Switched on separately from the URL, and after the
+    # schema clone: a destination with no tables rejects every mirrored write,
+    # so a single switch would fill the logs on the deploy that first brings
+    # the server up. Cloud stays the system of record either way; a failed
+    # mirror is counted and ignored, never surfaced to a request.
+    shadowWrites:
+      enabled: false
+    # Backups of the in-cluster server to object storage, as a weekly full and
+    # a daily incremental based on that week's full. See
+    # `templates/clickhouse-backup.yaml` for why the chain is two long, why the
+    # full runs on a Monday, and how to restore.
+    #
+    # Pruning is a bucket lifecycle rule on the prefix below, not something
+    # ClickHouse can do: express it in whole weeks and longer than a chain, or
+    # it will delete a full that later incrementals still need.
+    backup:
+      enabled: false
+      # Monday, so every incremental in an ISO week pairs with the full taken
+      # at the start of that same week.
+      fullSchedule: "0 1 * * 1"
+      # Every other day. Sunday is the last day of its ISO week, so it still
+      # pairs with Monday's full.
+      incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
+      # Under the default object-storage bucket, then the namespace, so
+      # environments sharing a bucket cannot restore over each other.
+      prefix: clickhouse-backups
+      # Six hours. Long enough for a full of a dataset this size, short enough
+      # that a wedged backup does not block the next one indefinitely.
+      timeoutSeconds: 21600
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    # One step of the migration off ClickHouse Cloud, run as a post-upgrade
+    # hook. An operator advances the migration by changing `task` and
+    # deploying, so each step is recorded in the release history.
+    #
+    #   Tuist.Release.clone_clickhouse_schema  copy the schema across
+    #   Tuist.Release.backfill_clickhouse      copy the rows that exist
+    #   Tuist.Release.check_clickhouse_parity  assert the two agree
+    #
+    # All three are idempotent and safe to re-run: the clone emits
+    # `IF NOT EXISTS`, the backfill skips chunks its ledger records as done,
+    # and the parity check only reads.
+    migration:
+      enabled: false
+      # Part of the Job's name, so changing the task creates a new Job rather
+      # than colliding with the immutable pod template of the previous one.
+      name: schema-clone
+      task: Tuist.Release.clone_clickhouse_schema
+      # The instant the backfill copies up to, and the one shadow writes take
+      # over from. Set it to when the deploy that enabled shadow writes
+      # finished rolling out, and enable shadow writes first: the backfill
+      # covers what came before, the dual write covers what comes after, and
+      # naming the boundary is what stops the two from either overlapping or
+      # leaving a gap between them. RFC 3339, for example
+      # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
+      cutoff: ""
+      # Run the step as an ordinary Job rather than a deploy hook, so the
+      # release does not wait for it. For the schema clone and the parity
+      # checks, which take seconds to minutes, waiting is what makes the
+      # deploy's result meaningful. For the backfill it is the opposite: helm
+      # waits for hook Jobs, so a copy of a production-sized dataset would hold
+      # the release for hours and then fail it on the deadline below, rolling
+      # the release back with it.
+      #
+      # The task takes an advisory lock, so a second deploy while a copy is
+      # running starts a Job that exits immediately rather than a second copy.
+      background: false
+      # Only used by a background Job, which is not deleted by the deploy that
+      # follows it. Long enough to read the logs of one that failed overnight.
+      ttlSecondsAfterFinished: 86400
+      # No retries. These steps are resumable, so a failure should be read
+      # and re-run deliberately rather than repeated automatically against a
+      # database.
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+    image:
+      repository: clickhouse/clickhouse-server
+      # Pin an LTS. 26.3 is the current one; the ingest migrations need 26.1 or
+      # newer for `deduplicate_merge_projection_mode`.
+      tag: "26.3"
+      pullPolicy: IfNotPresent
+    # Password for the `default` user. Managed environments source this from
+    # 1Password and pass it at deploy time rather than committing it.
+    password: ""
+    # The node pool label the data pods are pinned to, and the pool the local
+    # volume's node affinity binds on.
+    nodePool: clickhouse
+    tolerations:
+      - key: tuist.dev/stateful
+        operator: Equal
+        value: clickhouse
+        effect: NoSchedule
+    metricsPort: 9363
+    logLevel: information
+    # ClickHouse's own system.* log tables ship with no retention and grow
+    # without bound. This is not the application data's retention.
+    systemLogTtlDays: 7
+    resources:
+      requests:
+        cpu: "2"
+        memory: 8Gi
+      limits:
+        # Well under the node's allocatable: ClickHouse sizes its own caches
+        # and query budgets from the cgroup limit, and the rest of the box is
+        # more useful as page cache than as headroom it will try to fill.
+        memory: 32Gi
+    persistence:
+      size: 200Gi
+      storageClassName: clickhouse-local
+      localVolume:
+        enabled: true
+        # A directory on the stateful node's XFS `/data`, which is the
+        # filesystem the `stateful-worker` class carves for exactly this.
+        path: /data/clickhouse
+    keeper:
+      # One member is not a quorum and cannot tolerate a loss. It is the right
+      # shape for staging, whose job is to exercise the replicated engines and
+      # the Keeper dependency rather than to survive a failure. Canary and
+      # production run three.
+      replicas: 1
+      clientPort: 9181
+      raftPort: 9234
+      storageSize: 10Gi
+      storageClassName: ""
+      # Keeper stays on the general cloud pool: it is small control-plane
+      # metadata, and co-locating it with the data replica would let one host
+      # failure take both the data and the quorum that makes it writable.
+      nodeSelector: {}
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
   # Optional runtime pool sizes for the Elixir ClickHouse repos. These are
   # operational capacity knobs, not secrets; managed deployments set them in
   # values-managed-*.yaml so all server-release workloads render the same env.

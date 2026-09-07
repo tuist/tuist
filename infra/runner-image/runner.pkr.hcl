@@ -130,6 +130,24 @@ variable "runner_version" {
   default = "2.336.0"
 }
 
+variable "buildkite_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 agent tarball, from the release's own SHA256SUMS."
+  # Carried with `buildkite_agent_version`: the download is verified
+  # against this before extraction, so a stale value fails the build
+  # rather than installing an unchecked binary.
+  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+}
+
+variable "buildkite_agent_version" {
+  type        = string
+  description = "Buildkite agent version. https://github.com/buildkite/agent/releases."
+  # Same pinning rationale as `runner_version`, and the same Renovate
+  # flow keeps it current.
+  # renovate: datasource=github-releases depName=buildkite/agent
+  default = "3.138.0"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -335,6 +353,29 @@ build {
     ]
   }
 
+  # The Buildkite agent lives alongside the GitHub one rather than in a
+  # second image. Which of the two runs is a per-job decision the server
+  # makes at dispatch, so a Pod has to be able to serve either; forking
+  # the image would double the fleet's warm-pool partitioning to save
+  # about 30 MB.
+  #
+  # Pinned for the same reason `runner_version` is: the version that ran a
+  # job should be the version we baked. The agent has no self-update, so
+  # pinning here is the whole mechanism.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
+      "echo '${var.buildkite_agent_sha256_darwin_arm64}  buildkite-agent.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/buildkite-agent-dist",
+      "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
+      "rm -rf buildkite-agent.tar.gz /tmp/buildkite-agent-dist",
+      "/opt/tuist/buildkite-agent --version"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
@@ -348,6 +389,11 @@ build {
   provisioner "file" {
     source      = "${path.root}/metrics-poll.sh"
     destination = "/tmp/metrics-poll.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/buildkite-hooks"
+    destination = "/tmp/buildkite-hooks"
   }
 
   provisioner "file" {
@@ -382,7 +428,14 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist"
+      # Global agent hooks: `buildkite-agent --hooks-path` points here, so
+      # these run for every job the agent takes regardless of what the
+      # customer's own repository defines.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/buildkite-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 

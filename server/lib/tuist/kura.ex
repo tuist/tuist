@@ -611,7 +611,7 @@ defmodule Tuist.Kura do
   defp permitted_for(%PlacementProposal{account_id: account_id}) do
     account = Repo.get!(Account, account_id)
 
-    AccountPolicies.placeable_regions(account, AccountPolicies.sizing_plan(account))
+    AccountPolicies.placeable_regions(account)
   end
 
   # `put_primary/3` demotes whatever held the role, so the source stays a

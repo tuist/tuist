@@ -220,14 +220,34 @@ sum by (cluster) (
 
 ### etcd has no leader
 
+**Provisioned** in the `Infrastructure` folder as `CAPI - etcd has no leader`
+(critical, `no_data_state: OK`).
+
+`etcd_server_has_leader` is a 0/1 gauge, so `count - sum` is exactly the number
+of members currently without a leader:
+
 ```promql
-min by (cluster, instance) (
-  etcd_server_has_leader
-) == 0
+count by (cluster) (etcd_server_has_leader)
+-
+sum by (cluster) (etcd_server_has_leader)
 ```
 
 - Pending period: 2 minutes
-- Summary: `etcd has no leader on {{ $labels.instance }} ({{ $labels.cluster }})`
+- Summary: `An etcd member has lost its leader`
+
+**Do not write this as `min by (cluster, instance) (etcd_server_has_leader) == 0`.**
+That is the form this document carried first, and it returns **no data** rather
+than `0`. Adaptive metrics aggregates `cluster`, `env`, `instance` and
+`k8s_cluster_name` away for this metric and then serves only the aggregations it
+stores for it, which are `sum` and `count`; `min` is not among them. Paired with
+`no_data_state: OK` the rule is silently dead - it was provisioned that way and
+could never have fired, which is why it is called out here rather than quietly
+fixed. Run any replacement expression and confirm it returns a series before
+trusting it.
+
+The same aggregation is why the value is a fleet-wide count of leaderless
+members and the rule cannot name the cluster or the member. Identify those by
+hand from the management cluster.
 
 ### etcd scrape unavailable
 
@@ -294,33 +314,246 @@ absent_over_time(
 
 ### Control-plane replicas below desired state
 
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - control plane below desired replicas` (critical, `no_data_state: OK`).
+
 ```promql
-kube_customresource_kubeadmcontrolplane_ready_replicas{
-  cluster="tuist-management",
-  workload_cluster=~"tuist|tuist-staging|tuist-canary"
-}
-<
-kube_customresource_kubeadmcontrolplane_spec_replicas{
-  cluster="tuist-management",
-  workload_cluster=~"tuist|tuist-staging|tuist-canary"
-}
+sum by (cluster) (kube_customresource_kubeadmcontrolplane_spec_replicas)
+-
+sum by (cluster) (kube_customresource_kubeadmcontrolplane_ready_replicas)
 ```
 
-- Pending period: 10 minutes
-- Summary: `Control plane for {{ $labels.workload_cluster }} has fewer ready replicas than desired`
+- Pending period: 15 minutes
+- Summary: `A CAPI control plane has fewer ready replicas than desired`
+
+**Aggregate; do not select `workload_cluster`.** Adaptive metrics aggregates the
+`kubeadmcontrolplane` and `workload_cluster` labels away, so the per-cluster
+form this document carried first
+(`ready{workload_cluster=~"tuist|tuist-staging|tuist-canary"} < spec{...}`)
+matches nothing at all. The consequence is that the value is a fleet-wide count
+of missing replicas and the rule cannot name the degraded cluster; get that from
+the management cluster with `kubectl get kubeadmcontrolplane -A`.
+
+The pending period is 15 minutes rather than 10 because a rolling control-plane
+replacement shows the same shortfall while it runs.
+
+Deliberately **not** written with a trailing `> 0` filter. Left as a plain
+subtraction it evaluates to an explicit `0` when the fleet is healthy, so `No
+Data` on this rule means the telemetry stopped rather than that everything is
+well - which is what the paired rule below alerts on. A filtered expression
+makes healthy and blind look identical.
 
 ### Control-plane replica telemetry missing
 
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - control-plane telemetry missing from the management cluster` (critical).
+
+This is the heartbeat for every rule above that reads a CAPI custom resource:
+they are all evaluated in Grafana Cloud against series produced by
+kube-state-metrics on the single-node management cluster, so if that cluster,
+its Alloy collector, or its remote-write path dies, all of them simply go quiet,
+which is indistinguishable from healthy.
+
+```promql
+absent(sum by (cluster) (kube_customresource_kubeadmcontrolplane_spec_replicas))
+```
+
+- Pending period: 15 minutes
+- Summary: `CAPI control-plane telemetry has stopped arriving from the management cluster`
+
+Two traps, both of which produced a false alert while this rule was being
+written:
+
+- The inner expression must aggregate, for the reason given above. Selecting the
+  raw metric reports `absent` even while data is flowing.
+- **`no_data_state` must be `OK`, not `Alerting`.** `absent()` returns an
+  **empty** result when the data is present, which Grafana evaluates as `No
+  Data`. The healthy case is therefore No Data and the firing case is `absent()`
+  returning `1`, so No Data = Alerting inverts the rule and it fires
+  permanently. This is not an exception to anything: **Create the rules in
+  Grafana** below already prescribes No Data = Normal for every rule *including*
+  the telemetry-missing ones, for exactly this reason. The rule was first
+  provisioned with Alerting anyway and fired continuously until it was corrected.
+
+### Orphan Hetzner servers
+
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - orphan Hetzner server with no owning Machine` (warning).
+
+Servers with no owning CAPI `Machine`, from the `reconciliation-checks`
+CronJob (`infra/k8s/mgmt/reconciliation-checks.yaml`).
+
+The check emits one series per offending server, so the alert names it rather
+than reporting a bare count. This cluster's own nodes are excluded — the
+management cluster does not self-manage, so its VM has no owning `Machine`.
+
+```promql
+max by (cluster, id, name) (
+  capi_reconciliation_orphan_server{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `Hetzner server {{ $labels.name }} (id {{ $labels.id }}) has no owning CAPI Machine — billed but untracked`
+
+### Cluster removed from git still live
+
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - Cluster removed from git but still running` (warning).
+
+Live `Cluster` objects absent from git — the never-prune blind spot the
+Hetzner orphan check misses (their servers still have valid `Machine` owners).
+
+Only Clusters that Flux has actually managed are considered: membership is read
+from the `kustomize.toolkit.fluxcd.io/name` label, so Clusters owned by
+`mgmt-cluster-apply.yml` (preview, pentest, any future flat `cluster-*.yaml`)
+are never counted and no exclusion list has to be maintained.
+
+```promql
+max by (cluster, name) (
+  capi_reconciliation_stale_cluster{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `Cluster {{ $labels.name }} is live but no longer in git — remove it deliberately (see infra/flux/mgmt/README.md) or restore the manifest`
+
+### Reconciliation checks stopped running
+
+**Provisioned** in the `Infrastructure` folder as
+`CAPI - reconciliation checks have stopped running` (warning), paired with
+`CAPI - reconciliation telemetry absent entirely` for the query below it. Both
+are required: the first cannot see a Pushgateway that lost its store, because
+there is then no timestamp left to age. Do not delete one without changing the
+other.
+
+Unlike the CAPI rules above, these gauges are pushed by our own CronJob and are
+not touched by adaptive metrics, so `max by (...)` works here and the alerts can
+name the offending server or cluster.
+
+The CronJob pushes to a Pushgateway, which is a **store, not a scrape target**:
+once a value is pushed it is served indefinitely, so `absent()` /
+`absent_over_time()` on the gauges can never fire even if the job has been dead
+for days. Alert on the age of the completion stamp instead.
+
+```promql
+time() - max by (cluster) (
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}
+) > 5400
+```
+
+- Pending period: 0 minutes
+- Summary: `Orphan-server / stale-cluster checks have not completed for {{ $value | humanizeDuration }} (CronJob failing, or Pushgateway lost its store)`
+
+Threshold is 3× the 30-minute schedule, so a single missed run does not page.
+
+The Pushgateway store is deliberately ephemeral (no persistence file — it would
+sit on an `emptyDir` and be wiped on restart anyway). After a bounce the series
+are simply absent until the next run, at most 30 minutes later, which is well
+inside the 1-hour window below — so a restart plus one missed run does not page
+on healthy reconciliation:
+
 ```promql
 absent_over_time(
-  kube_customresource_kubeadmcontrolplane_spec_replicas{
-    cluster="tuist-management"
-  }[10m]
+  capi_reconciliation_last_success_timestamp_seconds{cluster="tuist-management"}[1h]
 )
 ```
 
 - Pending period: 0 minutes
-- Summary: `Control-plane desired and ready replica telemetry is missing`
+- Summary: `Reconciliation-check telemetry absent entirely (Pushgateway reset or never scraped)`
+
+### Flux reconciliation stalled
+
+**Provisioned** in the `Infrastructure` folder as
+`Flux - reconciliation has stalled fleet-wide` (critical), paired with
+`Flux - telemetry missing from the management cluster`.
+
+Flux reconciles the workload `Cluster` resources from git
+(`infra/flux/mgmt/README.md`). A stalled reconciler breaks nothing at the
+moment it stalls; it stops correcting drift, so the fleet diverges from the
+repository silently and the next real change never lands.
+
+```promql
+sum(increase(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[1h]))
+```
+
+- Pending period: 10 minutes, firing below 1
+- Summary: `Flux has not completed any reconciliation in the last hour`
+
+Normal is roughly 120 per hour across the seven Kustomizations and the
+GitRepository.
+
+**Fleet total on purpose.** Suspending a single Kustomization is a normal
+operation, so a per-Kustomization version of this rule would page every time
+someone suspends one to fix git. This fires only when *all* reconciliation has
+stopped.
+
+**It cannot see a reconcile that runs and fails**, because the duration
+histogram counts failed reconciles too. That is the separate rule below.
+
+### Flux telemetry missing
+
+```promql
+absent_over_time(gotk_reconcile_duration_seconds_count{cluster="tuist-management"}[30m])
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux controller telemetry has stopped arriving from the management cluster`
+
+The stall rule compares a counter against a threshold, so if the controllers
+disappear the series goes with them, the comparison returns No Data, and No Data
+is Normal here. That leaves the most severe case invisible to it. This rule
+covers it.
+
+Note these metrics are collected by pod-annotation autodiscovery rather than an
+explicit scrape config, so a change to those annotations stops collection
+silently. This rule is what makes that loud.
+
+### Flux Kustomization not Ready
+
+**Not yet provisioned. Do not create it until the metric below exists** - a rule
+whose query matches nothing sits in No Data, renders as Normal, and is
+indistinguishable from a passing rule, which is the failure this whole section
+exists to avoid.
+
+Flux 2.9.5 exports `gotk_reconcile_duration_seconds_*` and `gotk_event_*` but
+**not** `gotk_reconcile_condition`, so nothing off the controllers says whether a
+reconcile *succeeded*. A Kustomization that fetches and then fails to apply on
+every interval is indistinguishable from a healthy one in the metrics above.
+
+The series comes from kube-state-metrics custom-resource-state, the same
+mechanism already producing `kube_customresource_kubeadmcontrolplane_*`,
+configured in `values-management.yaml`. Once it is flowing:
+
+```promql
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_status_condition{
+    cluster="tuist-management", type="Ready"
+  }
+)
+== 0
+unless
+max by (namespace, kustomization) (
+  kube_customresource_kustomization_spec_suspend{cluster="tuist-management"}
+) == 1
+```
+
+- Pending period: 15 minutes
+- Summary: `Flux Kustomization {{ $labels.kustomization }} has not applied cleanly`
+
+The `unless` clause excludes deliberately suspended Kustomizations, which keep
+whatever Ready condition they last had.
+
+Two things to check before creating the rule, both of which have silently killed
+a rule in this document before:
+
+- Confirm the query returns a series. Add `kube_customresource_kustomization_.*`
+  to `metricsTuning.includeMetrics` is already done, but that list is an
+  **allowlist**: anything not matched is dropped before it leaves the cluster.
+- Check the labels survived adaptive metrics. A brand-new metric has no query
+  usage, which is exactly what the recommender aggregates away, and this rule is
+  useless without `kustomization`. Query the bare metric: the error names every
+  aggregated label.
 
 ### Cluster API admission webhook failing (fleet-wide write freeze)
 
@@ -1247,6 +1480,74 @@ the rest read between ten and thirty days, and three instances have shed no
 segment at all in the window (`NaN`, which the `< 86400` threshold does not
 match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
 the one to watch as its usage grows.
+
+### Kura instance not reconciled
+
+```promql
+time() - max by (cluster, namespace, kurainstance, tenant_id, region) (
+  kube_customresource_kurainstance_status_last_reconciled{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 600` seconds, as a separate threshold expression on `A`, so the
+  alert value is how long the instance has gone unconverged
+- Pending period: 5 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- **Not created yet, and it cannot be until the monitoring chart is
+  deployed.** The series comes from the `customResourceState` block this
+  change adds to `telemetryServices.kube-state-metrics` in `values.yaml`, and
+  the chart is installed by hand (see the header of
+  `values-production.yaml`), so the rule would sit in No Data until someone
+  runs that upgrade. Deploy the chart, confirm the series returns one sample
+  per instance in Explore, then create the rule and record its UID here.
+- Summary: `Kura instance {{ $labels.kurainstance }} ({{ $labels.tenant_id }})
+  has not been reconciled for {{ $values.A.Value | humanizeDuration }}`
+- Description: `The kura-controller has not completed a full reconcile pass
+  for this instance. Nothing about it converges while that holds: not a
+  storage resize, not a rollout, not primary selection, not replacing a
+  replica it has lost. The instance keeps serving whatever it was already
+  serving, so this is not customer-visible on its own; it is the state in
+  which the next disturbance has nothing to recover it. Read the controller
+  log for the instance name. A pass that returns early every few seconds
+  looks identical to a healthy one in the controller's own reconcile
+  counters, which is why this reads the timestamp the CR only carries when a
+  pass reached the end.`
+
+**The controller's own metrics cannot answer this.** A wedged reconcile is
+busy, not idle. On 2026-09-07 an instance in us-west short-circuited every
+10 seconds for 69 minutes: `controller_runtime_reconcile_total` would have
+climbed the whole time, the workqueue never grew, and the controller pod
+stayed Ready. What separates the two cases is whether a pass reached its end,
+and `status.lastReconciledAt` is written only there. Reading it through
+kube-state-metrics rather than exporting it from the controller also keeps the
+observation outside the thing being observed.
+
+**Why 10 minutes.** A healthy instance is reconciled about every 30 seconds,
+and the fleet's timestamps sit within about 20 seconds of each other, so the
+threshold is roughly twenty times the steady-state cadence. That leaves room
+for a controller restart, a leader-election handover, and a slow pass without
+firing, while still catching a wedge inside a quarter of an hour rather than
+the 69 minutes it took to notice one through a downstream customer alert.
+
+**Why warning rather than critical.** A stalled reconcile is an operator
+problem that becomes a customer problem later, and its customer-visible
+consequences already have critical rules of their own: **Kura instance
+retention horizon under a day** for a resize that never lands, and the
+StatefulSet replica rule for an instance running short. Paging on this would
+wake someone for a condition whose damage is measured in hours.
+
+**What it would have caught.** The same 2026-09-07 wedge. A grown storage
+claim tripped the controller's stale-storage path, which deleted the
+StatefulSet and both PVCs and left a pod it no longer owned holding one of
+them open, so the reason it was waiting on could never clear (fixed in
+`reconcileStaleDataStorage`). `status.lastReconciledAt` froze at the first
+short-circuit and never moved again. Note that the StatefulSet replica rule
+cannot see that shape: the StatefulSet itself was deleted, so both
+`kube_statefulset_replicas` and `kube_statefulset_status_replicas_ready` were
+absent for the instance and their subtraction returned no series at all.
 
 ### Kura egress budget almost entirely consumed
 
@@ -2478,8 +2779,9 @@ max by (cluster, region, pod, kind) (
   GET, so a refused upload becomes a future cache miss and no build fails. On
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  outbox: the replication outbox is at its cap, read kura_outbox_messages
-  (exactly 100000 is pinned); peers being unreachable is NOT the usual cause,
+  outbox: one replication peer's outbox share is full (or the node is at its
+  total), read kura_outbox_target_messages against kura_outbox_peer_capacity
+  and kura_outbox_messages against kura_outbox_capacity; peers being unreachable is NOT the usual cause,
   check kura_peer_connection_failures_total and
   kura_replication_bandwidth_effective_limit_bytes_per_second first.
   upload_memory, memory_pressure_write, reapi_write_decode,
@@ -2561,6 +2863,17 @@ limit in the summary, which is what the on-call needs to pick the lever:
   floor rather than loss. If that proves to be steady state on an instance,
   raise the floor or move those two kinds to a rate-based tier; do not raise
   the bar for the HTTP kinds, which are loss.
+  - `reapi_write_decode` now sheds only after the elastic pool is also spent.
+    Write decoding borrows the ceiling headroom above the floor-derived budget
+    while pressure is normal, so a shed means the pod exhausted its floor *and*
+    that headroom, or it was above normal pressure and the borrow was closed.
+    Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` before reaching for the
+    profile: a pod resting at its elastic capacity has a floor genuinely too
+    small for its workload, while one at zero during the shed was shedding on
+    pressure, and **Kura pod under memory pressure** is the rule to read. The
+    pool is empty by construction on an instance with no published floor,
+    where the budget is already the whole headroom.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
   the fixed 128-upload cap every instance runs regardless of size. An orphaned
@@ -2643,13 +2956,35 @@ Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
 than the old threshold on each of the three pods that ever reach the cap, so
 the form is net quieter as well as earlier.
 
-#### Caveat: the cap is hardcoded
+#### Caveat: the cap is now per peer, and the total is no longer what sheds
 
-Both 100000 and 90000 are `DEFAULT_OUTBOX_MAX_DEPTH`. `KURA_OUTBOX_MAX_DEPTH`
-is configurable per instance, so if the cap is ever raised for a tenant (the
-standing interim mitigation for this exact problem) this rule fires early and
-continuously for that pod until the numbers are updated. Kura does not export
-the cap as a metric yet; when it does, divide by it.
+Both 100000 and 90000 were `DEFAULT_OUTBOX_MAX_DEPTH`, which no longer exists.
+The share is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (100000) enforced **per
+replication target**: a write is shed once any one of its peers holds that
+many queued messages, whatever the node-wide total. The node is also bounded
+by a total of the share times its peer count, capped at 1000000. The total
+(`kura_outbox_messages`) can therefore sit far below `kura_outbox_capacity`
+while the pod is already shedding on one peer, so alert on both: the deepest
+per-peer queue against the share, and the total against the capacity, all
+exported by Kura:
+
+```promql
+max by (pod) (kura_outbox_target_messages) / max by (pod) (kura_outbox_peer_capacity) > 0.9
+  or max by (pod) (kura_outbox_messages / kura_outbox_capacity) > 0.9
+```
+
+Until the live rule is moved to that form, its `> 90000` backstop on the
+node-wide total fires at the old point for a one- or two-peer pod, but on a
+larger mesh it fires **early**: the total is the sum of every peer's queue, so
+a five-peer pod can page at 18000 per peer, nowhere near a shed. Read a page
+from the old rule on a large mesh against the per-target series before
+treating it as a shed.
+
+This per-peer share is an interim measure: the drain is throughput-bound
+(`OUTBOX_MAX_INFLIGHT` is a node-wide pipeline depth, not per target), so a
+larger buffer changes how much a saturated pod holds, not whether it saturates.
+The scalable replacement is the replication log redesign, tracked separately
+from this rule.
 
 #### Why the drain falls behind
 
@@ -2687,6 +3022,223 @@ and counts a single pod many times: one chronically backlogged pod showed up
 as seven separate series over a week. Always reduce with `max by (pod)` (or
 `by (cluster, pod)`) first. The same applies when counting how long a pod
 spent above a threshold.
+
+### Kura instance below its replica count
+
+Catches a per-account Kura StatefulSet serving on fewer ready replicas than it
+declares, whatever took the replica away: unschedulable, crash-looping, stuck
+terminating, or a rollout that never finished. Every managed instance runs
+`replicas: 2` so a deploy always has somewhere to hand traffic to, and the
+standby is also what a rebuilt replica refills its ring from over the peer mesh
+(`instancePodAffinity` in the kura-controller). An instance down to one replica
+still answers, which is why nothing that watches request rates or error rates
+sees anything: it is not an outage, it is the absence of the thing that keeps
+the next deploy from being one.
+
+**Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`, alongside the other Kura rules.
+Created directly rather than left as a follow-up, because merging this section
+provisions nothing (see the note under
+[Routing to Grafana IRM](#routing-to-grafana-irm) — the rules in this document
+are hand-created) and a documented-but-unbuilt rule reads exactly like a
+covered gap.
+
+```promql
+kube_statefulset_replicas{namespace="kura"}
+-
+kube_statefulset_status_replicas_ready{namespace="kura"}
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- No `affected_service` label: an instance on one replica is degraded, not
+  customer-visible. It becomes customer-visible at the next deploy, which is
+  the reason to clear it within the day rather than to page on it.
+- Summary: `Kura instance {{ $labels.statefulset }} has been short of ready
+  replicas for 30 minutes ({{ $values.A.Value | printf "%.0f" }} missing)`
+
+**Deliberately a subtraction rather than `ready < replicas`.** A comparison
+operator filters, so a healthy fleet returns no series at all and the rule sits
+in no-data forever, where a rule that has gone blind looks exactly like a rule
+with nothing to report. Left as a plain subtraction every instance evaluates to
+an explicit `0` while it is healthy, and no-data means the telemetry stopped.
+Same reasoning, and the same shape, as **Control-plane replicas below desired
+state**.
+
+**Do not add a `cluster` selector.** Kura runs in `tuist-production`,
+`tuist-staging` and `tuist-canary` and the `kura` namespace exists nowhere else,
+so `namespace="kura"` already scopes it. Adding `cluster=` buys nothing and
+risks the failure that **Control-plane replicas below desired state** hit: if
+Adaptive Metrics aggregates the label away, an equality matcher on it matches
+zero series and the rule is silently dead under `no_data_state: OK`. Without the
+matcher, an aggregated `cluster` costs an empty interpolation in the summary
+instead of the whole rule.
+
+**The series and its labels were confirmed before the rule was saved.** Two
+things had to hold and both were checked on 2026-09-07. The metrics are
+scraped: the production Alloy config's kube-state-metrics allow-list keeps
+`kube_statefulset.*` (read off `k8s-monitoring-alloy-metrics` in
+`observability`; `values.yaml` reaches it through `useDefaultAllowList: true`).
+And Adaptive Metrics has not aggregated them: the expression returns exactly 71
+series, one per Kura StatefulSet and all at `0` (52 production, 15 staging, 4
+canary, matching `kubectl` exactly), each carrying real `cluster`, `namespace`
+and `statefulset` labels rather than `<aggregated>`. That second check is the
+one that decides whether the rule can work at all, and it is the check the CAPI
+control-plane rule below failed the first time it was written. Re-run it if the
+rule ever goes quiet for a suspiciously long stretch; a metric that loses its
+per-object labels reports only a fleet-wide count of missing replicas, which is
+still usable but needs the summary rewritten rather than left interpolating
+nothing.
+
+**Single-replica instances are handled by the expression, not by an exception.**
+The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
+`1 - 1` is `0` like any other healthy instance. A scaled-to-zero or
+being-deleted StatefulSet is `0 - 0`.
+
+**Thirty minutes, for the same reason as *Pod cannot be scheduled*.** It clears
+a rolling deploy, a node drain, and a replica taken down deliberately by a
+storage rebuild, which is back Ready in about two minutes. It is short enough
+that a wedge surfaces the same morning rather than after two days.
+
+**What this exists for.** On 2026-09-07 a `kura-<account>-us-east-1-1` replica
+was found to have sat `Pending` for roughly two days while `-0` served, so a
+live instance ran single-replica against the `replicas: 2` invariant and nothing
+said so. Its PVC was bound to a `scw-local-nvme` volume pinned to the older of
+the region's two boxes, which had 3146 MiB of `tuist.dev/memory-ceiling-mib`
+free against the 4096 the pod requests; the other box had 14410 MiB and was
+unreachable for that volume, and a box added to the region afterwards did not
+help because the pin predated it. None of the 22 Kura rules that predate this
+one covered it: **Kura cache telemetry missing** is fleet-wide
+`absent_over_time`, **Kura cache pod restart
+loop** cannot fire because a `Pending` pod never restarts, and the region rules
+describe the region rather than the tenant.
+
+**Repairing a pinned wedge by hand.** Delete the replica's data PVC. The
+StatefulSet recreates it, the storage class provisions a fresh volume on a box
+that has room (`WaitForFirstConsumer` binds it wherever the pod is placed rather
+than where the old one was), and the pod refills its ring from its sibling over
+the peer mesh. It took about two minutes end to end when this was done for the
+2026-09-07 wedge, with no customer-visible interruption, because the replica
+being replaced was `Pending` and serving nothing. Check the sibling is Ready
+first: the volume is one of the account's two copies and the rebuilt pod refills
+from the other one.
+
+Having the controller do this automatically was written and then deliberately
+dropped from the change that added this rule. The trigger has to infer "the pin
+is what is in the way" from a Pending pod, a bound claim, a grace period and a
+set of node-health guards, and two review passes each found a case where it
+would discard a healthy volume (a claim caught mid-bind, and a node carrying an
+untolerated taint). Automating a destructive action behind an inference that
+needed two corrections was judged the wrong trade against a repair that is one
+command, when what actually failed here was that nobody knew for two days. This
+rule is what fixes that. Revisit the automation if the wedge recurs often enough
+to be worth the risk.
+
+**Why *Pod cannot be scheduled* did not save us, which is not that it is
+missing.** That rule matches any unschedulable production pod outside
+`tuist-runners` for 30 minutes, which is exactly what the wedged replica was,
+and its entry here carries no *Already created* / *Live* / *Provisioned* line.
+That is a gap in this document, not in Grafana: the rule is deployed as
+`ffvn55h51mz28d` (folder `Alerts`, group `Infrastructure`, `severity: warning`,
+no `notification_settings`, so it routes through the policy tree), and on
+2026-09-07 it was carrying an alert instance for the wedged pod. So the
+two-day silence is not explained by an absent rule, and **whether it notified
+and was missed, or was suppressed, is still open** — answer it from the rule's
+alert history in Grafana rather than from this document.
+
+One likely contributor, worth its own look: over the seven days to 2026-09-07
+production carried 13 to 14 concurrently unschedulable pods, every one of them
+in `kura`, including both ordinals of several instances. All had cleared by the
+time this was written and production now has none (fleet-wide there is a single
+`kube_pod_status_unschedulable` series, in staging). A per-pod rule standing at
+a dozen-plus instances is one a human stops reading, which is the failure mode
+that rule's own entry warns about for staging. Two rules are worth keeping
+either way, because they fail differently: that one catches an unplaceable pod
+in any namespace, and this one catches a tenant below its replica count for
+reasons that never involve the scheduler.
+
+### Kura box cannot take back its largest replica
+
+The leading indicator for **Kura instance below its replica count** above, and
+the only one of the two that is readable *before* anything breaks. A Kura data
+volume is node-local and pins its replica to one box. When that box has
+committed so much of its `tuist.dev/memory-ceiling-mib` budget that the
+replica could not be placed back on it, the replica has nowhere else to go the
+moment it is deleted, so it sits `Pending` until somebody deletes the claim.
+This rule reads that state while the replica is still running.
+
+**Live**: rule `efxjihza4os1sc`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`.
+
+The invariant, per box:
+
+```
+committed  <=  allocatable  -  largest single replica request
+```
+
+```promql
+(
+  sum by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+  +
+  max by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+)
+-
+max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_memory_ceiling_mib"})
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`. The value is how
+  far past the line the box is, in MiB
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK; execution-error state Alerting
+- Summary: `Kura box {{ $labels.node }} in {{ $labels.cluster }} is committed
+  {{ $values.A.Value | printf "%.0f" }} MiB past the point where its largest
+  replica could come back`
+
+**Why the seat is not simply held, which is what makes this worth watching.**
+Kubernetes accounts extended resources against *scheduled pods*, not against
+volumes. The moment a replica is deleted for any reason (a rollout, an eviction,
+a drain, a storage rebuild) its request stops being counted
+and another instance can take the headroom. Two things that look like they would
+fix that do not. Kura pods run at priority 0 with no PriorityClass, so a
+returning replica cannot preempt whatever took its seat; and on these boxes
+every competitor for the budget is another Kura pod (on the box that wedged:
+52992 MiB across 26 Kura pods, and exactly 0 from every other namespace), so a
+*uniform* PriorityClass would have nothing to preempt. A two-tier scheme that
+ranks an established replica above one being placed does not survive either,
+because a newcomer binds its volume in `PreBind` seconds after being scheduled
+and would be promoted almost immediately. There is no Kubernetes primitive that
+reserves capacity for a pod that is not currently scheduled, which is why this
+is a warning to act on rather than a mechanism.
+
+**Rollouts make it quieter, not noisier.** While a replica is down its request
+leaves the sum, so the value falls. The rule only rises when commitment
+genuinely grows, which is what it is for.
+
+**It fires on creation for one production box, and that is a true positive.**
+On 2026-09-07 the box that produced the two-day single-replica wedge sits about
+950 MiB over the line (52992 committed, 56138 allocatable, 4096 largest
+replica), while its sibling in the region is 6218 under and every other Kura box
+is further under still. Unlike the staging noise described under *Pod cannot be
+scheduled*, this is one alert naming one genuinely over-committed box, and it
+clears by adding capacity to the region. Do **not** clear it by shrinking an
+account's memory profile: that is the account's floor, not the box's slack.
+
+**Enforcement belongs elsewhere, deliberately.** This rule observes the
+invariant; nothing yet refuses an admission that would violate it. That belongs
+in `Tuist.Kura.Capacity` and the admission path, which already implements this
+exact shape for the other bin-packed dimension (`egress_headroom`, per box,
+`replicas x floor <= allocatable - other tenants`, with `max_floor_mbps`
+derived from it). The ceiling dimension has no equivalent, and it is now the
+binder in us-east. Two things to settle before enforcing it, which is why it did
+not ride along with the rule: the region reads differently the moment it is
+enforced (one of the two us-east boxes is already over the line, so us-east
+would immediately stop accepting placements there), and per-box headroom is a
+stronger statement than the region-level pressure fraction
+(`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
+on which is authoritative.
 
 ### Kura region has room for one more instance
 
@@ -3682,6 +4234,136 @@ clamp_min(
 - Pending period: 2 minutes
 - Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.cluster }}`
 
+### Tuist server ClickHouse query failures
+
+```promql
+sum by (cluster, namespace, result) (
+  increase(tuist_clickhouse_query_count{result!="ok"}[5m])
+) > 0
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
+- `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
+  for every query the read-only ClickHouse repo runs. `result` is `ok`,
+  `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
+  `TIMEOUT_EXCEEDED`, which the repo's `max_execution_time` produces for a
+  slow read; `clickhouse_241` the memory limit), `transport_closed` for a
+  connection the client dropped, `queue_timeout` for a pool checkout that never
+  got a connection.
+- The threshold is `> 0` on purpose, the same reasoning as the Kura
+  NetworkPolicy rule above: the errors are rare enough that any magnitude floor
+  would be tuned blind and hide a low-rate variant. Duration does the
+  discrimination. A one-off error holds a `[5m]` window for under five minutes
+  and never clears the pending period; a page whose queries keep failing holds
+  it for as long as anyone loads the page. On 2026-09-05 the Modules page
+  failed 21 query attempts, which reached the server logs as ClickHouse
+  connection timeouts between 08:21Z and 08:24Z across two pods, so the
+  condition holds from 08:21Z to about 08:29Z and the rule fires around
+  08:26Z.
+- Set **No Data** to Normal: the counter only exists once a query has run.
+
+### Tuist server ClickHouse query latency
+
+```promql
+histogram_quantile(
+  0.9,
+  sum by (cluster, namespace, le) (
+    rate(tuist_clickhouse_query_duration_milliseconds_bucket[10m])
+  )
+) > 5000
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
+- Same histogram as the failures rule, all outcomes included so a query that
+  ran into its timeout counts as slow rather than disappearing from the
+  distribution. The repo stops a read at 15 s server-side and 20 s
+  client-side, so the histogram's top buckets are 15 000, 20 000 and 30 000.
+- This is the rule that covers dashboard pages. They are LiveViews: the
+  initial render returns in milliseconds and the data is loaded afterwards
+  over the socket, so the HTTP request duration rules stay flat while a page
+  is unusable, which is how the 2026-09-05 Modules page outage went unseen.
+  Nothing measures those loads at the view layer, deliberately, since every
+  one of them is a ClickHouse read and this histogram already counts it. A
+  page that becomes slow for another reason, an object store or an external
+  API, would not show up here.
+
+### Slow or cancelled ClickHouse query
+
+Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
+not the metrics data source. This is rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
+query"), whose definition before 2026-09-05 could not have fired on that
+day's Modules page outage, so the fields below replace it.
+
+```sql
+SELECT
+  toString(normalized_query_hash) AS query_hash,
+  substring(replaceRegexpAll(normalizeQuery(any(query)), '\\s+', ' '), 1, 120) AS query_preview,
+  countIf(type = 'ExceptionWhileProcessing' AND exception_code IN (394, 210, 159))
+    + countIf(type = 'QueryFinish' AND query_duration_ms >= 10000) AS slow_or_cancelled
+FROM clusterAllReplicas('default', system.query_log)
+WHERE event_time >= now() - INTERVAL 15 MINUTE
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+  AND is_initial_query
+  AND http_user_agent LIKE 'ch/%'
+GROUP BY query_hash
+HAVING slow_or_cancelled > 0
+ORDER BY slow_or_cancelled DESC
+LIMIT 20
+```
+
+- Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
+  expression: the query returns one numeric column and string columns only,
+  which Grafana reads as one series per `(query_hash, query_preview)` label
+  set. The previous definition returned a string `query_preview` column next to
+  several numeric ones and its Reduce step failed with `input data must be a
+  wide series`, so the rule errored instead of evaluating whenever rows came
+  back.
+- Pending period: 2 minutes
+- Severity: warning
+- Folder `Alerts`, group `Server`
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.B }} times in 15 minutes: {{ $labels.query_preview }}`
+- Set **No Data** to Normal: a healthy cluster returns no rows.
+- `clusterAllReplicas('default', system.query_log)` reads every replica's log.
+  The data source hits one of the three ClickHouse Cloud replicas per request,
+  so the previous `system.query_log` saw a third of the attempts at best.
+- `type = 'QueryFinish'` alone never sees a query the client gave up on.
+  ClickHouse records those as `ExceptionWhileProcessing`, under an
+  `exception_code` that depends on where the abort lands: 394
+  (`QUERY_WAS_CANCELLED`) or 210 (`NETWORK_ERROR`) when the client closed the
+  connection, 159 (`TIMEOUT_EXCEEDED`) when the server's own
+  `max_execution_time` stopped it. Production logged 394 for all 21 attempts
+  on 2026-09-05, and reproducing the same abort through the Elixir driver
+  logged 210, so all three are counted.
+- Three per normalized query in 15 minutes replaces twenty in 30 minutes with
+  a 10-minute pending period. The Modules page runs five distinct queries per
+  load, so five loads by one user produced about four attempts per query hash,
+  which the old floor never reached. Three is one page load past the first
+  failure, and the lookback keeps the condition true well past the 2-minute
+  pending period. `Tuist.ClickHouseRetry` re-attempts a dropped connection up
+  to three times and every attempt is logged, so a page failing this way
+  clears the floor faster than the page-load count alone suggests.
+- `http_user_agent LIKE 'ch/%'` keeps this to the Elixir services' driver and
+  out of the data source's own queries and ad-hoc console queries, which
+  otherwise show up here as slow rows the moment someone explores query_log.
+- Group by `normalized_query_hash`, not by a marker the application writes into
+  the SQL. The Ecto ClickHouse adapter inlines parameters into the statement it
+  sends (`{project_id:Int64}` arrives as `_CAST(2382, 'Int64')`) and drops
+  comments on the way, so nothing written into the query text survives into
+  `query_log`.
+- `normalizeQuery` folds literals into `?` so the preview label is stable per
+  hash between evaluations; a changing label value would open a new alert
+  instance each time.
+- Validated against a reproduction, not against production: replaying the
+  failure through the driver against ClickHouse 26.1 gave 18 and 4 for the two
+  query shapes, both above the threshold, while the previous rule's
+  `type = 'QueryFinish'` form returned no rows over the same window.
+
 ### etcd write-ahead-log synchronization latency
 
 ```promql
@@ -3999,22 +4681,10 @@ entries and never becomes a metric.
 
 **How the data gets here.** The Grafana Faro Web SDK is an npm dependency
 bundled into the server's own JavaScript, so there is no third-party script and
-no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which
-the `tuist` chart routes at the `faro.receiver` on the `alloy-receiver`
-collector through an ExternalName Service (`server.faro` in
-`infra/helm/tuist`). Alloy forwards to Grafana Cloud Loki.
-
-**The collector path is rewritten, and that is the fragile part.** Alloy's
-`faro.receiver` serves POST on `/collect` and nothing else, so a dedicated
-Ingress rewrites `/-/faro/collect` to `/collect` before it reaches the receiver.
-It is a separate Ingress object from the server's on purpose: `rewrite-target`
-is a per-Ingress annotation, so putting the path on the main Ingress would
-rewrite `/` as well and take the whole site down. ingress-nginx denies an
-Ingress whose host and path another Ingress already defines, so the collector
-path must be one no other Ingress on `tuist.dev` lists. The first deploy of
-this pipeline shipped without the rewrite and every payload got a 404 from
-Alloy's router, which is why the triage below starts by reading the body of
-that 404 rather than only its status.
+no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which a
+dedicated Ingress routes at the `faro.receiver` on the `alloy-receiver`
+collector through an ExternalName Service (`server.faro` in `infra/helm/tuist`).
+Alloy forwards to Grafana Cloud Loki.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
@@ -4023,31 +4693,40 @@ to filter. A blocked collector would not look like an outage, it would quietly
 bias the percentiles toward the users who do not block, which is exactly the
 population least likely to be slow.
 
-**The shape of the data.** Web vitals arrive as `kind=measurement` entries with
-`type=web-vitals`. The logfmt line carries one field per vital (`lcp`, `cls`,
-`inp`, `fcp`, `ttfb`) **in milliseconds**, so every rule divides by 1000 to
-alert in seconds. Faro metadata is prefixed: `app_name`, `app_environment`,
-`page_url`, `session_id`, `browser_*`, `view_name`. LCP attribution lands
-alongside the value (`resource_load_delay`, `resource_load_duration`,
-`element_render_delay`, `time_to_first_byte`) and the measurement context is
-prefixed `context_` (`context_rating`, `context_element`).
+#### Measured baseline
 
-Because `| logfmt` promotes every field to a label, each query needs an explicit
-`by (app_environment)` or `sum by (...)`. Without it a range aggregation returns
-one series per unique field combination, which is per-session.
+Taken 2026-09-05 over 24h, 768 LCP samples. **Re-derive this after any change to
+the marketing site's asset weight**, and treat it as the reference for whether a
+threshold below is still sensible.
 
-**`app_environment` is `prod`, not `production`.** The value comes from
-`Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
-the k8s and Grafana Cloud label layer, a different thing. Every rule here
-originally filtered `production` and therefore matched nothing — and because the
-percentile rules are No Data: OK, that read as a healthy, fast site rather than
-a broken pipeline. If a rule in this group ever goes quiet, re-run its query
-with the environment filter removed before believing the silence.
+| Percentile | LCP | Threshold | Headroom |
+| --- | --- | --- | --- |
+| p50 | 0.87s | 2.5s | 2.9x |
+| **p75** | **1.57s** | **2.5s** | **1.6x** |
+| p90 | 2.87s | 4.0s | 1.4x |
+| p95 | 3.81s | 5.0s | 1.3x |
+| p99 | 7.11s | 10.0s | 1.4x |
+
+Ratings: **88% good, 8% needs-improvement, 4% poor**. p75 at 1.57s passes Core
+Web Vitals comfortably and sits inside the 1.2–1.8s target for a mostly static
+site behind Cloudflare with TTFB around 117ms.
+
+Volume is about **32 LCP samples an hour**. Every window and sample floor below
+is derived from that rate rather than guessed, which is what the first version
+of these rules got wrong.
+
+#### The stream selector — read this before writing a query
+
+**`kind` is NOT a Loki label.** Alloy's Faro exporter sets it as a stream label,
+but Grafana Cloud does not index it. The only stream labels are `cluster`,
+`env`, `k8s_cluster_name`, `service_name` and `detected_level`; everything else,
+`kind` included, lives inside the logfmt line and must be parsed out:
 
 ```logql
-quantile_over_time(0.95,
-  {service_name="tuist-web", kind="measurement"}
+quantile_over_time(0.75,
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | app_environment="prod"
     | lcp!=""
@@ -4055,21 +4734,105 @@ quantile_over_time(0.95,
 ) by (app_environment) / 1000
 ```
 
-Every rule pairs that with a sample-count query and fires only when both the
-threshold is crossed and enough samples exist, so a handful of overnight
-visitors on bad connections cannot manufacture a percentile.
+Selecting `{service_name="tuist-web", kind="measurement"}` matches nothing.
+
+**`app_environment` is `prod`, not `production`.** The value comes from
+`Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
+the k8s and Grafana Cloud label layer, a different thing.
+
+Because `| logfmt` promotes every field to a label, each query also needs an
+explicit `by (app_environment)` or `sum by (...)`. Without it a range
+aggregation returns one series per unique field combination, which is
+per-session.
+
+Web vitals arrive as `kind=measurement` entries with `type=web-vitals`. The line
+carries one field per vital (`lcp`, `cls`, `inp`, `fcp`, `ttfb`) **in
+milliseconds**, so every rule divides by 1000 to alert in seconds. Metadata is
+prefixed: `app_name`, `app_environment`, `page_url`, `session_id`, `browser_*`,
+`view_name`. LCP attribution lands alongside the value (`resource_load_delay`,
+`resource_load_duration`, `element_render_delay`, `time_to_first_byte`) and the
+measurement context is prefixed `context_` (`context_rating`,
+`context_element`).
+
+#### The rules
 
 | Rule | Percentile | Window | Threshold | Min samples | Pending |
 | --- | --- | --- | --- | --- | --- |
-| LCP p50 above the Core Web Vitals good threshold | 0.50 | 1h | > 2.5s | 50 | 15m |
-| **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **200** | **30m** |
-| LCP p90 in the Core Web Vitals poor band | 0.90 | 1h | > 4.0s | 100 | 15m |
-| LCP p95 sustained slow tail | 0.95 | 6h | > 5.0s | 200 | 30m |
-| LCP p99 pathological tail | 0.99 | 6h | > 8.0s | 200 | 30m |
+| LCP p50 above the Core Web Vitals good threshold | 0.50 | 6h | > 2.5s | 100 | 30m |
+| **LCP p75 failing Core Web Vitals** | **0.75** | **6h** | **> 2.5s** | **100** | **30m** |
+| LCP p90 in the Core Web Vitals poor band | 0.90 | 6h | > 4.0s | 100 | 30m |
+| LCP p95 sustained slow tail | 0.95 | 24h | > 5.0s | 300 | 30m |
+| LCP p99 pathological tail | 0.99 | 24h | > 10.0s and ≥ 10 affected sessions | 300 | 30m |
 
-The higher percentiles use a 6h window because a stable estimate needs roughly
-ten times `1/(1-q)` samples and tuist.dev does not produce that in an hour
-outside peak.
+Each pairs the percentile with a sample-count query and requires more than the
+listed minimum samples. That prevents evaluating a percentile over very little
+traffic, but does not stop a few outliers from determining p99. At the baseline
+rate of 32 samples an hour a 6h window holds roughly 190 and a 24h window roughly
+770; the wider window helps, but does not guarantee a stable tail estimate.
+
+**p99 also requires at least ten affected sessions.** Rule
+`efx5a3mn2fwg0c` keeps A (p99 in seconds), B (total LCP samples), and the 30-minute
+pending period. D counts distinct non-empty `session_id` values with at least
+one LCP above 10,000 milliseconds in the same 24 hours. Multiple slow page loads
+or reloads within one session count once; a session is not a unique person.
+Its C math expression is `$A > 10.0 && $B > 300 && $D >= 10`.
+
+Use this instant Loki query for D:
+
+```logql
+count by (app_environment) (
+  sum by (app_environment, session_id) (
+    count_over_time(
+      {service_name="tuist-web"}
+        | logfmt
+        | kind="measurement"
+        | type="web-vitals"
+        | app_environment="prod"
+        | lcp!=""
+        | session_id!=""
+        | lcp > 10000
+        | __error__="" [24h]
+    )
+  )
+) or on (app_environment) (
+  0 * sum by (app_environment) (
+    count_over_time(
+      {service_name="tuist-web"}
+        | logfmt
+        | kind="measurement"
+        | type="web-vitals"
+        | app_environment="prod"
+        | lcp!="" [24h]
+    )
+  )
+)
+```
+
+The fallback preserves the `app_environment` label and returns zero when LCP
+telemetry exists but no sessions qualify. It leaves missing telemetry absent;
+the separate browser-vitals telemetry rule covers that case. Missing session
+IDs do not establish distinct affected sessions and are excluded from D.
+
+**Why ten, and validation on 2026-09-06.** The investigated window ending
+2026-09-05 21:46 UTC had p99 13.58s, 477 samples, and only six affected sessions
+on different pages. A 14-day lookback returned LCP data only from September 4.
+At 55 hourly evaluation points from September 4 09:00 UTC through September 6
+15:00 UTC, the old A/B condition crossed its thresholds 19 times; adding D
+suppressed all 19. D ranged from zero to eight. These are sampled condition
+results, not a replay of the 30-minute pending state. The zero-session fallback
+was also verified against live Loki. This short history does not establish a
+statistical cutoff or show sensitivity to a known widespread regression: ten
+is an interruption policy that should be reassessed with more history. It
+delays detection of low-volume regressions; the lower-percentile rules remain
+independent.
+
+For per-page investigation, group the inner sum by
+`(app_environment, page_url, session_id)` and the outer count by
+`(app_environment, page_url)`. Three affected sessions on the same page is a
+candidate complementary signal, not an enabled rule. The six-hour backtest
+snapshots found at most one affected session per page. Before enabling it,
+validate it with more history and normalize URLs so query strings do not split
+one page into multiple groups.
 
 **p75 is the only one of these that measures a standard.** Core Web Vitals
 assesses LCP at the 75th percentile — at or below 2.5s is good, above 4.0s is
@@ -4079,13 +4842,8 @@ is slow. The other four describe the *shape* of a regression: a p50 move changed
 something for everyone, p90 and p95 point at a segment, and p99 finds individual
 broken pages. Only p75 answers whether we are passing.
 
-Treat 2.5s as the failing line rather than the goal. tuist.dev is mostly static
-content behind Cloudflare with TTFB around 117ms, and marketing image weight was
-cut from 145 MB to 73 MB in [#12800](https://github.com/tuist/tuist/pull/12800),
-so **p75 in the 1.2–1.8s range is what to aim at**. For reference, a site
-passing comfortably at p75 ≈ 2.0s typically sits around p50 ≈ 1.4s, p90 ≈ 3.0s,
-p95 ≈ 3.8s and p99 ≈ 6.5s — which is why the thresholds above sit clear of a
-healthy distribution rather than hugging it.
+Treat 2.5s as the failing line rather than the goal; **p75 in the 1.2–1.8s range
+is what to aim at**, and the measured 1.57s is inside it.
 
 Core Web Vitals is officially assessed over 28 days, which is neither practical
 nor useful to alert on, so the p75 rule uses 6h as an operational proxy. A
@@ -4099,8 +4857,9 @@ value, so no extra instrumentation is needed:
 
 ```logql
 quantile_over_time(0.75,
-  {service_name="tuist-web", kind="measurement"}
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | lcp!=""
     | unwrap resource_load_duration [6h]
@@ -4108,20 +4867,37 @@ quantile_over_time(0.75,
 ```
 
 Swap `resource_load_duration` for `time_to_first_byte`, `resource_load_delay` or
-`element_render_delay`. A large `resource_load_duration` is image weight; a large
-`time_to_first_byte` is the origin.
+`element_render_delay`. A large `resource_load_duration` can mean a heavy image
+or a slow transfer. A large `time_to_first_byte` includes delays before the
+request reaches the origin, including connection establishment. Correlate the
+session and `context_navigation_entry_id` with the `faro.performance.navigation`
+event's `event_data_faroNavigationId`, then inspect `event_data_requestTime`,
+`event_data_dnsLookupTime`, `event_data_tcpHandshakeTime` and
+`event_data_tlsNegotiationTime` before attributing it to the server. The
+September 5 blog outlier spent 35.51s establishing the connection and only 0.57s
+loading its LCP image.
 
-**THESE THRESHOLDS ARE NOT MEASUREMENTS OF TUIST.DEV.** They anchor on Google's
-Core Web Vitals boundaries because when the rules were written no LCP history
-existed to derive anything from: PostHog held the only real-user vitals and was
-being removed in the same change. Re-derive the p50, p90, p95 and p99 thresholds
-from two weeks of this stream before treating any of them as an SLO. p75 is the
-exception and should stay at 2.5s: it is a published standard rather than a
-guess about this site. The p95 rule tracks the percentile the retired PostHog
-daily report watched, so it is the one with continuity to what came before.
+Run `mise run marketing:image-budget` when investigating image weight, but note
+that it only checks `server/priv/static/marketing/images`. Dashboard assets,
+including the signup images under `server/priv/static/app/images`, are outside
+that budget.
 
 These rules are warnings and carry no `affected_service` label. A slow marketing
 page is not a customer-visible outage and must not open a status-page incident.
+
+#### Signal-to-noise in this stream
+
+Of roughly 37,000 Faro entries a day, only about 4,600 are `kind=measurement`
+and 768 of those carry an LCP. The rest is `kind=event`, dominated by
+`faro.performance.resource` entries — and because LiveView long-polls every ten
+seconds, a single idle open tab emits a resource-timing entry on that cadence
+forever.
+
+The consequence is query amplification rather than a large bill: an LCP query
+scans around 63,000 lines to find 768. If it becomes a problem, pass
+`enablePerformanceInstrumentation: false` to `getWebInstrumentations` in
+`server/assets/shared/js/analytics.js`. Web vitals come from a separate
+instrumentation and are unaffected.
 
 ### Browser vitals telemetry missing
 
@@ -4132,8 +4908,9 @@ silence all five permanently and read as health.
 
 ```logql
 sum(count_over_time(
-  {service_name="tuist-web", kind="measurement"}
+  {service_name="tuist-web"}
     | logfmt
+    | kind="measurement"
     | type="web-vitals"
     | app_environment="prod"
     | lcp!="" [2h]
@@ -4148,12 +4925,25 @@ The polarity is inverted relative to the rules it guards. If the stream vanishes
 entirely, `sum(count_over_time(...))` returns nothing rather than zero, so the
 threshold alone would never fire and No Data has to be the alerting state. The
 same inversion applies to the `absent_over_time` rules elsewhere in this
-document.
+document. A healthy 2h window holds roughly 60 samples, and the threshold is
+total silence rather than a volume dip.
 
-**It ships paused.** It was created alongside the Faro pipeline but before that
-pipeline was deployed, so leaving it active would have fired continuously from
-creation. Unpause it once the deploy has landed and Explore shows measurements
-arriving; while it is paused the percentile rules are unguarded.
+**This pipeline has now shipped three silent faults**, and all three presented
+identically — every rule green, nothing firing, no data behind any of it:
+
+1. **Path.** Alloy's `faro.receiver` serves POST on `/collect` alone. Payloads
+   got a plain-text `404 page not found` from Alloy's router until the collector
+   URL moved to `/-/faro/collect`.
+2. **Environment spelling.** The rules filtered `app_environment="production"`
+   while the app emits `prod`.
+3. **`kind` as a label.** The rules selected `{service_name="tuist-web",
+   kind="measurement"}`, which Grafana Cloud never indexes. This one hid two
+   days of perfectly good data.
+
+The shape is always the same: a filter that matches nothing is indistinguishable
+from a fast site when No Data is OK. **When a rule in this group goes quiet,
+strip the query back to `{service_name="tuist-web"}` and re-add one stage at a
+time** before believing the silence.
 
 Triage follows the payload:
 
@@ -4161,15 +4951,16 @@ Triage follows the payload:
    `collector_url`. Empty means `TUIST_FARO_COLLECTOR_URL` is unset, i.e.
    `server.faro.collectorUrl` is empty in the chart.
 2. **Ingress** — `curl -sX POST https://tuist.dev/-/faro/collect -H 'Content-Type: application/json' -d '{}'`
-   should not 404. **Read the body, not just the status**, because the two 404s
-   mean opposite things: a plain-text `404 page not found` is Go's, so the
-   request reached Alloy and only the path is wrong (the rewrite Ingress is
-   missing or its annotation was dropped), whereas the server's HTML error page
-   means the request never left Phoenix and `server.faro.receiverHost` is empty,
-   so neither the ExternalName Service nor the Faro Ingress was rendered.
-3. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
+   should return 202. **Read the body of any 404**: a plain-text
+   `404 page not found` is Go's, so the request reached Alloy and the path is
+   wrong, whereas the server's HTML error page means it never left Phoenix and
+   neither the ExternalName Service nor the Faro Ingress was rendered.
+3. **Loki** — strip the query to the bare stream selector, then re-add
+   `| logfmt | kind="measurement"` and each filter in turn.
+4. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
    collector counts what it ingested. Rising there but absent in Loki is a
-   forwarding problem, not a browser one.
+   forwarding problem. Absent entirely proves nothing on its own: those
+   component metrics are not always exported to Grafana Cloud.
 
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
@@ -4255,7 +5046,7 @@ Kura cannot make its scrape fail: coincident timestamps mean the failure is
 collection-side and no Kura investigation is warranted.
 
 ```promql
-up{cluster="tuist-production", job="kura", instance="<podIP>:4000"} == 0
+up{cluster="tuist-production", job="kura", instance="<namespace>/<pod>"} == 0
 ```
 
 ```promql
@@ -4370,7 +5161,19 @@ target down, just 20 had two or more.
    point used by the infrastructure team. Add `affected_service` to
    customer-visible rules as described in **Routing to Grafana IRM** above.
 12. Preview the raw metric selector and the final comparison separately against
-    recent data before saving it.
+    recent data before saving it. **A query that returns no data is not
+    evidence of health**, and paired with No Data: Normal it produces a rule
+    that is indistinguishable from a working one until the incident it was
+    written for. Grafana Cloud **adaptive metrics** is the usual cause: it
+    aggregates high-cardinality labels away and then serves only the
+    aggregations it stores for that metric. Two consequences to check for:
+    selecting an aggregated label matches nothing (`workload_cluster`,
+    `kubeadmcontrolplane` on the CAPI custom-resource metrics; `cluster`,
+    `env`, `instance`, `k8s_cluster_name` on `etcd_*`), and an aggregation
+    function that is not stored returns nothing either, so
+    `min by (cluster, instance) (etcd_server_has_leader) == 0` is empty rather
+    than `0` where `count - sum` works. Querying such a metric bare returns an
+    explicit error naming the aggregated labels; use that to find them.
 13. For a rule whose healthy state is an empty result *and* whose unhealthy
     state depends on the series existing (`Remote processing queue has no
     consumer`, `xcresult processor guest metrics unavailable fleet-wide`),

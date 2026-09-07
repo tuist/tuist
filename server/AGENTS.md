@@ -93,6 +93,15 @@ mise run dev
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
 
+## Metrics and Alerts
+- PromEx plugins listed in `server/lib/tuist/prom_ex.ex` export the `tuist_*`
+  metrics that `infra/helm/k8s-monitoring/alerts.md` documents rules for. Alert
+  rules are created by hand in Grafana; that document is not provisioning.
+- ClickHouse reads are measured by `Tuist.ClickHouseRepo.PromExPlugin` (count
+  and duration by outcome) and LiveView async loads by
+  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
+  a metric nothing queries has its labels aggregated away by Grafana Cloud.
+
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).
 - Declare aliases at the module level, not inside functions.

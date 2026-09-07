@@ -69,6 +69,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	metricsClient, err := controllers.NewPodMetricsClient(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "build pod metrics client")
+		os.Exit(1)
+	}
+
 	if err := (&controllers.KuraInstanceReconciler{
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
@@ -76,6 +82,7 @@ func main() {
 		GRPCClusterIssuer:  grpcClusterIssuer,
 		OTLPTracesEndpoint: otlpTracesEndpoint,
 		Environment:        deploymentEnvironment,
+		MetricsClient:      metricsClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)

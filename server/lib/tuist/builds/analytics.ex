@@ -2278,101 +2278,165 @@ defmodule Tuist.Builds.Analytics do
     build: first-seen / cold / evicted).
   """
   def module_invalidations(opts \\ []) do
+    opts
+    |> module_invalidation_breakdown()
+    |> module_invalidations_from_breakdown(opts)
+  end
+
+  @doc """
+  Returns, per module and day, how often it was built and why it missed:
+  `appearances`, `misses`, `changed` (its own content differed from its previous
+  build) and `upstream` (only a dependency differed). One pass over the window
+  that `module_invalidations/1` and `module_miss_reasons_timeseries/1` both
+  derive from, so a page that needs both runs it once.
+
+  Takes the same options as `module_invalidations/1`, without `:limit`.
+  """
+  def module_invalidation_breakdown(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
 
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-    limit = Keyword.get(opts, :limit, 30)
 
     {filter_sql, filter_params} = module_invalidation_filters(opts)
     {name_sql, name_params} = module_name_filter(opts)
 
     params =
-      %{project_id: project_id, start: start_datetime, end: end_datetime, limit: limit}
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
-    SELECT name, product, appearances, invalidations, self_changes, dependency_induced
+    SELECT
+      day,
+      name,
+      product,
+      count() AS appearances,
+      countIf(hit = 'miss') AS misses,
+      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
+      countIf(
+        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
+      ) AS upstream
     FROM (
       SELECT
-        name,
-        product,
-        count() AS appearances,
-        countIf(hit = 'miss') AS invalidations,
-        countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS self_changes,
-        countIf(
-          hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
-        ) AS dependency_induced
+        day, name, product, hit, own, deps, ext,
+        row_number() OVER w AS rn,
+        lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(deps, 1) OVER w AS prev_deps,
+        lagInFrame(ext, 1) OVER w AS prev_ext
       FROM (
         SELECT
-          name, product, hit, own, deps, ext,
-          row_number() OVER w AS rn,
-          lagInFrame(own, 1) OVER w AS prev_own,
-          lagInFrame(deps, 1) OVER w AS prev_deps,
-          lagInFrame(ext, 1) OVER w AS prev_ext
-        FROM (
-          SELECT
-            xt.name AS name,
-            xt.product AS product,
-            xt.binary_cache_hit AS hit,
-            e.ran_at AS ran_at,
-            coalesce(e.git_branch, '') AS branch,
-            cityHash64(
-              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash,
-              xt.additional_hashing_inputs_hash
-            ) AS own,
-            xt.dependencies_hash AS deps,
-            xt.external_hash AS ext
-          FROM xcode_targets AS xt
-          INNER JOIN command_events AS e ON xt.command_event_id = e.id
-          WHERE e.project_id = {project_id:Int64}
-            AND e.ran_at >= {start:DateTime64(6)}
-            AND e.ran_at <= {end:DateTime64(6)}
-            AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
-        )
-        WINDOW w AS (
-          PARTITION BY name, product, branch
-          ORDER BY ran_at ASC
-          ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
-        )
+          toDate(e.ran_at) AS day,
+          e.ran_at AS ran_at,
+          coalesce(e.git_branch, '') AS branch,
+          xt.name AS name,
+          xt.product AS product,
+          xt.binary_cache_hit AS hit,
+          xt.own_hash AS own,
+          cityHash64(xt.dependencies_hash) AS deps,
+          cityHash64(xt.external_hash) AS ext
+        FROM xcode_targets_by_project AS xt
+        INNER JOIN command_events AS e ON xt.command_event_id = e.id
+        WHERE e.project_id = {project_id:Int64}
+          AND e.ran_at >= {start:DateTime64(6)}
+          AND e.ran_at <= {end:DateTime64(6)}
+          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
       )
-      GROUP BY name, product
-      HAVING invalidations > 0
+      WINDOW w AS (
+        PARTITION BY name, product, branch
+        ORDER BY ran_at ASC
+        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+      )
     )
-    ORDER BY invalidations DESC, appearances DESC
-    LIMIT {limit:UInt32}
+    GROUP BY day, name, product
     """
 
-    case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: rows}} ->
-        radii = opts |> latest_graph_dependencies() |> blast_radii()
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
 
-        Enum.map(rows, fn [name, product, appearances, invalidations, self_changes, dependency_induced] ->
-          %{
-            name: name,
-            product: product,
-            appearances: appearances,
-            invalidations: invalidations,
-            invalidation_rate: percentage(invalidations, appearances),
-            hit_rate: percentage(appearances - invalidations, appearances),
-            self_changes: self_changes,
-            dependency_induced: dependency_induced,
-            unclassified: max(invalidations - (self_changes + dependency_induced), 0),
-            # nil when the latest graph carries no dependency edges (older CLI);
-            # an integer (0 for a leaf) once edges are present.
-            blast_radius: Map.get(radii, name)
-          }
-        end)
+    Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream] ->
+      %{
+        day: normalize_date(day),
+        name: name,
+        product: product,
+        appearances: appearances,
+        misses: misses,
+        changed: changed,
+        upstream: upstream
+      }
+    end)
+  end
 
-      _ ->
-        []
-    end
+  @doc """
+  The module list `module_invalidations/1` returns, derived from a breakdown from
+  `module_invalidation_breakdown/1` for the same options.
+  """
+  def module_invalidations_from_breakdown(breakdown, opts) do
+    limit = Keyword.get(opts, :limit, 30)
+    radii = opts |> latest_graph_dependencies() |> blast_radii()
+
+    breakdown
+    |> Enum.group_by(&{&1.name, &1.product})
+    |> Enum.map(fn {{name, product}, rows} ->
+      appearances = rows |> Enum.map(& &1.appearances) |> Enum.sum()
+      invalidations = rows |> Enum.map(& &1.misses) |> Enum.sum()
+      self_changes = rows |> Enum.map(& &1.changed) |> Enum.sum()
+      dependency_induced = rows |> Enum.map(& &1.upstream) |> Enum.sum()
+
+      %{
+        name: name,
+        product: product,
+        appearances: appearances,
+        invalidations: invalidations,
+        invalidation_rate: percentage(invalidations, appearances),
+        hit_rate: percentage(appearances - invalidations, appearances),
+        self_changes: self_changes,
+        dependency_induced: dependency_induced,
+        unclassified: max(invalidations - (self_changes + dependency_induced), 0),
+        # nil when the latest graph carries no dependency edges (older CLI);
+        # an integer (0 for a leaf) once edges are present.
+        blast_radius: Map.get(radii, name)
+      }
+    end)
+    |> Enum.filter(&(&1.invalidations > 0))
+    |> Enum.sort_by(&{-&1.invalidations, -&1.appearances})
+    |> Enum.take(limit)
+  end
+
+  @doc """
+  The daily series `module_miss_reasons_timeseries/1` returns, derived from a
+  breakdown from `module_invalidation_breakdown/1` for the same options.
+  """
+  def miss_reasons_timeseries_from_breakdown(breakdown, opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    by_day =
+      breakdown
+      |> Enum.group_by(& &1.day)
+      |> Map.new(fn {day, rows} ->
+        misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
+        changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
+        upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
+        {day, %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
+      end)
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
+      upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
+      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
+    }
   end
 
   # Returns each module's most recent dependency edges (in the window/filters) as a
@@ -2391,7 +2455,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql_e2, _} = module_invalidation_filters(opts, "e2")
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     # Grouping over the window would keep a module that newer builds no longer
     # contain, so the graph is read from the newest commit that carries edges.
@@ -2405,38 +2471,34 @@ defmodule Tuist.Builds.Analytics do
         xt.dependencies AS dependencies,
         e.ran_at AS ran_at,
         coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) AS commit
-      FROM xcode_targets AS xt
+      FROM xcode_targets_by_project AS xt
       INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
-        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     )
     WHERE commit = (
       SELECT argMax(coalesce(nullIf(e2.git_commit_sha, ''), toString(e2.id)), e2.ran_at)
-      FROM xcode_targets AS xt2
+      FROM xcode_targets_by_project AS xt2
       INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
       WHERE e2.project_id = {project_id:Int64}
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND xt2.binary_cache_hash IS NOT NULL
-        AND notEmpty(xt2.dependencies)#{filter_sql_e2}
+        AND notEmpty(xt2.dependencies)#{filter_sql_e2}#{xcode_target_pruning("xt2")}
     )
     GROUP BY name
     """
 
-    case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: rows}} ->
-        edges = Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
 
-        # Include leaf modules (empty deps) as graph nodes so they can be counted as
-        # downstream targets. But if no module carries any edge, the project's CLI
-        # isn't sending the graph yet — keep blast radius unknown (nil) for all.
-        if Enum.any?(edges, fn {_name, deps} -> deps != [] end), do: edges, else: %{}
+    edges = Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
 
-      _ ->
-        %{}
-    end
+    # Include leaf modules (empty deps) as graph nodes so they can be counted as
+    # downstream targets. But if no module carries any edge, the project's CLI
+    # isn't sending the graph yet — keep blast radius unknown (nil) for all.
+    if Enum.any?(edges, fn {_name, deps} -> deps != [] end), do: edges, else: %{}
   end
 
   # Blast radius of a module = the number of other modules that transitively depend
@@ -2583,6 +2645,7 @@ defmodule Tuist.Builds.Analytics do
       |> Map.merge(reason_params)
       |> Map.merge(commit_params)
       |> Map.merge(cursor_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
@@ -2612,16 +2675,10 @@ defmodule Tuist.Builds.Analytics do
             coalesce(e.git_commit_sha, '') AS commit_sha,
             xt.binary_cache_hit AS hit,
             xt.product AS product,
-            cityHash64(
-              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash,
-              xt.additional_hashing_inputs_hash
-            ) AS own,
-            xt.dependencies_hash AS deps,
-            xt.external_hash AS ext
-          FROM xcode_targets AS xt
+            xt.own_hash AS own,
+            cityHash64(xt.dependencies_hash) AS deps,
+            cityHash64(xt.external_hash) AS ext
+          FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
@@ -2636,7 +2693,7 @@ defmodule Tuist.Builds.Analytics do
           WHERE e.project_id = {project_id:Int64}
             AND e.ran_at >= {start:DateTime64(6)}
             AND e.ran_at <= {end:DateTime64(6)}
-            AND xt.binary_cache_hash IS NOT NULL
+            AND xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning()}
             AND xt.name = {name:String}#{filter_sql}
         )
         WINDOW w AS (
@@ -2650,10 +2707,8 @@ defmodule Tuist.Builds.Analytics do
     LIMIT {limit:UInt32}
     """
 
-    case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: rows}} -> build_history_page(rows, direction, cursor, limit)
-      _ -> empty_build_history_page()
-    end
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+    build_history_page(rows, direction, cursor, limit)
   end
 
   # Reading a page forwards and reading it backwards are the same query with the
@@ -2746,10 +2801,6 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp empty_build_history_page do
-    %{rows: [], has_previous_page: false, has_next_page: false, start_cursor: nil, end_cursor: nil}
-  end
-
   defp encode_build_cursor(nil), do: nil
 
   defp encode_build_cursor(%{ran_at: ran_at, id: id}) do
@@ -2784,27 +2835,26 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
       toDate(e.ran_at) AS day,
       uniqExact(xt.name) AS modules
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     GROUP BY day
     ORDER BY day
     """
 
-    by_day =
-      case ClickHouseRepo.query(query, params) do
-        {:ok, %{rows: rows}} -> Map.new(rows, fn [day, modules] -> {normalize_date(day), modules} end)
-        _ -> %{}
-      end
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+    by_day = Map.new(rows, fn [day, modules] -> {normalize_date(day), modules} end)
 
     dates =
       start_datetime
@@ -2841,10 +2891,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql_e2, _} = module_invalidation_filters(Keyword.delete(opts, :git_branch), "e2")
 
     params =
-      Map.merge(
-        %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime},
-        filter_params
-      )
+      %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     # A commit is usually built more than once, so count across every build of
     # it rather than picking one. A build that reports no commit sha falls back
@@ -2856,30 +2905,28 @@ defmodule Tuist.Builds.Analytics do
     SELECT uniqExact(name)
     FROM (
       SELECT xt.name AS name, #{String.replace(commit_key, "%{alias}", "e")} AS commit
-      FROM xcode_targets AS xt
+      FROM xcode_targets_by_project AS xt
       INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
         AND e.git_branch = {branch:String}
-        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     )
     WHERE commit = (
       SELECT argMax(#{String.replace(commit_key, "%{alias}", "e2")}, e2.ran_at)
-      FROM xcode_targets AS xt2
+      FROM xcode_targets_by_project AS xt2
       INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
       WHERE e2.project_id = {project_id:Int64}
         AND e2.ran_at >= {start:DateTime64(6)}
         AND e2.ran_at <= {end:DateTime64(6)}
         AND e2.git_branch = {branch:String}
-        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}
+        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}#{xcode_target_pruning("xt2")}
     )
     """
 
-    case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: [[count]]}} -> count
-      _ -> 0
-    end
+    %{rows: [[count]]} = ClickHouseRepo.query!(query, params)
+    count
   end
 
   @doc """
@@ -2904,6 +2951,27 @@ defmodule Tuist.Builds.Analytics do
       edges when map_size(edges) == 0 -> nil
       edges -> edges |> reverse_edges() |> then(&downstream_dependents(name, &1)) |> MapSet.size()
     end
+  end
+
+  # xcode_targets_by_project is ordered by (project_id, name, inserted_at) and
+  # partitioned by day of inserted_at, so these predicates turn every scan into
+  # a range over one project's rows in the queried days. inserted_at is the
+  # ingestion time, bounded the way Tuist.Xcode already bounds it; measured lag
+  # in production is p99 17 minutes.
+  @xcode_target_ingest_lead 300
+  @xcode_target_ingest_lag 7200
+
+  defp xcode_target_pruning(alias_name \\ "xt") do
+    " AND #{alias_name}.project_id = {project_id:Int64}" <>
+      " AND #{alias_name}.inserted_at >= {targets_start:DateTime64(6)}" <>
+      " AND #{alias_name}.inserted_at <= {targets_end:DateTime64(6)}"
+  end
+
+  defp xcode_target_pruning_params(start_datetime, end_datetime) do
+    %{
+      targets_start: DateTime.add(start_datetime, -@xcode_target_ingest_lead, :second),
+      targets_end: DateTime.add(end_datetime, @xcode_target_ingest_lag, :second)
+    }
   end
 
   defp module_invalidation_filters(opts, alias_name \\ "e") do
@@ -2954,32 +3022,29 @@ defmodule Tuist.Builds.Analytics do
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
       toDate(e.ran_at) AS day,
       countIf(xt.binary_cache_hit = 'miss') AS invalidations,
       countIf(xt.binary_cache_hit != 'miss') AS reuses
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
     GROUP BY day
     ORDER BY day
     """
 
-    by_day =
-      case ClickHouseRepo.query(query, params) do
-        {:ok, %{rows: rows}} ->
-          Map.new(rows, fn [day, invalidations, reuses] ->
-            {normalize_date(day), %{invalidations: invalidations, reuses: reuses}}
-          end)
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
 
-        _ ->
-          %{}
-      end
+    by_day =
+      Map.new(rows, fn [day, invalidations, reuses] ->
+        {normalize_date(day), %{invalidations: invalidations, reuses: reuses}}
+      end)
 
     dates =
       start_datetime
@@ -3005,92 +3070,9 @@ defmodule Tuist.Builds.Analytics do
   Without `:name` it covers every module in the project.
   """
   def module_miss_reasons_timeseries(opts) do
-    project_id = Keyword.fetch!(opts, :project_id)
-    {name_sql, name_params} = module_name_filter(opts)
-
-    start_datetime =
-      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-    {filter_sql, filter_params} = module_invalidation_filters(opts)
-
-    params =
-      %{project_id: project_id, start: start_datetime, end: end_datetime}
-      |> Map.merge(filter_params)
-      |> Map.merge(name_params)
-
-    query = """
-    SELECT
-      day,
-      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
-      countIf(
-        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
-      ) AS upstream,
-      countIf(hit = 'miss') AS misses
-    FROM (
-      SELECT
-        day, name, product, hit, own, deps, ext,
-        row_number() OVER w AS rn,
-        lagInFrame(own, 1) OVER w AS prev_own,
-        lagInFrame(deps, 1) OVER w AS prev_deps,
-        lagInFrame(ext, 1) OVER w AS prev_ext
-      FROM (
-        SELECT
-          toDate(e.ran_at) AS day,
-          e.ran_at AS ran_at,
-          coalesce(e.git_branch, '') AS branch,
-          xt.name AS name,
-          xt.product AS product,
-          xt.binary_cache_hit AS hit,
-          cityHash64(
-            xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-            xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-            xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-            xt.target_settings_hash, xt.buildable_folders_hash,
-            xt.additional_hashing_inputs_hash
-          ) AS own,
-          xt.dependencies_hash AS deps,
-          xt.external_hash AS ext
-        FROM xcode_targets AS xt
-        INNER JOIN command_events AS e ON xt.command_event_id = e.id
-        WHERE e.project_id = {project_id:Int64}
-          AND e.ran_at >= {start:DateTime64(6)}
-          AND e.ran_at <= {end:DateTime64(6)}
-          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
-      )
-      WINDOW w AS (
-        PARTITION BY name, product, branch
-        ORDER BY ran_at ASC
-        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
-      )
-    )
-    GROUP BY day
-    ORDER BY day
-    """
-
-    by_day =
-      case ClickHouseRepo.query(query, params) do
-        {:ok, %{rows: rows}} ->
-          Map.new(rows, fn [day, changed, upstream, misses] ->
-            {normalize_date(day), %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
-          end)
-
-        _ ->
-          %{}
-      end
-
-    dates =
-      start_datetime
-      |> DateTime.to_date()
-      |> Date.range(DateTime.to_date(end_datetime))
-      |> Enum.to_list()
-
-    %{
-      dates: Enum.map(dates, &Date.to_iso8601/1),
-      changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
-      upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
-      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
-    }
+    opts
+    |> module_invalidation_breakdown()
+    |> miss_reasons_timeseries_from_breakdown(opts)
   end
 
   @doc """
@@ -3112,7 +3094,9 @@ defmodule Tuist.Builds.Analytics do
     {filter_sql, filter_params} = module_invalidation_filters(opts)
 
     params =
-      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
     query = """
     SELECT
@@ -3122,28 +3106,24 @@ defmodule Tuist.Builds.Analytics do
       -- a CLI that does not send edges, which would drop this module's edges
       -- for the day while its neighbours keep theirs.
       argMaxIf(xt.dependencies, e.ran_at, notEmpty(xt.dependencies)) AS deps
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
       AND e.ran_at <= {end:DateTime64(6)}
-      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
     GROUP BY day, name
     ORDER BY day
     """
 
-    edges_by_day =
-      case ClickHouseRepo.query(query, params) do
-        {:ok, %{rows: rows}} ->
-          Enum.group_by(
-            rows,
-            fn [day, _name, _deps] -> normalize_date(day) end,
-            fn [_day, name, deps] -> {name, deps} end
-          )
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
 
-        _ ->
-          %{}
-      end
+    edges_by_day =
+      Enum.group_by(
+        rows,
+        fn [day, _name, _deps] -> normalize_date(day) end,
+        fn [_day, name, deps] -> {name, deps} end
+      )
 
     dates =
       start_datetime

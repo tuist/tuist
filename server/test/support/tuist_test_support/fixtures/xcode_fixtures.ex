@@ -5,6 +5,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Xcode.XcodeGraph, as: XcodeGraph
   alias Tuist.Xcode.XcodeProject, as: XcodeProject
@@ -104,6 +105,19 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           project || CommandEventsFixtures.command_event_fixture().id
         end)
 
+      # Production writes project_id from the command event and inserted_at as
+      # wall clock minutes after the event ran, so the fixture derives both from
+      # the event unless told otherwise. Analytics prune xcode_targets on them.
+      event =
+        ClickHouseRepo.one(
+          from(e in Event,
+            where: e.id == ^command_event_id,
+            select: %{project_id: e.project_id, created_at: e.created_at}
+          )
+        )
+
+      project_id = Keyword.get_lazy(opts, :project_id, fn -> (event && event.project_id) || 0 end)
+
       name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
       binary_cache_hash = Keyword.get(opts, :binary_cache_hash, nil)
 
@@ -136,7 +150,11 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
       inserted_at =
         opts
-        |> Keyword.get(:inserted_at, NaiveDateTime.utc_now())
+        |> Keyword.get_lazy(:inserted_at, fn -> (event && event.created_at) || NaiveDateTime.utc_now() end)
+        |> case do
+          %DateTime{} = dt -> DateTime.to_naive(dt)
+          naive -> naive
+        end
         |> NaiveDateTime.truncate(:second)
 
       subhashes =
@@ -168,6 +186,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           name: name,
           xcode_project_id: xcode_project_id,
           command_event_id: command_event_id,
+          project_id: project_id,
           binary_cache_hash: binary_cache_hash,
           binary_cache_hit: binary_cache_hit,
           selective_testing_hash: selective_testing_hash,

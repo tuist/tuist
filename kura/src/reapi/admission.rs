@@ -43,6 +43,10 @@ const CAS_BATCH_READ_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs";
 const CAS_GET_TREE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree";
+const CAS_SPLIT_BLOB_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob";
+pub(super) const CAS_SPLICE_BLOB_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob";
 pub(super) const BUILD_EVENT_STREAM_PATH: &str =
     "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
 #[derive(Clone)]
@@ -57,15 +61,17 @@ struct GrpcWriteReservation {
     decode_structural_high_water_bytes: u64,
     stream_staging_bytes: u64,
     decode_copy_multiplier: u64,
-    /// The node's whole transient budget, captured once so the staging window
-    /// can be bounded by it. A window wider than the budget it is admitted
-    /// against can never be granted, however idle the node is.
+    /// The whole budget this stream can be admitted against -- the
+    /// floor-derived pool plus the ceiling headroom it may borrow -- captured
+    /// once so the staging window can be bounded by it. A window wider than the
+    /// budget it is admitted against can never be granted, however idle the
+    /// node is.
     transient_capacity_bytes: u64,
 }
 
 impl GrpcWriteReservation {
     fn new(memory: &MemoryController, decode_copy_multiplier: u64) -> Result<Self, ()> {
-        let reservation = memory.try_reserve_foreground_memory(0)?;
+        let reservation = memory.try_reserve_elastic_foreground_memory(0)?;
         Ok(Self {
             file_cache: ForegroundFileCacheReservation::new(
                 reservation,
@@ -77,7 +83,7 @@ impl GrpcWriteReservation {
             decode_structural_high_water_bytes: 0,
             stream_staging_bytes: 0,
             decode_copy_multiplier: decode_copy_multiplier.max(1),
-            transient_capacity_bytes: memory.transient_capacity_bytes(),
+            transient_capacity_bytes: memory.foreground_transient_capacity_bytes(),
         })
     }
 
@@ -274,6 +280,7 @@ impl GrpcWriteAdmissionBody {
             }
             GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
             GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
+            GrpcWriteShapePolicy::Splice => inspect_splice_wire(&payload)?,
         };
         self.admission
             .try_grow_decode(self.validation_message_bytes as u64, shape.structural_bytes)?;
@@ -383,7 +390,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
             "server is shedding writes due to memory pressure; retry the write",
         ));
     }
-    if state.store.outbox_depth() >= state.config.outbox_max_depth {
+    if state.store.outbox_saturated(&state.replication_targets()) {
         state
             .metrics
             .record_memory_action("grpc_write_rejected_outbox");
@@ -400,6 +407,7 @@ pub(super) fn is_reapi_write_path(path: &str) -> bool {
         BYTESTREAM_WRITE_PATH
             | ACTION_CACHE_UPDATE_PATH
             | CAS_BATCH_UPDATE_PATH
+            | CAS_SPLICE_BLOB_PATH
             | BUILD_EVENT_STREAM_PATH
     )
 }
@@ -437,6 +445,7 @@ pub(super) fn grpc_write_shape_policy(path: &str) -> Option<GrpcWriteShapePolicy
         BYTESTREAM_WRITE_PATH => Some(GrpcWriteShapePolicy::ByteStream),
         CAS_BATCH_UPDATE_PATH => Some(GrpcWriteShapePolicy::BatchUpdate),
         ACTION_CACHE_UPDATE_PATH => Some(GrpcWriteShapePolicy::ActionUpdate),
+        CAS_SPLICE_BLOB_PATH => Some(GrpcWriteShapePolicy::Splice),
         BUILD_EVENT_STREAM_PATH => Some(GrpcWriteShapePolicy::BuildEventStream),
         _ => None,
     }
@@ -528,6 +537,8 @@ fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
         CAS_BATCH_UPDATE_PATH => Cow::Borrowed(CAS_BATCH_UPDATE_PATH),
         CAS_BATCH_READ_PATH => Cow::Borrowed(CAS_BATCH_READ_PATH),
         CAS_GET_TREE_PATH => Cow::Borrowed(CAS_GET_TREE_PATH),
+        CAS_SPLIT_BLOB_PATH => Cow::Borrowed(CAS_SPLIT_BLOB_PATH),
+        CAS_SPLICE_BLOB_PATH => Cow::Borrowed(CAS_SPLICE_BLOB_PATH),
         path => Cow::Owned(path.to_owned()),
     }
 }
@@ -603,6 +614,8 @@ mod tests {
             CAS_BATCH_UPDATE_PATH,
             CAS_BATCH_READ_PATH,
             CAS_GET_TREE_PATH,
+            CAS_SPLIT_BLOB_PATH,
+            CAS_SPLICE_BLOB_PATH,
         ] {
             assert!(matches!(grpc_accounting_route(route), Cow::Borrowed(_)));
         }
@@ -641,6 +654,100 @@ mod tests {
                     && !line.ends_with(" 0")),
             "the write shed did not reach kura_capacity_sheds_total"
         );
+    }
+
+    // The production shape this pool exists for: a published floor that is a
+    // fraction of the ceiling headroom, and concurrent decodes that outgrow it
+    // mid-burst. Before the elastic pool every one of these answered
+    // RESOURCE_EXHAUSTED while the headroom the ceiling already allows sat
+    // untouched.
+    #[test]
+    fn a_decode_outgrowing_the_floor_is_served_from_ceiling_headroom() {
+        let metrics = crate::metrics::Metrics::new("us-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_anon_budget(
+            metrics.clone(),
+            1024 * mebibyte,
+            256 * mebibyte,
+            384 * mebibyte,
+            Some(32 * mebibyte),
+        );
+        memory.observe(mebibyte);
+        assert_eq!(memory.transient_capacity_bytes(), 32 * mebibyte);
+        assert_eq!(memory.elastic_transient_capacity_bytes(), 96 * mebibyte);
+
+        // Another write is holding the whole floor-derived pool.
+        let _held = memory
+            .try_reserve_foreground_memory(32 * mebibyte)
+            .expect("the floor pool should admit the first writer");
+
+        let admission = GrpcWriteAdmission::new(&memory, 3, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+        admission
+            .try_grow_decode(8 * mebibyte, 0)
+            .expect("a batch that outgrows the floor must borrow ceiling headroom");
+        assert_eq!(memory.elastic_transient_reserved_bytes(), 24 * mebibyte);
+
+        let rendered = metrics.render();
+        assert!(
+            rendered
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("reapi_write_decode")
+                    && line.ends_with(" 0")),
+            "a borrowed write must not be counted as a shed"
+        );
+    }
+
+    // Borrowing is bounded by the headroom, not by the writer. A single message
+    // past the whole budget is still refused, which is what keeps one stream
+    // from reserving the pod's entire anonymous ceiling.
+    #[test]
+    fn borrowing_does_not_lift_the_ceiling_on_a_single_decode() {
+        let metrics = crate::metrics::Metrics::new("us-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_anon_budget(
+            metrics.clone(),
+            1024 * mebibyte,
+            256 * mebibyte,
+            384 * mebibyte,
+            Some(32 * mebibyte),
+        );
+        memory.observe(mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 3, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+        admission
+            .try_grow_decode(memory.foreground_transient_capacity_bytes(), 0)
+            .expect_err("a message larger than floor plus headroom must still be shed");
+    }
+
+    // Above normal pressure anonymous growth is no longer something the kernel
+    // can resolve by reclaiming, so the borrow closes and the node sheds
+    // against its floor exactly as it did before the pool existed.
+    #[test]
+    fn a_constrained_node_stops_borrowing_and_sheds() {
+        let metrics = crate::metrics::Metrics::new("us-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_anon_budget(
+            metrics.clone(),
+            1024 * mebibyte,
+            256 * mebibyte,
+            384 * mebibyte,
+            Some(32 * mebibyte),
+        );
+        memory.observe(mebibyte);
+        let _held = memory
+            .try_reserve_foreground_memory(32 * mebibyte)
+            .expect("the floor pool should admit the first writer");
+        let admission = GrpcWriteAdmission::new(&memory, 3, metrics.grpc_write_admission_metrics())
+            .expect("the initial reservation should fit");
+
+        assert_eq!(memory.observe(300 * mebibyte), MemoryPressure::Constrained);
+        admission
+            .try_grow_decode(8 * mebibyte, 0)
+            .expect_err("a constrained node must not borrow ceiling headroom");
+        assert_eq!(memory.elastic_transient_reserved_bytes(), 0);
     }
 
     // A node whose whole transient budget is smaller than two full staging

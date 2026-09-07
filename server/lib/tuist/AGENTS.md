@@ -11,6 +11,10 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
+  Its query options suppress application SQL logging without overriding managed
+  ClickHouse logging policy; server password masking requires valid dictionary DDL.
+
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
 
@@ -60,3 +64,5 @@ This directory contains the core business logic and domain modules for the serve
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
+
+- Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).

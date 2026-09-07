@@ -123,6 +123,16 @@ defmodule Tuist.Kura.Regions do
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
+  # CPU ceilings become the pod's limits.cpu. There is no floor here: the
+  # controller observes requests.cpu per instance, so the plan grants only the
+  # burst bound. Each sits several times over its plan's measured 14-day peak
+  # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
+  # quota is not work-conserving: one set near real use stalls a burst on an
+  # otherwise idle box. As a share of the smallest managed box, 11 cores:
+  # 36%, 18%, 9%.
+  @enterprise_cpu_ceiling_milli 4000
+  @pro_cpu_ceiling_milli 2000
+  @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
   # claim covers the whole data volume, not just the cache: Kura's artifact ring
   # shares it with the upload staging directory and the RocksDB index, and the
@@ -292,19 +302,20 @@ defmodule Tuist.Kura.Regions do
     # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
     # the legacy lane keeps the region name it already knows.
     #
-    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
-    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
-    # us-east, and `all` defaults to us-east, so no storage-region preference
-    # resolves to Asia Pacific. Do not go looking for the rule that places
-    # accounts here; there is none. Air in particular can never land here,
-    # because Air resolves from the storage-region preference alone.
+    # No storage-region preference names this region: `accounts.region` is
+    # `all | europe | usa`, and none of the three derives to Asia Pacific. What
+    # places accounts here is where their traffic comes from — `Tuist.Kura.Origins`
+    # counts the origin, `Tuist.Kura.OriginMap` maps APAC to this region first,
+    # and an account whose residency constrains nothing resolves here without an
+    # operator. Air reaches it on the same rule as every other plan: what bounds
+    # a region is the disk `Tuist.Kura.Admission` can actually find there, not
+    # the tier of the account asking.
     #
-    # Two things do reach it, exactly as they reach us-west: an operator pinning
-    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
-    # which carries plan checks, audit and versioning; and a customer picking the
-    # region in account settings, which goes through `selectable/0` and never
-    # consults AccountPolicies. The second is deliberate — this is a public
-    # region — so "assignment-only" describes derivation, not access.
+    # Two further routes reach it, exactly as they reach us-west: an operator
+    # pinning an account's resolved region with
+    # `AccountPolicies.assign_service_region/4`, which carries plan checks, audit
+    # and versioning; and a customer picking the region in account settings, which
+    # goes through `selectable/0` and never consults AccountPolicies.
     %{
       id: "ap-southeast",
       display_name: "Asia Pacific Southeast",
@@ -483,6 +494,18 @@ defmodule Tuist.Kura.Regions do
   def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+
+  @doc """
+  The `limits.cpu` in millicores for a billing plan.
+
+  The counterpart to `memory_profile/1`'s ceiling, and the burst bound half of
+  the same pair egress already has: a floor that is guaranteed and a ceiling
+  that is enforced. The floor has no entry here because the controller observes
+  it per instance rather than granting it per plan.
+  """
+  def cpu_ceiling_milli(:enterprise), do: @enterprise_cpu_ceiling_milli
+  def cpu_ceiling_milli(:pro), do: @pro_cpu_ceiling_milli
+  def cpu_ceiling_milli(_plan), do: @standard_cpu_ceiling_milli
 
   @doc """
   True iff the region sizes its instances per tier rather than taking the

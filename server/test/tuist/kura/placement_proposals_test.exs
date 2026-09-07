@@ -57,13 +57,16 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
     test "leaves a settled placement to the slower rung" do
       # Past the correction window the account has a cache worth keeping, so
-      # the decision belongs to the rung that reads a month.
+      # the decision belongs to the relocation rung instead — which reaches the
+      # same answer, against its own floors and its own once-a-quarter budget.
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 30)
       seed_runs(account, "FR", 7, 20)
 
-      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
-      assert PlacementProposals.open_proposal_for(account) == nil
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-central", status: :open} =
+               PlacementProposals.open_proposal_for(account)
     end
 
     test "corrects a guess once and never again" do

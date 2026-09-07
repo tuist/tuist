@@ -284,7 +284,15 @@
         >
           <.active_filter :for={filter <- @tasks_active_filters} filter={filter} />
         </div>
-        <.table id="gradle-tasks-table" rows={@tasks}>
+        <.table
+          id="gradle-tasks-table"
+          rows={@tasks}
+          row_navigate={
+            fn task ->
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+            end
+          }
+        >
           <:col
             :let={task}
             label={dgettext("dashboard_gradle", "Task")}
@@ -879,39 +887,6 @@
             value={ByteFormatter.format_bytes(@cache_upload_bytes)}
             id="widget-cache-uploads"
           />
-          <.widget
-            title={dgettext("dashboard_gradle", "Confirmed remote misses")}
-            description={
-              dgettext(
-                "dashboard_gradle",
-                "Cacheable tasks for which Gradle checked the remote cache and found no entry."
-              )
-            }
-            value={@confirmed_remote_cache_miss_count}
-            id="widget-confirmed-remote-misses"
-          />
-          <.widget
-            title={dgettext("dashboard_gradle", "Missed execution time")}
-            description={
-              dgettext(
-                "dashboard_gradle",
-                "Time spent executing tasks after a confirmed remote cache miss."
-              )
-            }
-            value={format_duration(@confirmed_remote_cache_miss_duration_ms)}
-            id="widget-missed-execution-time"
-          />
-          <.widget
-            title={dgettext("dashboard_gradle", "Remote entries stored")}
-            description={
-              dgettext(
-                "dashboard_gradle",
-                "Task outputs this build successfully stored in the remote cache."
-              )
-            }
-            value={@remote_cache_entries_stored_count}
-            id="widget-remote-entries-stored"
-          />
         </.card_section>
       </.card>
       <.card
@@ -1058,9 +1033,14 @@
                   "Average download throughput in megabits per second."
                 )
               }
-              value={ThroughputFormatter.format_throughput(@download_throughput)}
+              value={
+                if(is_nil(@download_throughput),
+                  do: "—",
+                  else: ThroughputFormatter.format_throughput(@download_throughput)
+                )
+              }
               id="widget-download-throughput"
-              empty={@download_throughput == 0}
+              empty={@download_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
             <.widget
@@ -1071,9 +1051,14 @@
                   "Average upload throughput in megabits per second."
                 )
               }
-              value={ThroughputFormatter.format_throughput(@upload_throughput)}
+              value={
+                if(is_nil(@upload_throughput),
+                  do: "—",
+                  else: ThroughputFormatter.format_throughput(@upload_throughput)
+                )
+              }
               id="widget-upload-throughput"
-              empty={@upload_throughput == 0}
+              empty={@upload_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
           </div>
@@ -1144,7 +1129,15 @@
           >
             <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
-          <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
+          <.table
+            id="gradle-cacheable-tasks-table"
+            rows={@cacheable_tasks}
+            row_navigate={
+              fn task ->
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+              end
+            }
+          >
             <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
               <.text_cell label={task.task_path} />
             </:col>

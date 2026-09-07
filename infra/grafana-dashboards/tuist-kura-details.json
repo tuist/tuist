@@ -20877,7 +20877,7 @@
               "transformations": []
             }
           },
-          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them, and it is the total that the cap and the public write gate are enforced against.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
+          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them. Since the per-peer share, the write gate sheds on the deepest single target (outbox_target_messages against outbox_peer_capacity) or on the total against outbox_capacity, whichever trips first.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
           "id": 208,
           "links": [],
           "title": "outbox_lane_messages",
@@ -20914,6 +20914,508 @@
                     ]
                   },
                   "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-209": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} capacity",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} queued",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox node-wide total: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000) times the pod's replication target count, capped at 1000000, re-derived on every membership pass; KURA_OUTBOX_MAX_DEPTH replaces it with a fixed total. A write is shed when outbox_messages reaches this, or earlier when one target reaches its share (outbox_target_messages against outbox_peer_capacity).\n\nPrometheus name: `kura_outbox_capacity`",
+          "id": 209,
+          "links": [],
+          "title": "outbox_capacity",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-210": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod, target) (kura_outbox_target_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} → {{target}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} share",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox messages queued per target peer. The per-peer share (KURA_OUTBOX_MAX_DEPTH_PER_PEER, exported as kura_outbox_peer_capacity) is enforced against these: a cache write is shed once any one of its targets is at the share, whatever the node-wide total. The deepest series here against the capacity line is what decides whether the pod is shedding, and which peer's drain is behind.\n\nPrometheus name: `kura_outbox_target_messages` · labels: target",
+          "id": 210,
+          "links": [],
+          "title": "outbox_target_messages",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-211": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replication outbox messages one target peer may hold: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000), or the fixed KURA_OUTBOX_MAX_DEPTH when that replaces the share. A cache write is shed once any of its targets reaches this. Read outbox_target_messages against it.\n\nPrometheus name: `kura_outbox_peer_capacity`",
+          "id": 211,
+          "links": [],
+          "title": "outbox_peer_capacity",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-212": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_memory_elastic_transient_capacity_bytes{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Ceiling headroom above the floor-derived transient budget, lent to remote-execution write decoding while memory pressure is normal.\n\nThis is what the floor clamp discards: the pod's memory request sizes the transient pool, and everything between that and the ceiling was previously unreachable by anonymous admission. Zero on an instance with no published floor, because there the budget is already the whole headroom.\n\nPrometheus name: `kura_memory_elastic_transient_capacity_bytes`",
+          "id": 212,
+          "links": [],
+          "title": "memory_elastic_transient_capacity_bytes",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-213": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_memory_elastic_transient_reserved_bytes{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Borrowed ceiling headroom currently held by remote-execution write decoding.\n\nRead it against memory_elastic_transient_capacity_bytes. Brief excursions are the pool doing its job: a burst outgrew the pod's floor and was served from headroom instead of answering RESOURCE_EXHAUSTED. A pod that rests here rather than touching it in bursts has a floor genuinely too small for its workload, and the lever there is the account's memory profile, not this pool. It empties on its own above normal pressure, so a flat zero through a pressure episode is expected rather than a stalled borrow.\n\nPrometheus name: `kura_memory_elastic_transient_reserved_bytes`",
+          "id": 213,
+          "links": [],
+          "title": "memory_elastic_transient_reserved_bytes",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
                 },
                 "overrides": []
               },
@@ -22249,12 +22751,38 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-83"
+                          "name": "panel-212"
                         },
                         "height": 7,
                         "width": 8,
                         "x": 0,
                         "y": 28
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-213"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 28
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-83"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 35
                       }
                     },
                     {
@@ -22267,7 +22795,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 28
+                        "y": 35
                       }
                     },
                     {
@@ -22280,7 +22808,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 28
+                        "y": 35
                       }
                     },
                     {
@@ -22293,7 +22821,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22306,7 +22834,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22319,7 +22847,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 35
+                        "y": 42
                       }
                     },
                     {
@@ -22332,7 +22860,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 42
+                        "y": 49
                       }
                     },
                     {
@@ -22345,7 +22873,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 42
+                        "y": 49
                       }
                     }
                   ]
@@ -22948,11 +23476,50 @@
                         "x": 16,
                         "y": 14
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-209"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 21
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-210"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 21
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-211"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Peer replication \u0026 outbox (9)"
+              "title": "Peer replication \u0026 outbox (12)"
             }
           },
           {
