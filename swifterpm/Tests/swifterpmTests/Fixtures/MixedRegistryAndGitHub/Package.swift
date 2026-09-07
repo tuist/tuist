@@ -21,7 +21,7 @@ let package = Package(
         .package(url: "https://github.com/auth0/JWTDecode.swift", from: "4.0.0"),
         .package(
             url: "https://github.com/AppsFlyerSDK/AppsFlyerFramework-Strict.git",
-            .upToNextMinor(from: "6.18.0"),
+            .upToNextMinor(from: "6.18.1"),
         ),
         .package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
