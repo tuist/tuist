@@ -606,7 +606,7 @@ msgstr ""
 msgid "Load more"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_run_live.ex:243
+#: lib/tuist_web/live/test_case_run_live.ex:242
 #: lib/tuist_web/live/test_run_live.ex:1487
 #, elixir-autogen, elixir-format
 msgid "Loading..."
@@ -1150,8 +1150,8 @@ msgstr ""
 msgid "Test case not found."
 msgstr ""
 
-#: lib/tuist_web/live/test_case_run_live.ex:38
-#: lib/tuist_web/live/test_case_run_live.ex:42
+#: lib/tuist_web/live/test_case_run_live.ex:37
+#: lib/tuist_web/live/test_case_run_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Test case run not found."
 msgstr ""
@@ -1901,7 +1901,7 @@ msgid_plural "%{count} repetitions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/test_case_run_live.ex:110
+#: lib/tuist_web/live/test_case_run_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "%{count} repetition passed"
 msgid_plural "All %{count} repetitions passed"
