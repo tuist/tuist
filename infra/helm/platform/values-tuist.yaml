@@ -165,3 +165,32 @@ kura-ap-southeast-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+# South America West (Santiago, Vultr). Same host-network shape as the other
+# bare-metal regions: the region's gateway binds the box's public IP, and Vultr
+# has no cloud LoadBalancer to put in front of it.
+#
+# Disabled until the region is served. It flips to true alongside
+# vultrFleets.sa-west and the TUIST_KURA_AVAILABLE_REGIONS entry; until the pool
+# has a node this would schedule nothing anyway.
+kura-sa-west-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-sa-west
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}

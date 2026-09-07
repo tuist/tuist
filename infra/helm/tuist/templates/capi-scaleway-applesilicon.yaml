@@ -47,6 +47,8 @@ rules:
       - ovhdedicatedmachinetemplates
       - dediboxmachines
       - dediboxmachinetemplates
+      - vultrmachines
+      - vultrmachinetemplates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -60,6 +62,8 @@ rules:
       - ovhdedicatedmachines/finalizers
       - dediboxmachines/status
       - dediboxmachines/finalizers
+      - vultrmachines/status
+      - vultrmachines/finalizers
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]

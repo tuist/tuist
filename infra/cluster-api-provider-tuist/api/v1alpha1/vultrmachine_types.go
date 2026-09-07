@@ -146,6 +146,14 @@ type VultrMachineStatus struct {
 	// when InstanceID changes or on a successful bootstrap.
 	// +optional
 	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
+
+	// ReleaseReinstallStartedAt is when the release reinstall was requested. It
+	// exists because `active` is not a state: a box reports it both before a
+	// reinstall begins and after it finishes, so without a marker the release
+	// path cannot tell "the wipe has not started" from "the wipe is done" and
+	// would hand a still-running box back to the pool.
+	// +optional
+	ReleaseReinstallStartedAt *metav1.Time `json:"releaseReinstallStartedAt,omitempty"`
 }
 
 // ConversionStatus is the disk conversion the box was last put through.

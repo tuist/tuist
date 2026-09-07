@@ -55,11 +55,13 @@ const (
 	// claimable state but keeps the box.
 	VultrMachineFinalizer = "vultr.cluster.x-k8s.io/finalizer"
 
-	// vultrBootstrapUser is empty on purpose. Vultr's bare-metal install lands on
-	// root with no unprivileged login, so the shared self-join runs with no sudo
-	// prefix and needs no fleet sudo password, unlike the OVH and Elastic Metal
-	// kinds.
-	vultrBootstrapUser = ""
+	// vultrBootstrapUser is the login the Vultr install lands on. It must be a
+	// real username: this value is the SSH ClientConfig.User, and an empty string
+	// authenticates as no one rather than as root. `escalation` treats "root" and
+	// "" alike, so naming it here keeps the rendered self-join free of any sudo
+	// prefix while giving the dial something to log in as. Vultr's install has no
+	// unprivileged login, so there is no fleet sudo password on this path.
+	vultrBootstrapUser = "root"
 
 	// vultrInstanceType is the node.cluster.x-k8s.io/instance-type label value
 	// the self-join stamps.
@@ -75,6 +77,15 @@ const (
 	// is disk surgery, so a failure is usually a state that needs looking at
 	// rather than one that clears on its own.
 	vultrConvertRetryInterval = 2 * time.Minute
+
+	// vultrReleaseObserveInterval is how often the release path re-reads install
+	// state while waiting for the wipe to become observable.
+	vultrReleaseObserveInterval = 15 * time.Second
+
+	// vultrReleaseObserveTimeout bounds that wait. Measured, the transition to
+	// `pending` took about 54 seconds; past several times that the release stops
+	// waiting rather than pinning the Machine in Deleting forever.
+	vultrReleaseObserveTimeout = 5 * time.Minute
 
 	// vultrMaxConvertAttempts stops an endlessly retrying conversion from
 	// hammering a box whose disks are genuinely wrong. Past this the machine
@@ -332,6 +343,14 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 		}
 	}
 
+	// Kura cache pods request tuist.dev/egress-mbps, so a node that never
+	// advertises it leaves every one of them Pending however healthy it looks.
+	// Straight from the spec with no discovery step: Vultr exposes no per-box
+	// egress reading, unlike OVH.
+	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if err := shared.ReconcileNodeMemoryCeilingCapacity(ctx, r.Client, node); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -478,16 +497,42 @@ func (r *VultrMachineReconciler) reconcileDelete(ctx context.Context, machine *i
 
 	if machine.Status.InstanceID != "" {
 		// Reinstall wipes the OS, the fleet key's authorized_keys entry and the
-		// conversion, returning the box to the state a fresh claim expects. It is
-		// also why the next claimant must convert again: the layout does not
-		// survive.
-		if err := r.VultrClient.StartInstall(ctx, machine.Status.InstanceID, ""); err != nil {
-			logger.Error(err, "release reinstall failed; will retry", "instance", machine.Status.InstanceID)
-			return ctrl.Result{RequeueAfter: vultrReleaseRetryInterval}, nil
+		// conversion, returning the box to the state a fresh claim expects.
+		if machine.Status.ReleaseReinstallStartedAt == nil {
+			if err := r.VultrClient.StartInstall(ctx, machine.Status.InstanceID, ""); err != nil {
+				logger.Error(err, "release reinstall failed; will retry", "instance", machine.Status.InstanceID)
+				return ctrl.Result{RequeueAfter: vultrReleaseRetryInterval}, nil
+			}
+			now := metav1.Now()
+			machine.Status.ReleaseReinstallStartedAt = &now
+			// The conversion goes with the OS, so drop the record rather than leave
+			// a claim a re-adoption could read as still true.
+			machine.Status.Converted = nil
+			r.event(machine, "Releasing", "Requested reinstall of Vultr box %s", machine.Status.InstanceID)
+			return ctrl.Result{RequeueAfter: vultrReleaseObserveInterval}, nil
 		}
-		// The conversion is gone with the OS, so drop the record rather than
-		// leaving a claim a re-adoption could read as still true.
-		machine.Status.Converted = nil
+
+		// Hold the claim until the wipe is observably underway. The box keeps
+		// answering SSH for about a minute after the request and keeps reporting
+		// `active` for roughly as long, so releasing here would let a replacement
+		// adopt it, convert against the OLD /data, record the layout as enforced,
+		// and then lose it to the reinstall. The node would join looking healthy
+		// with nothing bounding its cache volumes.
+		state, stateErr := r.VultrClient.InstallState(ctx, machine.Status.InstanceID)
+		if stateErr != nil {
+			logger.Error(stateErr, "reading release install state; will retry", "instance", machine.Status.InstanceID)
+			return ctrl.Result{RequeueAfter: vultrReleaseObserveInterval}, nil
+		}
+		if state != vultr.InstallRunning {
+			if time.Since(machine.Status.ReleaseReinstallStartedAt.Time) < vultrReleaseObserveTimeout {
+				return ctrl.Result{RequeueAfter: vultrReleaseObserveInterval}, nil
+			}
+			// Past the window the wipe reliably starts in, stop holding the Machine
+			// hostage: a stuck release blocks the MachineDeployment from replacing
+			// it, which is worse than the race this guards.
+			logger.Info("release reinstall never reported running; releasing anyway",
+				"instance", machine.Status.InstanceID, "waited", time.Since(machine.Status.ReleaseReinstallStartedAt.Time).String())
+		}
 		r.event(machine, "Released", "Reinstalled Vultr box %s back to the pool", machine.Status.InstanceID)
 	}
 

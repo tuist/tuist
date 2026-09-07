@@ -40,6 +40,25 @@ else
     [ "/dev/$(lsblk -no PKNAME "$leg")" = "$esp_disk" ] && continue
     data_leg="$leg"; data_state="$state"
   done <<< "$legs"
+  # Resume path. A previous run may have detached the leg and then failed before
+  # or during mkfs, in which case it is no longer an array member and the search
+  # above finds nothing, leaving the conversion permanently stuck. Fall back to
+  # the largest partition on a disk other than the ESP's that belongs to no array
+  # and is not mounted. Largest matters: the other disk also carries a small
+  # unused ESP clone, and picking that would format the wrong partition.
+  if [ -z "$data_leg" ]; then
+    best=""; best_size=0
+    for cand in $(lsblk -pnro NAME,TYPE | awk '$2 == "part" { print $1 }'); do
+      [ "/dev/$(lsblk -no PKNAME "$cand")" = "$esp_disk" ] && continue
+      [ "$(lsblk -no FSTYPE "$cand")" = "linux_raid_member" ] && continue
+      findmnt -no TARGET "$cand" >/dev/null 2>&1 && continue
+      size="$(lsblk -bno SIZE "$cand" | head -1)"
+      if [ "${size:-0}" -gt "$best_size" ]; then best="$cand"; best_size="$size"; fi
+    done
+    if [ -n "$best" ]; then
+      data_leg="$best"; data_state="detached (resuming an interrupted conversion)"
+    fi
+  fi
   [ -n "$data_leg" ] || { log "no leg off the ESP disk ($esp_disk) to hand to /data"; exit 1; }
 
   # The only unsafe case: this leg is the array's sole in-sync copy while another
@@ -52,20 +71,22 @@ else
 
   log "root=$root_dev esp_disk=$esp_disk -> handing $data_leg to /data (mdadm state: ${data_state:-unknown})"
 
-  mdadm "$root_dev" --fail "$data_leg"
-  # md does not release a device the moment it is failed: an in-flight rebuild has
-  # to wind down first, and --remove returns EBUSY until it has.
-  for _ in $(seq 1 60); do
-    mdadm "$root_dev" --remove "$data_leg" 2>/dev/null && break
-    sleep 2
-  done
   if mdadm --detail "$root_dev" | grep -q "$data_leg"; then
-    log "$data_leg is still a member of $root_dev after 120s; refusing to format it"
-    exit 1
-  fi
+    mdadm "$root_dev" --fail "$data_leg"
+    # md does not release a device the moment it is failed: an in-flight rebuild
+    # has to wind down first, and --remove returns EBUSY until it has.
+    for _ in $(seq 1 60); do
+      mdadm "$root_dev" --remove "$data_leg" 2>/dev/null && break
+      sleep 2
+    done
+    if mdadm --detail "$root_dev" | grep -q "$data_leg"; then
+      log "$data_leg is still a member of $root_dev after 120s; refusing to format it"
+      exit 1
+    fi
   # Drop to a clean single-device array so the root does not sit permanently
   # "degraded" and trip array monitoring.
-  mdadm --grow "$root_dev" --raid-devices=1 --force
+    mdadm --grow "$root_dev" --raid-devices=1 --force
+  fi
 
   wipefs -a "$data_leg"
   # crc + project quotas: the quota program refuses anything that is not xfs with

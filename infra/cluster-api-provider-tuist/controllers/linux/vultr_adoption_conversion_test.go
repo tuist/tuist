@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
@@ -237,6 +238,7 @@ func TestVultrReleaseClearsTheConversionRecord(t *testing.T) {
 // rather than through a hand-written stub of it.
 type fakeVultrTransport struct {
 	onReinstall func(id string)
+	status      string
 }
 
 func (f *fakeVultrTransport) Do(req *http.Request) (*http.Response, error) {
@@ -244,13 +246,80 @@ func (f *fakeVultrTransport) Do(req *http.Request) (*http.Response, error) {
 		parts := strings.Split(strings.TrimSuffix(req.URL.Path, "/reinstall"), "/")
 		f.onReinstall(parts[len(parts)-1])
 	}
-	return &http.Response{StatusCode: 202, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+	st := f.status
+	if st == "" {
+		st = "active"
+	}
+	return &http.Response{
+		StatusCode: 202,
+		Body:       io.NopCloser(strings.NewReader(`{"bare_metal":{"id":"box-1","status":"` + st + `"}}`)),
+	}, nil
 }
 
 func newFakeVultrAPI(onReinstall func(id string)) *vultr.Client {
+	return newFakeVultrAPIWithStatus(onReinstall, "")
+}
+
+func newFakeVultrAPIWithStatus(onReinstall func(id string), status string) *vultr.Client {
 	return &vultr.Client{
-		HTTP:    &fakeVultrTransport{onReinstall: onReinstall},
+		HTTP:    &fakeVultrTransport{onReinstall: onReinstall, status: status},
 		BaseURL: "https://api.vultr.com/v2",
 		APIKey:  "k",
+	}
+}
+
+// `active` is what a box reports both before a reinstall begins and after it
+// ends, and the old system keeps answering for about a minute after the
+// request. Releasing in that window lets a replacement adopt the box, convert
+// against the OLD /data, record the layout as enforced, and then lose it to the
+// wipe, joining a node that looks healthy with nothing bounding its cache
+// volumes. So the claim is held until the wipe is observably running.
+func TestVultrReleaseHoldsTheClaimUntilTheWipeIsUnderway(t *testing.T) {
+	scheme := vultrScheme(t)
+	m := vultrMachine("tuist", "m", "box-1")
+	m.Finalizers = []string{VultrMachineFinalizer}
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(m).Build()
+
+	reinstalled := ""
+	r := &VultrMachineReconciler{
+		Client:             cl,
+		CredentialsManager: &credentials.Manager{Client: cl, Namespace: "tuist"},
+		// Still reporting active: the wipe has not started.
+		VultrClient: newFakeVultrAPIWithStatus(func(id string) { reinstalled = id }, "active"),
+	}
+
+	// First pass requests the reinstall and records when.
+	res, err := r.reconcileDelete(context.Background(), m)
+	if err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if reinstalled != "box-1" {
+		t.Fatalf("reinstalled %q, want the released box", reinstalled)
+	}
+	if m.Status.ReleaseReinstallStartedAt == nil {
+		t.Fatal("want the reinstall request timestamped, or the next pass cannot tell a pre-wipe active from a post-wipe one")
+	}
+	if res.RequeueAfter == 0 {
+		t.Fatal("want a requeue to observe the wipe")
+	}
+	if !controllerutil.ContainsFinalizer(m, VultrMachineFinalizer) {
+		t.Fatal("released the claim before the wipe started; a replacement can now convert against the old /data")
+	}
+
+	// Second pass, still active: keep holding.
+	if _, err := r.reconcileDelete(context.Background(), m); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(m, VultrMachineFinalizer) {
+		t.Fatal("released while the box was still reporting active")
+	}
+
+	// Once it reports pending the wipe is underway and the box is safe to hand back.
+	r.VultrClient = newFakeVultrAPIWithStatus(func(string) {}, "pending")
+	if _, err := r.reconcileDelete(context.Background(), m); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if controllerutil.ContainsFinalizer(m, VultrMachineFinalizer) {
+		t.Fatal("still holding the claim after the wipe was observably running")
 	}
 }
