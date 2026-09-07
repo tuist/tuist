@@ -18,6 +18,7 @@ defmodule Tuist.Bazel.Invocation do
     field :git_branch, Ch, type: "String", default: ""
     field :git_commit_sha, Ch, type: "String", default: ""
     field :is_ci, :boolean, default: false
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :bazel_version, Ch, type: "LowCardinality(String)", default: ""
     field :cpu_time_ms, Ch, type: "UInt64", default: 0
     field :actions_created, Ch, type: "UInt64", default: 0

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -129,6 +130,7 @@ pub struct BazelInvocationAnalyticsEvent {
     pub git_branch: String,
     pub git_commit_sha: String,
     pub is_ci: bool,
+    pub custom_values: BTreeMap<String, String>,
     pub bazel_version: String,
     pub cpu_time_ms: u64,
     pub actions_created: u64,
@@ -748,7 +750,10 @@ impl CircuitState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{
         Router, body::Bytes, extract::Request, http::StatusCode, response::IntoResponse,
@@ -821,6 +826,10 @@ mod tests {
             git_branch: "main".into(),
             git_commit_sha: "abc123".into(),
             is_ci: true,
+            custom_values: BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ]),
             bazel_version: "9.1.0".into(),
             cpu_time_ms: 1_250,
             actions_created: 11,
@@ -960,6 +969,10 @@ mod tests {
                     "is_ci": true,
                     "git_branch": "main",
                     "git_commit_sha": "abc123",
+                    "custom_values": {
+                        "environment": "local",
+                        "runner": "linux-arm64"
+                    },
                     "bazel_version": "9.1.0",
                     "cpu_time_ms": 1_250,
                     "actions_created": 11,
@@ -1241,6 +1254,7 @@ mod tests {
             git_branch: String::new(),
             git_commit_sha: String::new(),
             is_ci: false,
+            custom_values: BTreeMap::new(),
             bazel_version: String::new(),
             cpu_time_ms: 0,
             actions_created: 0,

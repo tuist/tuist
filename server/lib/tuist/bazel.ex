@@ -42,6 +42,7 @@ defmodule Tuist.Bazel do
           git_branch: Map.get(invocation, :git_branch, ""),
           git_commit_sha: Map.get(invocation, :git_commit_sha, ""),
           is_ci: Map.get(invocation, :is_ci, false),
+          custom_values: Map.get(invocation, :custom_values, %{}),
           bazel_version: Map.get(invocation, :bazel_version, ""),
           cpu_time_ms: Map.get(invocation, :cpu_time_ms, 0),
           actions_created: Map.get(invocation, :actions_created, 0),

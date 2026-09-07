@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -60,6 +60,9 @@ const MAX_CRITICAL_PATH_LOG_BYTES: usize = 128 * 1_024;
 const MAX_INVOCATION_LOG_ENTRIES: usize = 32;
 const MAX_INVOCATION_LOG_BYTES: usize = 32 * 1_024;
 const MAX_INVOCATION_LOG_CHUNK_BYTES: usize = 2 * 1_024;
+const MAX_CUSTOM_METADATA_ENTRIES: usize = 20;
+const MAX_CUSTOM_METADATA_KEY_BYTES: usize = 50;
+const MAX_CUSTOM_METADATA_VALUE_BYTES: usize = 500;
 const MAX_BUILD_EVENT_MESSAGE_BYTES: usize = 2 * 1_024 * 1_024;
 
 #[derive(Clone)]
@@ -78,6 +81,7 @@ struct InvocationStart {
     git_branch: String,
     git_commit_sha: String,
     is_ci: bool,
+    custom_values: BTreeMap<String, String>,
     bazel_version: String,
     cpu_time_ms: u64,
     actions_created: u64,
@@ -629,6 +633,7 @@ impl BuildEventService {
                 git_branch: String::new(),
                 git_commit_sha: String::new(),
                 is_ci: false,
+                custom_values: BTreeMap::new(),
                 bazel_version: truncate_wire_string(&started.build_tool_version, MAX_COMMAND_BYTES),
                 cpu_time_ms: 0,
                 actions_created: 0,
@@ -752,6 +757,7 @@ impl BuildEventService {
         if let Some(metadata) = event.build_metadata {
             if let Some(start) = self.invocations.lock().await.get_mut(&key) {
                 apply_metadata(start, &metadata.metadata);
+                apply_custom_metadata(start, &metadata.metadata);
             }
             return;
         }
@@ -877,6 +883,7 @@ impl BuildEventService {
                         git_branch: String::new(),
                         git_commit_sha: String::new(),
                         is_ci: false,
+                        custom_values: BTreeMap::new(),
                         bazel_version: String::new(),
                         cpu_time_ms: 0,
                         actions_created: 0,
@@ -1361,6 +1368,43 @@ fn apply_metadata(invocation: &mut InvocationStart, metadata: &HashMap<String, S
     }
 }
 
+fn apply_custom_metadata(invocation: &mut InvocationStart, metadata: &HashMap<String, String>) {
+    let mut entries = metadata
+        .iter()
+        .filter(|(key, value)| {
+            !key.is_empty()
+                && key.len() <= MAX_CUSTOM_METADATA_KEY_BYTES
+                && value.len() <= MAX_CUSTOM_METADATA_VALUE_BYTES
+                && !context_metadata_key(key)
+        })
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+
+    for (key, value) in entries {
+        if invocation.custom_values.contains_key(key)
+            || invocation.custom_values.len() < MAX_CUSTOM_METADATA_ENTRIES
+        {
+            invocation
+                .custom_values
+                .insert(key.to_owned(), value.to_owned());
+        }
+    }
+}
+
+fn context_metadata_key(key: &str) -> bool {
+    matches!(
+        key.to_ascii_uppercase().as_str(),
+        "CI" | "ROLE"
+            | "TUIST_CI"
+            | "BUILD_SCM_BRANCH"
+            | "GIT_BRANCH"
+            | "BRANCH_NAME"
+            | "BUILD_SCM_REVISION"
+            | "GIT_COMMIT"
+            | "COMMIT_SHA"
+    )
+}
+
 fn metadata_value<'a>(metadata: &'a HashMap<String, String>, keys: &[&str]) -> Option<&'a str> {
     keys.iter()
         .find_map(|key| metadata.get(*key))
@@ -1426,6 +1470,7 @@ fn completed_invocation_event(
         git_branch: start.git_branch,
         git_commit_sha: start.git_commit_sha,
         is_ci: start.is_ci,
+        custom_values: start.custom_values,
         bazel_version: start.bazel_version,
         cpu_time_ms: start.cpu_time_ms,
         actions_created: start.actions_created,
@@ -1766,6 +1811,34 @@ mod tests {
                         action: None,
                         test_summary: None,
                         test_result: None,
+                        finished: None,
+                        workspace_status: None,
+                        build_tool_logs: None,
+                        build_metrics: None,
+                        build_metadata: Some(BazelBuildMetadata {
+                            metadata: HashMap::from([
+                                ("environment".into(), "local".into()),
+                                ("runner".into(), "linux-arm64".into()),
+                            ]),
+                        }),
+                    },
+                ),
+            )
+            .await;
+
+        service
+            .process_event(
+                "acme",
+                "ios",
+                ordered_bazel_event(
+                    "invocation-1",
+                    BazelBuildEvent {
+                        id: None,
+                        progress: None,
+                        started: None,
+                        action: None,
+                        test_summary: None,
+                        test_result: None,
                         finished: Some(BazelBuildFinished {
                             overall_success: true,
                             finish_time_millis: 1_700_000_015_000,
@@ -1849,6 +1922,13 @@ mod tests {
         assert_eq!(start.actions_created, 11);
         assert_eq!(start.actions_executed, 10);
         assert_eq!(start.critical_path_duration_ms, 1_000);
+        assert_eq!(
+            start.custom_values,
+            BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ])
+        );
         drop(starts);
 
         service
@@ -1870,6 +1950,7 @@ mod tests {
                 git_branch: "main".into(),
                 git_commit_sha: "abc123".into(),
                 is_ci: false,
+                custom_values: BTreeMap::from([("environment".into(), "local".into())]),
                 bazel_version: "9.1.0".into(),
                 cpu_time_ms: 1_250,
                 actions_created: 11,
@@ -1898,6 +1979,10 @@ mod tests {
         assert_eq!(event.target_patterns, ["//app:tests"]);
         assert_eq!(event.git_branch, "main");
         assert_eq!(event.git_commit_sha, "abc123");
+        assert_eq!(
+            event.custom_values.get("environment"),
+            Some(&"local".into())
+        );
         assert_eq!(event.bazel_version, "9.1.0");
         assert_eq!(event.cpu_time_ms, 1_250);
         assert_eq!(event.actions_created, 11);
@@ -2222,44 +2307,52 @@ mod tests {
 
     #[test]
     fn applies_build_metadata_without_erasing_prior_values() {
-        let mut invocation = InvocationStart {
-            account_handle: "acme".into(),
-            project_handle: "ios".into(),
-            invocation_id: "invocation-1".into(),
-            command: "test".into(),
-            target_patterns: Vec::new(),
-            git_branch: String::new(),
-            git_commit_sha: String::new(),
-            is_ci: false,
-            bazel_version: String::new(),
-            cpu_time_ms: 0,
-            actions_created: 0,
-            actions_executed: 0,
-            targets_configured: 0,
-            packages_loaded: 0,
-            first_action_started_at_ms: None,
-            action_spans: Vec::new(),
-            critical_path_duration_ms: 0,
-            critical_path_actions: Vec::new(),
-            logs: VecDeque::new(),
-            log_bytes: 0,
-            completion: None,
-            started_at_ms: 0,
-            inserted_at: Instant::now(),
-        };
-        apply_metadata(
-            &mut invocation,
-            &HashMap::from([
-                ("ROLE".into(), "CI".into()),
-                ("BUILD_SCM_BRANCH".into(), "refs/heads/main".into()),
-                ("BUILD_SCM_REVISION".into(), "abc123".into()),
-            ]),
-        );
+        let mut invocation = test_invocation_start();
+        let metadata = HashMap::from([
+            ("ROLE".into(), "CI".into()),
+            ("BUILD_SCM_BRANCH".into(), "refs/heads/main".into()),
+            ("BUILD_SCM_REVISION".into(), "abc123".into()),
+            ("environment".into(), "local".into()),
+            ("runner".into(), "linux-arm64".into()),
+        ]);
+        apply_metadata(&mut invocation, &metadata);
+        apply_custom_metadata(&mut invocation, &metadata);
         apply_metadata(&mut invocation, &HashMap::new());
 
         assert!(invocation.is_ci);
         assert_eq!(invocation.git_branch, "main");
         assert_eq!(invocation.git_commit_sha, "abc123");
+        assert_eq!(
+            invocation.custom_values,
+            BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ])
+        );
+    }
+
+    #[test]
+    fn bounds_custom_build_metadata() {
+        let mut invocation = test_invocation_start();
+        let mut metadata = (0..25)
+            .map(|index| (format!("key-{index:02}"), "value".into()))
+            .collect::<HashMap<_, _>>();
+        metadata.insert(
+            "oversized-value".into(),
+            "x".repeat(MAX_CUSTOM_METADATA_VALUE_BYTES + 1),
+        );
+        metadata.insert(
+            "x".repeat(MAX_CUSTOM_METADATA_KEY_BYTES + 1),
+            "value".into(),
+        );
+
+        apply_custom_metadata(&mut invocation, &metadata);
+
+        assert_eq!(invocation.custom_values.len(), MAX_CUSTOM_METADATA_ENTRIES);
+        assert!(invocation.custom_values.contains_key("key-00"));
+        assert!(invocation.custom_values.contains_key("key-19"));
+        assert!(!invocation.custom_values.contains_key("key-20"));
+        assert!(!invocation.custom_values.contains_key("oversized-value"));
     }
 
     fn test_invocation_start() -> InvocationStart {
@@ -2272,6 +2365,7 @@ mod tests {
             git_branch: String::new(),
             git_commit_sha: String::new(),
             is_ci: false,
+            custom_values: BTreeMap::new(),
             bazel_version: "9.1.0".into(),
             cpu_time_ms: 0,
             actions_created: 0,
