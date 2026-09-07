@@ -1,0 +1,26 @@
+# The fleet's MDM. One instance owns every Mac we own, whatever cluster
+# that Mac ends up serving: the MDM manages a host before it joins
+# anything, and the cluster is chosen later by the kubeconfig the
+# operator SSH bootstrap installs. There is deliberately no per-cluster
+# MDM.
+#
+# The hostname is effectively permanent. The MDM protocol has no way to
+# move an enrollment's ServerURL, so changing it means DFU-reprovisioning
+# every enrolled machine.
+host: mdm.tuist.dev
+depHost: mdm-dep.tuist.dev
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: MDM
+
+postgresql:
+  backup:
+    enabled: true
+    destinationPath: s3://tuist-prod-pg-backups/mdm

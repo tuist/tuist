@@ -104,6 +104,21 @@ postgresql:
   resources:
     requests: { cpu: 50m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
+  # Losing this database does not stop enrolled machines working, but it
+  # does lose the enrollment records that let the server address them —
+  # and the only way back from that is DFU-reprovisioning every mini. Off
+  # by default (a throwaway bench has nothing worth restoring); on for
+  # any instance that owns real hardware.
+  backup:
+    enabled: false
+    destinationPath: ""
+    endpointURL: https://t3.storage.dev
+    retentionPolicy: "30d"
+    credentialsSecretName: mdm-backup-credentials
+    # Barman Cloud Plugin (CNPG-I); requires the plugin installed in the
+    # operator namespace. See infra/cnpg/README.md.
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
 
 # Secrets. With externalSecret.enabled the three runtime Secrets are
 # synced by ESO from a single 1Password item in the env's vault;

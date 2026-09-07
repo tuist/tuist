@@ -32,12 +32,31 @@ Public endpoints (staging):
 The enroller's `/webhook` is cluster-internal on purpose (not routed by
 the ingress).
 
+**One instance owns every Mac we own, whatever cluster it serves.** The
+MDM manages a host before it joins anything; which cluster it becomes a
+node of is decided later, by the kubeconfig the operator SSH bootstrap
+installs. So there is deliberately no per-cluster MDM — a mini serving
+the staging fleet and a mini serving production enroll into the same
+server and receive the same payload. `values-production.yaml` is that
+instance (`mdm.tuist.dev`, production cluster). Machines rented from a
+provider are not in our ABM and cannot be enrolled at all; they stay
+SSH-bootstrap-only.
+
+`values-staging.yaml` is a bench, not an environment tier: it exists so
+MDM changes and the prototype gauntlet have somewhere destroyable. Point
+only lab hardware at it, by assigning those serials to it in ABM by
+hand; the ABM default Mac assignment (a single setting) points at the
+fleet instance so purchases land there automatically.
+
 **The device-facing hostname is forever.** The MDM protocol cannot
 change an enrollment's ServerURL; a hostname change means re-enrolling
-(re-provisioning) every device. `mdm-staging` is fine for the prototype
-gauntlet because the fleet's normal recovery path is a DFU restore that
-re-enrolls anyway, but the production rack enrolls against a hostname
-we intend to keep (e.g. `mdm.tuist.dev`).
+(re-provisioning) every device. That is survivable on the bench, where
+DFU restore is the routine operation anyway, and expensive on the fleet.
+
+**The APNs push certificate is not tied to the hostname.** Apple issues
+a topic (`com.apple.mgmt.External.<uuid>`) independent of DNS, and the
+enrollment profile carries `Topic` and `ServerURL` separately, so one
+certificate can serve the bench and the fleet instance both.
 
 ## Enrollment flow (zero-touch)
 

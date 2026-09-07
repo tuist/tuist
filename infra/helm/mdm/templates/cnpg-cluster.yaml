@@ -69,3 +69,57 @@ spec:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: required
+
+  {{- if .Values.postgresql.backup.enabled }}
+  plugins:
+    - name: {{ .Values.postgresql.backup.plugin.name | quote }}
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ include "mdm.pgClusterName" . }}-backup-store
+        serverName: {{ include "mdm.pgClusterName" . | quote }}
+  {{- end }}
+{{- if .Values.postgresql.backup.enabled }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ include "mdm.pgClusterName" . }}-backup-store
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
+  configuration:
+    destinationPath: {{ required "postgresql.backup.destinationPath is required when backups are enabled" .Values.postgresql.backup.destinationPath | quote }}
+    endpointURL: {{ .Values.postgresql.backup.endpointURL | quote }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 8
+    data:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "mdm.pgClusterName" . }}-daily
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  # Daily at 03:20 UTC, offset from the other clusters' 03:00 so the
+  # backup jobs do not all contend for the same upload window.
+  schedule: "0 20 3 * * *"
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: {{ .Values.postgresql.backup.plugin.name | quote }}
+  cluster:
+    name: {{ include "mdm.pgClusterName" . }}
+{{- end }}
