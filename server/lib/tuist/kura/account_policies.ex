@@ -395,7 +395,7 @@ defmodule Tuist.Kura.AccountPolicies do
     case OriginMap.preferred(origin, with_room(placeable, account, lookups)) do
       nil -> preferred
       ^preferred -> preferred
-      spilled -> spill(account, plan, origin, preferred, spilled)
+      spilled -> spill(account, plan, origin, placeable, preferred, spilled)
     end
   end
 
@@ -431,9 +431,9 @@ defmodule Tuist.Kura.AccountPolicies do
   # first is the placement, and this resolution follows it rather than
   # demoting it to a second serving region. The spill is counted only by the
   # resolution whose record stood, so a race counts once.
-  defp spill(_account, _plan, nil, _wanted, served), do: served
+  defp spill(_account, _plan, nil, _placeable, _wanted, served), do: served
 
-  defp spill(account, plan, _origin, wanted, served) do
+  defp spill(account, plan, _origin, placeable, wanted, served) do
     evidence = %{
       "signal" => PlacerRegion.capacity_spill_signal(),
       "preferred_region" => wanted,
@@ -445,8 +445,13 @@ defmodule Tuist.Kura.AccountPolicies do
         Telemetry.placement_capacity_spill(plan, wanted, served)
         served
 
+      # Followed only where this account may still be placed. A primary that
+      # predates a narrowed storage region, or Air funding that has since
+      # moved, names a region the account may no longer use; `place/5` passed
+      # that row over to get here, and following it now would resolve the
+      # account outside its residency.
       {:existing, %PlacerRegion{region: recorded}} ->
-        recorded
+        if recorded in placeable, do: recorded, else: served
 
       {:error, _changeset} ->
         served

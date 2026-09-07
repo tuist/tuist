@@ -638,6 +638,58 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.room_for?(@region, :enterprise) == false
     end
 
+    test "takes a pod slot per replica, which the scheduler fits against like any resource" do
+      # 109 of the box's 110 slots are taken. One replica would schedule; the
+      # second is refused with Too many pods, however much CPU and disk is
+      # left.
+      stub_pool([pool_box("box-1", pods: List.duplicate(pool_pod(%{}), 109))])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+
+      stub_pool([pool_box("box-1", pods: List.duplicate(pool_pod(%{}), 108))])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "reads a quantity in every form the API keeps it in" do
+      # A node whose eviction threshold is a percentage advertises its disk in
+      # milli-bytes; a box can quote its disk with a decimal suffix or an
+      # exponent; a pod can ask for a fraction of a binary unit or for cores in
+      # nanocores. Reading any of them as zero would call an empty box full.
+      for allocatable <- ["858993459200000m", "800e9", "800G", "0.8T"] do
+        stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => allocatable})])
+
+        assert Capacity.room_for?(@region, :enterprise) == true,
+               "expected #{allocatable} of disk to hold the instance"
+      end
+
+      # 3.5 GiB less 1.5 GiB leaves exactly the 2048 MiB two Enterprise
+      # floors need; 250000000n of cpu is a quarter core.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"memory" => "3.5Gi", "cpu" => "0.45"},
+          pods: [pool_pod(%{"memory" => "1.5Gi", "cpu" => "250000000n"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"memory" => "3.5Gi", "cpu" => "0.44"},
+          pods: [pool_pod(%{"memory" => "1.5Gi", "cpu" => "250000000n"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "is unknown, not full, when a node advertises a quantity it cannot read" do
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "plenty"})])
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+
     test "ignores a pod that has finished, which holds nothing" do
       stub_pool([
         pool_box("box-1",
@@ -707,7 +759,8 @@ defmodule Tuist.Kura.CapacityTest do
         "memory" => "128Gi",
         "ephemeral-storage" => "800Gi",
         "tuist.dev/memory-ceiling-mib" => "262144",
-        "tuist.dev/egress-mbps" => "1500"
+        "tuist.dev/egress-mbps" => "1500",
+        "pods" => "110"
       }
       |> Map.merge(Keyword.get(opts, :allocatable, %{}))
       |> Map.drop(Keyword.get(opts, :without, []))

@@ -82,13 +82,16 @@ defmodule Tuist.Kura.Capacity do
   @mib 1024 * 1024
 
   # Every resource a cache pod is scheduled against. The two extended resources
-  # are requested only where the region bin-packs them.
+  # are requested only where the region bin-packs them. `pods` is the node's
+  # pod slots, which the scheduler fits against like any other resource and
+  # every pod takes one of.
   @cpu "cpu"
   @memory "memory"
   @ephemeral_storage "ephemeral-storage"
   @memory_ceiling "tuist.dev/memory-ceiling-mib"
   @egress "tuist.dev/egress-mbps"
-  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @memory_ceiling, @egress]
+  @pods "pods"
+  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @memory_ceiling, @egress, @pods]
 
   @doc """
   Bytes of the region's disk one instance reserves, across every replica.
@@ -410,33 +413,67 @@ defmodule Tuist.Kura.Capacity do
 
   defp allocatable_bytes(_node), do: 0
 
-  @quantity_suffixes %{
-    "" => 1,
-    "k" => 1000,
-    "M" => 1000 ** 2,
-    "G" => 1000 ** 3,
-    "T" => 1000 ** 4,
+  @binary_suffixes %{
     "Ki" => 1024,
     "Mi" => 1024 ** 2,
     "Gi" => 1024 ** 3,
-    "Ti" => 1024 ** 4
+    "Ti" => 1024 ** 4,
+    "Pi" => 1024 ** 5,
+    "Ei" => 1024 ** 6
+  }
+  @decimal_exponents %{
+    "n" => -9,
+    "u" => -6,
+    "m" => -3,
+    "" => 0,
+    "k" => 3,
+    "M" => 6,
+    "G" => 9,
+    "T" => 12,
+    "P" => 15,
+    "E" => 18
   }
 
-  defp parse_quantity(quantity) when is_binary(quantity) do
-    case Integer.parse(quantity) do
-      {value, suffix} ->
-        case Map.fetch(@quantity_suffixes, suffix) do
-          {:ok, multiplier} -> value * multiplier
-          :error -> nil
-        end
+  # A Kubernetes quantity in whole units, at `scale` units per unit of the
+  # quantity: bytes for a storage quantity, millicores for a CPU one read at a
+  # thousand. The API keeps a quantity in whatever form it was written rather
+  # than a canonical one -- a decimal number with a binary suffix (`Ki` to
+  # `Ei`), a decimal one (`n` to `E`) or an exponent (`e3`) -- so every form
+  # is read, and a node whose eviction threshold left it `858993459200000m`
+  # of disk is read as the 800 GiB it has. Rounded down: a fraction of a byte
+  # or a millicore decides nothing.
+  defp parse_quantity(quantity, scale \\ 1)
 
-      :error ->
-        nil
+  defp parse_quantity(quantity, scale) when is_binary(quantity) do
+    with [_match, whole, fraction, suffix] <- Regex.run(~r/^\+?(\d+)(?:\.(\d*))?(.*)$/, quantity),
+         {numerator, denominator} <- multiplier(suffix) do
+      digits = String.to_integer(whole <> fraction)
+
+      div(digits * numerator * scale, Integer.pow(10, String.length(fraction)) * denominator)
+    else
+      _ -> nil
     end
   end
 
-  defp parse_quantity(quantity) when is_integer(quantity), do: quantity
-  defp parse_quantity(_quantity), do: nil
+  defp parse_quantity(quantity, scale) when is_integer(quantity), do: quantity * scale
+  defp parse_quantity(_quantity, _scale), do: nil
+
+  defp multiplier(suffix) when is_map_key(@binary_suffixes, suffix), do: {Map.fetch!(@binary_suffixes, suffix), 1}
+
+  defp multiplier(suffix) when is_map_key(@decimal_exponents, suffix),
+    do: power_of_ten(Map.fetch!(@decimal_exponents, suffix))
+
+  defp multiplier(<<e, exponent::binary>>) when e in [?e, ?E] do
+    case Integer.parse(exponent) do
+      {exponent, ""} -> power_of_ten(exponent)
+      _ -> :error
+    end
+  end
+
+  defp multiplier(_suffix), do: :error
+
+  defp power_of_ten(exponent) when exponent >= 0, do: {Integer.pow(10, exponent), 1}
+  defp power_of_ten(exponent), do: {1, Integer.pow(10, -exponent)}
 
   @doc """
   Gibibytes of the region's disk its pods have reserved, or `nil` when the
@@ -548,10 +585,11 @@ defmodule Tuist.Kura.Capacity do
   Whether `region_id` can take one more instance built for `plan`: `true`,
   `false`, or `nil` when the cluster cannot say.
 
-  Read the way the scheduler will decide it. A cache pod is placed against five
+  Read the way the scheduler will decide it. A cache pod is placed against six
   node resources: `cpu`, `memory` (its profile's floor), `ephemeral-storage`
-  (its claim), and on the bare-metal pools the `tuist.dev/memory-ceiling-mib`
-  and `tuist.dev/egress-mbps` extended resources. Each is checked on each Ready,
+  (its claim), a pod slot, and on the bare-metal pools the
+  `tuist.dev/memory-ceiling-mib` and `tuist.dev/egress-mbps` extended
+  resources. Each is checked on each Ready,
   schedulable node of the region's pool, as allocatable less the effective
   request of every pod already on the node, init containers and overhead
   included, whoever owns that pod. Each node takes as many
@@ -567,7 +605,8 @@ defmodule Tuist.Kura.Capacity do
 
   `nil` covers everything that stops the reading being trusted: a region that
   pins its instances to no pool, a cluster that cannot be read, a node whose
-  pods cannot be listed, or a pool with no Ready node in it. That last one is
+  pods cannot be listed or whose allocatable cannot be parsed, or a pool with
+  no Ready node in it. That last one is
   deliberately not `false`. A box NotReady for the minutes a restart takes has
   not run out of room, and a placement taken against it is permanent in a way
   the restart is not.
@@ -612,7 +651,8 @@ defmodule Tuist.Kura.Capacity do
       @memory => memory.floor_mib * @mib,
       @ephemeral_storage => claim_bytes(region, plan),
       @memory_ceiling => if(ceiling_bin_packed?(region, pool), do: memory.ceiling_mib, else: 0),
-      @egress => egress_floor_mbps(region, plan)
+      @egress => egress_floor_mbps(region, plan),
+      @pods => 1
     }
   end
 
@@ -674,8 +714,9 @@ defmodule Tuist.Kura.Capacity do
 
   defp measure_node(node) do
     with name when is_binary(name) and name != "" <- node_name(node),
+         allocatable when is_map(allocatable) <- node_allocatable(node),
          {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
-      %{name: name, allocatable: node_allocatable(node), reserved: pods_requested(pods)}
+      %{name: name, allocatable: allocatable, reserved: pods_requested(pods)}
     else
       _ -> nil
     end
@@ -687,17 +728,28 @@ defmodule Tuist.Kura.Capacity do
   defp node_name(%{"metadata" => %{"name" => name}}), do: name
   defp node_name(_node), do: nil
 
+  # A resource the node does not advertise is one it has none of. A quantity
+  # it advertises in a form this cannot read is not: reading it as none would
+  # call the node full, so the node is unreadable instead and the region
+  # unknown.
   defp node_allocatable(%{"status" => %{"allocatable" => allocatable}}) when is_map(allocatable) do
-    Map.new(@scheduled_resources, &{&1, resource_amount(&1, Map.get(allocatable, &1))})
+    amounts = Enum.map(@scheduled_resources, &{&1, allocatable_amount(&1, Map.get(allocatable, &1))})
+
+    if Enum.any?(amounts, fn {_resource, amount} -> is_nil(amount) end), do: nil, else: Map.new(amounts)
   end
 
-  defp node_allocatable(_node), do: %{}
+  defp node_allocatable(_node), do: nil
+
+  defp allocatable_amount(_resource, nil), do: 0
+  defp allocatable_amount(@cpu, quantity), do: parse_quantity(quantity, 1000)
+  defp allocatable_amount(_resource, quantity), do: parse_quantity(quantity)
 
   defp pods_requested(pods) do
     scheduled = Enum.reject(pods, &terminal?/1)
 
-    Map.new(@scheduled_resources, fn resource ->
-      {resource, scheduled |> Enum.map(&pod_requested(&1, resource)) |> Enum.sum()}
+    Map.new(@scheduled_resources, fn
+      @pods -> {@pods, length(scheduled)}
+      resource -> {resource, scheduled |> Enum.map(&pod_requested(&1, resource)) |> Enum.sum()}
     end)
   end
 
@@ -740,28 +792,11 @@ defmodule Tuist.Kura.Capacity do
   defp sidecar?(%{"restartPolicy" => "Always"}), do: true
   defp sidecar?(_container), do: false
 
-  # CPU is the one resource Kubernetes quotes in millicores; everything else is
-  # a plain quantity, in bytes or in units of the extended resource.
+  # CPU is compared in millicores; everything else in bytes or in units of the
+  # extended resource. A request the API admitted but this cannot read counts
+  # as nothing, which overstates room by at most that pod; the scheduler is
+  # still the last word.
   defp resource_amount(_resource, nil), do: 0
-  defp resource_amount(@cpu, quantity), do: parse_cpu_millicores(quantity) || 0
+  defp resource_amount(@cpu, quantity), do: parse_quantity(quantity, 1000) || 0
   defp resource_amount(_resource, quantity), do: parse_quantity(quantity) || 0
-
-  defp parse_cpu_millicores(quantity) when is_binary(quantity) do
-    case Integer.parse(quantity) do
-      {millicores, "m"} -> millicores
-      {cores, ""} -> cores * 1000
-      {_whole, "." <> _fraction} -> parse_fractional_cores(quantity)
-      _ -> nil
-    end
-  end
-
-  defp parse_cpu_millicores(quantity) when is_integer(quantity), do: quantity * 1000
-  defp parse_cpu_millicores(_quantity), do: nil
-
-  defp parse_fractional_cores(quantity) do
-    case Float.parse(quantity) do
-      {cores, ""} -> round(cores * 1000)
-      _ -> nil
-    end
-  end
 end

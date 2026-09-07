@@ -500,7 +500,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
           "memory" => "128Gi",
           "ephemeral-storage" => "800Gi",
           "tuist.dev/memory-ceiling-mib" => "262144",
-          "tuist.dev/egress-mbps" => "1500"
+          "tuist.dev/egress-mbps" => "1500",
+          "pods" => "110"
         }
       }
     }

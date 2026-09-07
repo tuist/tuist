@@ -548,7 +548,8 @@ defmodule Tuist.Kura.AccountPoliciesTest do
           "memory" => "128Gi",
           "ephemeral-storage" => "#{@box_disk_gib}Gi",
           "tuist.dev/memory-ceiling-mib" => "262144",
-          "tuist.dev/egress-mbps" => "1500"
+          "tuist.dev/egress-mbps" => "1500",
+          "pods" => "110"
         }
       }
     }
@@ -863,6 +864,26 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       )
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+
+      assert [%{role: :primary, region: "eu-central"}] = PlacerRegions.all_for(account)
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+    end
+
+    test "does not follow a recorded primary the account's storage region no longer allows" do
+      # The account was placed in Europe, then narrowed its storage region to
+      # the United States. `place/5` already passes the European row over; a
+      # spill that then recovers it, because the row blocks its own record,
+      # would resolve the account outside its residency.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      account = update_region!(account, :usa)
+      serving(["us-east", "us-west", "eu-central"])
+      seed_origin(account, "US-VA")
+      room(%{"us-east" => false, "us-west" => true})
+      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
 
       assert [%{role: :primary, region: "eu-central"}] = PlacerRegions.all_for(account)
       refute_receive {_event_name, ^event_ref, _measurements, _metadata}
