@@ -4,6 +4,7 @@ This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
 - Provide reusable UI components (navigation, auth components, forms).
+- Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.
 - Keep rendering logic here; avoid domain logic.
 - `Runs.ProjectWithTags` shares project/scheme cells and tag overflow rules across build and task tables; detail headings reuse its uncollapsed tags.
 - Widgets and trend badges accept an optional formatted trend value for absolute changes when a percentage is undefined. Zero trends default to “No change”; percentage rendering remains shared across pages.

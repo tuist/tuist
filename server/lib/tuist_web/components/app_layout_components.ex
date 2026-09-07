@@ -105,7 +105,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -117,7 +116,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}

@@ -1,4 +1,16 @@
 <div id="quarantined-tests">
+  <.alert
+    :if={Tuist.Projects.Project.bazel_project?(@selected_project)}
+    status="information"
+    type="secondary"
+    size="small"
+    title={
+      dgettext(
+        "dashboard_tests",
+        "Run tests with tuist bazel test to apply quarantine. Skipped cases exclude their entire Bazel target. Muted cases still run; only verified muted failures are ignored."
+      )
+    }
+  />
   <div data-part="filters">
     <.date_picker
       id="quarantined-tests-analytics-date-range-picker"
