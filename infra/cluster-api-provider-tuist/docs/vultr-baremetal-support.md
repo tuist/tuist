@@ -73,47 +73,76 @@ Everything else is shared: the stub `TuistCluster`, the `controllers/linux`
 package (`linux_cloudinit.go`, `node_storage.go`, the kubelet and containerd
 drift checks), and the operator-minted kubelet identity.
 
-## Adoption
+## Adoption: tags, not a label prefix
 
-The other kinds adopt by a provider-side marker set as the last step of prep:
-an OVH `displayName` prefix, a Dedibox tag. Vultr bare metal carries both a
-`label` and a `tags` list (the singular `tag` field is deprecated), so either
-can serve. The label is already in use here (`tuist-kura-vultr-production-sa-west`,
-set at order time and following the `adoptDisplayNamePrefix` convention), which
-argues for prefix-matching the label and keeping `tags` free.
+Verified against the live API 2026-09-07.
 
-Whichever is chosen, the marker has to be settable independently of the install,
-because prep names a box into the pool only after it is converted.
+The other kinds adopt by a provider-side marker set as the last step of prep: an
+OVH `displayName` **prefix**, a Dedibox **tag**. `GET /v2/bare-metals` does
+filter server-side, on `label`, `tag` and `region`, but **`label` matches
+exactly**, not by prefix:
+
+| query | matches |
+|---|---|
+| `label=tuist-kura-vultr-production-sa-west` | 1 |
+| `label=tuist-kura-vultr-production` (prefix) | 0 |
+| `label=TUIST-KURA-VULTR-PRODUCTION-SA-WEST` | 1 (case-insensitive) |
+
+So the OVH `adoptDisplayNamePrefix` pattern has no server-side equivalent here.
+Adoption follows **Dedibox instead**: an `adoptTag` on the `tags` list, narrowed
+by `region` and `plan`, which is one query rather than listing the fleet and
+filtering client-side. The `label` stays what it is now, the human-readable
+per-box name.
+
+The mark step is `PATCH /v2/bare-metals/{id}` with a `tags` array, which returns
+202 and is immediately visible to `?tag=`. Both halves are confirmed working on
+`kura-sa-west-1`, which now carries `tags: ["tuist-kura-vultr-production"]`.
+
+The marker is settable independently of the install, which the conversion stage
+requires: prep tags a box into the pool only once it has been converted.
 
 ## Provider client (`internal/vultr`)
 
 The surface the reconciler needs, mirroring `internal/ovh`:
 
-| Operation | Endpoint |
-|---|---|
-| `FindAdoptableServer` | `GET /v2/bare-metals` filtered by region, plan and label prefix, minus already-claimed |
-| `GetServer` | `GET /v2/bare-metals/{id}` for IP and status |
-| `RegisterSSHKey` | `POST /v2/ssh-keys` |
-| `StartInstall` | `POST /v2/bare-metals/{id}/reinstall` |
-| `InstallState` | poll `GET /v2/bare-metals/{id}` status |
-| `SetLabel` | `PATCH /v2/bare-metals/{id}` for the mark step |
+| Operation | Endpoint | Status |
+|---|---|---|
+| `FindAdoptableServer` | `GET /v2/bare-metals?tag=&region=`, minus already-claimed | verified |
+| `GetServer` | `GET /v2/bare-metals/{id}` | verified |
+| `SetTags` (mark) | `PATCH /v2/bare-metals/{id}` with `tags` | verified, 202 |
+| `RegisterSSHKey` | `POST /v2/ssh-keys` | unverified |
+| `StartInstall` | `POST /v2/bare-metals/{id}/reinstall` | unverified |
+| `InstallState` | poll `GET /v2/bare-metals/{id}` `status` | unverified |
 
-Unverified and worth confirming against a live key before building: whether the
-list endpoint supports server-side filtering by label or tag, or whether the
-client filters client-side; and what the status field reads during and after a
-reinstall.
+A bare-metal object carries `app_id, cpu_count, date_created, disk, features,
+gateway_v4, id, image_id, internal_ip, label, mac_address, main_ip, netmask_v4,
+os, os_id, plan, power_status, preemptible, region, snapshot_id, status, tag,
+tags, user_scheme, v6_main_ip, v6_network, v6_network_size, vpcs`. `status` reads
+`active` on a healthy box; `power_status` is separate.
+
+**Still unverified: what `status` reads through a reinstall**, which is what
+`InstallState` has to interpret. Testing it means wiping `kura-sa-west-1`, which
+is prepared and hand-joinable, so it is left for the first box that is genuinely
+disposable, or for the moment the fleet has a second one.
 
 ## Credential
 
 `VULTR_API` in `tuist-k8s-<env>`, an API Credential item with an `api-key`
-field, mirroring `OVH_API` and `DEDIBOX_SCW_API`. It does not exist yet;
-`VULTR_FLEET_SSH` is currently the only Vultr item.
+field, mirroring `OVH_API` and `DEDIBOX_SCW_API`. Created 2026-09-07 in
+`tuist-k8s-production`.
 
 Vultr gates API keys on a **source IP allowlist**, which the other providers do
-not. A key that works from a laptop will fail from the controller unless the
-cluster's egress address is allowlisted, and that address is the one the
-`stable-egress-controller` keeps pinned. This is the first thing to check when
-the controller gets 401s that a local `curl` does not reproduce.
+not, and the allowlist starts empty: a fresh key authenticates from nowhere and
+returns `401 Unauthorized IP address: <caller>`. The error names the address it
+rejected, which is the fastest way to see whether the caller was reached over
+IPv4 or IPv6.
+
+The production key currently allows any IPv4 and any IPv6, which is what
+unblocked bring-up. That should narrow to the cluster's stable egress address
+once the controller is the only consumer, since the key does not expire and can
+destroy servers, and a wide-open ACL is not a control. That address is the
+Hetzner Floating IP the `stable-egress-controller` pins to the `md-egress` pool
+rather than a literal in this repo.
 
 ## Out of scope
 
