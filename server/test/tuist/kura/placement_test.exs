@@ -18,7 +18,8 @@ defmodule Tuist.Kura.PlacementTest do
       assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "majority_of_runs_moved"
       assert evidence["share"] >= 0.6
-      assert evidence["active_days"] == 30
+      # The account built on all 30 days; the rung reads the last 14 of them.
+      assert evidence["active_days"] == 14
     end
 
     test "leaves an account alone below the majority" do
@@ -326,13 +327,21 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
-    test "asks Enterprise for more than Pro before opening a region" do
+    test "asks Air for more than the paid plans before opening a region" do
+      # The ladder is ordered by how many regions a plan funds — Air 2, Pro 3,
+      # Enterprise 5 — so Air, which funds the fewest, is the one that has to
+      # see the most traffic before spending a slot. Pro and Enterprise share a
+      # floor: a second site earning a region is the same amount of traffic
+      # whichever paid plan it is on.
       rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
 
       assert {:expand, "eu-central", _evidence} =
                Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: rollups))
 
-      assert Placement.evaluate(context(plan: :enterprise, primary: "us-east", serving: ["us-east"], rollups: rollups)) ==
+      assert {:expand, "eu-central", _evidence} =
+               Placement.evaluate(context(plan: :enterprise, primary: "us-east", serving: ["us-east"], rollups: rollups))
+
+      assert Placement.evaluate(context(plan: :air, primary: "us-east", serving: ["us-east"], rollups: rollups)) ==
                :none
     end
 

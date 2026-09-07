@@ -241,6 +241,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Tasks")}
+          icon="subtask"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Project.gradle_project?(@selected_project)}
@@ -327,10 +338,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
-          )
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
         }
       />
       <.sidebar_item

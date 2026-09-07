@@ -1,0 +1,487 @@
+<div id="gradle-tasks">
+  <.button
+    :if={@name}
+    label={dgettext("dashboard_gradle", "Tasks")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={list_path(assigns)}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="heading">
+    <h1 :if={@name}>{@name}</h1>
+    <div data-part="filters">
+      <.dropdown
+        id="bottlenecks-environment-dropdown"
+        label={environment_label(@analytics_environment)}
+        secondary_text={dgettext("dashboard_gradle", "Environment:")}
+      >
+        <.dropdown_item
+          :for={environment <- ~w(any local ci)}
+          value={environment}
+          label={environment_label(environment)}
+          patch={
+            patch(assigns, %{
+              "analytics-environment" => environment,
+              "after" => nil,
+              "before" => nil
+            })
+          }
+          data-selected={@analytics_environment == environment}
+        >
+          <:right_icon :if={@analytics_environment == environment}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="bottlenecks-period"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_gradle", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_gradle", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_gradle", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{id: "custom", label: dgettext("dashboard_gradle", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_gradle", "Cancel")}
+            variant="secondary"
+            phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "bottlenecks-period"})}
+          />
+          <.button
+            label={dgettext("dashboard_gradle", "Apply")}
+            phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "bottlenecks-period"})}
+          />
+        </:actions>
+      </.date_picker>
+    </div>
+  </div>
+
+  <div :if={!@analytics.ok? && !@analytics.failed} data-part="loading" aria-busy="true">
+    <.skeleton_box width="100%" height="140px" border_radius="12px" />
+    <.skeleton_box width="100%" height="340px" border_radius="12px" />
+  </div>
+  <.card
+    :if={@analytics.failed}
+    title={dgettext("dashboard_gradle", "Analytics could not be loaded")}
+    icon="alert_circle"
+  >
+    <.card_section>
+      <p>{dgettext("dashboard_gradle", "Refresh the page to try again.")}</p>
+    </.card_section>
+  </.card>
+
+  <%= if @analytics.ok? do %>
+    <% result = @analytics.result %>
+    <.card
+      title={dgettext("dashboard_gradle", "Analytics")}
+      icon="chart_arcs"
+      data-part="analytics-card"
+    >
+      <div data-part="widgets" data-detail={not is_nil(@name)}>
+        <.widget
+          :for={metric <- metrics(@name, @analytics_duration_metric)}
+          id={"bottleneck-#{metric.id}"}
+          title={metric.title}
+          value={metric_value(metric, Map.fetch!(result.metrics.total, metric.field))}
+          description={metric.description}
+          legend_color={metric.color}
+          trend_value={
+            metric_trend(
+              metric,
+              Map.fetch!(result.metrics.total, metric.field),
+              Map.fetch!(result.metrics.previous, metric.field)
+            )
+          }
+          trend_value_label={
+            metric_trend_label(
+              metric,
+              Map.fetch!(result.metrics.total, metric.field),
+              Map.fetch!(result.metrics.previous, metric.field)
+            )
+          }
+          trend_type={metric_trend_type(metric)}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget={metric.id}
+          selected={@analytics_selected_widget == metric.id}
+          empty={
+            result.metrics.total.builds == 0 or
+              (metric.id == "hit_rate" and is_nil(result.metrics.total.hit_rate))
+          }
+          empty_label={
+            if(
+              metric.id == "hit_rate" and result.metrics.total.builds > 0 and
+                is_nil(result.metrics.total.hit_rate),
+              do: cache_badge_label(result.metrics.total.cacheability)
+            )
+          }
+        >
+          <:select :if={metric.id == "task_duration"}>
+            <.dropdown_item
+              :for={option <- duration_options()}
+              value={option.field}
+              phx-click="select_duration_metric"
+              phx-value-type={option.field}
+              data-selected={@analytics_duration_metric == Atom.to_string(option.field)}
+            >
+              <div data-part="percentile-item">
+                <div
+                  data-part="dot"
+                  data-type={if(option.color == "secondary", do: "avg", else: option.color)}
+                >
+                </div>
+                <span data-part="label">{option.title}</span>
+                <span data-part="separator">-</span>
+                <span data-part="value">{duration(Map.fetch!(result.metrics.total, option.field))}</span>
+              </div>
+            </.dropdown_item>
+          </:select>
+        </.widget>
+      </div>
+      <.card_section :if={result.metrics.total.builds > 0}>
+        <% metric =
+          Enum.find(
+            metrics(@name, @analytics_duration_metric),
+            &(&1.id == @analytics_selected_widget)
+          ) %>
+        <div
+          :if={metric.id == "hit_rate" and is_nil(result.metrics.total.hit_rate)}
+          data-part="empty"
+          id="cache-hit-rate-unavailable"
+        >
+          <h2>{cache_badge_label(result.metrics.total.cacheability)}</h2>
+          <p>
+            {if result.metrics.total.cacheability == :not_cacheable,
+              do: dgettext("dashboard_gradle", "Cache hit rate does not apply to this task."),
+              else:
+                dgettext(
+                  "dashboard_gradle",
+                  "These builds did not report enough cache information to calculate a hit rate."
+                )}
+          </p>
+        </div>
+        <.chart
+          :if={metric.id != "hit_rate" or not is_nil(result.metrics.total.hit_rate)}
+          id="bottleneck-analytics-chart"
+          type="line"
+          series={chart_series(metric, result.metrics.points)}
+          extra_options={chart_options(metric, result.metrics)}
+          y_axis_min={0}
+        />
+      </.card_section>
+      <.empty_card_section
+        :if={result.metrics.total.builds == 0}
+        title={dgettext("dashboard_gradle", "No data in this period")}
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  <% end %>
+
+  <.card
+    :if={!@name}
+    title={dgettext("dashboard_gradle", "Tasks")}
+    icon="stack_2"
+    data-part="entities"
+  >
+    <.card_section data-part="tasks-section">
+      <div data-part="table-toolbar">
+        <form id="bottleneck-search-form" phx-change="search">
+          <.text_input
+            id="bottleneck-search"
+            type="search"
+            name="q"
+            value={@search}
+            placeholder={dgettext("dashboard_gradle", "Search by path")}
+            show_suffix={false}
+            phx-debounce="200"
+          />
+        </form>
+        <.dropdown
+          id="bottlenecks-sort-by"
+          label={sort_label(@sort_by)}
+          secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={{field, label} <- sort_options()}
+            value={field}
+            label={label}
+            patch={sort_patch(assigns, field)}
+            data-selected={@sort_by == field}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="bottlenecks-filter-dropdown"
+          label={dgettext("dashboard_gradle", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <%= if @analytics.ok? do %>
+        <% result = @analytics.result %>
+        <p :if={result.truncated} data-part="caption">
+          {dgettext(
+            "dashboard_gradle",
+            "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
+          )}
+        </p>
+        <% page = page(assigns) %>
+        <div :if={page.rows == []} data-part="empty">
+          <.stack_2 />
+          <h2>
+            {if @search != "",
+              do: dgettext("dashboard_gradle", "No matching paths"),
+              else: dgettext("dashboard_gradle", "No builds in this period")}
+          </h2>
+          <p>
+            {dgettext("dashboard_gradle", "Try a different date range or adjust the filters.")}
+          </p>
+        </div>
+        <div :if={page.rows != []} data-part="tasks-table">
+          <.table
+            id="gradle-tasks-table"
+            rows={page.rows}
+            row_navigate={fn row -> entity_path(assigns, row) end}
+          >
+            <:col
+              :let={row}
+              label={dgettext("dashboard_gradle", "Task")}
+            >
+              <.text_and_description_cell
+                label={row.name}
+                description={row.root_project_name}
+                secondary_description={if row.build_path not in ["", ":"], do: row.build_path}
+              />
+            </:col>
+            <:col
+              :let={row}
+              label={dgettext("dashboard_gradle", "Executions")}
+              patch={sort_patch(assigns, "executions")}
+              sort_order={@sort_by == "executions" && @sort_order}
+            >
+              <.text_cell label={to_string(row.executions)} />
+            </:col>
+            <:col
+              :let={row}
+              label={dgettext("dashboard_gradle", "Misses")}
+              patch={sort_patch(assigns, "misses")}
+              sort_order={@sort_by == "misses" && @sort_order}
+            >
+              <.text_cell label={to_string(row.misses)} />
+            </:col>
+            <:col
+              :let={row}
+              label={dgettext("dashboard_gradle", "Hit rate")}
+              patch={sort_patch(assigns, "hit_rate")}
+              sort_order={@sort_by == "hit_rate" && @sort_order}
+            >
+              <.text_cell :if={not is_nil(row.hit_rate)} label={percent(row.hit_rate)} />
+              <.badge_cell
+                :if={is_nil(row.hit_rate)}
+                label={cache_badge_label(row.cacheability)}
+                color="neutral"
+                style="light-fill"
+              />
+            </:col>
+            <:col
+              :let={row}
+              :for={
+                {field, label} <- [
+                  {"p50_duration_ms", "p50"},
+                  {"p90_duration_ms", "p90"},
+                  {"p99_duration_ms", "p99"}
+                ]
+              }
+              label={label}
+              patch={sort_patch(assigns, field)}
+              sort_order={@sort_by == field && @sort_order}
+            >
+              <.text_cell label={duration(Map.fetch!(row, String.to_existing_atom(field)))} />
+            </:col>
+            <:col
+              :let={row}
+              label={dgettext("dashboard_gradle", "Cumulative time")}
+              patch={sort_patch(assigns, "cumulative_duration_ms")}
+              sort_order={@sort_by == "cumulative_duration_ms" && @sort_order}
+            >
+              <.text_cell label={duration(row.cumulative_duration_ms)} />
+            </:col>
+          </.table>
+          <.pagination
+            uri={@uri}
+            has_previous_page={page.has_previous_page}
+            has_next_page={page.has_next_page}
+            start_cursor={page.start_cursor}
+            end_cursor={page.end_cursor}
+          />
+        </div>
+      <% else %>
+        <.skeleton_box :if={!@analytics.failed} width="100%" height="340px" border_radius="12px" />
+      <% end %>
+    </.card_section>
+  </.card>
+
+  <%= if @analytics.ok? do %>
+    <% result = @analytics.result %>
+    <.card
+      :if={@name}
+      title={dgettext("dashboard_gradle", "Task executions")}
+      icon="exchange"
+      data-part="task-executions-card"
+    >
+      <.card_section data-part="task-executions-section">
+        <div data-part="table-toolbar">
+          <.form
+            id="task-executions-search-form"
+            for={%{}}
+            phx-change="search_task_executions"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-task-executions"
+              name="search"
+              placeholder={dgettext("dashboard_gradle", "Search...")}
+              show_suffix={false}
+              value={@execution_search}
+            />
+          </.form>
+          <.dropdown
+            id="task-executions-sort-by"
+            label={
+              if(@execution_sort == "duration",
+                do: dgettext("dashboard_gradle", "Duration"),
+                else: dgettext("dashboard_gradle", "Ran at")
+              )
+            }
+            secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={
+                {field, label} <- [
+                  {"ran_at", dgettext("dashboard_gradle", "Ran at")},
+                  {"duration", dgettext("dashboard_gradle", "Duration")}
+                ]
+              }
+              value={field}
+              label={label}
+              patch={execution_sort_patch(assigns, field)}
+              data-selected={@execution_sort == field}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="bottlenecks-detail-filter-dropdown"
+            label={dgettext("dashboard_gradle", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <.table
+          id="gradle-bottleneck-history"
+          rows={result.history.rows}
+          row_navigate={fn execution -> execution_path(assigns, execution) end}
+        >
+          <:col :let={execution} label={dgettext("dashboard_gradle", "Project")}>
+            <.project_with_tags_cell
+              label={execution.build.root_project_name}
+              tags={execution.build.custom_tags || []}
+            />
+          </:col>
+          <:col :let={execution} label={dgettext("dashboard_gradle", "Outcome")}>
+            <.badge_cell
+              label={outcome_label(execution.outcome)}
+              color={outcome_color(execution.outcome)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={execution} label={dgettext("dashboard_gradle", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if(execution.git_branch == "",
+                  do: dgettext("dashboard_gradle", "Unknown"),
+                  else: execution.git_branch
+                )
+              }
+            />
+          </:col>
+          <:col :let={execution} label={dgettext("dashboard_gradle", "Ran by")}>
+            <.gradle_build_ran_by_badge_cell build={execution.build} />
+          </:col>
+          <:col
+            :let={execution}
+            label={dgettext("dashboard_gradle", "Duration")}
+            patch={execution_sort_patch(assigns, "duration")}
+            sort_order={@execution_sort == "duration" && @execution_order}
+          >
+            <.text_cell label={duration(execution.duration_ms)} icon="history" />
+          </:col>
+          <:col
+            :let={execution}
+            label={dgettext("dashboard_gradle", "Ran at")}
+            patch={execution_sort_patch(assigns, "ran_at")}
+            sort_order={@execution_sort == "ran_at" && @execution_order}
+          >
+            <.text_cell sublabel={DateFormatter.from_now(execution.ran_at)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="subtask"
+              title={dgettext("dashboard_gradle", "No task executions found")}
+              subtitle={dgettext("dashboard_gradle", "Try updating your search")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={result.history.total_pages > 1}
+          current_page={result.history.page}
+          number_of_pages={result.history.total_pages}
+          page_patch={fn page -> patch(assigns, %{"execution-page" => page}) end}
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

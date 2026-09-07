@@ -206,17 +206,6 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
-    - name: TUIST_KURA_AIR_REGION
-      # Air is funded on the ca-east OVH validation box, as on staging.
-      # Without this the default names us-east, which this environment does not
-      # serve, so every Air account resolved into a region the lifecycle loop
-      # never iterates and no instance was ever provisioned.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget, matching staging, so
-      # traffic-driven placement is observable rather than collapsing onto a
-      # single funded region.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
