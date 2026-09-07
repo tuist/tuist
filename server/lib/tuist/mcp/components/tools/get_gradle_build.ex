@@ -40,6 +40,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
           "required" => ["tags", "values"],
           "additionalProperties" => false
         },
+        "tasks_cache_hit_count" => %{"type" => "integer"},
         "tasks_local_hit_count" => %{"type" => "integer"},
         "tasks_remote_hit_count" => %{"type" => "integer"},
         "tasks_up_to_date_count" => %{"type" => "integer"},
@@ -64,6 +65,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "root_project_name",
         "requested_tasks",
         "custom_metadata",
+        "tasks_cache_hit_count",
         "tasks_local_hit_count",
         "tasks_remote_hit_count",
         "tasks_up_to_date_count",
@@ -101,6 +103,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       {:ok,
        %{
          id: build.id,
+         tasks_cache_hit_count: build.tasks_cache_hit_count,
          duration_ms: build.duration_ms,
          status: to_string(build.status),
          gradle_version: build.gradle_version,

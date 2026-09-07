@@ -1,10 +1,12 @@
 package dev.tuist.gradle
 
+import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.File
 import java.lang.management.ManagementFactory
 
 class MachineMetricsCollector(
-    private val sampleIntervalMs: Long = 1000
+    private val sampleIntervalMs: Long = 1000,
+    private val inputTrackingState: InputTrackingState? = null
 ) {
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
@@ -18,10 +20,10 @@ class MachineMetricsCollector(
 
     fun start() {
         running = true
-        val initialNetwork = readNetworkBytes()
+        val initialNetwork = withoutInputTracking { readNetworkBytes() }
         previousNetworkBytesIn = initialNetwork.first
         previousNetworkBytesOut = initialNetwork.second
-        val initialDisk = readDiskBytes()
+        val initialDisk = withoutInputTracking { readDiskBytes() }
         previousDiskBytesRead = initialDisk.first
         previousDiskBytesWritten = initialDisk.second
 
@@ -52,8 +54,8 @@ class MachineMetricsCollector(
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
-        val network = readNetworkBytes()
-        val disk = readDiskBytes()
+        val network = withoutInputTracking { readNetworkBytes() }
+        val disk = withoutInputTracking { readDiskBytes() }
 
         val networkIn = maxOf(0L, network.first - previousNetworkBytesIn)
         val networkOut = maxOf(0L, network.second - previousNetworkBytesOut)
@@ -78,6 +80,15 @@ class MachineMetricsCollector(
 
         synchronized(samples) {
             samples.add(sample)
+        }
+    }
+
+    private fun <T> withoutInputTracking(action: () -> T): T {
+        inputTrackingState?.disableForCurrentThread()
+        return try {
+            action()
+        } finally {
+            inputTrackingState?.restoreForCurrentThread()
         }
     }
 
