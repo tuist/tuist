@@ -13,6 +13,13 @@ export function initAnalytics() {
     return null;
   }
 
+  // Automated browsers report `navigator.webdriver`. Their web vitals measure
+  // the crawler's own request queue rather than the site, so they are not
+  // collected: the percentile alerts describe real visitors.
+  if (navigator.webdriver) {
+    return null;
+  }
+
   const faro = initializeFaro({
     url: config.collector_url,
     app: {
