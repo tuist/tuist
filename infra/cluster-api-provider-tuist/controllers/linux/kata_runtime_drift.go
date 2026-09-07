@@ -17,12 +17,10 @@ import (
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
-// KataRuntimeSelectorLabel is the node label the kata-qemu RuntimeClass selects
-// on (infra/helm/tuist/templates/kata-qemu.yaml). It is the single observable
-// that decides whether a runner Pod can land on the box, which is why the drift
-// loop checks it rather than, say, the provider version that bootstrapped the
-// node: it is true by construction that a node carrying this label is one the
-// scheduler will place kata Pods on, and false by construction otherwise.
+// KataRuntimeSelectorLabel is the node label selected by the kata-qemu
+// RuntimeClass (infra/helm/tuist/templates/kata-qemu.yaml). The drift loop checks
+// it to establish schedulability, then checks the shared-memory configuration
+// proof before reporting the runtime ready.
 const KataRuntimeSelectorLabel = "katacontainers.io/kata-runtime"
 
 // KataRuntimeReadyCondition reports whether a machine that asked for
@@ -49,14 +47,18 @@ const (
 	// complete: the box is unreachable, or it refused the runtime (e.g. its
 	// containerd predates the v3 config syntax the handler is written in).
 	KataRuntimeRepairFailedReason = "KataRuntimeRepairFailed"
+
+	// KataSharedMemoryUnverifiedReason also covers labelled hosts that predate
+	// shared-memory sizing or have rebooted since the last successful repair.
+	KataSharedMemoryUnverifiedReason = "KataSharedMemoryUnverified"
 )
 
 // kataRuntimeReadyGauge is the alertable form of the condition. Only machines
 // that asked for kata get a series, so `min_over_time(...) == 0` is a clean
-// "a runner box has been unable to take jobs" alert with no cache-fleet noise.
+// "a runner box has an unverified Kata configuration" alert with no cache-fleet noise.
 var kataRuntimeReadyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Name: "capt_node_kata_runtime_ready",
-	Help: "1 when a machine with spec.kataRuntime carries the katacontainers.io/kata-runtime node label the kata-qemu RuntimeClass selects on, 0 when it does not (the node is Ready but no runner Pod can schedule on it). Machines that never asked for kata publish no series.",
+	Help: "1 when a machine with spec.kataRuntime has the runtime label and verified shared-memory configuration for this boot, 0 otherwise. Machines that never asked for kata publish no series.",
 }, []string{"machine", "fleet"})
 
 func init() {
@@ -147,7 +149,8 @@ export DEBIAN_FRONTEND=noninteractive
 
 // labelKataRuntimeNode patches the kata labels onto the live Node, which is the
 // step that actually makes the kata-qemu RuntimeClass select the box. Only
-// reached once the repair script has verified the runtime is installed.
+// reached once the repair script has verified the runtime and shared-memory
+// capacity. The annotation records that proof for this configuration and boot.
 func labelKataRuntimeNode(ctx context.Context, c client.Client, node *corev1.Node) error {
 	helper, err := patch.NewHelper(node, c)
 	if err != nil {
@@ -159,6 +162,10 @@ func labelKataRuntimeNode(ctx context.Context, c client.Client, node *corev1.Nod
 	for _, label := range kataNodeLabels {
 		node.Labels[label.Key] = label.Value
 	}
+	if node.Annotations == nil {
+		node.Annotations = map[string]string{}
+	}
+	node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(node)
 	return helper.Patch(ctx, node)
 }
 
@@ -177,7 +184,7 @@ func labelKataRuntimeNode(ctx context.Context, c client.Client, node *corev1.Nod
 // in-place repair.
 //
 // Returns requeue=true when it did work or deferred, false when there was
-// nothing to do. On a converged node this is one map lookup.
+// nothing to do. Converged nodes need no SSH until the configuration or boot changes.
 //
 // Any future bootstrap-time capability on these kinds needs the same treatment:
 // an observable on the Node, a check here, and a repair that is additive rather
@@ -198,7 +205,8 @@ func reconcileLinuxKataRuntimeDrift(
 		forgetKataRuntimeMetric(machineName)
 		return false, nil
 	}
-	if node.Labels[KataRuntimeSelectorLabel] == "true" {
+	runtimeInstalled := node.Labels[KataRuntimeSelectorLabel] == "true"
+	if runtimeInstalled && node.Annotations[kataSharedMemoryAnnotation] == kataSharedMemoryRevision(node) {
 		conditions.MarkTrue(machine, KataRuntimeReadyCondition)
 		recordKataRuntimeReady(machineName, fleet, true)
 		return false, nil
@@ -207,10 +215,16 @@ func reconcileLinuxKataRuntimeDrift(
 	// Mark before attempting anything. Every path out of here that does not
 	// finish the repair leaves the machine visibly broken, which is the whole
 	// point: the incident's cost was that a node in this state looked healthy.
-	conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataRuntimeMissingReason,
-		clusterv1.ConditionSeverityError,
-		"node carries no %s label, so no runtimeClassName=kata-qemu Pod can schedule on it; repairing in place",
-		KataRuntimeSelectorLabel)
+	if runtimeInstalled {
+		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataSharedMemoryUnverifiedReason,
+			clusterv1.ConditionSeverityError,
+			"Kata shared-memory capacity has not been verified for this configuration and boot; repairing in place")
+	} else {
+		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataRuntimeMissingReason,
+			clusterv1.ConditionSeverityError,
+			"node carries no %s label, so no runtimeClassName=kata-qemu Pod can schedule on it; repairing in place",
+			KataRuntimeSelectorLabel)
+	}
 	recordKataRuntimeReady(machineName, fleet, false)
 
 	host := nodeInternalIP(node)
@@ -231,7 +245,11 @@ func reconcileLinuxKataRuntimeDrift(
 	}
 	hostKey := bootstrap.NewHostKeyState(known)
 
-	sshErr := bootstrapOverSSH(ctx, opts.BootstrapUser, host, privateKey, renderKataRuntimeRepairScript(opts), hostKey)
+	script := renderKataSharedMemoryRepairScript(opts)
+	if !runtimeInstalled {
+		script = renderKataRuntimeRepairScript(opts)
+	}
+	sshErr := bootstrapOverSSH(ctx, opts.BootstrapUser, host, privateKey, script, hostKey)
 	// Persist a newly TOFU'd key before anything else, matching the bootstrap and
 	// kubelet-config paths: the key was observed even if the script then failed.
 	if observed := hostKey.Observed(); observed != "" && observed != known {
@@ -242,7 +260,7 @@ func reconcileLinuxKataRuntimeDrift(
 	if sshErr != nil {
 		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataRuntimeRepairFailedReason,
 			clusterv1.ConditionSeverityError,
-			"could not install the kata runtime on %s, so the node still takes no runner job: %v", host, sshErr)
+			"could not repair the Kata runtime or shared-memory configuration on %s: %v", host, sshErr)
 		return false, fmt.Errorf("repair kata runtime over ssh on %s: %w", host, sshErr)
 	}
 	if labelErr := labelKataRuntimeNode(ctx, c, node); labelErr != nil {
@@ -251,7 +269,7 @@ func reconcileLinuxKataRuntimeDrift(
 
 	conditions.MarkTrue(machine, KataRuntimeReadyCondition)
 	recordKataRuntimeReady(machineName, fleet, true)
-	logger.Info("installed the kata runtime on a node that joined without it and labelled it for the kata-qemu RuntimeClass",
+	logger.Info("verified the Kata runtime and shared-memory configuration",
 		"node", node.Name, "host", host)
 	return true, nil
 }

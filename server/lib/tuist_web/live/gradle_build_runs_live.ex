@@ -4,6 +4,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter

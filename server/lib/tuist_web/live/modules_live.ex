@@ -4,6 +4,7 @@ defmodule TuistWeb.ModulesLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
 
@@ -149,11 +150,13 @@ defmodule TuistWeb.ModulesLive do
       |> assign_async([:modules], fn ->
         {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
       end)
-      |> assign_async([:timeseries, :miss_reasons_series, :modules_series, :module_count], fn ->
+      |> assign_async([:miss_reasons_series], fn ->
+        {:ok, %{miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts)}}
+      end)
+      |> assign_async([:timeseries, :modules_series, :module_count], fn ->
         {:ok,
          %{
            timeseries: opts |> Analytics.module_invalidation_timeseries() |> with_hit_rates(),
-           miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts),
            modules_series: Analytics.modules_timeseries(opts),
            module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))
          }}

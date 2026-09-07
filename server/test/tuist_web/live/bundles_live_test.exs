@@ -188,7 +188,7 @@ defmodule TuistWeb.BundlesLiveTest do
     refute has_element?(lv, "#bundle-size-branch-dropdown")
   end
 
-  test "defaults to 0.0% download size trend when previous bundle download_size is nil", %{
+  test "shows no change when previous bundle download_size is nil", %{
     conn: conn,
     organization: organization,
     project: project
@@ -216,10 +216,10 @@ defmodule TuistWeb.BundlesLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
-  test "download size is 0.0% when last bundle download_size is 0", %{
+  test "shows no change when last bundle download_size is 0", %{
     conn: conn,
     organization: organization,
     project: project
@@ -247,7 +247,7 @@ defmodule TuistWeb.BundlesLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
   test "download is 0.0% when previous bundle download_size is 0", %{

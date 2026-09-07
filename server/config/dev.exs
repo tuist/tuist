@@ -91,6 +91,7 @@ config :esbuild,
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{noora_source_path}/js",
       "--alias:noora=#{noora_source_path}/js/index.js",
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],

@@ -5618,6 +5618,7 @@ components:
       enum:
         - local_hit
         - remote_hit
+        - cache_hit
         - up_to_date
         - executed
         - failed
@@ -23109,6 +23110,7 @@ paths:
             enum:
               - local_hit
               - remote_hit
+              - cache_hit
               - up_to_date
               - executed
               - failed
@@ -23184,6 +23186,63 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        execution:
+                          nullable: true
+                          properties:
+                            build_path:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                            cacheability:
+                              enum:
+                                - cacheable
+                                - disabled
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            incremental:
+                              nullable: true
+                              type: boolean
+                              x-struct:
+                              x-validate:
+                            remote_cache_download_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            remote_cache_lookup_outcome:
+                              enum:
+                                - hit
+                                - miss
+                                - error
+                                - not_requested
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            remote_cache_upload_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            task_type:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - build_path
+                            - task_type
+                            - cacheability
+                          type: object
+                          x-struct:
+                          x-validate:
                         id:
                           description: The task ID.
                           format: uuid
@@ -23195,6 +23254,7 @@ paths:
                           enum:
                             - local_hit
                             - remote_hit
+                            - cache_hit
                             - up_to_date
                             - executed
                             - failed
@@ -25092,6 +25152,63 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        execution:
+                          nullable: true
+                          properties:
+                            build_path:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                            cacheability:
+                              enum:
+                                - cacheable
+                                - disabled
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            incremental:
+                              nullable: true
+                              type: boolean
+                              x-struct:
+                              x-validate:
+                            remote_cache_download_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            remote_cache_lookup_outcome:
+                              enum:
+                                - hit
+                                - miss
+                                - error
+                                - not_requested
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            remote_cache_upload_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            task_type:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - build_path
+                            - task_type
+                            - cacheability
+                          type: object
+                          x-struct:
+                          x-validate:
                         outcome:
                           type: string
                           x-struct:
@@ -25124,6 +25241,10 @@ paths:
                       x-struct:
                       x-validate:
                     type: array
+                    x-struct:
+                    x-validate:
+                  tasks_cache_hit_count:
+                    type: integer
                     x-struct:
                     x-validate:
                   tasks_executed_count:
@@ -26931,6 +27052,10 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        tasks_cache_hit_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
                         tasks_executed_count:
                           type: integer
                           x-struct:
@@ -27169,6 +27294,7 @@ paths:
                   x-validate:
                 duration_ms:
                   description: Build duration in milliseconds.
+                  minimum: 0
                   type: integer
                   x-struct:
                   x-validate:
@@ -27329,11 +27455,69 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                      execution:
+                        nullable: true
+                        properties:
+                          build_path:
+                            maxLength: 1024
+                            type: string
+                            x-struct:
+                            x-validate:
+                          cacheability:
+                            enum:
+                              - cacheable
+                              - disabled
+                              - unknown
+                            type: string
+                            x-struct:
+                            x-validate:
+                          incremental:
+                            nullable: true
+                            type: boolean
+                            x-struct:
+                            x-validate:
+                          remote_cache_download_duration_ms:
+                            maximum: 604800000
+                            minimum: 0
+                            nullable: true
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          remote_cache_lookup_outcome:
+                            enum:
+                              - hit
+                              - miss
+                              - error
+                              - not_requested
+                              - unknown
+                            type: string
+                            x-struct:
+                            x-validate:
+                          remote_cache_upload_duration_ms:
+                            maximum: 604800000
+                            minimum: 0
+                            nullable: true
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          task_type:
+                            maxLength: 1024
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - build_path
+                          - task_type
+                          - cacheability
+                        type: object
+                        x-struct:
+                        x-validate:
                       outcome:
                         description: Task outcome.
                         enum:
                           - local_hit
                           - remote_hit
+                          - cache_hit
                           - up_to_date
                           - executed
                           - failed

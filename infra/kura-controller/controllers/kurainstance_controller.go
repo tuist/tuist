@@ -142,6 +142,10 @@ type KuraInstanceReconciler struct {
 	PeerDNSResolver     PeerDNSResolver
 	PeerPathProber      PeerPathProber
 
+	// MetricsClient sources the readings behind requests.cpu. Nil leaves
+	// every instance on the cold-start constant.
+	MetricsClient PodMetricsClient
+
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
 	// temporarily stops answering keeps contributing its last report (with
@@ -329,6 +333,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -421,6 +426,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	seedCPURequest(instance, pods)
+	r.observeCPUUsage(ctx, instance, pods)
+	applyScheduleCap(instance, pods, time.Now())
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
@@ -2915,9 +2923,10 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		return false, err
 	}
 	// Delete the StatefulSet so it stops backing the stale PVCs, then the PVCs
-	// themselves. Both deletions are idempotent; staleDataStorageReason keeps
-	// returning a reason (so the caller keeps requeuing) until the objects are
-	// gone, which is what stops the recreated StatefulSet from adopting them.
+	// themselves, then the pods that hold them. All three deletions are
+	// idempotent; staleDataStorageReason keeps returning a reason (so the caller
+	// keeps requeuing) until the objects are gone, which is what stops the
+	// recreated StatefulSet from adopting them.
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
 		return false, err
@@ -2930,8 +2939,39 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
 			return false, err
 		}
+		// The pod as well, rather than trusting the foreground delete above to
+		// collect it. A pod this StatefulSet no longer owns is not a dependent,
+		// so nothing cascades to it -- and one whose ownership was stripped by
+		// the resize path's Orphan re-template is exactly the pod most likely to
+		// be standing here. It holds the claim open through the pvc-protection
+		// finalizer, so leaving it running leaves a PVC that can never finish
+		// terminating, and above that a reason that can never clear. This path
+		// is taking the instance down by design; the pod is going either way.
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
 	}
 	return true, nil
+}
+
+// statefulSetAbsent reports whether the instance's StatefulSet is gone or on its
+// way out. Only reconcileStaleDataStorage removes it and leaves it removed:
+// every other pass that reaches reconcileStatefulSet builds it back, and the
+// resize path's Orphan re-template is followed by that same rebuild. So its
+// absence is the signal that a teardown is the thing in flight.
+func (r *KuraInstanceReconciler) statefulSetAbsent(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return sts.DeletionTimestamp != nil, nil
 }
 
 // staleDataStorageReason returns a non-empty reason when a data PVC can never
@@ -2949,8 +2989,23 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 // place -- but it does not need the instance taken down to get there, and
 // `reconcileDataStorageResize` replaces the volumes one replica at a time
 // instead.
+//
+// Termination alone is deliberately not a reason either. Deleting a data PVC is
+// the ordinary first step of that one-replica-at-a-time replacement, so reading
+// any DeletionTimestamp as evidence of a prior recreate let the resize path trip
+// this one within the same second and escalate a rolling rebuild into a full
+// teardown. What survives is the narrower claim the check was there to make:
+// once this function has decided to recreate, the StatefulSet is gone, and a PVC
+// still terminating under that absence is cleanup this path is waiting on rather
+// than cleanup another path is doing. The substantive reasons below need no such
+// guard, because a PVC terminating for one of them still carries it -- a wrong
+// storage class and a missing pinned node are both readable until the object is.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
+	stsGone, err := r.statefulSetAbsent(ctx, instance)
+	if err != nil {
+		return "", err
+	}
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
 		pvc := &corev1.PersistentVolumeClaim{}
@@ -2960,7 +3015,7 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 			}
 			return "", err
 		}
-		if pvc.DeletionTimestamp != nil {
+		if pvc.DeletionTimestamp != nil && stsGone {
 			return fmt.Sprintf("data PVC %s is still terminating from a prior recreate", name), nil
 		}
 		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
@@ -3460,14 +3515,29 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 		ceilingMib = floorMib
 	}
 
+	// The request is observed per instance (see cpu_autosize.go); the ceiling
+	// is the plan's, and bounds it because the API rejects a limit under its
+	// request.
+	cpuMilli := cpuRequestMilli(instance)
+	cpuCeilingMilli := instance.Spec.CPUCeilingMilli
+	if cpuCeilingMilli > 0 && cpuCeilingMilli < cpuRequestBands[0] {
+		cpuCeilingMilli = cpuRequestBands[0]
+	}
+	if cpuCeilingMilli > 0 && cpuMilli > cpuCeilingMilli {
+		cpuMilli = cpuCeilingMilli
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("500m"),
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuMilli), resource.DecimalSI),
 			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
 			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	if cpuCeilingMilli > 0 {
+		r.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(cpuCeilingMilli), resource.DecimalSI)
 	}
 	// Ceiling bin-packing is opt-in per region, for the same reason the egress
 	// floor is: a pod that requests an extended resource its node does not
