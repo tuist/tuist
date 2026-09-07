@@ -130,6 +130,67 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+## Metrics aggregated downstream of this chart
+
+What this chart keeps is not what Grafana Cloud stores. **Adaptive Metrics** sits
+in front of the tenant and rewrites series on ingest, so a metric can be
+allow-listed here, present in the collector's deployed config, and still be
+unqueryable in the shape a dashboard or alert needs. Check it before concluding
+the chart is at fault.
+
+Its rules are query-driven: it proposes aggregating away any label no query has
+touched in the lookback, and **auto-apply is enabled on this stack**, so a
+recommendation becomes a rule on its own. That means a metric nobody queries
+loses its labels, and a query is the only thing that keeps them.
+
+An aggregated metric does not disappear. It survives as a single series with the
+aggregated labels removed, which is why a matcher on one of them silently
+matches nothing:
+
+```
+{__name__="node_memory_Cached_bytes", cluster="tuist-production"}   # no data
+sum(node_memory_Cached_bytes)                                       # a number
+node_memory_Cached_bytes                                            # errors, and names every aggregated label
+```
+
+The bare query is the fastest audit: the error lists exactly which labels are
+gone.
+
+Read and edit the rules through the tenant's own endpoint, authenticated as the
+metrics tenant rather than as the Grafana instance. A Grafana stack
+service-account token is the wrong credential here; the env vault's `LOKI_TOKEN`
+is an access policy token that carries tenant read:
+
+```bash
+TOKEN=$(op read "op://tuist-k8s-production/LOKI_TOKEN/password")
+BASE=https://prometheus-prod-24-prod-eu-west-2.grafana.net
+
+# Current rules, and whether recommendations auto-apply
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/rules > rules.json
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/recommendations/config
+```
+
+`POST /aggregations/rules` replaces the **entire** rule set, so edit the file
+rather than sending a fragment, and pass the `Etag` from the GET as `If-Match`
+so a concurrent change fails instead of being clobbered. Keep the GET response
+as the rollback. Ingest picks the change up within about fifteen minutes;
+already-stored samples stay aggregated, so verify on fresh data.
+
+Deleting a rule is not durable on its own while auto-apply is on. The
+recommendation that produced it stands until a query touches the metric again,
+and the next cycle reapplies it. Pair every deletion with the query that
+protects it, which for Kura page cache is the **Page cache by node** panel in
+`infra/grafana-dashboards/tuist-kura-region-scalability.json`.
+
+`recommendations/config` also carries a global `keep_labels` list: a label named
+there is never proposed for aggregation on any metric. It is empty today.
+Putting `cluster` in it would end this whole class of bug, at the cost of every
+future recommendation that would have dropped `cluster` for real savings.
+
+Restoring a label restores its cardinality. `node_memory_Cached_bytes` and
+`node_memory_MemFree_bytes` are 59 hosts each, so about 120 series and a dollar
+a month at the stack's measured rate.
+
 ## Metrics scrape cadence
 
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The

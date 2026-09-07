@@ -372,6 +372,11 @@ k8s-monitoring:
           - node_cpu_seconds_total
           - node_exporter_build_info
           - node_filesystem.*
+          # `node_memory.*` keeps every member of the family node-exporter
+          # reads out of /proc/meminfo in one pass, so a member missing in
+          # Grafana Cloud was never dropped here; it was aggregated at
+          # ingest by Adaptive Metrics. See "Metrics aggregated downstream
+          # of this chart" in README.md before editing this list.
           - node_memory.*
           - process_cpu_seconds_total
           - process_resident_memory_bytes
