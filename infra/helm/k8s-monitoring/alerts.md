@@ -3012,6 +3012,223 @@ as seven separate series over a week. Always reduce with `max by (pod)` (or
 `by (cluster, pod)`) first. The same applies when counting how long a pod
 spent above a threshold.
 
+### Kura instance below its replica count
+
+Catches a per-account Kura StatefulSet serving on fewer ready replicas than it
+declares, whatever took the replica away: unschedulable, crash-looping, stuck
+terminating, or a rollout that never finished. Every managed instance runs
+`replicas: 2` so a deploy always has somewhere to hand traffic to, and the
+standby is also what a rebuilt replica refills its ring from over the peer mesh
+(`instancePodAffinity` in the kura-controller). An instance down to one replica
+still answers, which is why nothing that watches request rates or error rates
+sees anything: it is not an outage, it is the absence of the thing that keeps
+the next deploy from being one.
+
+**Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`, alongside the other Kura rules.
+Created directly rather than left as a follow-up, because merging this section
+provisions nothing (see the note under
+[Routing to Grafana IRM](#routing-to-grafana-irm) — the rules in this document
+are hand-created) and a documented-but-unbuilt rule reads exactly like a
+covered gap.
+
+```promql
+kube_statefulset_replicas{namespace="kura"}
+-
+kube_statefulset_status_replicas_ready{namespace="kura"}
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- No `affected_service` label: an instance on one replica is degraded, not
+  customer-visible. It becomes customer-visible at the next deploy, which is
+  the reason to clear it within the day rather than to page on it.
+- Summary: `Kura instance {{ $labels.statefulset }} has been short of ready
+  replicas for 30 minutes ({{ $values.A.Value | printf "%.0f" }} missing)`
+
+**Deliberately a subtraction rather than `ready < replicas`.** A comparison
+operator filters, so a healthy fleet returns no series at all and the rule sits
+in no-data forever, where a rule that has gone blind looks exactly like a rule
+with nothing to report. Left as a plain subtraction every instance evaluates to
+an explicit `0` while it is healthy, and no-data means the telemetry stopped.
+Same reasoning, and the same shape, as **Control-plane replicas below desired
+state**.
+
+**Do not add a `cluster` selector.** Kura runs in `tuist-production`,
+`tuist-staging` and `tuist-canary` and the `kura` namespace exists nowhere else,
+so `namespace="kura"` already scopes it. Adding `cluster=` buys nothing and
+risks the failure that **Control-plane replicas below desired state** hit: if
+Adaptive Metrics aggregates the label away, an equality matcher on it matches
+zero series and the rule is silently dead under `no_data_state: OK`. Without the
+matcher, an aggregated `cluster` costs an empty interpolation in the summary
+instead of the whole rule.
+
+**The series and its labels were confirmed before the rule was saved.** Two
+things had to hold and both were checked on 2026-09-07. The metrics are
+scraped: the production Alloy config's kube-state-metrics allow-list keeps
+`kube_statefulset.*` (read off `k8s-monitoring-alloy-metrics` in
+`observability`; `values.yaml` reaches it through `useDefaultAllowList: true`).
+And Adaptive Metrics has not aggregated them: the expression returns exactly 71
+series, one per Kura StatefulSet and all at `0` (52 production, 15 staging, 4
+canary, matching `kubectl` exactly), each carrying real `cluster`, `namespace`
+and `statefulset` labels rather than `<aggregated>`. That second check is the
+one that decides whether the rule can work at all, and it is the check the CAPI
+control-plane rule below failed the first time it was written. Re-run it if the
+rule ever goes quiet for a suspiciously long stretch; a metric that loses its
+per-object labels reports only a fleet-wide count of missing replicas, which is
+still usable but needs the summary rewritten rather than left interpolating
+nothing.
+
+**Single-replica instances are handled by the expression, not by an exception.**
+The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
+`1 - 1` is `0` like any other healthy instance. A scaled-to-zero or
+being-deleted StatefulSet is `0 - 0`.
+
+**Thirty minutes, for the same reason as *Pod cannot be scheduled*.** It clears
+a rolling deploy, a node drain, and a replica taken down deliberately by a
+storage rebuild, which is back Ready in about two minutes. It is short enough
+that a wedge surfaces the same morning rather than after two days.
+
+**What this exists for.** On 2026-09-07 a `kura-<account>-us-east-1-1` replica
+was found to have sat `Pending` for roughly two days while `-0` served, so a
+live instance ran single-replica against the `replicas: 2` invariant and nothing
+said so. Its PVC was bound to a `scw-local-nvme` volume pinned to the older of
+the region's two boxes, which had 3146 MiB of `tuist.dev/memory-ceiling-mib`
+free against the 4096 the pod requests; the other box had 14410 MiB and was
+unreachable for that volume, and a box added to the region afterwards did not
+help because the pin predated it. None of the 22 Kura rules that predate this
+one covered it: **Kura cache telemetry missing** is fleet-wide
+`absent_over_time`, **Kura cache pod restart
+loop** cannot fire because a `Pending` pod never restarts, and the region rules
+describe the region rather than the tenant.
+
+**Repairing a pinned wedge by hand.** Delete the replica's data PVC. The
+StatefulSet recreates it, the storage class provisions a fresh volume on a box
+that has room (`WaitForFirstConsumer` binds it wherever the pod is placed rather
+than where the old one was), and the pod refills its ring from its sibling over
+the peer mesh. It took about two minutes end to end when this was done for the
+2026-09-07 wedge, with no customer-visible interruption, because the replica
+being replaced was `Pending` and serving nothing. Check the sibling is Ready
+first: the volume is one of the account's two copies and the rebuilt pod refills
+from the other one.
+
+Having the controller do this automatically was written and then deliberately
+dropped from the change that added this rule. The trigger has to infer "the pin
+is what is in the way" from a Pending pod, a bound claim, a grace period and a
+set of node-health guards, and two review passes each found a case where it
+would discard a healthy volume (a claim caught mid-bind, and a node carrying an
+untolerated taint). Automating a destructive action behind an inference that
+needed two corrections was judged the wrong trade against a repair that is one
+command, when what actually failed here was that nobody knew for two days. This
+rule is what fixes that. Revisit the automation if the wedge recurs often enough
+to be worth the risk.
+
+**Why *Pod cannot be scheduled* did not save us, which is not that it is
+missing.** That rule matches any unschedulable production pod outside
+`tuist-runners` for 30 minutes, which is exactly what the wedged replica was,
+and its entry here carries no *Already created* / *Live* / *Provisioned* line.
+That is a gap in this document, not in Grafana: the rule is deployed as
+`ffvn55h51mz28d` (folder `Alerts`, group `Infrastructure`, `severity: warning`,
+no `notification_settings`, so it routes through the policy tree), and on
+2026-09-07 it was carrying an alert instance for the wedged pod. So the
+two-day silence is not explained by an absent rule, and **whether it notified
+and was missed, or was suppressed, is still open** — answer it from the rule's
+alert history in Grafana rather than from this document.
+
+One likely contributor, worth its own look: over the seven days to 2026-09-07
+production carried 13 to 14 concurrently unschedulable pods, every one of them
+in `kura`, including both ordinals of several instances. All had cleared by the
+time this was written and production now has none (fleet-wide there is a single
+`kube_pod_status_unschedulable` series, in staging). A per-pod rule standing at
+a dozen-plus instances is one a human stops reading, which is the failure mode
+that rule's own entry warns about for staging. Two rules are worth keeping
+either way, because they fail differently: that one catches an unplaceable pod
+in any namespace, and this one catches a tenant below its replica count for
+reasons that never involve the scheduler.
+
+### Kura box cannot take back its largest replica
+
+The leading indicator for **Kura instance below its replica count** above, and
+the only one of the two that is readable *before* anything breaks. A Kura data
+volume is node-local and pins its replica to one box. When that box has
+committed so much of its `tuist.dev/memory-ceiling-mib` budget that the
+replica could not be placed back on it, the replica has nowhere else to go the
+moment it is deleted, so it sits `Pending` until somebody deletes the claim.
+This rule reads that state while the replica is still running.
+
+**Live**: rule `efxjihza4os1sc`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`.
+
+The invariant, per box:
+
+```
+committed  <=  allocatable  -  largest single replica request
+```
+
+```promql
+(
+  sum by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+  +
+  max by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+)
+-
+max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_memory_ceiling_mib"})
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`. The value is how
+  far past the line the box is, in MiB
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK; execution-error state Alerting
+- Summary: `Kura box {{ $labels.node }} in {{ $labels.cluster }} is committed
+  {{ $values.A.Value | printf "%.0f" }} MiB past the point where its largest
+  replica could come back`
+
+**Why the seat is not simply held, which is what makes this worth watching.**
+Kubernetes accounts extended resources against *scheduled pods*, not against
+volumes. The moment a replica is deleted for any reason (a rollout, an eviction,
+a drain, a storage rebuild) its request stops being counted
+and another instance can take the headroom. Two things that look like they would
+fix that do not. Kura pods run at priority 0 with no PriorityClass, so a
+returning replica cannot preempt whatever took its seat; and on these boxes
+every competitor for the budget is another Kura pod (on the box that wedged:
+52992 MiB across 26 Kura pods, and exactly 0 from every other namespace), so a
+*uniform* PriorityClass would have nothing to preempt. A two-tier scheme that
+ranks an established replica above one being placed does not survive either,
+because a newcomer binds its volume in `PreBind` seconds after being scheduled
+and would be promoted almost immediately. There is no Kubernetes primitive that
+reserves capacity for a pod that is not currently scheduled, which is why this
+is a warning to act on rather than a mechanism.
+
+**Rollouts make it quieter, not noisier.** While a replica is down its request
+leaves the sum, so the value falls. The rule only rises when commitment
+genuinely grows, which is what it is for.
+
+**It fires on creation for one production box, and that is a true positive.**
+On 2026-09-07 the box that produced the two-day single-replica wedge sits about
+950 MiB over the line (52992 committed, 56138 allocatable, 4096 largest
+replica), while its sibling in the region is 6218 under and every other Kura box
+is further under still. Unlike the staging noise described under *Pod cannot be
+scheduled*, this is one alert naming one genuinely over-committed box, and it
+clears by adding capacity to the region. Do **not** clear it by shrinking an
+account's memory profile: that is the account's floor, not the box's slack.
+
+**Enforcement belongs elsewhere, deliberately.** This rule observes the
+invariant; nothing yet refuses an admission that would violate it. That belongs
+in `Tuist.Kura.Capacity` and the admission path, which already implements this
+exact shape for the other bin-packed dimension (`egress_headroom`, per box,
+`replicas x floor <= allocatable - other tenants`, with `max_floor_mbps`
+derived from it). The ceiling dimension has no equivalent, and it is now the
+binder in us-east. Two things to settle before enforcing it, which is why it did
+not ride along with the rule: the region reads differently the moment it is
+enforced (one of the two us-east boxes is already over the line, so us-east
+would immediately stop accepting placements there), and per-box headroom is a
+stronger statement than the region-level pressure fraction
+(`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
+on which is authoritative.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another
