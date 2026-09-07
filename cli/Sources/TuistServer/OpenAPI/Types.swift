@@ -60380,6 +60380,8 @@ public enum Operations {
                                 public var cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/incremental`.
                                 public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                                 @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case hit = "hit"
@@ -60390,6 +60392,8 @@ public enum Operations {
                                 }
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                                 public var remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/task_type`.
                                 public var task_type: Swift.String
                                 /// Creates a new `executionPayload`.
@@ -60398,26 +60402,34 @@ public enum Operations {
                                 ///   - build_path:
                                 ///   - cacheability:
                                 ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
                                 ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
                                 ///   - task_type:
                                 public init(
                                     build_path: Swift.String,
                                     cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
                                     incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
                                     task_type: Swift.String
                                 ) {
                                     self.build_path = build_path
                                     self.cacheability = cacheability
                                     self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                     self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
                                     self.task_type = task_type
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case build_path
                                     case cacheability
                                     case incremental
+                                    case remote_cache_download_duration_ms
                                     case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
                                     case task_type
                                 }
                             }
@@ -66283,6 +66295,8 @@ public enum Operations {
                                 public var cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/incremental`.
                                 public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                                 @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case hit = "hit"
@@ -66293,6 +66307,8 @@ public enum Operations {
                                 }
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                                 public var remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/task_type`.
                                 public var task_type: Swift.String
                                 /// Creates a new `executionPayload`.
@@ -66301,26 +66317,34 @@ public enum Operations {
                                 ///   - build_path:
                                 ///   - cacheability:
                                 ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
                                 ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
                                 ///   - task_type:
                                 public init(
                                     build_path: Swift.String,
                                     cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
                                     incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
                                     remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
                                     task_type: Swift.String
                                 ) {
                                     self.build_path = build_path
                                     self.cacheability = cacheability
                                     self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                     self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
                                     self.task_type = task_type
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case build_path
                                     case cacheability
                                     case incremental
+                                    case remote_cache_download_duration_ms
                                     case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
                                     case task_type
                                 }
                             }
@@ -71698,6 +71722,8 @@ public enum Operations {
                             public var cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/incremental`.
                             public var incremental: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                            public var remote_cache_download_duration_ms: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                             @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case hit = "hit"
@@ -71708,6 +71734,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
                             public var remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                            public var remote_cache_upload_duration_ms: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/task_type`.
                             public var task_type: Swift.String
                             /// Creates a new `executionPayload`.
@@ -71716,26 +71744,34 @@ public enum Operations {
                             ///   - build_path:
                             ///   - cacheability:
                             ///   - incremental:
+                            ///   - remote_cache_download_duration_ms:
                             ///   - remote_cache_lookup_outcome:
+                            ///   - remote_cache_upload_duration_ms:
                             ///   - task_type:
                             public init(
                                 build_path: Swift.String,
                                 cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
                                 incremental: Swift.Bool? = nil,
+                                remote_cache_download_duration_ms: Swift.Int? = nil,
                                 remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                remote_cache_upload_duration_ms: Swift.Int? = nil,
                                 task_type: Swift.String
                             ) {
                                 self.build_path = build_path
                                 self.cacheability = cacheability
                                 self.incremental = incremental
+                                self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
                                 self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
                                 self.task_type = task_type
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case build_path
                                 case cacheability
                                 case incremental
+                                case remote_cache_download_duration_ms
                                 case remote_cache_lookup_outcome
+                                case remote_cache_upload_duration_ms
                                 case task_type
                             }
                         }

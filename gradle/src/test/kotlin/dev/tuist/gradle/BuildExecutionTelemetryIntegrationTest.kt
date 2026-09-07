@@ -100,6 +100,8 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("executed", compile["outcome"].asString)
             assertEquals("miss", compile.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
             assertTrue(compile["remote_cache_stored"].asBoolean)
+            assertTrue(compile.getAsJsonObject("execution")["remote_cache_upload_duration_ms"].asLong >= 0)
+            assertTrue(!compile.getAsJsonObject("execution").has("remote_cache_download_duration_ms"))
             val disabled = cold.getAsJsonArray("tasks").map { it.asJsonObject }
                 .first { it["task_path"].asString == ":core:compileJava" }
             assertEquals("disabled", disabled.getAsJsonObject("execution")["cacheability"].asString)
@@ -111,6 +113,7 @@ class BuildExecutionTelemetryIntegrationTest {
             val cached = warm.getAsJsonArray("tasks").map { it.asJsonObject }
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("remote_hit", cached["outcome"].asString)
+            assertTrue(cached.getAsJsonObject("execution")["remote_cache_download_duration_ms"].asLong >= 0)
             assertTrue(cold["id"] != warm["id"], "Each configuration-cache reuse needs a fresh build identity")
 
             val (_, uncached) = run("--no-build-cache")

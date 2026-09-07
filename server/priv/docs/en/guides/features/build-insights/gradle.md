@@ -91,4 +91,4 @@ A task's detail page shows analytics and a **Task executions** table with Projec
 
 Execution collection uses Gradle's internal operation APIs and is compatible with configuration-cache reuse. Reports identify the telemetry version. Cache hits with an unobserved origin are reported as `cache_hit` rather than attributed to the local or remote cache.
 
-Cache transfer timings are not collected. Throughput widgets show No data; task duration is not used as transfer time.
+Download and upload throughput use transferred bytes divided by the summed durations of the corresponding successful remote load/store operations. Only transfers with both a recorded size and a positive duration contribute. Historical reports without these timings show No data; task duration is not used as transfer time.

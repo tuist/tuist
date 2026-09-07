@@ -24,6 +24,8 @@ defmodule Tuist.Gradle.Task do
     field :cacheability, Ch, type: "LowCardinality(String)"
     field :incremental, Ch, type: "Nullable(Bool)"
     field :remote_cache_lookup_outcome, Ch, type: "LowCardinality(String)"
+    field :remote_cache_download_duration_ms, Ch, type: "Nullable(UInt64)"
+    field :remote_cache_upload_duration_ms, Ch, type: "Nullable(UInt64)"
     field :task_type, Ch, type: "String"
     field :outcome, Ch, type: "LowCardinality(String)"
     field :cacheable, Ch, type: "Bool"

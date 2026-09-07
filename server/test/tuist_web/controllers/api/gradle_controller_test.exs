@@ -28,7 +28,8 @@ defmodule TuistWeb.API.GradleControllerTest do
         task_type: "JavaCompile",
         cacheability: "cacheable",
         incremental: true,
-        remote_cache_lookup_outcome: "miss"
+        remote_cache_lookup_outcome: "miss",
+        remote_cache_upload_duration_ms: 30
       }
 
       body = %{
@@ -65,6 +66,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       tasks =
         conn |> get("/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{id}/tasks") |> json_response(200)
 
+      assert hd(tasks["tasks"])["execution"]["remote_cache_upload_duration_ms"] == 30
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
     end
 

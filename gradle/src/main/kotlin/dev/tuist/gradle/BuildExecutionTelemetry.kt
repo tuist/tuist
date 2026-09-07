@@ -17,7 +17,9 @@ data class TaskExecutionTelemetry(
     @SerializedName("task_type") val taskType: String,
     val cacheability: String,
     val incremental: Boolean,
-    @SerializedName("remote_cache_lookup_outcome") val remoteCacheLookupOutcome: String
+    @SerializedName("remote_cache_lookup_outcome") val remoteCacheLookupOutcome: String,
+    @SerializedName("remote_cache_download_duration_ms") val remoteCacheDownloadDurationMs: Long?,
+    @SerializedName("remote_cache_upload_duration_ms") val remoteCacheUploadDurationMs: Long?
 )
 
 /**
@@ -31,13 +33,18 @@ internal class BuildExecutionTelemetry {
         val size: Long? = null,
         val hit: CacheHitType? = null,
         val lookup: String = "not_requested",
+        val downloadMs: Long? = null,
+        val uploadMs: Long? = null,
         val stored: Boolean? = null
     ) {
         fun merge(other: CacheWork) = CacheWork(
             other.key ?: key, other.size ?: size, other.hit ?: hit,
             if (other.lookup != "not_requested") other.lookup else lookup,
-            other.stored ?: stored
+            sum(downloadMs, other.downloadMs),
+            sum(uploadMs, other.uploadMs), other.stored ?: stored
         )
+
+        private fun sum(a: Long?, b: Long?): Long? = if (a == null && b == null) null else (a ?: 0) + (b ?: 0)
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
@@ -70,10 +77,10 @@ internal class BuildExecutionTelemetry {
                 }
                 CacheWork(key = details.cacheKey, size = load?.takeIf { it.isHit }?.archiveSize,
                     hit = if (outcome == "hit") CacheHitType.REMOTE else null,
-                    lookup = outcome)
+                    lookup = outcome, downloadMs = if (outcome == "hit") duration else null)
             }
             is BuildCacheRemoteStoreBuildOperationType.Details -> CacheWork(
-                key = details.cacheKey,
+                key = details.cacheKey, uploadMs = duration,
                 stored = (result as? BuildCacheRemoteStoreBuildOperationType.Result)?.isStored ?: false)
             is BuildCacheArchivePackBuildOperationType.Details -> CacheWork(
                 key = details.cacheKey, size = (result as? BuildCacheArchivePackBuildOperationType.Result)?.archiveSize)
@@ -104,7 +111,7 @@ internal class BuildExecutionTelemetry {
                 startedAt = startedAt, remoteCacheMiss = work.lookup == "miss", remoteCacheStored = work.stored,
                 execution = TaskExecutionTelemetry(details.buildPath,
                     details.taskClass.name.removeSuffix("_Decorated"), cacheability,
-                    result.isIncremental, work.lookup)
+                    result.isIncremental, work.lookup, work.downloadMs, work.uploadMs)
             ))
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {
